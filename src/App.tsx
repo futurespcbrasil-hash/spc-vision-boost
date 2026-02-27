@@ -3,7 +3,16 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { AppProvider } from "@/context/AppContext";
+import AppLayout from "@/components/AppLayout";
+import Dashboard from "@/pages/Dashboard";
+import CRMKanban from "@/pages/CRMKanban";
+import LeadsPage from "@/pages/LeadsPage";
+import Comparador from "@/pages/Comparador";
+import GerarLink from "@/pages/GerarLink";
+import PublicComparison from "@/pages/PublicComparison";
+import Agenda from "@/pages/Agenda";
+import Argumentos from "@/pages/Argumentos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -13,13 +22,24 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AppProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public route - no sidebar */}
+            <Route path="/comparacao/:id" element={<PublicComparison />} />
+            
+            {/* Internal routes with sidebar */}
+            <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+            <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
+            <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
+            <Route path="/comparador" element={<AppLayout><Comparador /></AppLayout>} />
+            <Route path="/gerar-link" element={<AppLayout><GerarLink /></AppLayout>} />
+            <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
+            <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AppProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
