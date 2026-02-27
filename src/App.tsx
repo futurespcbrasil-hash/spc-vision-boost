@@ -13,6 +13,7 @@ import GerarLink from "@/pages/GerarLink";
 import PublicComparison from "@/pages/PublicComparison";
 import Agenda from "@/pages/Agenda";
 import Argumentos from "@/pages/Argumentos";
+import Produtos from "@/pages/Produtos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
             <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
             <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
+            <Route path="/produtos" element={<AppLayout><Produtos /></AppLayout>} />
             <Route path="/comparador" element={<AppLayout><Comparador /></AppLayout>} />
             <Route path="/gerar-link" element={<AppLayout><GerarLink /></AppLayout>} />
             <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />

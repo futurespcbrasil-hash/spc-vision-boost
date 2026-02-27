@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, GitBranch, BarChart3, Link2, Calendar, 
-  FileText, MessageSquare, ChevronLeft, ChevronRight 
+  FileText, MessageSquare, ChevronLeft, ChevronRight, Package 
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/crm', icon: GitBranch, label: 'CRM / Funil' },
   { to: '/leads', icon: Users, label: 'Leads' },
+  { to: '/produtos', icon: Package, label: 'Produtos' },
   { to: '/comparador', icon: BarChart3, label: 'Comparador' },
   { to: '/gerar-link', icon: Link2, label: 'Gerar Link' },
   { to: '/agenda', icon: Calendar, label: 'Agenda' },
