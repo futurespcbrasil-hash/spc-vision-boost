@@ -4,6 +4,7 @@ export interface Lead {
   company: string;
   phone: string;
   whatsapp: string;
+  email?: string;
   cpfCnpj: string;
   type: 'PF' | 'PJ';
   origin: string;
@@ -239,59 +240,6 @@ export const SALES_ARGUMENTS: { category: string; icon: string; arguments: { tit
   },
 ];
 
-export const MOCK_LEADS: Lead[] = [
-  {
-    id: '1', name: 'João Silva', company: 'Loja do João', phone: '(11) 9999-0001',
-    whatsapp: '5511999990001', cpfCnpj: '12.345.678/0001-00', type: 'PJ',
-    origin: 'Indicação', product: 'SPC Maxi', status: 'lead_novo',
-    observations: 'Interessado em relatório completo', interactions: [
-      { id: '1', date: '2026-02-25', type: 'whatsapp', content: 'Primeiro contato via WhatsApp' }
-    ], createdAt: '2026-02-25'
-  },
-  {
-    id: '2', name: 'Maria Santos', company: 'Distribuidora Santos', phone: '(11) 9999-0002',
-    whatsapp: '5511999990002', cpfCnpj: '98.765.432/0001-00', type: 'PJ',
-    origin: 'Site', product: 'SPC Relatório Completo PJ', status: 'contato_realizado',
-    observations: 'Comparou com Serasa', interactions: [
-      { id: '2', date: '2026-02-24', type: 'call', content: 'Ligação de prospecção' },
-      { id: '3', date: '2026-02-26', type: 'email', content: 'Enviado comparativo por email' }
-    ], createdAt: '2026-02-24'
-  },
-  {
-    id: '3', name: 'Carlos Ferreira', company: 'Auto Peças CF', phone: '(11) 9999-0003',
-    whatsapp: '5511999990003', cpfCnpj: '45.678.901/0001-00', type: 'PJ',
-    origin: 'CDL', product: 'SPC Positivo Avançado PJ', status: 'comparacao_enviada',
-    observations: 'Recebeu link de comparação', interactions: [], createdAt: '2026-02-23'
-  },
-  {
-    id: '4', name: 'Ana Oliveira', company: 'Boutique AO', phone: '(11) 9999-0004',
-    whatsapp: '5511999990004', cpfCnpj: '111.222.333-44', type: 'PF',
-    origin: 'Evento', product: 'SPC Maxi', status: 'em_negociacao',
-    observations: 'Objeção de preço', interactions: [], createdAt: '2026-02-22'
-  },
-  {
-    id: '5', name: 'Roberto Lima', company: 'Construtora Lima', phone: '(11) 9999-0005',
-    whatsapp: '5511999990005', cpfCnpj: '55.666.777/0001-00', type: 'PJ',
-    origin: 'Indicação', product: 'SPC Relatório Completo PJ', status: 'fechamento',
-    observations: 'Aguardando aprovação do financeiro', interactions: [], createdAt: '2026-02-20'
-  },
-  {
-    id: '6', name: 'Fernanda Costa', company: 'Papelaria FC', phone: '(11) 9999-0006',
-    whatsapp: '5511999990006', cpfCnpj: '88.999.000/0001-00', type: 'PJ',
-    origin: 'CDL', product: 'SPC Maxi', status: 'venda_ganha',
-    observations: 'Contrato assinado', interactions: [], createdAt: '2026-02-18'
-  },
-  {
-    id: '7', name: 'Paulo Mendes', company: 'Eletrônicos PM', phone: '(11) 9999-0007',
-    whatsapp: '5511999990007', cpfCnpj: '22.333.444/0001-00', type: 'PJ',
-    origin: 'Site', product: 'SPC Positivo Avançado PJ', status: 'venda_perdida',
-    observations: 'Optou pela Serasa - preço', interactions: [], createdAt: '2026-02-15'
-  },
-];
+export const MOCK_LEADS: Lead[] = [];
 
-export const MOCK_SCHEDULE: ScheduleEvent[] = [
-  { id: '1', leadId: '4', leadName: 'Ana Oliveira', date: '2026-02-27', time: '09:00', note: 'Retornar cliente – objeção preço', done: false },
-  { id: '2', leadId: '3', leadName: 'Carlos Ferreira', date: '2026-02-27', time: '14:00', note: 'Enviar comparativo SPC Maxi', done: false },
-  { id: '3', leadId: '5', leadName: 'Roberto Lima', date: '2026-02-28', time: '10:00', note: 'Ligar para fechar contrato', done: false },
-  { id: '4', leadId: '2', leadName: 'Maria Santos', date: '2026-02-26', time: '11:00', note: 'Follow-up comparativo enviado', done: true },
-];
+export const MOCK_SCHEDULE: ScheduleEvent[] = [];

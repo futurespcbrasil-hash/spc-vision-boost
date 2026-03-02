@@ -1,34 +1,125 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
-import { Plus, Search, Phone, MessageCircle, Link2, Calendar, FileText } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2 } from 'lucide-react';
 
 const LeadsPage = () => {
   const { leads, addLead } = useAppState();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = leads.filter(l =>
     l.name.toLowerCase().includes(search.toLowerCase()) ||
     l.company.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split('\n').filter(l => l.trim());
+      // Skip header
+      const dataLines = lines.slice(1);
+
+      dataLines.forEach((line, idx) => {
+        // Support CSV and tab-separated
+        const sep = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : ',');
+        const cols = line.split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
+
+        if (cols.length >= 1 && cols[0]) {
+          addLead({
+            id: `import-${Date.now()}-${idx}`,
+            name: cols[0] || '',
+            company: cols[1] || '',
+            phone: cols[2] || '',
+            whatsapp: (cols[3] || cols[2] || '').replace(/\D/g, ''),
+            cpfCnpj: cols[4] || '',
+            type: (cols[5]?.toUpperCase() === 'PF' ? 'PF' : 'PJ') as 'PF' | 'PJ',
+            origin: cols[6] || 'Importação',
+            product: cols[7] || 'SPC Maxi',
+            status: 'lead_novo',
+            observations: cols[8] || '',
+            interactions: [],
+            createdAt: new Date().toISOString().split('T')[0],
+            email: cols[9] || '',
+          });
+        }
+      });
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Leads</h1>
           <p className="text-muted-foreground text-sm mt-1">Gestão completa de leads</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
-        >
-          <Plus size={16} /> Novo Lead
-        </button>
+        <div className="flex gap-2">
+          <input ref={fileInputRef} type="file" accept=".csv,.txt,.xls,.xlsx,.tsv" className="hidden" onChange={handleImport} />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition"
+          >
+            <Upload size={16} /> Importar
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
+          >
+            <Plus size={16} /> Novo Lead
+          </button>
+        </div>
       </div>
 
       {showForm && <LeadForm onAdd={(lead) => { addLead(lead); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
+
+      {/* Lead detail modal */}
+      {selectedLead && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedLead(null)}>
+          <div className="bg-card rounded-xl border border-border max-w-md w-full p-6 space-y-4 animate-slide-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><User2 size={20} /> {selectedLead.name}</h2>
+              <button onClick={() => setSelectedLead(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Empresa:</span><span className="text-foreground">{selectedLead.company || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">CPF/CNPJ:</span><span className="text-foreground">{selectedLead.cpfCnpj || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Tipo:</span><span className="text-foreground">{selectedLead.type}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Origem:</span><span className="text-foreground">{selectedLead.origin || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Produto:</span><span className="spc-badge">{selectedLead.product}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><span className="text-foreground">{KANBAN_STAGES.find(s => s.key === selectedLead.status)?.label}</span></div>
+              {selectedLead.observations && <div><span className="text-muted-foreground">Obs:</span> <span className="text-foreground">{selectedLead.observations}</span></div>}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <a href={`tel:${selectedLead.phone}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
+                <Phone size={15} /> Ligar
+              </a>
+              <a href={`https://wa.me/${selectedLead.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#25D366] text-white text-sm font-medium hover:opacity-90 transition">
+                <MessageCircle size={15} /> WhatsApp
+              </a>
+              {selectedLead.email && (
+                <a href={`mailto:${selectedLead.email}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
+                  <Mail size={15} /> Email
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>💡 Para importar, use CSV/TXT com colunas: Nome, Empresa, Telefone, WhatsApp, CPF/CNPJ, Tipo, Origem, Produto, Observações, Email</span>
+      </div>
 
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -54,10 +145,13 @@ const LeadsPage = () => {
             </tr>
           </thead>
           <tbody>
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Nenhum lead cadastrado.</td></tr>
+            )}
             {filtered.map(lead => {
               const stage = KANBAN_STAGES.find(s => s.key === lead.status);
               return (
-                <tr key={lead.id} className="border-b border-border/50 hover:bg-muted/20 transition">
+                <tr key={lead.id} className="border-b border-border/50 hover:bg-muted/20 transition cursor-pointer" onClick={() => setSelectedLead(lead)}>
                   <td className="px-4 py-3 font-medium text-foreground">{lead.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{lead.company}</td>
                   <td className="px-4 py-3"><span className="spc-badge">{lead.product}</span></td>
@@ -69,7 +163,7 @@ const LeadsPage = () => {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{lead.type}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                       <a href={`https://wa.me/${lead.whatsapp}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-success transition" title="WhatsApp">
                         <MessageCircle size={15} />
                       </a>
@@ -90,7 +184,7 @@ const LeadsPage = () => {
 
 const LeadForm = ({ onAdd, onCancel }: { onAdd: (lead: Lead) => void; onCancel: () => void }) => {
   const [form, setForm] = useState({
-    name: '', company: '', phone: '', whatsapp: '', cpfCnpj: '',
+    name: '', company: '', phone: '', whatsapp: '', cpfCnpj: '', email: '',
     type: 'PJ' as 'PF' | 'PJ', origin: '', product: 'SPC Maxi', status: 'lead_novo' as KanbanStage,
     observations: '',
   });
@@ -115,6 +209,7 @@ const LeadForm = ({ onAdd, onCancel }: { onAdd: (lead: Lead) => void; onCancel: 
         <input className={inputClass} placeholder="Empresa" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
         <input className={inputClass} placeholder="Telefone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
         <input className={inputClass} placeholder="WhatsApp" value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} />
+        <input className={inputClass} placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
         <input className={inputClass} placeholder="CPF/CNPJ" value={form.cpfCnpj} onChange={e => setForm({ ...form, cpfCnpj: e.target.value })} />
         <select className={inputClass} value={form.type} onChange={e => setForm({ ...form, type: e.target.value as 'PF' | 'PJ' })}>
           <option value="PJ">Pessoa Jurídica</option>

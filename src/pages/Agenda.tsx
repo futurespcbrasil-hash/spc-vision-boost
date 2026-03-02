@@ -1,16 +1,27 @@
 import { useAppState } from '@/context/AppContext';
 import { Calendar as CalIcon, Check, Clock, Plus } from 'lucide-react';
 import { useState } from 'react';
+import { Calendar } from '@/components/ui/calendar';
 
 const Agenda = () => {
   const { schedule, toggleScheduleDone, addScheduleEvent } = useAppState();
   const [showForm, setShowForm] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+
+  const selectedDateStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
 
   const pending = schedule.filter(e => !e.done).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
   const done = schedule.filter(e => e.done);
 
+  const filteredPending = selectedDateStr
+    ? pending.filter(e => e.date === selectedDateStr)
+    : pending;
+
+  // Dates that have events for highlighting
+  const eventDates = schedule.filter(e => !e.done).map(e => new Date(e.date + 'T12:00:00'));
+
   return (
-    <div className="space-y-6 animate-fade-in max-w-3xl">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Agenda</h1>
@@ -25,39 +36,61 @@ const Agenda = () => {
         <ScheduleForm onAdd={(e) => { addScheduleEvent(e); setShowForm(false); }} onCancel={() => setShowForm(false)} />
       )}
 
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-foreground">📌 Pendentes ({pending.length})</h3>
-        {pending.map(e => (
-          <div key={e.id} className="stat-card flex items-center gap-3">
-            <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full border-2 border-primary flex-shrink-0 hover:bg-primary/10 transition" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-foreground">{e.leadName}</div>
-              <div className="text-xs text-muted-foreground">{e.note}</div>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
-              <CalIcon size={12} /> {e.date}
-              <Clock size={12} /> {e.time}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {done.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">✅ Concluídos ({done.length})</h3>
-          {done.map(e => (
-            <div key={e.id} className="stat-card flex items-center gap-3 opacity-50">
-              <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full bg-success flex-shrink-0 flex items-center justify-center">
-                <Check size={12} className="text-success-foreground" />
-              </button>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-foreground line-through">{e.leadName}</div>
-                <div className="text-xs text-muted-foreground">{e.note}</div>
-              </div>
-            </div>
-          ))}
+      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
+        {/* Calendar */}
+        <div className="stat-card flex justify-center">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={setSelectedDate}
+            modifiers={{ hasEvent: eventDates }}
+            modifiersStyles={{ hasEvent: { fontWeight: 'bold', textDecoration: 'underline', color: 'hsl(var(--primary))' } }}
+            className="rounded-md"
+          />
         </div>
-      )}
+
+        {/* Events list */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-foreground">
+              📌 {selectedDateStr ? `Pendentes em ${selectedDate?.toLocaleDateString('pt-BR')}` : 'Todos Pendentes'} ({filteredPending.length})
+            </h3>
+            {filteredPending.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4">Nenhum compromisso {selectedDateStr ? 'nesta data' : 'pendente'}.</p>
+            )}
+            {filteredPending.map(e => (
+              <div key={e.id} className="stat-card flex items-center gap-3">
+                <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full border-2 border-primary flex-shrink-0 hover:bg-primary/10 transition" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-foreground">{e.leadName}</div>
+                  <div className="text-xs text-muted-foreground">{e.note}</div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
+                  <CalIcon size={12} /> {e.date}
+                  <Clock size={12} /> {e.time}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {done.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">✅ Concluídos ({done.length})</h3>
+              {done.map(e => (
+                <div key={e.id} className="stat-card flex items-center gap-3 opacity-50">
+                  <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full bg-success flex-shrink-0 flex items-center justify-center">
+                    <Check size={12} className="text-success-foreground" />
+                  </button>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-foreground line-through">{e.leadName}</div>
+                    <div className="text-xs text-muted-foreground">{e.note}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
