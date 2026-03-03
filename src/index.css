@@ -64,6 +64,10 @@
     --kanban-closing: 152 55% 92%;
     --kanban-won: 152 60% 40%;
     --kanban-lost: 0 65% 55%;
+    --kanban-no-use: 220 15% 90%;
+    --kanban-return: 30 80% 90%;
+
+    --boa-vista: 190 70% 40%;
   }
 }
 

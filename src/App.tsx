@@ -14,6 +14,7 @@ import PublicComparison from "@/pages/PublicComparison";
 import Agenda from "@/pages/Agenda";
 import Argumentos from "@/pages/Argumentos";
 import Produtos from "@/pages/Produtos";
+import Relatorios from "@/pages/Relatorios";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,10 +27,7 @@ const App = () => (
       <AppProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public route - no sidebar */}
             <Route path="/comparacao/:id" element={<PublicComparison />} />
-            
-            {/* Internal routes with sidebar */}
             <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
             <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
             <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
@@ -38,6 +36,7 @@ const App = () => (
             <Route path="/gerar-link" element={<AppLayout><GerarLink /></AppLayout>} />
             <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
             <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
+            <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

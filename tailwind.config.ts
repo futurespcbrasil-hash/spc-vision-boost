@@ -65,6 +65,7 @@ export default {
         },
         serasa: "hsl(var(--serasa-red))",
         equifax: "hsl(var(--equifax-purple))",
+        "boa-vista": "hsl(var(--boa-vista))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -83,6 +84,8 @@ export default {
           closing: "hsl(var(--kanban-closing))",
           won: "hsl(var(--kanban-won))",
           lost: "hsl(var(--kanban-lost))",
+          "no-use": "hsl(var(--kanban-no-use))",
+          "return": "hsl(var(--kanban-return))",
         },
       },
       borderRadius: {
