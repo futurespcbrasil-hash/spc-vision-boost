@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, GitBranch, BarChart3, Link2, Calendar, 
-  FileText, MessageSquare, ChevronLeft, ChevronRight, Package 
+  MessageSquare, ChevronLeft, ChevronRight, Package, FileBarChart 
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/gerar-link', icon: Link2, label: 'Gerar Link' },
   { to: '/agenda', icon: Calendar, label: 'Agenda' },
   { to: '/argumentos', icon: MessageSquare, label: 'Argumentos' },
+  { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
 ];
 
 const AppSidebar = () => {

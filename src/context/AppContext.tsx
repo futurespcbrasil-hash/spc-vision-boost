@@ -8,6 +8,8 @@ interface AppState {
   loading: boolean;
   moveLeadToStage: (leadId: string, stage: KanbanStage) => void;
   addLead: (lead: Lead) => void;
+  updateLead: (lead: Lead) => void;
+  deleteLead: (leadId: string) => void;
   toggleScheduleDone: (eventId: string) => void;
   addScheduleEvent: (event: ScheduleEvent) => void;
   refreshLeads: () => void;
@@ -22,7 +24,6 @@ export const useAppState = () => {
   return ctx;
 };
 
-// Map DB row to Lead interface
 const dbToLead = (row: any): Lead => ({
   id: row.id,
   name: row.name,
@@ -38,6 +39,7 @@ const dbToLead = (row: any): Lead => ({
   observations: row.observations || '',
   interactions: Array.isArray(row.interactions) ? row.interactions : [],
   createdAt: row.created_at?.split('T')[0] || '',
+  address: row.address || '',
 });
 
 const dbToEvent = (row: any): ScheduleEvent => ({
@@ -92,6 +94,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (data) setLeads(prev => [dbToLead(data), ...prev]);
   };
 
+  const updateLead = async (lead: Lead) => {
+    setLeads(prev => prev.map(l => l.id === lead.id ? lead : l));
+    await supabase.from('leads').update({
+      name: lead.name,
+      company: lead.company,
+      phone: lead.phone,
+      whatsapp: lead.whatsapp,
+      email: lead.email || '',
+      cpf_cnpj: lead.cpfCnpj,
+      type: lead.type,
+      origin: lead.origin,
+      product: lead.product,
+      status: lead.status,
+      observations: lead.observations,
+      interactions: lead.interactions as any,
+    }).eq('id', lead.id);
+  };
+
+  const deleteLead = async (leadId: string) => {
+    setLeads(prev => prev.filter(l => l.id !== leadId));
+    await supabase.from('leads').delete().eq('id', leadId);
+  };
+
   const toggleScheduleDone = async (eventId: string) => {
     const event = schedule.find(e => e.id === eventId);
     if (!event) return;
@@ -115,7 +140,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AppContext.Provider value={{
       leads, schedule, loading,
-      moveLeadToStage, addLead, toggleScheduleDone, addScheduleEvent,
+      moveLeadToStage, addLead, updateLead, deleteLead,
+      toggleScheduleDone, addScheduleEvent,
       refreshLeads: fetchLeads, refreshSchedule: fetchSchedule,
     }}>
       {children}

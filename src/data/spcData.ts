@@ -13,6 +13,7 @@ export interface Lead {
   observations: string;
   interactions: Interaction[];
   createdAt: string;
+  address?: string;
 }
 
 export interface Interaction {
@@ -29,7 +30,9 @@ export type KanbanStage =
   | 'em_negociacao'
   | 'fechamento'
   | 'venda_ganha'
-  | 'venda_perdida';
+  | 'venda_perdida'
+  | 'nao_utiliza_consulta'
+  | 'retornar_contato';
 
 export const KANBAN_STAGES: { key: KanbanStage; label: string; color: string }[] = [
   { key: 'lead_novo', label: 'Lead Novo', color: 'bg-kanban-lead' },
@@ -39,11 +42,13 @@ export const KANBAN_STAGES: { key: KanbanStage; label: string; color: string }[]
   { key: 'fechamento', label: 'Fechamento', color: 'bg-kanban-closing' },
   { key: 'venda_ganha', label: 'Venda Ganha', color: 'bg-kanban-won' },
   { key: 'venda_perdida', label: 'Venda Perdida', color: 'bg-kanban-lost' },
+  { key: 'nao_utiliza_consulta', label: 'Não Utiliza Consulta', color: 'bg-kanban-no-use' },
+  { key: 'retornar_contato', label: 'Retornar Contato', color: 'bg-kanban-return' },
 ];
 
 export interface ComparisonProduct {
   name: string;
-  provider: 'spc' | 'serasa' | 'equifax';
+  provider: 'spc' | 'serasa' | 'equifax' | 'boa_vista';
   features: Record<string, boolean | string>;
 }
 
@@ -57,9 +62,17 @@ export interface ScheduleEvent {
   done: boolean;
 }
 
-export const COMPARISON_DATA: { spc: ComparisonProduct; competitor: ComparisonProduct; category: string }[] = [
+export const COMPANIES = [
+  { key: 'spc', label: 'SPC Brasil', color: 'bg-primary' },
+  { key: 'serasa', label: 'Serasa Experian', color: 'bg-serasa' },
+  { key: 'boa_vista', label: 'Boa Vista SCPC', color: 'bg-boa-vista' },
+  { key: 'equifax', label: 'Equifax', color: 'bg-equifax' },
+];
+
+export const COMPARISON_DATA: { spc: ComparisonProduct; competitor: ComparisonProduct; category: string; competitorKey: string }[] = [
   {
     category: 'Relatório Completo PF',
+    competitorKey: 'serasa',
     spc: {
       name: 'SPC Maxi',
       provider: 'spc',
@@ -95,6 +108,7 @@ export const COMPARISON_DATA: { spc: ComparisonProduct; competitor: ComparisonPr
   },
   {
     category: 'Relatório Completo PJ',
+    competitorKey: 'serasa',
     spc: {
       name: 'SPC Relatório Completo PJ',
       provider: 'spc',
@@ -130,6 +144,7 @@ export const COMPARISON_DATA: { spc: ComparisonProduct; competitor: ComparisonPr
   },
   {
     category: 'Positivo Avançado PJ',
+    competitorKey: 'equifax',
     spc: {
       name: 'SPC Positivo Avançado PJ',
       provider: 'spc',
@@ -156,6 +171,38 @@ export const COMPARISON_DATA: { spc: ComparisonProduct; competitor: ComparisonPr
         'Comportamento de Pagamento': true,
         'Visão 360°': false,
         'Integração com Score': false,
+      },
+    },
+  },
+  {
+    category: 'Relatório Básico PF',
+    competitorKey: 'boa_vista',
+    spc: {
+      name: 'SPC Mix Mais',
+      provider: 'spc',
+      features: {
+        'Dados Cadastrais': true,
+        'Capital Social': true,
+        'Registros SPC': true,
+        'Protesto Nacional': true,
+        'Cheque Lojista': true,
+        'CCF': true,
+        'Histórico Consultas': true,
+        'SPCheque Analítica': true,
+      },
+    },
+    competitor: {
+      name: 'Boa Vista Básico PF',
+      provider: 'boa_vista',
+      features: {
+        'Dados Cadastrais': true,
+        'Capital Social': false,
+        'Registros SPC': false,
+        'Protesto Nacional': true,
+        'Cheque Lojista': false,
+        'CCF': true,
+        'Histórico Consultas': true,
+        'SPCheque Analítica': false,
       },
     },
   },
