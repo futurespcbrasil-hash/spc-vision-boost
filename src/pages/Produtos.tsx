@@ -1,11 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { PRODUCTS, PRODUCT_CATEGORIES, Product } from '@/data/productsData';
 import { useAppState } from '@/context/AppContext';
 import { Lead } from '@/data/spcData';
+import { supabase } from '@/integrations/supabase/client';
 import {
   FileCheck, UserSearch, CreditCard, Building2, Briefcase,
   TrendingUp, Wheat, PlusCircle, Shield, CheckCircle2, X,
-  ChevronRight, Send, DollarSign, Package, ArrowLeft, Upload, Table2, User2
+  ChevronRight, Send, DollarSign, Package, ArrowLeft, Upload, Table2, User2, FileText, Trash2
 } from 'lucide-react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
@@ -27,13 +28,42 @@ const Produtos = () => {
   const [importedTables, setImportedTables] = useState<ImportedTable[]>([]);
   const [activeTable, setActiveTable] = useState<string>('default');
   const [showLeadPicker, setShowLeadPicker] = useState<Product | null>(null);
+  const [parsingPdf, setParsingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  // Load imported tables from DB
+  useEffect(() => {
+    const loadTables = async () => {
+      const { data } = await supabase.from('imported_tables').select('*').order('created_at', { ascending: false });
+      if (data) {
+        setImportedTables(data.map((t: any) => ({ id: t.id, name: t.name, products: t.products as unknown as Product[] })));
+      }
+    };
+    loadTables();
+  }, []);
 
   const allProducts = activeTable === 'default'
     ? PRODUCTS
     : importedTables.find(t => t.id === activeTable)?.products || [];
 
   const filteredProducts = allProducts.filter(p => p.category === selectedCategory);
+
+  const saveImportedTable = async (name: string, products: Product[]) => {
+    const { data } = await supabase.from('imported_tables').insert({
+      name,
+      products: products as any,
+    }).select().single();
+    if (data) {
+      setImportedTables(prev => [{ id: data.id, name: data.name, products: (data.products as unknown) as Product[] }, ...prev]);
+    }
+  };
+
+  const deleteImportedTable = async (tableId: string) => {
+    await supabase.from('imported_tables').delete().eq('id', tableId);
+    setImportedTables(prev => prev.filter(t => t.id !== tableId));
+    if (activeTable === tableId) setActiveTable('default');
+  };
 
   const handleImportTable = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -62,10 +92,69 @@ const Produtos = () => {
       }).filter(p => p.name);
 
       const tableName = file.name.replace(/\.[^.]+$/, '');
-      setImportedTables(prev => [...prev, { id: `table-${Date.now()}`, name: tableName, products }]);
+      saveImportedTable(tableName, products);
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleImportPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setParsingPdf(true);
+
+    try {
+      // Read PDF as text (basic extraction)
+      const text = await file.text();
+      
+      // Try to extract tabular data from the PDF text
+      const lines = text.split('\n').filter(l => l.trim().length > 3);
+      
+      const products: Product[] = [];
+      let currentCategory = 'adicionais';
+      
+      lines.forEach((line, idx) => {
+        // Try to find lines with price patterns like R$ XX,XX
+        const priceMatch = line.match(/R\$\s*[\d.,]+/);
+        if (priceMatch && line.length > 10) {
+          const price = priceMatch[0];
+          const name = line.replace(priceMatch[0], '').trim().substring(0, 80);
+          if (name.length > 2) {
+            products.push({
+              id: `pdf-${Date.now()}-${idx}`,
+              code: String(idx + 1),
+              name,
+              category: currentCategory,
+              description: name,
+              price,
+              features: [name],
+            });
+          }
+        }
+      });
+
+      const tableName = file.name.replace(/\.[^.]+$/, '');
+      
+      if (products.length > 0) {
+        await saveImportedTable(`📄 ${tableName}`, products);
+      } else {
+        // If no structured data found, create a single entry
+        await saveImportedTable(`📄 ${tableName}`, [{
+          id: `pdf-${Date.now()}`,
+          code: '-',
+          name: tableName,
+          category: 'adicionais',
+          description: `Tabela importada do PDF: ${tableName}. Edite manualmente os produtos.`,
+          price: 'Sob consulta',
+          features: ['Importado via PDF'],
+        }]);
+      }
+    } catch (err) {
+      console.error('Error parsing PDF:', err);
+    } finally {
+      setParsingPdf(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
+    }
   };
 
   const handleShareWhatsApp = (product: Product, lead?: Lead) => {
@@ -189,35 +278,55 @@ const Produtos = () => {
         </div>
         <div className="flex gap-2">
           <input ref={fileInputRef} type="file" accept=".csv,.txt,.tsv" className="hidden" onChange={handleImportTable} />
+          <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={handleImportPdf} />
+          <button
+            onClick={() => pdfInputRef.current?.click()}
+            disabled={parsingPdf}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition disabled:opacity-50"
+          >
+            <FileText size={16} /> {parsingPdf ? 'Processando...' : 'Importar PDF'}
+          </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition"
           >
-            <Upload size={16} /> Importar Tabela
+            <Upload size={16} /> Importar CSV/TXT
           </button>
         </div>
       </div>
 
       {/* Table selector */}
       {importedTables.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <Table2 size={16} className="text-muted-foreground" />
-          <span className="text-sm text-muted-foreground mr-1">Tabela:</span>
-          <button
-            onClick={() => setActiveTable('default')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === 'default' ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
-          >
-            Padrão
-          </button>
-          {importedTables.map(t => (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Table2 size={16} className="text-muted-foreground" />
+            <span className="text-sm font-semibold text-foreground">Selecionar Tabela:</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-              key={t.id}
-              onClick={() => setActiveTable(t.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === t.id ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
+              onClick={() => setActiveTable('default')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === 'default' ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
             >
-              {t.name}
+              📋 Padrão SPC
             </button>
-          ))}
+            {importedTables.map(t => (
+              <div key={t.id} className="flex items-center gap-1">
+                <button
+                  onClick={() => setActiveTable(t.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === t.id ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
+                >
+                  {t.name} ({t.products.length})
+                </button>
+                <button
+                  onClick={() => deleteImportedTable(t.id)}
+                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+                  title="Excluir tabela"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -288,7 +397,7 @@ const Produtos = () => {
       </div>
 
       <div className="text-xs text-muted-foreground">
-        💡 Para importar tabelas, use CSV/TXT com colunas: Código, Nome, Categoria, Descrição, Preço, Recursos (separados por |)
+        💡 Importe tabelas em CSV/TXT ou PDF. Para CSV use colunas: Código, Nome, Categoria, Descrição, Preço, Recursos (separados por |)
       </div>
     </div>
   );

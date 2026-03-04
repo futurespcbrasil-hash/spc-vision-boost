@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { COMPARISON_DATA, COMPANIES } from '@/data/spcData';
-import { PRODUCTS } from '@/data/productsData';
-import { CheckCircle2, XCircle, Trophy, Star, ArrowRight } from 'lucide-react';
+import { PRODUCTS, PRODUCT_CATEGORIES } from '@/data/productsData';
+import { CheckCircle2, XCircle, Trophy, Star, ArrowRight, Package } from 'lucide-react';
 
 const Comparador = () => {
   const [selectedCompetitor, setSelectedCompetitor] = useState<string>('serasa');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedSpcProduct, setSelectedSpcProduct] = useState<string | null>(null);
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [pickerCategory, setPickerCategory] = useState(PRODUCT_CATEGORIES[0].key);
 
   const filteredComparisons = COMPARISON_DATA.filter(c => c.competitorKey === selectedCompetitor);
   const selectedComparison = selectedProductId 
@@ -13,6 +16,8 @@ const Comparador = () => {
     : filteredComparisons[0];
 
   const competitorCompanies = COMPANIES.filter(c => c.key !== 'spc');
+  
+  const spcProduct = selectedSpcProduct ? PRODUCTS.find(p => p.id === selectedSpcProduct) : null;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -41,10 +46,55 @@ const Comparador = () => {
         </div>
       </div>
 
+      {/* SPC Product selector from Produtos menu */}
+      <div className="space-y-3">
+        <label className="text-sm font-semibold text-foreground">Selecionar produto SPC (do catálogo):</label>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowProductPicker(!showProductPicker)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium bg-card border border-border text-foreground hover:bg-muted transition"
+          >
+            <Package size={16} />
+            {spcProduct ? spcProduct.name : 'Escolher produto do catálogo'}
+          </button>
+          {spcProduct && (
+            <button onClick={() => setSelectedSpcProduct(null)} className="text-xs text-muted-foreground hover:text-destructive">✕ Limpar</button>
+          )}
+        </div>
+
+        {showProductPicker && (
+          <div className="stat-card space-y-3 animate-slide-in">
+            <div className="flex gap-2 flex-wrap">
+              {PRODUCT_CATEGORIES.map(cat => (
+                <button
+                  key={cat.key}
+                  onClick={() => setPickerCategory(cat.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${pickerCategory === cat.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground hover:bg-muted/80'}`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+              {PRODUCTS.filter(p => p.category === pickerCategory).map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => { setSelectedSpcProduct(p.id); setShowProductPicker(false); }}
+                  className={`text-left p-2.5 rounded-lg border transition text-sm ${selectedSpcProduct === p.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'}`}
+                >
+                  <div className="font-medium text-foreground">{p.name}</div>
+                  <div className="text-xs text-muted-foreground">{p.price} • {p.features.length} recursos</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Product/category selector */}
       {filteredComparisons.length > 0 && (
         <div className="space-y-3">
-          <label className="text-sm font-semibold text-foreground">Selecione o produto para comparar:</label>
+          <label className="text-sm font-semibold text-foreground">Comparações disponíveis:</label>
           <div className="flex gap-2 flex-wrap">
             {filteredComparisons.map((c, i) => {
               const id = `${selectedCompetitor}-${i}`;
@@ -63,6 +113,27 @@ const Comparador = () => {
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Selected SPC product detail */}
+      {spcProduct && (
+        <div className="stat-card ring-2 ring-primary/10">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg gradient-spc flex items-center justify-center text-primary-foreground font-bold text-[10px]">SPC</div>
+            <div>
+              <h3 className="font-bold text-foreground text-sm">{spcProduct.name}</h3>
+              <span className="text-xs text-muted-foreground">Cód. {spcProduct.code} • {spcProduct.price}</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {spcProduct.features.map((f, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs">
+                <CheckCircle2 size={12} className="text-success shrink-0" />
+                <span className="text-foreground">{f}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
