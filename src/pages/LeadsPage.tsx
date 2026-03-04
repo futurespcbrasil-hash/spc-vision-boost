@@ -1,13 +1,15 @@
 import { useState, useRef } from 'react';
 import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
-import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2 } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save } from 'lucide-react';
 
 const LeadsPage = () => {
-  const { leads, addLead } = useAppState();
+  const { leads, addLead, updateLead, deleteLead } = useAppState();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState<Lead | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = leads.filter(l =>
@@ -18,37 +20,24 @@ const LeadsPage = () => {
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (evt) => {
       const text = evt.target?.result as string;
       if (!text) return;
-
       const lines = text.split('\n').filter(l => l.trim());
-      // Skip header
       const dataLines = lines.slice(1);
-
       dataLines.forEach((line, idx) => {
-        // Support CSV and tab-separated
         const sep = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : ',');
         const cols = line.split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
-
         if (cols.length >= 1 && cols[0]) {
           addLead({
             id: `import-${Date.now()}-${idx}`,
-            name: cols[0] || '',
-            company: cols[1] || '',
-            phone: cols[2] || '',
+            name: cols[0] || '', company: cols[1] || '', phone: cols[2] || '',
             whatsapp: (cols[3] || cols[2] || '').replace(/\D/g, ''),
-            cpfCnpj: cols[4] || '',
-            type: (cols[5]?.toUpperCase() === 'PF' ? 'PF' : 'PJ') as 'PF' | 'PJ',
-            origin: cols[6] || 'Importação',
-            product: cols[7] || 'SPC Maxi',
-            status: 'lead_novo',
-            observations: cols[8] || '',
-            interactions: [],
-            createdAt: new Date().toISOString().split('T')[0],
-            email: cols[9] || '',
+            cpfCnpj: cols[4] || '', type: (cols[5]?.toUpperCase() === 'PF' ? 'PF' : 'PJ') as 'PF' | 'PJ',
+            origin: cols[6] || 'Importação', product: cols[7] || 'SPC Maxi',
+            status: 'lead_novo', observations: cols[8] || '', interactions: [],
+            createdAt: new Date().toISOString().split('T')[0], email: cols[9] || '',
           });
         }
       });
@@ -56,6 +45,29 @@ const LeadsPage = () => {
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const handleEdit = (lead: Lead) => {
+    setEditData({ ...lead });
+    setEditMode(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (editData) {
+      updateLead(editData);
+      setSelectedLead(editData);
+      setEditMode(false);
+      setEditData(null);
+    }
+  };
+
+  const handleDelete = (lead: Lead) => {
+    if (confirm('Tem certeza que deseja excluir este lead?')) {
+      deleteLead(lead.id);
+      setSelectedLead(null);
+    }
+  };
+
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -66,16 +78,10 @@ const LeadsPage = () => {
         </div>
         <div className="flex gap-2">
           <input ref={fileInputRef} type="file" accept=".csv,.txt,.xls,.xlsx,.tsv" className="hidden" onChange={handleImport} />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition"
-          >
+          <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
             <Upload size={16} /> Importar
           </button>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
-          >
+          <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
             <Plus size={16} /> Novo Lead
           </button>
         </div>
@@ -83,36 +89,78 @@ const LeadsPage = () => {
 
       {showForm && <LeadForm onAdd={(lead) => { addLead(lead); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
 
-      {/* Lead detail modal */}
+      {/* Lead detail/edit modal */}
       {selectedLead && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedLead(null)}>
-          <div className="bg-card rounded-xl border border-border max-w-md w-full p-6 space-y-4 animate-slide-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setSelectedLead(null); setEditMode(false); setEditData(null); }}>
+          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><User2 size={20} /> {selectedLead.name}</h2>
-              <button onClick={() => setSelectedLead(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><User2 size={20} /> {editMode ? 'Editar Lead' : selectedLead.name}</h2>
+              <div className="flex items-center gap-2">
+                {!editMode && (
+                  <>
+                    <button onClick={() => handleEdit(selectedLead)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition" title="Editar">
+                      <Edit3 size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(selectedLead)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition" title="Excluir">
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+                <button onClick={() => { setSelectedLead(null); setEditMode(false); setEditData(null); }} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+              </div>
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Empresa:</span><span className="text-foreground">{selectedLead.company || '—'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">CPF/CNPJ:</span><span className="text-foreground">{selectedLead.cpfCnpj || '—'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Tipo:</span><span className="text-foreground">{selectedLead.type}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Origem:</span><span className="text-foreground">{selectedLead.origin || '—'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Produto:</span><span className="spc-badge">{selectedLead.product}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><span className="text-foreground">{KANBAN_STAGES.find(s => s.key === selectedLead.status)?.label}</span></div>
-              {selectedLead.observations && <div><span className="text-muted-foreground">Obs:</span> <span className="text-foreground">{selectedLead.observations}</span></div>}
-            </div>
-            <div className="flex gap-2 pt-2">
-              <a href={`tel:${selectedLead.phone}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
-                <Phone size={15} /> Ligar
-              </a>
-              <a href={`https://wa.me/${selectedLead.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#25D366] text-white text-sm font-medium hover:opacity-90 transition">
-                <MessageCircle size={15} /> WhatsApp
-              </a>
-              {selectedLead.email && (
-                <a href={`mailto:${selectedLead.email}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
-                  <Mail size={15} /> Email
-                </a>
-              )}
-            </div>
+
+            {editMode && editData ? (
+              <div className="space-y-3">
+                <div><label className="text-xs text-muted-foreground">Nome</label><input className={inputClass} value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground">Empresa</label><input className={inputClass} value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs text-muted-foreground">Telefone</label><input className={inputClass} value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} /></div>
+                  <div><label className="text-xs text-muted-foreground">WhatsApp</label><input className={inputClass} value={editData.whatsapp} onChange={e => setEditData({ ...editData, whatsapp: e.target.value })} /></div>
+                </div>
+                <div><label className="text-xs text-muted-foreground">Email</label><input className={inputClass} value={editData.email || ''} onChange={e => setEditData({ ...editData, email: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground">CPF/CNPJ</label><input className={inputClass} value={editData.cpfCnpj} onChange={e => setEditData({ ...editData, cpfCnpj: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground">Endereço</label><input className={inputClass} value={editData.address || ''} onChange={e => setEditData({ ...editData, address: e.target.value })} /></div>
+                <div><label className="text-xs text-muted-foreground">Observações</label><textarea className={`${inputClass} min-h-[80px]`} value={editData.observations} onChange={e => setEditData({ ...editData, observations: e.target.value })} /></div>
+                <button onClick={handleSaveEdit} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
+                  <Save size={16} /> Salvar Alterações
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Empresa:</span><span className="text-foreground">{selectedLead.company || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">CPF/CNPJ:</span><span className="text-foreground">{selectedLead.cpfCnpj || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Telefone:</span><span className="text-foreground">{selectedLead.phone || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">WhatsApp:</span><span className="text-foreground">{selectedLead.whatsapp || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Email:</span><span className="text-foreground">{selectedLead.email || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Endereço:</span><span className="text-foreground">{selectedLead.address || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Tipo:</span><span className="text-foreground">{selectedLead.type}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Origem:</span><span className="text-foreground">{selectedLead.origin || '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Produto:</span><span className="spc-badge">{selectedLead.product}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><span className="text-foreground">{KANBAN_STAGES.find(s => s.key === selectedLead.status)?.label}</span></div>
+                </div>
+                {selectedLead.observations && (
+                  <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">Observações:</span>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{selectedLead.observations}</p>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-2">
+                  <a href={`tel:${selectedLead.phone}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
+                    <Phone size={15} /> Ligar
+                  </a>
+                  <a href={`https://wa.me/${selectedLead.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#25D366] text-white text-sm font-medium hover:opacity-90 transition">
+                    <MessageCircle size={15} /> WhatsApp
+                  </a>
+                  {selectedLead.email && (
+                    <a href={`mailto:${selectedLead.email}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
+                      <Mail size={15} /> Email
+                    </a>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -123,11 +171,7 @@ const LeadsPage = () => {
 
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Buscar leads..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+        <input type="text" placeholder="Buscar leads..." value={search} onChange={e => setSearch(e.target.value)}
           className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
         />
       </div>
@@ -164,12 +208,18 @@ const LeadsPage = () => {
                   <td className="px-4 py-3 text-muted-foreground">{lead.type}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => { setSelectedLead(lead); handleEdit(lead); }} className="text-muted-foreground hover:text-primary transition" title="Editar">
+                        <Edit3 size={15} />
+                      </button>
                       <a href={`https://wa.me/${lead.whatsapp}`} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-success transition" title="WhatsApp">
                         <MessageCircle size={15} />
                       </a>
                       <a href={`tel:${lead.phone}`} className="text-muted-foreground hover:text-primary transition" title="Ligar">
                         <Phone size={15} />
                       </a>
+                      <button onClick={() => handleDelete(lead)} className="text-muted-foreground hover:text-destructive transition" title="Excluir">
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -191,12 +241,7 @@ const LeadForm = ({ onAdd, onCancel }: { onAdd: (lead: Lead) => void; onCancel: 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd({
-      ...form,
-      id: Date.now().toString(),
-      interactions: [],
-      createdAt: new Date().toISOString().split('T')[0],
-    });
+    onAdd({ ...form, id: Date.now().toString(), interactions: [], createdAt: new Date().toISOString().split('T')[0] });
   };
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
