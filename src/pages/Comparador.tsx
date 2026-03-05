@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { COMPARISON_DATA, COMPANIES } from '@/data/spcData';
-import { PRODUCTS, PRODUCT_CATEGORIES } from '@/data/productsData';
-import { CheckCircle2, XCircle, Trophy, Star, ArrowRight, Package } from 'lucide-react';
+import { PRODUCTS, PRODUCT_CATEGORIES, Product } from '@/data/productsData';
+import { CheckCircle2, XCircle, Trophy, Star, Package } from 'lucide-react';
 
 const Comparador = () => {
   const [selectedCompetitor, setSelectedCompetitor] = useState<string>('serasa');
@@ -18,6 +18,12 @@ const Comparador = () => {
   const competitorCompanies = COMPANIES.filter(c => c.key !== 'spc');
   
   const spcProduct = selectedSpcProduct ? PRODUCTS.find(p => p.id === selectedSpcProduct) : null;
+
+  // Build the left-side SPC card data: if a catalog product is selected, use it; otherwise use the comparison default
+  const spcCardData = spcProduct ? {
+    name: spcProduct.name,
+    features: Object.fromEntries(spcProduct.features.map(f => [f, true])),
+  } : selectedComparison ? selectedComparison.spc : null;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -117,7 +123,7 @@ const Comparador = () => {
         </div>
       )}
 
-      {/* Selected SPC product detail */}
+      {/* Selected SPC product detail (shown above comparison) */}
       {spcProduct && (
         <div className="stat-card ring-2 ring-primary/10">
           <div className="flex items-center gap-2 mb-3">
@@ -141,7 +147,7 @@ const Comparador = () => {
       {selectedComparison ? (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* SPC Product */}
+            {/* SPC Product (LEFT) - replaced by catalog product if selected */}
             <div className="stat-card ring-2 ring-primary/20 relative">
               <div className="absolute -top-3 left-4 inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold">
                 <Trophy size={12} /> Melhor custo-benefício
@@ -150,25 +156,25 @@ const Comparador = () => {
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-lg gradient-spc flex items-center justify-center text-primary-foreground font-bold text-xs">SPC</div>
                   <div>
-                    <h3 className="font-bold text-foreground">{selectedComparison.spc.name}</h3>
-                    <span className="text-xs text-muted-foreground">SPC Brasil</span>
+                    <h3 className="font-bold text-foreground">{spcCardData?.name || ''}</h3>
+                    <span className="text-xs text-muted-foreground">SPC Brasil{spcProduct ? ` • ${spcProduct.price}` : ''}</span>
                   </div>
                 </div>
               </div>
               <div className="space-y-2">
-                {Object.entries(selectedComparison.spc.features).map(([feature, value]) => (
+                {spcCardData && Object.entries(spcCardData.features).map(([feature, value]) => (
                   <div key={feature} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
                     <span className="text-sm text-foreground">{feature}</span>
-                    {value === true ? <CheckCircle2 size={18} className="advantage-check" /> : value === false ? <XCircle size={18} className="disadvantage-x" /> : <span className="text-sm text-muted-foreground">{value}</span>}
+                    {value === true ? <CheckCircle2 size={18} className="advantage-check" /> : value === false ? <XCircle size={18} className="disadvantage-x" /> : <span className="text-sm text-muted-foreground">{String(value)}</span>}
                   </div>
                 ))}
               </div>
               <div className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-success">
-                <Star size={14} /> {Object.values(selectedComparison.spc.features).filter(v => v === true).length} recursos inclusos
+                <Star size={14} /> {spcCardData ? Object.values(spcCardData.features).filter(v => v === true).length : 0} recursos inclusos
               </div>
             </div>
 
-            {/* Competitor */}
+            {/* Competitor (RIGHT) */}
             <div className="stat-card opacity-90">
               <div className="mb-4">
                 <div className="flex items-center gap-2">
@@ -204,9 +210,9 @@ const Comparador = () => {
 
           <div className="stat-card bg-spc-light border-primary/20">
             <p className="text-sm text-foreground">
-              <strong>💡 Conclusão:</strong> O <strong>{selectedComparison.spc.name}</strong> oferece{' '}
+              <strong>💡 Conclusão:</strong> O <strong>{spcCardData?.name || ''}</strong> oferece{' '}
               <strong className="text-primary">
-                {Object.values(selectedComparison.spc.features).filter(v => v === true).length - Object.values(selectedComparison.competitor.features).filter(v => v === true).length} recursos a mais
+                {(spcCardData ? Object.values(spcCardData.features).filter(v => v === true).length : 0) - Object.values(selectedComparison.competitor.features).filter(v => v === true).length} recursos a mais
               </strong>{' '}
               que o {selectedComparison.competitor.name}, com melhor custo-benefício e dados mais completos.
             </p>
