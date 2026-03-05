@@ -3,12 +3,16 @@ import { PRODUCTS, PRODUCT_CATEGORIES, Product } from '@/data/productsData';
 import { useAppState } from '@/context/AppContext';
 import { Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
+import * as pdfjsLib from 'pdfjs-dist';
 import {
   FileCheck, UserSearch, CreditCard, Building2, Briefcase,
   TrendingUp, Wheat, PlusCircle, Shield, CheckCircle2, X,
-  ChevronRight, Send, DollarSign, Package, ArrowLeft, Upload, Table2, User2, FileText, Trash2
+  ChevronRight, Send, DollarSign, Package, ArrowLeft, Upload, Table2, User2, FileText, Trash2, Plus, Edit2, Save
 } from 'lucide-react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
 
 const ICON_MAP: Record<string, React.ElementType> = {
   FileCheck, UserSearch, CreditCard, Building2, Briefcase,
@@ -29,6 +33,8 @@ const Produtos = () => {
   const [activeTable, setActiveTable] = useState<string>('default');
   const [showLeadPicker, setShowLeadPicker] = useState<Product | null>(null);
   const [parsingPdf, setParsingPdf] = useState(false);
+  const [showNewProduct, setShowNewProduct] = useState(false);
+  const [newProduct, setNewProduct] = useState({ name: '', code: '', category: PRODUCT_CATEGORIES[0].key, description: '', price: '', features: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,7 +61,9 @@ const Produtos = () => {
       products: products as any,
     }).select().single();
     if (data) {
-      setImportedTables(prev => [{ id: data.id, name: data.name, products: (data.products as unknown) as Product[] }, ...prev]);
+      const newTable = { id: data.id, name: data.name, products: (data.products as unknown) as Product[] };
+      setImportedTables(prev => [newTable, ...prev]);
+      setActiveTable(data.id);
     }
   };
 
@@ -104,50 +112,141 @@ const Produtos = () => {
     setParsingPdf(true);
 
     try {
-      // Read PDF as text (basic extraction)
-      const text = await file.text();
-      
-      // Try to extract tabular data from the PDF text
-      const lines = text.split('\n').filter(l => l.trim().length > 3);
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       
       const products: Product[] = [];
       let currentCategory = 'adicionais';
       
-      lines.forEach((line, idx) => {
-        // Try to find lines with price patterns like R$ XX,XX
-        const priceMatch = line.match(/R\$\s*[\d.,]+/);
-        if (priceMatch && line.length > 10) {
-          const price = priceMatch[0];
-          const name = line.replace(priceMatch[0], '').trim().substring(0, 80);
-          if (name.length > 2) {
-            products.push({
-              id: `pdf-${Date.now()}-${idx}`,
-              code: String(idx + 1),
-              name,
-              category: currentCategory,
-              description: name,
-              price,
-              features: [name],
-            });
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        // Group text items by Y coordinate (rows)
+        const rows: { y: number; items: { x: number; text: string }[] }[] = [];
+        
+        for (const item of textContent.items) {
+          if (!('str' in item) || !item.str.trim()) continue;
+          const y = Math.round((item as any).transform[5]);
+          const x = Math.round((item as any).transform[4]);
+          
+          let row = rows.find(r => Math.abs(r.y - y) < 5);
+          if (!row) {
+            row = { y, items: [] };
+            rows.push(row);
+          }
+          row.items.push({ x, text: item.str.trim() });
+        }
+        
+        // Sort rows by Y descending (PDF coordinates), items by X ascending
+        rows.sort((a, b) => b.y - a.y);
+        rows.forEach(r => r.items.sort((a, b) => a.x - b.x));
+        
+        // Check for category headers in rows
+        const categoryMap: Record<string, string> = {
+          'cheque': 'cheque', 'cadastro': 'cadastro', 'crédito pf': 'credito_pf_pj',
+          'crédito pj': 'credito_pj', 'imobiliário': 'imobiliario', 'imobiliario': 'imobiliario',
+          'positivo': 'positivo', 'agro': 'agro', 'adiciona': 'adicionais',
+          'insumo': 'insumos', 'antifraude': 'insumos',
+        };
+        
+        for (const row of rows) {
+          const lineText = row.items.map(i => i.text).join(' ');
+          
+          // Detect category
+          const lowerLine = lineText.toLowerCase();
+          for (const [key, cat] of Object.entries(categoryMap)) {
+            if (lowerLine.includes(key)) {
+              currentCategory = cat;
+              break;
+            }
+          }
+          
+          // Try to find price pattern in the line
+          const priceMatch = lineText.match(/R\$\s*[\d.,]+/);
+          if (priceMatch && lineText.length > 8) {
+            const price = priceMatch[0];
+            // Extract code if it starts with a number
+            const codeMatch = lineText.match(/^(\d+)/);
+            const code = codeMatch ? codeMatch[1] : String(products.length + 1);
+            
+            // Remove price and code from line to get the name
+            let name = lineText
+              .replace(priceMatch[0], '')
+              .replace(/^\d+\s*/, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            // Clean up name - remove trailing numbers that might be codes
+            name = name.replace(/\s+\d+$/, '').trim();
+            
+            if (name.length > 2) {
+              products.push({
+                id: `pdf-${Date.now()}-${pageNum}-${products.length}`,
+                code,
+                name,
+                category: currentCategory,
+                description: name,
+                price,
+                features: [name],
+              });
+            }
           }
         }
-      });
+      }
 
       const tableName = file.name.replace(/\.[^.]+$/, '');
       
       if (products.length > 0) {
-        await saveImportedTable(`📄 ${tableName}`, products);
+        await saveImportedTable(`📄 ${tableName} (${products.length})`, products);
       } else {
-        // If no structured data found, create a single entry
-        await saveImportedTable(`📄 ${tableName}`, [{
-          id: `pdf-${Date.now()}`,
-          code: '-',
-          name: tableName,
-          category: 'adicionais',
-          description: `Tabela importada do PDF: ${tableName}. Edite manualmente os produtos.`,
-          price: 'Sob consulta',
-          features: ['Importado via PDF'],
-        }]);
+        // Fallback: extract all text and try line-by-line
+        let allText = '';
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .filter((item): item is any => 'str' in item)
+            .map(item => item.str)
+            .join(' ');
+          allText += pageText + '\n';
+        }
+        
+        const fallbackProducts: Product[] = [];
+        const lines = allText.split(/\n|(?=R\$)/).filter(l => l.trim().length > 3);
+        
+        lines.forEach((line, idx) => {
+          const priceMatch = line.match(/R\$\s*[\d.,]+/);
+          if (priceMatch) {
+            const price = priceMatch[0];
+            const name = line.replace(priceMatch[0], '').replace(/^\d+\s*/, '').trim().substring(0, 80);
+            if (name.length > 2) {
+              fallbackProducts.push({
+                id: `pdf-${Date.now()}-${idx}`,
+                code: String(idx + 1),
+                name,
+                category: 'adicionais',
+                description: name,
+                price,
+                features: [name],
+              });
+            }
+          }
+        });
+        
+        if (fallbackProducts.length > 0) {
+          await saveImportedTable(`📄 ${tableName} (${fallbackProducts.length})`, fallbackProducts);
+        } else {
+          await saveImportedTable(`📄 ${tableName}`, [{
+            id: `pdf-${Date.now()}`,
+            code: '-',
+            name: tableName,
+            category: 'adicionais',
+            description: `Tabela importada do PDF: ${tableName}. Edite manualmente os produtos.`,
+            price: 'Sob consulta',
+            features: ['Importado via PDF'],
+          }]);
+        }
       }
     } catch (err) {
       console.error('Error parsing PDF:', err);
@@ -155,6 +254,35 @@ const Produtos = () => {
       setParsingPdf(false);
       if (pdfInputRef.current) pdfInputRef.current.value = '';
     }
+  };
+
+  const handleAddProduct = () => {
+    if (!newProduct.name) return;
+    const product: Product = {
+      id: `custom-${Date.now()}`,
+      code: newProduct.code || '-',
+      name: newProduct.name,
+      category: newProduct.category,
+      description: newProduct.description || newProduct.name,
+      price: newProduct.price || 'Sob consulta',
+      features: newProduct.features.split('|').filter(Boolean),
+    };
+
+    if (activeTable === 'default') {
+      // Save as a new custom table
+      saveImportedTable(`✏️ Produtos Customizados`, [product]);
+    } else {
+      // Add to existing imported table
+      const table = importedTables.find(t => t.id === activeTable);
+      if (table) {
+        const updatedProducts = [...table.products, product];
+        supabase.from('imported_tables').update({ products: updatedProducts as any }).eq('id', activeTable).then(() => {
+          setImportedTables(prev => prev.map(t => t.id === activeTable ? { ...t, products: updatedProducts } : t));
+        });
+      }
+    }
+    setNewProduct({ name: '', code: '', category: PRODUCT_CATEGORIES[0].key, description: '', price: '', features: '' });
+    setShowNewProduct(false);
   };
 
   const handleShareWhatsApp = (product: Product, lead?: Lead) => {
@@ -276,9 +404,15 @@ const Produtos = () => {
           <h1 className="text-2xl font-bold text-foreground">Produtos SPC Brasil</h1>
           <p className="text-muted-foreground text-sm mt-1">Tabela de Preços – Faturamento Mínimo R$ 109,00</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input ref={fileInputRef} type="file" accept=".csv,.txt,.tsv" className="hidden" onChange={handleImportTable} />
           <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={handleImportPdf} />
+          <button
+            onClick={() => setShowNewProduct(!showNewProduct)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
+          >
+            <Plus size={16} /> Cadastrar Produto
+          </button>
           <button
             onClick={() => pdfInputRef.current?.click()}
             disabled={parsingPdf}
@@ -295,40 +429,63 @@ const Produtos = () => {
         </div>
       </div>
 
-      {/* Table selector */}
-      {importedTables.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Table2 size={16} className="text-muted-foreground" />
-            <span className="text-sm font-semibold text-foreground">Selecionar Tabela:</span>
+      {/* New product form */}
+      {showNewProduct && (
+        <div className="stat-card space-y-3 animate-slide-in ring-2 ring-primary/20">
+          <h3 className="text-sm font-bold text-foreground">Cadastrar Novo Produto</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input placeholder="Nome do produto *" value={newProduct.name} onChange={e => setNewProduct(p => ({ ...p, name: e.target.value }))} className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" />
+            <input placeholder="Código" value={newProduct.code} onChange={e => setNewProduct(p => ({ ...p, code: e.target.value }))} className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" />
+            <select value={newProduct.category} onChange={e => setNewProduct(p => ({ ...p, category: e.target.value }))} className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm">
+              {PRODUCT_CATEGORIES.map(cat => <option key={cat.key} value={cat.key}>{cat.label}</option>)}
+            </select>
+            <input placeholder="Preço (ex: R$ 5,00)" value={newProduct.price} onChange={e => setNewProduct(p => ({ ...p, price: e.target.value }))} className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" />
+            <input placeholder="Descrição" value={newProduct.description} onChange={e => setNewProduct(p => ({ ...p, description: e.target.value }))} className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm col-span-full" />
+            <input placeholder="Recursos (separados por |)" value={newProduct.features} onChange={e => setNewProduct(p => ({ ...p, features: e.target.value }))} className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm col-span-full" />
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setActiveTable('default')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === 'default' ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
-            >
-              📋 Padrão SPC
+          <div className="flex gap-2">
+            <button onClick={handleAddProduct} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
+              <Save size={14} /> Salvar
             </button>
-            {importedTables.map(t => (
-              <div key={t.id} className="flex items-center gap-1">
-                <button
-                  onClick={() => setActiveTable(t.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === t.id ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
-                >
-                  {t.name} ({t.products.length})
-                </button>
-                <button
-                  onClick={() => deleteImportedTable(t.id)}
-                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
-                  title="Excluir tabela"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
+            <button onClick={() => setShowNewProduct(false)} className="px-4 py-2 rounded-lg border border-border text-foreground text-sm hover:bg-muted transition">
+              Cancelar
+            </button>
           </div>
         </div>
       )}
+
+      {/* Table selector */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Table2 size={16} className="text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground">Selecionar Tabela:</span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setActiveTable('default')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === 'default' ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
+          >
+            📋 Padrão SPC
+          </button>
+          {importedTables.map(t => (
+            <div key={t.id} className="flex items-center gap-1">
+              <button
+                onClick={() => setActiveTable(t.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === t.id ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
+              >
+                {t.name} ({t.products.length})
+              </button>
+              <button
+                onClick={() => deleteImportedTable(t.id)}
+                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+                title="Excluir tabela"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Category scroll */}
       <ScrollArea className="w-full whitespace-nowrap">
