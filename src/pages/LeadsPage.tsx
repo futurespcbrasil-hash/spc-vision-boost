@@ -1,7 +1,18 @@
 import { useState, useRef } from 'react';
 import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
-import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+
+interface SearchedLead {
+  name: string;
+  company: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  segment: string;
+  address: string;
+}
 
 const LeadsPage = () => {
   const { leads, addLead, updateLead, deleteLead } = useAppState();
@@ -11,6 +22,15 @@ const LeadsPage = () => {
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<Lead | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Internet search state
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchCity, setSearchCity] = useState('');
+  const [searchState, setSearchState] = useState('');
+  const [searchSegment, setSearchSegment] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchedLead[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
 
   const filtered = leads.filter(l =>
     l.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -67,7 +87,50 @@ const LeadsPage = () => {
     }
   };
 
+  const handleInternetSearch = async () => {
+    if (!searchCity || !searchState) return;
+    setSearching(true);
+    setSearchResults([]);
+    setAddedIds(new Set());
+    try {
+      const { data, error } = await supabase.functions.invoke('search-leads', {
+        body: { city: searchCity, state: searchState, segment: searchSegment },
+      });
+      if (error) throw error;
+      if (data?.success && Array.isArray(data.leads)) {
+        setSearchResults(data.leads);
+      }
+    } catch (err) {
+      console.error('Search error:', err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAddSearchedLead = (result: SearchedLead, index: number) => {
+    addLead({
+      id: `search-${Date.now()}-${index}`,
+      name: result.name,
+      company: result.company,
+      phone: result.phone,
+      whatsapp: result.whatsapp,
+      email: result.email,
+      cpfCnpj: '',
+      type: 'PJ',
+      origin: `Busca Internet - ${searchCity}/${searchState}`,
+      product: '',
+      status: 'lead_novo',
+      observations: `Segmento: ${result.segment}\nEndereço: ${result.address}`,
+      interactions: [],
+      createdAt: new Date().toISOString().split('T')[0],
+      address: result.address,
+    });
+    setAddedIds(prev => new Set(prev).add(index));
+  };
+
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
+
+  const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -76,7 +139,10 @@ const LeadsPage = () => {
           <h1 className="text-2xl font-bold text-foreground">Leads</h1>
           <p className="text-muted-foreground text-sm mt-1">Gestão completa de leads</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setShowSearchModal(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 transition">
+            <Globe size={16} /> Buscar na Internet
+          </button>
           <input ref={fileInputRef} type="file" accept=".csv,.txt,.xls,.xlsx,.tsv" className="hidden" onChange={handleImport} />
           <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
             <Upload size={16} /> Importar
@@ -88,6 +154,97 @@ const LeadsPage = () => {
       </div>
 
       {showForm && <LeadForm onAdd={(lead) => { addLead(lead); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
+
+      {/* Internet Search Modal */}
+      {showSearchModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowSearchModal(false)}>
+          <div className="bg-card rounded-xl border border-border max-w-3xl w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Globe size={20} className="text-primary" /> Buscar Leads na Internet
+              </h2>
+              <button onClick={() => setShowSearchModal(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Cidade *</label>
+                <div className="relative">
+                  <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input className={`${inputClass} pl-8`} placeholder="Ex: São Paulo" value={searchCity} onChange={e => setSearchCity(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Estado *</label>
+                <select className={inputClass} value={searchState} onChange={e => setSearchState(e.target.value)}>
+                  <option value="">Selecione</option>
+                  {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Segmento (opcional)</label>
+                <div className="relative">
+                  <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input className={`${inputClass} pl-8`} placeholder="Ex: Restaurantes" value={searchSegment} onChange={e => setSearchSegment(e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleInternetSearch}
+              disabled={searching || !searchCity || !searchState}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
+            >
+              {searching ? <><Loader2 size={16} className="animate-spin" /> Buscando...</> : <><Search size={16} /> Buscar Leads</>}
+            </button>
+
+            {searchResults.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">{searchResults.length} leads encontrados</p>
+                  <p className="text-xs text-muted-foreground">Estes leads NÃO estão no seu cadastro</p>
+                </div>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                  {searchResults.map((result, idx) => {
+                    const isAdded = addedIds.has(idx);
+                    return (
+                      <div key={idx} className={`p-3 rounded-lg border ${isAdded ? 'border-primary/30 bg-primary/5' : 'border-border bg-muted/20'} space-y-1.5`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-foreground truncate">{result.company || result.name}</p>
+                            <p className="text-xs text-muted-foreground">{result.segment}</p>
+                          </div>
+                          <button
+                            onClick={() => handleAddSearchedLead(result, idx)}
+                            disabled={isAdded}
+                            className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                              isAdded
+                                ? 'bg-primary/10 text-primary cursor-default'
+                                : 'bg-primary text-primary-foreground hover:opacity-90'
+                            }`}
+                          >
+                            {isAdded ? <>✓ Adicionado</> : <><UserPlus size={13} /> Adicionar</>}
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><Phone size={11} /> {result.phone || '—'}</span>
+                          <span className="flex items-center gap-1"><MessageCircle size={11} /> {result.whatsapp || '—'}</span>
+                          <span className="flex items-center gap-1"><Mail size={11} /> {result.email || '—'}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin size={11} /> {result.address || '—'}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {!searching && searchResults.length === 0 && searchCity && searchState && (
+              <p className="text-center text-sm text-muted-foreground py-4">Clique em "Buscar Leads" para encontrar empresas em {searchCity}/{searchState}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Lead detail/edit modal */}
       {selectedLead && (
