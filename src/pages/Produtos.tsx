@@ -3,16 +3,13 @@ import { PRODUCTS, PRODUCT_CATEGORIES, Product } from '@/data/productsData';
 import { useAppState } from '@/context/AppContext';
 import { Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
-import * as pdfjsLib from 'pdfjs-dist';
+import { toast } from 'sonner';
 import {
   FileCheck, UserSearch, CreditCard, Building2, Briefcase,
   TrendingUp, Wheat, PlusCircle, Shield, CheckCircle2, X,
   ChevronRight, Send, DollarSign, Package, ArrowLeft, Upload, Table2, User2, FileText, Trash2, Plus, Edit2, Save
 } from 'lucide-react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
 
 const ICON_MAP: Record<string, React.ElementType> = {
   FileCheck, UserSearch, CreditCard, Building2, Briefcase,
@@ -110,48 +107,27 @@ const Produtos = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     setParsingPdf(true);
+    toast.info('Processando PDF com IA... Aguarde.');
 
     try {
-      // Step 1: Extract text from PDF using pdfjs
+      // Convert PDF to base64 and send to edge function
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      
-      let allText = '';
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        
-        // Group by Y coordinate for better line reconstruction
-        const rows: { y: number; items: { x: number; text: string }[] }[] = [];
-        for (const item of textContent.items) {
-          if (!('str' in item) || !item.str.trim()) continue;
-          const y = Math.round((item as any).transform[5]);
-          const x = Math.round((item as any).transform[4]);
-          let row = rows.find(r => Math.abs(r.y - y) < 5);
-          if (!row) { row = { y, items: [] }; rows.push(row); }
-          row.items.push({ x, text: item.str.trim() });
-        }
-        rows.sort((a, b) => b.y - a.y);
-        rows.forEach(r => r.items.sort((a, b) => a.x - b.x));
-        
-        for (const row of rows) {
-          allText += row.items.map(i => i.text).join(' | ') + '\n';
-        }
-        allText += '\n--- Página ' + pageNum + ' ---\n\n';
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
       }
+      const base64 = btoa(binary);
 
-      if (allText.trim().length < 20) {
-        console.error('PDF text extraction yielded too little content');
-        setParsingPdf(false);
-        return;
-      }
-
-      // Step 2: Send extracted text to AI for structured extraction
       const { data, error } = await supabase.functions.invoke('extract-pdf-products', {
-        body: { pdfText: allText },
+        body: { pdfBase64: base64, fileName: file.name },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        toast.error('Erro ao processar PDF');
+        throw error;
+      }
 
       const tableName = file.name.replace(/\.[^.]+$/, '');
 
@@ -166,7 +142,9 @@ const Produtos = () => {
           features: p.description ? [p.description] : ['Importado via PDF'],
         }));
         await saveImportedTable(`📄 ${tableName} (${products.length})`, products);
+        toast.success(`${products.length} produtos importados com sucesso!`);
       } else {
+        toast.warning('Nenhum produto encontrado no PDF');
         await saveImportedTable(`📄 ${tableName}`, [{
           id: `pdf-${Date.now()}`,
           code: '-',
@@ -179,6 +157,7 @@ const Produtos = () => {
       }
     } catch (err) {
       console.error('Error parsing PDF:', err);
+      toast.error('Erro ao importar PDF: ' + (err instanceof Error ? err.message : 'Erro desconhecido'));
     } finally {
       setParsingPdf(false);
       if (pdfInputRef.current) pdfInputRef.current.value = '';
