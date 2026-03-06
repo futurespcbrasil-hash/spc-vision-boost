@@ -4,12 +4,19 @@ import { useAppState } from '@/context/AppContext';
 import { Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import * as pdfjsLib from 'pdfjs-dist';
 import {
   FileCheck, UserSearch, CreditCard, Building2, Briefcase,
   TrendingUp, Wheat, PlusCircle, Shield, CheckCircle2, X,
   ChevronRight, Send, DollarSign, Package, ArrowLeft, Upload, Table2, User2, FileText, Trash2, Plus, Edit2, Save
 } from 'lucide-react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+
+// Configure PDF.js worker - must match installed version
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url,
+).toString();
 
 const ICON_MAP: Record<string, React.ElementType> = {
   FileCheck, UserSearch, CreditCard, Building2, Briefcase,
@@ -107,20 +114,48 @@ const Produtos = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     setParsingPdf(true);
-    toast.info('Processando PDF com IA... Aguarde.');
+    toast.info('Extraindo texto do PDF...');
 
     try {
-      // Convert PDF to base64 and send to edge function
+      // Step 1: Extract text from PDF using pdfjs on client
       const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      let binary = '';
-      for (let i = 0; i < uint8Array.length; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      let allText = '';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        const rows: { y: number; items: { x: number; text: string }[] }[] = [];
+        for (const item of textContent.items) {
+          if (!('str' in item) || !item.str.trim()) continue;
+          const y = Math.round((item as any).transform[5]);
+          const x = Math.round((item as any).transform[4]);
+          let row = rows.find(r => Math.abs(r.y - y) < 5);
+          if (!row) { row = { y, items: [] }; rows.push(row); }
+          row.items.push({ x, text: item.str.trim() });
+        }
+        rows.sort((a, b) => b.y - a.y);
+        rows.forEach(r => r.items.sort((a, b) => a.x - b.x));
+        
+        for (const row of rows) {
+          allText += row.items.map(i => i.text).join(' | ') + '\n';
+        }
+        allText += '\n';
       }
-      const base64 = btoa(binary);
 
+      console.log('PDF text extracted, length:', allText.length);
+      
+      if (allText.trim().length < 20) {
+        toast.error('Não foi possível extrair texto do PDF');
+        setParsingPdf(false);
+        return;
+      }
+
+      // Step 2: Send extracted text to AI for structured extraction
+      toast.info('Processando com IA... Aguarde.');
       const { data, error } = await supabase.functions.invoke('extract-pdf-products', {
-        body: { pdfBase64: base64, fileName: file.name },
+        body: { pdfText: allText },
       });
 
       if (error) {
@@ -145,15 +180,6 @@ const Produtos = () => {
         toast.success(`${products.length} produtos importados com sucesso!`);
       } else {
         toast.warning('Nenhum produto encontrado no PDF');
-        await saveImportedTable(`📄 ${tableName}`, [{
-          id: `pdf-${Date.now()}`,
-          code: '-',
-          name: tableName,
-          category: 'adicionais',
-          description: `Tabela importada do PDF: ${tableName}. Edite manualmente os produtos.`,
-          price: 'Sob consulta',
-          features: ['Importado via PDF'],
-        }]);
       }
     } catch (err) {
       console.error('Error parsing PDF:', err);

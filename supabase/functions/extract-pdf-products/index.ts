@@ -9,41 +9,41 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { pdfBase64, fileName } = await req.json();
+    const { pdfText } = await req.json();
 
-    if (!pdfBase64) {
+    if (!pdfText || pdfText.length < 10) {
+      console.error('PDF text too short:', pdfText?.length);
       return new Response(
-        JSON.stringify({ success: false, error: 'PDF data is required' }),
+        JSON.stringify({ success: false, error: 'Texto do PDF vazio ou muito curto' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!apiKey) {
+      console.error('LOVABLE_API_KEY not found');
       return new Response(
         JSON.stringify({ success: false, error: 'AI Gateway not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Processing PDF: ${fileName}, base64 length: ${pdfBase64.length}`);
+    console.log('Processing PDF text, length:', pdfText.length);
 
-    const prompt = `Analise este documento PDF que contém uma tabela de preços de produtos/serviços.
+    const prompt = `Analise o texto abaixo extraído de uma tabela de preços de produtos/serviços e extraia TODOS os produtos.
 
-Extraia TODOS os produtos/serviços encontrados no documento. Para cada produto identifique:
-- "name": nome do produto/serviço (ex: "SPC Maxi", "Confirme PF", "+ Pefin Serasa")
-- "description": descrição completa do que o produto inclui
-- "price": preço no formato "R$ X,XX" 
+Para cada produto identifique:
+- "name": nome do produto/serviço (ex: "SóCheque", "SPC Maxi", "+ Pefin Serasa")
+- "description": descrição do que inclui
+- "price": preço no formato "R$ X,XX"
 - "category": classifique em: cheque, cadastro, credito_pf_pj, imobiliario, positivo, agro, adicionais, insumos
 
-IMPORTANTE: 
-- Extraia TODOS os produtos, mesmo que sejam 30+
-- Cada item com preço R$ é um produto diferente
-- Mantenha os nomes originais dos produtos
-- Retorne APENAS um JSON array válido, sem markdown, sem explicações
+IMPORTANTE: Extraia TODOS os itens com preço. Retorne APENAS um JSON array válido, sem markdown.
 
-Exemplo de formato:
-[{"name":"SPC Maxi","description":"Dados cadastrais + registros SPC...","price":"R$ 7,61","category":"credito_pf_pj"}]`;
+Texto:
+${pdfText.substring(0, 12000)}`;
+
+    console.log('Calling AI Gateway...');
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -54,18 +54,8 @@ Exemplo de formato:
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { 
-            role: 'user', 
-            content: [
-              { type: 'text', text: prompt },
-              { 
-                type: 'image_url', 
-                image_url: { 
-                  url: `data:application/pdf;base64,${pdfBase64}` 
-                } 
-              }
-            ]
-          }
+          { role: 'system', content: 'Você extrai dados de tabelas de preços. Retorne apenas JSON array válido.' },
+          { role: 'user', content: prompt }
         ],
         temperature: 0.1,
       }),
@@ -89,7 +79,7 @@ Exemplo de formato:
       const cleaned = content.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim();
       products = JSON.parse(cleaned);
     } catch (e) {
-      console.error('Failed to parse AI response:', content.substring(0, 500));
+      console.error('Failed to parse AI response:', content.substring(0, 300));
       products = [];
     }
 
