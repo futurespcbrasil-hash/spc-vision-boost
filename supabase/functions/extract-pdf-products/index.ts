@@ -9,11 +9,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { city, state, segment } = await req.json();
+    const { pdfText } = await req.json();
 
-    if (!city || !state) {
+    if (!pdfText || pdfText.length < 10) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Cidade e estado são obrigatórios' }),
+        JSON.stringify({ success: false, error: 'Texto do PDF vazio ou muito curto' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -26,21 +26,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    const segmentText = segment ? ` que atuam no segmento de ${segment}` : '';
-    const prompt = `Liste 10 empresas reais que existem e estão localizadas ESPECIFICAMENTE na cidade de ${city}, no estado ${state}, Brasil${segmentText}.
+    const prompt = `Analise o texto extraído de uma tabela de preços de produtos/serviços e extraia TODOS os produtos encontrados.
 
-ATENÇÃO: As empresas DEVEM ser da cidade de ${city} - ${state}. NÃO liste empresas de outras cidades ou estados.
+Para cada produto, identifique:
+- "name": nome do produto/serviço
+- "description": descrição completa do que inclui
+- "price": preço no formato "R$ X,XX"
+- "category": classifique em uma dessas categorias: cheque, cadastro, credito_pf_pj, imobiliario, positivo, agro, adicionais, insumos
 
-Para cada empresa retorne um objeto JSON com:
-- "name": nome do responsável ou proprietário
-- "company": nome fantasia ou razão social da empresa
-- "phone": telefone fixo com DDD da cidade (formato: (XX) XXXX-XXXX)
-- "whatsapp": celular com DDD (formato: 55XXXXXXXXXXX, apenas números, com DDD correto da região de ${city})
-- "email": email comercial da empresa
-- "segment": segmento de atuação da empresa
-- "address": endereço completo incluindo rua, número, bairro, ${city} - ${state}
+Retorne APENAS um JSON array válido, sem markdown. Exemplo:
+[{"name":"SPC Maxi","description":"Dados cadastrais + registros SPC...","price":"R$ 7,61","category":"credito_pf_pj"}]
 
-Retorne APENAS o JSON array, sem markdown, sem explicações.`;
+IMPORTANTE: Extraia TODOS os produtos, mesmo que sejam muitos. Cada linha com preço R$ é um produto diferente.
+
+Texto do PDF:
+${pdfText.substring(0, 15000)}`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -51,10 +51,10 @@ Retorne APENAS o JSON array, sem markdown, sem explicações.`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'Você é um assistente que busca informações de empresas brasileiras. Retorne apenas JSON válido, sem markdown.' },
+          { role: 'system', content: 'Você é um especialista em extrair dados estruturados de tabelas de preços. Retorne apenas JSON válido, sem markdown, sem explicações.' },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.7,
+        temperature: 0.1,
       }),
     });
 
@@ -62,7 +62,7 @@ Retorne APENAS o JSON array, sem markdown, sem explicações.`;
       const errorText = await response.text();
       console.error('AI Gateway error:', errorText);
       return new Response(
-        JSON.stringify({ success: false, error: 'Erro ao buscar leads' }),
+        JSON.stringify({ success: false, error: 'Erro ao processar PDF' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -70,19 +70,17 @@ Retorne APENAS o JSON array, sem markdown, sem explicações.`;
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '[]';
     
-    // Parse the JSON from the response
-    let leads = [];
+    let products = [];
     try {
-      // Remove potential markdown code blocks
       const cleaned = content.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim();
-      leads = JSON.parse(cleaned);
+      products = JSON.parse(cleaned);
     } catch (e) {
       console.error('Failed to parse AI response:', content);
-      leads = [];
+      products = [];
     }
 
     return new Response(
-      JSON.stringify({ success: true, leads }),
+      JSON.stringify({ success: true, products }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

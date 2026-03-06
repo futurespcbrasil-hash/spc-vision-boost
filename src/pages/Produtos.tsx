@@ -112,141 +112,70 @@ const Produtos = () => {
     setParsingPdf(true);
 
     try {
+      // Step 1: Extract text from PDF using pdfjs
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       
-      const products: Product[] = [];
-      let currentCategory = 'adicionais';
-      
+      let allText = '';
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
         
-        // Group text items by Y coordinate (rows)
+        // Group by Y coordinate for better line reconstruction
         const rows: { y: number; items: { x: number; text: string }[] }[] = [];
-        
         for (const item of textContent.items) {
           if (!('str' in item) || !item.str.trim()) continue;
           const y = Math.round((item as any).transform[5]);
           const x = Math.round((item as any).transform[4]);
-          
           let row = rows.find(r => Math.abs(r.y - y) < 5);
-          if (!row) {
-            row = { y, items: [] };
-            rows.push(row);
-          }
+          if (!row) { row = { y, items: [] }; rows.push(row); }
           row.items.push({ x, text: item.str.trim() });
         }
-        
-        // Sort rows by Y descending (PDF coordinates), items by X ascending
         rows.sort((a, b) => b.y - a.y);
         rows.forEach(r => r.items.sort((a, b) => a.x - b.x));
         
-        // Check for category headers in rows
-        const categoryMap: Record<string, string> = {
-          'cheque': 'cheque', 'cadastro': 'cadastro', 'crédito pf': 'credito_pf_pj',
-          'crédito pj': 'credito_pj', 'imobiliário': 'imobiliario', 'imobiliario': 'imobiliario',
-          'positivo': 'positivo', 'agro': 'agro', 'adiciona': 'adicionais',
-          'insumo': 'insumos', 'antifraude': 'insumos',
-        };
-        
         for (const row of rows) {
-          const lineText = row.items.map(i => i.text).join(' ');
-          
-          // Detect category
-          const lowerLine = lineText.toLowerCase();
-          for (const [key, cat] of Object.entries(categoryMap)) {
-            if (lowerLine.includes(key)) {
-              currentCategory = cat;
-              break;
-            }
-          }
-          
-          // Try to find price pattern in the line
-          const priceMatch = lineText.match(/R\$\s*[\d.,]+/);
-          if (priceMatch && lineText.length > 8) {
-            const price = priceMatch[0];
-            // Extract code if it starts with a number
-            const codeMatch = lineText.match(/^(\d+)/);
-            const code = codeMatch ? codeMatch[1] : String(products.length + 1);
-            
-            // Remove price and code from line to get the name
-            let name = lineText
-              .replace(priceMatch[0], '')
-              .replace(/^\d+\s*/, '')
-              .replace(/\s+/g, ' ')
-              .trim();
-            
-            // Clean up name - remove trailing numbers that might be codes
-            name = name.replace(/\s+\d+$/, '').trim();
-            
-            if (name.length > 2) {
-              products.push({
-                id: `pdf-${Date.now()}-${pageNum}-${products.length}`,
-                code,
-                name,
-                category: currentCategory,
-                description: name,
-                price,
-                features: [name],
-              });
-            }
-          }
+          allText += row.items.map(i => i.text).join(' | ') + '\n';
         }
+        allText += '\n--- Página ' + pageNum + ' ---\n\n';
       }
 
+      if (allText.trim().length < 20) {
+        console.error('PDF text extraction yielded too little content');
+        setParsingPdf(false);
+        return;
+      }
+
+      // Step 2: Send extracted text to AI for structured extraction
+      const { data, error } = await supabase.functions.invoke('extract-pdf-products', {
+        body: { pdfText: allText },
+      });
+
+      if (error) throw error;
+
       const tableName = file.name.replace(/\.[^.]+$/, '');
-      
-      if (products.length > 0) {
+
+      if (data?.success && Array.isArray(data.products) && data.products.length > 0) {
+        const products: Product[] = data.products.map((p: any, idx: number) => ({
+          id: `pdf-${Date.now()}-${idx}`,
+          code: String(idx + 1),
+          name: p.name || 'Produto sem nome',
+          category: p.category || 'adicionais',
+          description: p.description || p.name || '',
+          price: p.price || 'Sob consulta',
+          features: p.description ? [p.description] : ['Importado via PDF'],
+        }));
         await saveImportedTable(`📄 ${tableName} (${products.length})`, products);
       } else {
-        // Fallback: extract all text and try line-by-line
-        let allText = '';
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-          const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .filter((item): item is any => 'str' in item)
-            .map(item => item.str)
-            .join(' ');
-          allText += pageText + '\n';
-        }
-        
-        const fallbackProducts: Product[] = [];
-        const lines = allText.split(/\n|(?=R\$)/).filter(l => l.trim().length > 3);
-        
-        lines.forEach((line, idx) => {
-          const priceMatch = line.match(/R\$\s*[\d.,]+/);
-          if (priceMatch) {
-            const price = priceMatch[0];
-            const name = line.replace(priceMatch[0], '').replace(/^\d+\s*/, '').trim().substring(0, 80);
-            if (name.length > 2) {
-              fallbackProducts.push({
-                id: `pdf-${Date.now()}-${idx}`,
-                code: String(idx + 1),
-                name,
-                category: 'adicionais',
-                description: name,
-                price,
-                features: [name],
-              });
-            }
-          }
-        });
-        
-        if (fallbackProducts.length > 0) {
-          await saveImportedTable(`📄 ${tableName} (${fallbackProducts.length})`, fallbackProducts);
-        } else {
-          await saveImportedTable(`📄 ${tableName}`, [{
-            id: `pdf-${Date.now()}`,
-            code: '-',
-            name: tableName,
-            category: 'adicionais',
-            description: `Tabela importada do PDF: ${tableName}. Edite manualmente os produtos.`,
-            price: 'Sob consulta',
-            features: ['Importado via PDF'],
-          }]);
-        }
+        await saveImportedTable(`📄 ${tableName}`, [{
+          id: `pdf-${Date.now()}`,
+          code: '-',
+          name: tableName,
+          category: 'adicionais',
+          description: `Tabela importada do PDF: ${tableName}. Edite manualmente os produtos.`,
+          price: 'Sob consulta',
+          features: ['Importado via PDF'],
+        }]);
       }
     } catch (err) {
       console.error('Error parsing PDF:', err);
