@@ -88,7 +88,7 @@ const LeadsPage = () => {
   };
 
   const handleInternetSearch = async () => {
-    if (!searchCity || !searchState) return;
+    if (!searchState) return;
     setSearching(true);
     setSearchResults([]);
     setAddedIds(new Set());
@@ -168,7 +168,7 @@ const LeadsPage = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Cidade *</label>
+                <label className="text-xs text-muted-foreground mb-1 block">Cidade (opcional)</label>
                 <div className="relative">
                   <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input className={`${inputClass} pl-8`} placeholder="Ex: São Paulo" value={searchCity} onChange={e => setSearchCity(e.target.value)} />
@@ -192,7 +192,7 @@ const LeadsPage = () => {
 
             <button
               onClick={handleInternetSearch}
-              disabled={searching || !searchCity || !searchState}
+              disabled={searching || !searchState}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
             >
               {searching ? <><Loader2 size={16} className="animate-spin" /> Buscando...</> : <><Search size={16} /> Buscar Leads</>}

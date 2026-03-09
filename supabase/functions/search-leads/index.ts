@@ -11,9 +11,9 @@ Deno.serve(async (req) => {
   try {
     const { city, state, segment } = await req.json();
 
-    if (!city || !state) {
+    if (!state) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Cidade e estado são obrigatórios' }),
+        JSON.stringify({ success: false, error: 'Estado é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -27,18 +27,26 @@ Deno.serve(async (req) => {
     }
 
     const segmentText = segment ? ` que atuam no segmento de ${segment}` : '';
-    const prompt = `Liste 10 empresas reais que existem e estão localizadas ESPECIFICAMENTE na cidade de ${city}, no estado ${state}, Brasil${segmentText}.
+    const locationText = city 
+      ? `na cidade de ${city}, no estado ${state}` 
+      : `no estado ${state} (em diversas cidades)`;
+    const locationWarning = city
+      ? `ATENÇÃO: As empresas DEVEM ser da cidade de ${city} - ${state}. NÃO liste empresas de outras cidades ou estados.`
+      : `ATENÇÃO: As empresas DEVEM ser do estado ${state}. Liste empresas de diferentes cidades do estado.`;
+    const addressNote = city ? `${city} - ${state}` : `cidade - ${state}`;
 
-ATENÇÃO: As empresas DEVEM ser da cidade de ${city} - ${state}. NÃO liste empresas de outras cidades ou estados.
+    const prompt = `Liste 10 empresas reais que existem e estão localizadas ESPECIFICAMENTE ${locationText}, Brasil${segmentText}.
+
+${locationWarning}
 
 Para cada empresa retorne um objeto JSON com:
 - "name": nome do responsável ou proprietário
 - "company": nome fantasia ou razão social da empresa
 - "phone": telefone fixo com DDD da cidade (formato: (XX) XXXX-XXXX)
-- "whatsapp": celular com DDD (formato: 55XXXXXXXXXXX, apenas números, com DDD correto da região de ${city})
+- "whatsapp": celular com DDD (formato: 55XXXXXXXXXXX, apenas números, com DDD correto da região)
 - "email": email comercial da empresa
 - "segment": segmento de atuação da empresa
-- "address": endereço completo incluindo rua, número, bairro, ${city} - ${state}
+- "address": endereço completo incluindo rua, número, bairro, ${addressNote}
 
 Retorne APENAS o JSON array, sem markdown, sem explicações.`;
 

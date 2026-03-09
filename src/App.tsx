@@ -16,6 +16,7 @@ import Argumentos from "@/pages/Argumentos";
 import Produtos from "@/pages/Produtos";
 import Relatorios from "@/pages/Relatorios";
 import NotFound from "./pages/NotFound";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <PWAInstallPrompt />
         </BrowserRouter>
       </AppProvider>
     </TooltipProvider>

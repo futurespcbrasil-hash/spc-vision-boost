@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { COMPARISON_DATA, COMPANIES } from '@/data/spcData';
 import { PRODUCTS, PRODUCT_CATEGORIES, Product } from '@/data/productsData';
-import { CheckCircle2, XCircle, Trophy, Star, Package } from 'lucide-react';
+import { CheckCircle2, XCircle, Trophy, Star, Package, Link2 } from 'lucide-react';
 
 const Comparador = () => {
+  const navigate = useNavigate();
   const [selectedCompetitor, setSelectedCompetitor] = useState<string>('serasa');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedSpcProduct, setSelectedSpcProduct] = useState<string | null>(null);
@@ -206,6 +208,19 @@ const Comparador = () => {
                 {Object.values(selectedComparison.competitor.features).filter(v => v === true).length} recursos inclusos
               </div>
             </div>
+          </div>
+
+          {/* Generate link button */}
+          <div className="flex gap-3 flex-wrap">
+            <button
+              onClick={() => {
+                const compIdx = COMPARISON_DATA.findIndex(c => c === selectedComparison);
+                navigate(`/gerar-link?comparacao=${compIdx >= 0 ? compIdx : 0}`);
+              }}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition"
+            >
+              <Link2 size={16} /> Gerar Link desta Comparação
+            </button>
           </div>
 
           <div className="stat-card bg-spc-light border-primary/20">

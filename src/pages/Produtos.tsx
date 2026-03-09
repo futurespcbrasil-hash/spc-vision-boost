@@ -388,36 +388,32 @@ const Produtos = () => {
         </div>
       )}
 
-      {/* Table selector */}
+      {/* Table selector - dropdown */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Table2 size={16} className="text-muted-foreground" />
           <span className="text-sm font-semibold text-foreground">Selecionar Tabela:</span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setActiveTable('default')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === 'default' ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
+        <div className="flex items-center gap-2">
+          <select
+            value={activeTable}
+            onChange={e => setActiveTable(e.target.value)}
+            className="flex-1 max-w-md px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
           >
-            📋 Padrão SPC
-          </button>
-          {importedTables.map(t => (
-            <div key={t.id} className="flex items-center gap-1">
-              <button
-                onClick={() => setActiveTable(t.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeTable === t.id ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground hover:bg-muted'}`}
-              >
-                {t.name} ({t.products.length})
-              </button>
-              <button
-                onClick={() => deleteImportedTable(t.id)}
-                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
-                title="Excluir tabela"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
+            <option value="default">📋 Padrão SPC</option>
+            {importedTables.map(t => (
+              <option key={t.id} value={t.id}>{t.name} ({t.products.length})</option>
+            ))}
+          </select>
+          {activeTable !== 'default' && (
+            <button
+              onClick={() => deleteImportedTable(activeTable)}
+              className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+              title="Excluir tabela selecionada"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
       </div>
 

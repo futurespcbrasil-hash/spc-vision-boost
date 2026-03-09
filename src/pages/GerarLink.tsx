@@ -1,11 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { COMPARISON_DATA } from '@/data/spcData';
 import { Link2, Copy, Check, ExternalLink } from 'lucide-react';
 
 const GerarLink = () => {
-  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [urlSearchParams] = useSearchParams();
+  const initialIdx = parseInt(urlSearchParams.get('comparacao') || '0');
+  const [selectedIdx, setSelectedIdx] = useState(initialIdx);
   const [vendorName, setVendorName] = useState('');
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const idx = parseInt(urlSearchParams.get('comparacao') || '0');
+    if (idx >= 0 && idx < COMPARISON_DATA.length) setSelectedIdx(idx);
+  }, [urlSearchParams]);
 
   const comparison = COMPARISON_DATA[selectedIdx];
   const linkBase = window.location.origin;
