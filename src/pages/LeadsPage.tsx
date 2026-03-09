@@ -88,7 +88,7 @@ const LeadsPage = () => {
   };
 
   const handleInternetSearch = async () => {
-    if (!searchCity || !searchState) return;
+    if (!searchState) return;
     setSearching(true);
     setSearchResults([]);
     setAddedIds(new Set());
