@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { COMPARISON_DATA, COMPANIES } from '@/data/spcData';
 import { PRODUCTS, PRODUCT_CATEGORIES, Product } from '@/data/productsData';
-import { CheckCircle2, XCircle, Trophy, Star, Package } from 'lucide-react';
+import { CheckCircle2, XCircle, Trophy, Star, Package, Link2 } from 'lucide-react';
 
 const Comparador = () => {
   const [selectedCompetitor, setSelectedCompetitor] = useState<string>('serasa');
