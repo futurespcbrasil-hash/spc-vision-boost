@@ -192,7 +192,7 @@ const LeadsPage = () => {
 
             <button
               onClick={handleInternetSearch}
-              disabled={searching || !searchCity || !searchState}
+              disabled={searching || !searchState}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
             >
               {searching ? <><Loader2 size={16} className="animate-spin" /> Buscando...</> : <><Search size={16} /> Buscar Leads</>}

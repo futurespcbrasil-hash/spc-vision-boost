@@ -210,6 +210,19 @@ const Comparador = () => {
             </div>
           </div>
 
+          {/* Generate link button */}
+          <div className="flex gap-3 flex-wrap">
+            <button
+              onClick={() => {
+                const compIdx = COMPARISON_DATA.findIndex(c => c === selectedComparison);
+                navigate(`/gerar-link?comparacao=${compIdx >= 0 ? compIdx : 0}`);
+              }}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition"
+            >
+              <Link2 size={16} /> Gerar Link desta Comparação
+            </button>
+          </div>
+
           <div className="stat-card bg-spc-light border-primary/20">
             <p className="text-sm text-foreground">
               <strong>💡 Conclusão:</strong> O <strong>{spcCardData?.name || ''}</strong> oferece{' '}
