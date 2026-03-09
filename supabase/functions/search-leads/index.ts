@@ -11,9 +11,9 @@ Deno.serve(async (req) => {
   try {
     const { city, state, segment } = await req.json();
 
-    if (!city || !state) {
+    if (!state) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Cidade e estado são obrigatórios' }),
+        JSON.stringify({ success: false, error: 'Estado é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
