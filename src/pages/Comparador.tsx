@@ -5,6 +5,7 @@ import { PRODUCTS, PRODUCT_CATEGORIES, Product } from '@/data/productsData';
 import { CheckCircle2, XCircle, Trophy, Star, Package, Link2 } from 'lucide-react';
 
 const Comparador = () => {
+  const navigate = useNavigate();
   const [selectedCompetitor, setSelectedCompetitor] = useState<string>('serasa');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedSpcProduct, setSelectedSpcProduct] = useState<string | null>(null);
