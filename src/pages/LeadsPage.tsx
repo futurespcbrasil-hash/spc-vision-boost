@@ -168,7 +168,7 @@ const LeadsPage = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Cidade *</label>
+                <label className="text-xs text-muted-foreground mb-1 block">Cidade (opcional)</label>
                 <div className="relative">
                   <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input className={`${inputClass} pl-8`} placeholder="Ex: São Paulo" value={searchCity} onChange={e => setSearchCity(e.target.value)} />
