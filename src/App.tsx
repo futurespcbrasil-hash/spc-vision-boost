@@ -15,6 +15,12 @@ import Agenda from "@/pages/Agenda";
 import Argumentos from "@/pages/Argumentos";
 import Produtos from "@/pages/Produtos";
 import Relatorios from "@/pages/Relatorios";
+import WhatsAppContas from "@/pages/WhatsAppContas";
+import WhatsAppConversas from "@/pages/WhatsAppConversas";
+import WhatsAppEnviar from "@/pages/WhatsAppEnviar";
+import WhatsAppTemplates from "@/pages/WhatsAppTemplates";
+import WhatsAppDashboard from "@/pages/WhatsAppDashboard";
+import WhatsAppConfig from "@/pages/WhatsAppConfig";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
@@ -38,6 +44,12 @@ const App = () => (
             <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
             <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
             <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
+            <Route path="/whatsapp/contas" element={<AppLayout><WhatsAppContas /></AppLayout>} />
+            <Route path="/whatsapp/conversas" element={<AppLayout><WhatsAppConversas /></AppLayout>} />
+            <Route path="/whatsapp/enviar" element={<AppLayout><WhatsAppEnviar /></AppLayout>} />
+            <Route path="/whatsapp/templates" element={<AppLayout><WhatsAppTemplates /></AppLayout>} />
+            <Route path="/whatsapp/dashboard" element={<AppLayout><WhatsAppDashboard /></AppLayout>} />
+            <Route path="/whatsapp/config" element={<AppLayout><WhatsAppConfig /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <PWAInstallPrompt />
