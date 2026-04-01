@@ -164,6 +164,15 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Floating action button */}
+      <Link
+        to="/leads"
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 transition z-40"
+        title="Novo Lead"
+      >
+        <Plus size={24} />
+      </Link>
     </div>
   );
 };
