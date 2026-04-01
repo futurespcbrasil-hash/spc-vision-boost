@@ -161,13 +161,13 @@ const Dashboard = () => {
       </div>
 
       {/* Today's schedule */}
-      {todayEvents.length > 0 && (
+      {upcomingEvents.length > 0 && (
         <div className="stat-card">
           <h3 className="font-semibold text-foreground mb-3">📅 Próximos Compromissos</h3>
           <div className="space-y-2">
-            {todayEvents.map(e => (
+            {upcomingEvents.map(e => (
               <div key={e.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
-                <span className="text-sm font-medium text-primary">{e.time}</span>
+                <span className="text-sm font-medium text-primary">{e.date} {e.time}</span>
                 <span className="text-sm text-foreground">{e.leadName}</span>
                 <span className="text-sm text-muted-foreground">— {e.note}</span>
               </div>
