@@ -19,6 +19,7 @@ const CRMKanban = () => {
   const [newColLabel, setNewColLabel] = useState('');
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editColLabel, setEditColLabel] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Load custom stages from localStorage
