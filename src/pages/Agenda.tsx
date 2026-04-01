@@ -9,8 +9,10 @@ const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
   const selectedDateStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const pending = schedule.filter(e => !e.done).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+  const futureEvents = pending.filter(e => e.date >= todayStr);
   const done = schedule.filter(e => e.done);
 
   const filteredPending = selectedDateStr
