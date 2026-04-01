@@ -243,7 +243,10 @@ const CRMKanban = () => {
       >
         <div className="flex gap-3 min-w-max">
           {allStages.map(stage => {
-            const stageLeads = leads.filter(l => l.status === stage.key);
+            const allStageLeads = leads.filter(l => l.status === stage.key);
+            const stageLeads = searchQuery.trim()
+              ? allStageLeads.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              : allStageLeads;
             const isDragOver = dragOverStage === stage.key;
             const isExpanded = expandedStages.has(stage.key as KanbanStage);
             const visibleLeads = isExpanded ? stageLeads : stageLeads.slice(0, MAX_VISIBLE);

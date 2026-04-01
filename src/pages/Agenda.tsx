@@ -51,6 +51,30 @@ const Agenda = () => {
 
         {/* Events list */}
         <div className="space-y-4">
+          {/* Upcoming future events */}
+          {!selectedDateStr && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-foreground">🔜 Próximos Compromissos</h3>
+              {pending.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">Nenhum compromisso futuro.</p>
+              ) : (
+                pending.slice(0, 8).map(e => (
+                  <div key={`upcoming-${e.id}`} className="stat-card flex items-center gap-3">
+                    <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full border-2 border-primary flex-shrink-0 hover:bg-primary/10 transition" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-foreground">{e.leadName}</div>
+                      <div className="text-xs text-muted-foreground">{e.note}</div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
+                      <CalIcon size={12} /> {e.date}
+                      <Clock size={12} /> {e.time}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-foreground">
               📌 {selectedDateStr ? `Pendentes em ${selectedDate?.toLocaleDateString('pt-BR')}` : 'Todos Pendentes'} ({filteredPending.length})
