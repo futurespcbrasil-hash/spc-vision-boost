@@ -1,8 +1,9 @@
 import { useAppState } from '@/context/AppContext';
 import { KANBAN_STAGES } from '@/data/spcData';
-import { Users, Phone, Send, Handshake, CheckCircle2, FileText, Link2, Plus, Calendar, TrendingUp } from 'lucide-react';
+import { Users, Phone, Send, Handshake, CheckCircle2, FileText, Link2, Plus, Calendar, TrendingUp, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { useState, useRef, useEffect } from 'react';
 
 const STAT_ICONS: Record<string, any> = {
   lead_novo: Users,
