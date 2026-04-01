@@ -3,7 +3,7 @@ import { useAppState } from '@/context/AppContext';
 import { KANBAN_STAGES, KanbanStage, Lead } from '@/data/spcData';
 import { 
   GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, 
-  Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText
+  Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search
 } from 'lucide-react';
 
 const CRMKanban = () => {
