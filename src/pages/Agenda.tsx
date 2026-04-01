@@ -9,8 +9,10 @@ const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
   const selectedDateStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const pending = schedule.filter(e => !e.done).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+  const futureEvents = pending.filter(e => e.date >= todayStr);
   const done = schedule.filter(e => e.done);
 
   const filteredPending = selectedDateStr
@@ -51,29 +53,27 @@ const Agenda = () => {
 
         {/* Events list */}
         <div className="space-y-4">
-          {/* Upcoming future events */}
-          {!selectedDateStr && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-foreground">🔜 Próximos Compromissos</h3>
-              {pending.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">Nenhum compromisso futuro.</p>
-              ) : (
-                pending.slice(0, 8).map(e => (
-                  <div key={`upcoming-${e.id}`} className="stat-card flex items-center gap-3">
-                    <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full border-2 border-primary flex-shrink-0 hover:bg-primary/10 transition" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-foreground">{e.leadName}</div>
-                      <div className="text-xs text-muted-foreground">{e.note}</div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
-                      <CalIcon size={12} /> {e.date}
-                      <Clock size={12} /> {e.time}
-                    </div>
+          {/* Future events - always visible */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-foreground">🔜 Compromissos Futuros ({futureEvents.length})</h3>
+            {futureEvents.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">Nenhum compromisso futuro agendado.</p>
+            ) : (
+              futureEvents.map(e => (
+                <div key={`future-${e.id}`} className="stat-card flex items-center gap-3">
+                  <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full border-2 border-primary flex-shrink-0 hover:bg-primary/10 transition" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-foreground">{e.leadName}</div>
+                    <div className="text-xs text-muted-foreground">{e.note}</div>
                   </div>
-                ))
-              )}
-            </div>
-          )}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
+                    <CalIcon size={12} /> {e.date}
+                    <Clock size={12} /> {e.time}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
 
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-foreground">
