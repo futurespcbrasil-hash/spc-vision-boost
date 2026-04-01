@@ -57,64 +57,53 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in relative pb-20">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Visão geral do seu funil de vendas</p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Notification Bell */}
-          <div className="relative" ref={notifRef}>
-            <button
-              onClick={() => setShowNotif(!showNotif)}
-              className="relative p-2 rounded-lg bg-card border border-border text-foreground hover:bg-muted transition"
-            >
-              <Bell size={18} />
-              {upcomingEvents.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-bold">
-                  {upcomingEvents.length}
-                </span>
-              )}
-            </button>
-            {showNotif && (
-              <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-lg z-50 animate-slide-in">
-                <div className="p-3 border-b border-border">
-                  <h4 className="text-sm font-semibold text-foreground">📅 Próximos Compromissos</h4>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {upcomingEvents.length === 0 ? (
-                    <p className="text-sm text-muted-foreground p-4 text-center">Nenhum compromisso pendente</p>
-                  ) : (
-                    upcomingEvents.map(e => (
-                      <div key={e.id} className="px-3 py-2.5 border-b border-border/50 hover:bg-muted/50 transition">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-foreground">{e.leadName}</span>
-                          <span className="text-[10px] text-muted-foreground">{e.date}</span>
-                        </div>
-                        <div className="flex items-center justify-between mt-0.5">
-                          <span className="text-xs text-muted-foreground">{e.note || 'Sem nota'}</span>
-                          <span className="text-xs text-primary font-medium">{e.time}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <Link to="/agenda" className="block text-center text-xs text-primary font-medium py-2 hover:bg-muted/50 transition rounded-b-xl">
-                  Ver agenda completa →
-                </Link>
-              </div>
+        {/* Notification Bell */}
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => setShowNotif(!showNotif)}
+            className="relative p-2 rounded-lg bg-card border border-border text-foreground hover:bg-muted transition"
+          >
+            <Bell size={18} />
+            {upcomingEvents.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-bold">
+                {upcomingEvents.length}
+              </span>
             )}
-          </div>
-          <Link to="/leads" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
-            <Plus size={16} /> Novo Lead
-          </Link>
-          <Link to="/gerar-link" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
-            <Link2 size={16} /> Gerar Link
-          </Link>
-          <Link to="/agenda" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
-            <Calendar size={16} /> Agenda
-          </Link>
+          </button>
+          {showNotif && (
+            <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-lg z-50 animate-slide-in">
+              <div className="p-3 border-b border-border">
+                <h4 className="text-sm font-semibold text-foreground">📅 Próximos Compromissos</h4>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {upcomingEvents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-4 text-center">Nenhum compromisso pendente</p>
+                ) : (
+                  upcomingEvents.map(e => (
+                    <div key={e.id} className="px-3 py-2.5 border-b border-border/50 hover:bg-muted/50 transition">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">{e.leadName}</span>
+                        <span className="text-[10px] text-muted-foreground">{e.date}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-xs text-muted-foreground">{e.note || 'Sem nota'}</span>
+                        <span className="text-xs text-primary font-medium">{e.time}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <Link to="/agenda" className="block text-center text-xs text-primary font-medium py-2 hover:bg-muted/50 transition rounded-b-xl">
+                Ver agenda completa →
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -175,6 +164,15 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Floating action button */}
+      <Link
+        to="/leads"
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 transition z-40"
+        title="Novo Lead"
+      >
+        <Plus size={24} />
+      </Link>
     </div>
   );
 };
