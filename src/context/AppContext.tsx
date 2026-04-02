@@ -128,6 +128,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addScheduleEvent = async (event: ScheduleEvent) => {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data } = await supabase.from('schedule_events').insert({
       lead_id: event.leadId,
       lead_name: event.leadName,
@@ -135,6 +136,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       time: event.time,
       note: event.note,
       done: event.done,
+      user_id: user?.id,
     }).select().single();
     if (data) setSchedule(prev => [dbToEvent(data), ...prev]);
   };
