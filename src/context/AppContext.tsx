@@ -77,6 +77,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addLead = async (lead: Lead) => {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data } = await supabase.from('leads').insert({
       name: lead.name,
       company: lead.company,
@@ -90,6 +91,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       status: lead.status,
       observations: lead.observations,
       interactions: lead.interactions as any,
+      user_id: user?.id,
     }).select().single();
     if (data) setLeads(prev => [dbToLead(data), ...prev]);
   };
@@ -126,6 +128,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addScheduleEvent = async (event: ScheduleEvent) => {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data } = await supabase.from('schedule_events').insert({
       lead_id: event.leadId,
       lead_name: event.leadName,
@@ -133,6 +136,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       time: event.time,
       note: event.note,
       done: event.done,
+      user_id: user?.id,
     }).select().single();
     if (data) setSchedule(prev => [dbToEvent(data), ...prev]);
   };

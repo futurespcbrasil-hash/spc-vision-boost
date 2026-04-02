@@ -3,37 +3,40 @@ import {
   LayoutDashboard, Users, GitBranch, BarChart3, Link2, Calendar, 
   MessageSquare, ChevronLeft, ChevronRight, Package, FileBarChart,
   Phone, ChevronDown, ChevronUp, Smartphone, MessagesSquare, Send,
-  FileText, PieChart, Settings
+  FileText, PieChart, Settings, LogOut, Shield
 } from 'lucide-react';
 import { useState } from 'react';
-
-const NAV_ITEMS = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/crm', icon: GitBranch, label: 'CRM / Funil' },
-  { to: '/leads', icon: Users, label: 'Leads' },
-  { to: '/produtos', icon: Package, label: 'Produtos' },
-  { to: '/comparador', icon: BarChart3, label: 'Comparador' },
-  { to: '/gerar-link', icon: Link2, label: 'Gerar Link' },
-  { to: '/agenda', icon: Calendar, label: 'Agenda' },
-  { to: '/argumentos', icon: MessageSquare, label: 'Argumentos' },
-  { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
-];
-
-const WHATSAPP_ITEMS = [
-  { to: '/whatsapp/contas', icon: Smartphone, label: 'Contas Conectadas' },
-  { to: '/whatsapp/conversas', icon: MessagesSquare, label: 'Conversas' },
-  { to: '/whatsapp/enviar', icon: Send, label: 'Enviar Mensagem' },
-  { to: '/whatsapp/templates', icon: FileText, label: 'Templates' },
-  { to: '/whatsapp/dashboard', icon: PieChart, label: 'Dashboard' },
-  { to: '/whatsapp/config', icon: Settings, label: 'Configurações' },
-];
+import { useAuth } from '@/hooks/useAuth';
 
 const AppSidebar = () => {
   const location = useLocation();
+  const { profile, role, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
 
   const isWhatsappActive = location.pathname.startsWith('/whatsapp');
+
+  const NAV_ITEMS = [
+    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    ...(role === 'gestor' ? [{ to: '/gestor', icon: Shield, label: 'Painel Gestor' }] : []),
+    { to: '/crm', icon: GitBranch, label: 'CRM / Funil' },
+    { to: '/leads', icon: Users, label: 'Leads' },
+    { to: '/produtos', icon: Package, label: 'Produtos' },
+    { to: '/comparador', icon: BarChart3, label: 'Comparador' },
+    { to: '/gerar-link', icon: Link2, label: 'Gerar Link' },
+    { to: '/agenda', icon: Calendar, label: 'Agenda' },
+    { to: '/argumentos', icon: MessageSquare, label: 'Argumentos' },
+    { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+  ];
+
+  const WHATSAPP_ITEMS = [
+    { to: '/whatsapp/contas', icon: Smartphone, label: 'Contas Conectadas' },
+    { to: '/whatsapp/conversas', icon: MessagesSquare, label: 'Conversas' },
+    { to: '/whatsapp/enviar', icon: Send, label: 'Enviar Mensagem' },
+    { to: '/whatsapp/templates', icon: FileText, label: 'Templates' },
+    { to: '/whatsapp/dashboard', icon: PieChart, label: 'Dashboard' },
+    { to: '/whatsapp/config', icon: Settings, label: 'Configurações' },
+  ];
 
   const renderNavItem = (item: typeof NAV_ITEMS[0], isActive: boolean) => (
     <Link
@@ -122,7 +125,21 @@ const AppSidebar = () => {
         )}
       </nav>
 
-      <div className="p-3 border-t border-sidebar-border">
+      <div className="p-3 border-t border-sidebar-border space-y-2">
+        {!collapsed && profile && (
+          <div className="text-sidebar-foreground/80 text-xs px-2">
+            <div className="font-medium truncate">{profile.display_name || profile.email}</div>
+            <div className="text-sidebar-foreground/50 capitalize">{role}</div>
+          </div>
+        )}
+        <button
+          onClick={signOut}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition text-sm w-full ${collapsed ? 'justify-center' : ''}`}
+          title="Sair"
+        >
+          <LogOut size={16} />
+          {!collapsed && <span>Sair</span>}
+        </button>
         {!collapsed && (
           <div className="text-sidebar-foreground/50 text-xs text-center">
             SPC Brasil © 2026

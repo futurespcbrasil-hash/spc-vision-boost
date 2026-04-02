@@ -51,6 +51,7 @@ export type Database = {
           status: string
           type: string
           updated_at: string
+          user_id: string | null
           whatsapp: string | null
         }
         Insert: {
@@ -68,6 +69,7 @@ export type Database = {
           status?: string
           type?: string
           updated_at?: string
+          user_id?: string | null
           whatsapp?: string | null
         }
         Update: {
@@ -85,7 +87,35 @@ export type Database = {
           status?: string
           type?: string
           updated_at?: string
+          user_id?: string | null
           whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -100,6 +130,7 @@ export type Database = {
           note: string | null
           time: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -111,6 +142,7 @@ export type Database = {
           note?: string | null
           time: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -122,6 +154,25 @@ export type Database = {
           note?: string | null
           time?: string
           updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -130,10 +181,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "vendedor" | "gestor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -260,6 +317,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["vendedor", "gestor"],
+    },
   },
 } as const
