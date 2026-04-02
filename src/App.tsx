@@ -2,10 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider } from "@/context/AppContext";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
+import GestorDashboard from "@/pages/GestorDashboard";
 import CRMKanban from "@/pages/CRMKanban";
 import LeadsPage from "@/pages/LeadsPage";
 import Comparador from "@/pages/Comparador";
@@ -21,40 +23,65 @@ import WhatsAppEnviar from "@/pages/WhatsAppEnviar";
 import WhatsAppTemplates from "@/pages/WhatsAppTemplates";
 import WhatsAppDashboard from "@/pages/WhatsAppDashboard";
 import WhatsAppConfig from "@/pages/WhatsAppConfig";
+import Auth from "@/pages/Auth";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
+
+const ProtectedRoutes = () => {
+  const { user, loading, role } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <span className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!user) return <Auth />;
+
+  return (
+    <AppProvider>
+      <Routes>
+        <Route path="/comparacao/:id" element={<PublicComparison />} />
+        <Route path="/" element={<AppLayout>{role === 'gestor' ? <GestorDashboard /> : <Dashboard />}</AppLayout>} />
+        <Route path="/gestor" element={<AppLayout><GestorDashboard /></AppLayout>} />
+        <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
+        <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
+        <Route path="/produtos" element={<AppLayout><Produtos /></AppLayout>} />
+        <Route path="/comparador" element={<AppLayout><Comparador /></AppLayout>} />
+        <Route path="/gerar-link" element={<AppLayout><GerarLink /></AppLayout>} />
+        <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
+        <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
+        <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
+        <Route path="/whatsapp/contas" element={<AppLayout><WhatsAppContas /></AppLayout>} />
+        <Route path="/whatsapp/conversas" element={<AppLayout><WhatsAppConversas /></AppLayout>} />
+        <Route path="/whatsapp/enviar" element={<AppLayout><WhatsAppEnviar /></AppLayout>} />
+        <Route path="/whatsapp/templates" element={<AppLayout><WhatsAppTemplates /></AppLayout>} />
+        <Route path="/whatsapp/dashboard" element={<AppLayout><WhatsAppDashboard /></AppLayout>} />
+        <Route path="/whatsapp/config" element={<AppLayout><WhatsAppConfig /></AppLayout>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      <PWAInstallPrompt />
+    </AppProvider>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AppProvider>
+      <AuthProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/comparacao/:id" element={<PublicComparison />} />
-            <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
-            <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
-            <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
-            <Route path="/produtos" element={<AppLayout><Produtos /></AppLayout>} />
-            <Route path="/comparador" element={<AppLayout><Comparador /></AppLayout>} />
-            <Route path="/gerar-link" element={<AppLayout><GerarLink /></AppLayout>} />
-            <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
-            <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
-            <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
-            <Route path="/whatsapp/contas" element={<AppLayout><WhatsAppContas /></AppLayout>} />
-            <Route path="/whatsapp/conversas" element={<AppLayout><WhatsAppConversas /></AppLayout>} />
-            <Route path="/whatsapp/enviar" element={<AppLayout><WhatsAppEnviar /></AppLayout>} />
-            <Route path="/whatsapp/templates" element={<AppLayout><WhatsAppTemplates /></AppLayout>} />
-            <Route path="/whatsapp/dashboard" element={<AppLayout><WhatsAppDashboard /></AppLayout>} />
-            <Route path="/whatsapp/config" element={<AppLayout><WhatsAppConfig /></AppLayout>} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/*" element={<ProtectedRoutes />} />
           </Routes>
-          <PWAInstallPrompt />
         </BrowserRouter>
-      </AppProvider>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

@@ -77,6 +77,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addLead = async (lead: Lead) => {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data } = await supabase.from('leads').insert({
       name: lead.name,
       company: lead.company,
@@ -90,6 +91,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       status: lead.status,
       observations: lead.observations,
       interactions: lead.interactions as any,
+      user_id: user?.id,
     }).select().single();
     if (data) setLeads(prev => [dbToLead(data), ...prev]);
   };
