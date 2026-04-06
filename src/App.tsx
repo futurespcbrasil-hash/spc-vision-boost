@@ -24,6 +24,7 @@ import WhatsAppTemplates from "@/pages/WhatsAppTemplates";
 import WhatsAppDashboard from "@/pages/WhatsAppDashboard";
 import WhatsAppConfig from "@/pages/WhatsAppConfig";
 import Auth from "@/pages/Auth";
+import Perfil from "@/pages/Perfil";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
@@ -61,6 +62,7 @@ const ProtectedRoutes = () => {
         <Route path="/whatsapp/templates" element={<AppLayout><WhatsAppTemplates /></AppLayout>} />
         <Route path="/whatsapp/dashboard" element={<AppLayout><WhatsAppDashboard /></AppLayout>} />
         <Route path="/whatsapp/config" element={<AppLayout><WhatsAppConfig /></AppLayout>} />
+        <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <PWAInstallPrompt />
