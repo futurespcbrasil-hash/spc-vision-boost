@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, GitBranch, BarChart3, Link2, Calendar, 
   MessageSquare, ChevronLeft, ChevronRight, Package, FileBarChart,
   Phone, ChevronDown, ChevronUp, Smartphone, MessagesSquare, Send,
-  FileText, PieChart, Settings, LogOut, Shield
+  FileText, PieChart, Settings, LogOut, Shield, UserCog
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
