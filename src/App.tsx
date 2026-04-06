@@ -24,6 +24,7 @@ import WhatsAppTemplates from "@/pages/WhatsAppTemplates";
 import WhatsAppDashboard from "@/pages/WhatsAppDashboard";
 import WhatsAppConfig from "@/pages/WhatsAppConfig";
 import Auth from "@/pages/Auth";
+import Perfil from "@/pages/Perfil";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
