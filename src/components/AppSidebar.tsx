@@ -131,11 +131,7 @@ const AppSidebar = () => {
               </Link>
             )}
           </>
-        )}
-          >
-            <Phone size={18} />
-          </Link>
-        )}
+      </nav>
       </nav>
 
       <div className="p-3 border-t border-sidebar-border space-y-2">
