@@ -141,6 +141,14 @@ const AppSidebar = () => {
             <div className="text-sidebar-foreground/50 capitalize">{role}</div>
           </div>
         )}
+        <Link
+          to="/perfil"
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition text-sm w-full ${collapsed ? 'justify-center' : ''} ${location.pathname === '/perfil' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
+          title="Meu Perfil"
+        >
+          <UserCog size={16} />
+          {!collapsed && <span>Meu Perfil</span>}
+        </Link>
         <button
           onClick={signOut}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition text-sm w-full ${collapsed ? 'justify-center' : ''}`}
