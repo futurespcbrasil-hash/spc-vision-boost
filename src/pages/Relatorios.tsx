@@ -8,9 +8,9 @@ import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 
 const CHART_COLORS = [
-  'hsl(211, 85%, 42%)', 'hsl(152, 60%, 40%)', 'hsl(38, 92%, 50%)',
-  'hsl(270, 50%, 45%)', 'hsl(0, 65%, 55%)', 'hsl(199, 80%, 45%)',
-  'hsl(30, 80%, 50%)', 'hsl(190, 70%, 40%)', 'hsl(220, 15%, 60%)',
+  'hsl(262, 70%, 50%)', 'hsl(152, 60%, 40%)', 'hsl(38, 92%, 50%)',
+  'hsl(280, 50%, 55%)', 'hsl(0, 65%, 55%)', 'hsl(199, 80%, 45%)',
+  'hsl(30, 80%, 50%)', 'hsl(190, 70%, 40%)', 'hsl(260, 15%, 60%)',
 ];
 
 const Relatorios = () => {
@@ -216,7 +216,7 @@ const Relatorios = () => {
               <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="leads" fill="hsl(211, 85%, 42%)" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="leads" fill="hsl(262, 70%, 50%)" radius={[4, 4, 0, 0]}>
                 {funnelData.map((entry, i) => (
                   <Cell key={i} fill={entry.fill} />
                 ))}

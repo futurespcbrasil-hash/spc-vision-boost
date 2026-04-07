@@ -53,7 +53,7 @@ const WhatsAppDashboard = () => (
               <XAxis dataKey="dia" fontSize={12} />
               <YAxis fontSize={12} />
               <Tooltip />
-              <Bar dataKey="enviadas" fill="hsl(211, 85%, 42%)" name="Enviadas" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="enviadas" fill="hsl(262, 70%, 50%)" name="Enviadas" radius={[4, 4, 0, 0]} />
               <Bar dataKey="recebidas" fill="hsl(152, 60%, 40%)" name="Recebidas" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

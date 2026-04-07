@@ -6,25 +6,25 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 215 30% 12%;
+    --background: 250 15% 97%;
+    --foreground: 260 25% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 30% 12%;
+    --card-foreground: 260 25% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 30% 12%;
+    --popover-foreground: 260 25% 12%;
 
-    --primary: 211 85% 42%;
+    --primary: 262 70% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 30% 94%;
-    --secondary-foreground: 215 30% 18%;
+    --secondary: 260 25% 94%;
+    --secondary-foreground: 260 25% 18%;
 
-    --muted: 210 20% 95%;
-    --muted-foreground: 215 15% 48%;
+    --muted: 255 18% 95%;
+    --muted-foreground: 260 12% 48%;
 
-    --accent: 211 75% 52%;
+    --accent: 262 60% 58%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 65% 55%;
@@ -36,35 +36,35 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --spc-blue: 211 85% 42%;
-    --spc-blue-light: 211 80% 95%;
-    --spc-blue-dark: 211 90% 28%;
+    --spc-blue: 262 70% 50%;
+    --spc-blue-light: 262 65% 95%;
+    --spc-blue-dark: 262 80% 32%;
     --serasa-red: 0 70% 50%;
     --equifax-purple: 270 50% 45%;
 
-    --border: 214 25% 90%;
-    --input: 214 25% 90%;
-    --ring: 211 85% 42%;
+    --border: 260 20% 90%;
+    --input: 260 20% 90%;
+    --ring: 262 70% 50%;
 
     --radius: 0.625rem;
 
-    --sidebar-background: 211 90% 28%;
-    --sidebar-foreground: 210 30% 94%;
+    --sidebar-background: 262 80% 26%;
+    --sidebar-foreground: 260 25% 94%;
     --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 211 90% 28%;
-    --sidebar-accent: 211 80% 35%;
+    --sidebar-primary-foreground: 262 80% 26%;
+    --sidebar-accent: 262 65% 38%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 211 70% 35%;
-    --sidebar-ring: 211 85% 42%;
+    --sidebar-border: 262 55% 35%;
+    --sidebar-ring: 262 70% 50%;
 
-    --kanban-lead: 211 85% 95%;
+    --kanban-lead: 262 70% 95%;
     --kanban-contact: 199 80% 93%;
     --kanban-sent: 38 90% 93%;
     --kanban-negotiation: 270 60% 94%;
     --kanban-closing: 152 55% 92%;
     --kanban-won: 152 60% 40%;
     --kanban-lost: 0 65% 55%;
-    --kanban-no-use: 220 15% 90%;
+    --kanban-no-use: 260 15% 90%;
     --kanban-return: 30 80% 90%;
 
     --boa-vista: 190 70% 40%;
@@ -92,7 +92,7 @@
   }
 
   .gradient-spc {
-    background: linear-gradient(135deg, hsl(211 85% 42%), hsl(211 90% 28%));
+    background: linear-gradient(135deg, hsl(262 70% 50%), hsl(262 80% 26%));
   }
 
   .gradient-success {
@@ -113,8 +113,8 @@
 
   .spc-badge {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold;
-    background: hsl(211 80% 95%);
-    color: hsl(211 85% 42%);
+    background: hsl(262 65% 95%);
+    color: hsl(262 70% 50%);
   }
 
   .advantage-check {
