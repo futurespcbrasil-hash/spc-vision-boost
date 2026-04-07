@@ -1,12 +1,29 @@
 import { useAppState } from '@/context/AppContext';
-import { Calendar as CalIcon, Check, Clock, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Calendar as CalIcon, Check, Clock, Plus, Link, Unlink, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 import { Calendar } from '@/components/ui/calendar';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface GCalEvent {
+  id: string;
+  summary: string;
+  start: string;
+  end: string;
+  location: string;
+  description: string;
+}
 
 const Agenda = () => {
   const { schedule, toggleScheduleDone, addScheduleEvent } = useAppState();
   const [showForm, setShowForm] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+
+  // Google Calendar state
+  const [gcalConnected, setGcalConnected] = useState(false);
+  const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([]);
+  const [gcalLoading, setGcalLoading] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
 
   const selectedDateStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
   const todayStr = new Date().toISOString().split('T')[0];
@@ -19,19 +36,172 @@ const Agenda = () => {
     ? pending.filter(e => e.date === selectedDateStr)
     : pending;
 
-  // Dates that have events for highlighting
   const eventDates = schedule.filter(e => !e.done).map(e => new Date(e.date + 'T12:00:00'));
+
+  // Check Google Calendar connection status
+  const checkGcalStatus = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await supabase.functions.invoke('google-calendar', {
+        body: null,
+        headers: {},
+      });
+      // Use query params approach
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/google-calendar?action=status`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+      const data = await response.json();
+      setGcalConnected(data.connected || false);
+    } catch {
+      setGcalConnected(false);
+    } finally {
+      setCheckingStatus(false);
+    }
+  }, []);
+
+  // Fetch Google Calendar events
+  const fetchGcalEvents = useCallback(async () => {
+    if (!gcalConnected) return;
+    setGcalLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const now = new Date();
+      const timeMin = now.toISOString();
+      const timeMax = new Date(now.getTime() + 30 * 86400000).toISOString();
+
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/google-calendar?action=events&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+      const data = await response.json();
+      if (data.events) {
+        setGcalEvents(data.events);
+      } else if (data.connected === false) {
+        setGcalConnected(false);
+        toast.error('Conexão com Google Calendar expirou. Reconecte.');
+      }
+    } catch {
+      toast.error('Erro ao buscar eventos do Google Calendar');
+    } finally {
+      setGcalLoading(false);
+    }
+  }, [gcalConnected]);
+
+  useEffect(() => {
+    checkGcalStatus();
+  }, [checkGcalStatus]);
+
+  useEffect(() => {
+    if (gcalConnected) fetchGcalEvents();
+  }, [gcalConnected, fetchGcalEvents]);
+
+  // Check URL for callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gcal') === 'connected') {
+      setGcalConnected(true);
+      toast.success('Google Calendar conectado com sucesso!');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const connectGcal = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Faça login primeiro');
+        return;
+      }
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const redirectUri = window.location.origin;
+
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/google-calendar?action=auth-url&redirect_uri=${encodeURIComponent(redirectUri)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      toast.error('Erro ao conectar com Google Calendar');
+    }
+  };
+
+  const disconnectGcal = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      await fetch(
+        `https://${projectId}.supabase.co/functions/v1/google-calendar?action=disconnect`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
+      setGcalConnected(false);
+      setGcalEvents([]);
+      toast.success('Google Calendar desconectado');
+    } catch {
+      toast.error('Erro ao desconectar');
+    }
+  };
+
+  // Filter gcal events by selected date
+  const filteredGcalEvents = selectedDateStr
+    ? gcalEvents.filter(e => e.start.startsWith(selectedDateStr))
+    : gcalEvents;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Agenda</h1>
           <p className="text-muted-foreground text-sm mt-1">Compromissos e retornos agendados</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
-          <Plus size={16} /> Novo Compromisso
-        </button>
+        <div className="flex items-center gap-2">
+          {checkingStatus ? (
+            <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 size={14} className="animate-spin" /> Verificando...</span>
+          ) : gcalConnected ? (
+            <button onClick={disconnectGcal} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-destructive/30 text-destructive text-xs font-medium hover:bg-destructive/10 transition">
+              <Unlink size={14} /> Desconectar Google Calendar
+            </button>
+          ) : (
+            <button onClick={connectGcal} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-primary/30 text-primary text-xs font-medium hover:bg-primary/10 transition">
+              <Link size={14} /> Conectar Google Calendar
+            </button>
+          )}
+          <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
+            <Plus size={16} /> Novo Compromisso
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -53,6 +223,40 @@ const Agenda = () => {
 
         {/* Events list */}
         <div className="space-y-4">
+          {/* Google Calendar Events */}
+          {gcalConnected && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                📅 Google Calendar {selectedDateStr ? `- ${selectedDate?.toLocaleDateString('pt-BR')}` : '(próximos 30 dias)'}
+                {gcalLoading && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
+              </h3>
+              {filteredGcalEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">Nenhum evento do Google Calendar {selectedDateStr ? 'nesta data' : ''}.</p>
+              ) : (
+                filteredGcalEvents.map(e => {
+                  const startDate = new Date(e.start);
+                  const dateStr = startDate.toLocaleDateString('pt-BR');
+                  const timeStr = e.start.includes('T') ? startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Dia inteiro';
+                  return (
+                    <div key={e.id} className="stat-card flex items-center gap-3 border-l-4 border-l-primary/50">
+                      <div className="w-5 h-5 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
+                        <CalIcon size={12} className="text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">{e.summary}</div>
+                        {e.location && <div className="text-xs text-muted-foreground truncate">📍 {e.location}</div>}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
+                        <CalIcon size={12} /> {dateStr}
+                        <Clock size={12} /> {timeStr}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
           {/* Future events - always visible */}
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-foreground">🔜 Compromissos Futuros ({futureEvents.length})</h3>
