@@ -12,7 +12,7 @@ const STAT_ICONS: Record<string, any> = {
   venda_ganha: CheckCircle2,
 };
 
-const PIE_COLORS = ['hsl(211,85%,42%)', 'hsl(152,60%,40%)', 'hsl(38,92%,50%)', 'hsl(270,50%,45%)', 'hsl(199,80%,45%)'];
+const PIE_COLORS = ['hsl(262,70%,50%)', 'hsl(152,60%,40%)', 'hsl(38,92%,50%)', 'hsl(280,50%,55%)', 'hsl(199,80%,45%)'];
 
 const Dashboard = () => {
   const { leads, schedule } = useAppState();
@@ -129,7 +129,7 @@ const Dashboard = () => {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="value" fill="hsl(211,85%,42%)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="value" fill="hsl(262,70%,50%)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
