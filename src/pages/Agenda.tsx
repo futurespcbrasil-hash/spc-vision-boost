@@ -223,6 +223,37 @@ const Agenda = () => {
           <p className="text-muted-foreground text-sm mt-1">Compromissos e retornos agendados</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Status badge */}
+          {!checkingStatus && (
+            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+              hasSession === false
+                ? 'bg-destructive/10 text-destructive'
+                : gcalConnected
+                ? 'bg-green-500/10 text-green-600'
+                : gcalError
+                ? 'bg-destructive/10 text-destructive'
+                : 'bg-muted text-muted-foreground'
+            }`}>
+              {hasSession === false ? (
+                <><AlertCircle size={12} /> Sem login</>
+              ) : gcalConnected ? (
+                <><CheckCircle2 size={12} /> Conectado</>
+              ) : gcalError ? (
+                <><AlertCircle size={12} /> Erro</>
+              ) : (
+                <><Info size={12} /> Desconectado</>
+              )}
+            </span>
+          )}
+
+          {/* Logs toggle */}
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted transition"
+          >
+            <Info size={12} /> Logs {gcalLogs.length > 0 && `(${gcalLogs.length})`}
+          </button>
+
           {checkingStatus ? (
             <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 size={14} className="animate-spin" /> Verificando...</span>
           ) : gcalConnected ? (
@@ -239,6 +270,36 @@ const Agenda = () => {
           </button>
         </div>
       </div>
+
+      {/* Error banner */}
+      {gcalError && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+          <AlertCircle size={16} className="flex-shrink-0" />
+          <span>{gcalError}</span>
+        </div>
+      )}
+
+      {/* Logs panel */}
+      {showLogs && (
+        <div className="stat-card space-y-2 max-h-48 overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase">Logs Google Calendar</h3>
+            <button onClick={() => setGcalLogs([])} className="text-xs text-muted-foreground hover:text-foreground">Limpar</button>
+          </div>
+          {gcalLogs.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum log ainda.</p>
+          ) : (
+            gcalLogs.map((log, i) => (
+              <div key={i} className={`text-xs flex items-start gap-2 ${
+                log.type === 'error' ? 'text-destructive' : log.type === 'success' ? 'text-green-600' : 'text-muted-foreground'
+              }`}>
+                <span className="text-muted-foreground/60 flex-shrink-0">{log.time}</span>
+                <span>{log.message}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {showForm && (
         <ScheduleForm onAdd={(e) => { addScheduleEvent(e); setShowForm(false); }} onCancel={() => setShowForm(false)} />
