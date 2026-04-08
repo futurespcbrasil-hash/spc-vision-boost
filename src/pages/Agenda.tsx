@@ -1,5 +1,5 @@
 import { useAppState } from '@/context/AppContext';
-import { Calendar as CalIcon, Check, Clock, Plus, Link, Unlink, Loader2 } from 'lucide-react';
+import { Calendar as CalIcon, Check, Clock, Plus, Link, Unlink, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +14,12 @@ interface GCalEvent {
   description: string;
 }
 
+interface GCalLog {
+  time: string;
+  message: string;
+  type: 'info' | 'error' | 'success';
+}
+
 const Agenda = () => {
   const { schedule, toggleScheduleDone, addScheduleEvent } = useAppState();
   const [showForm, setShowForm] = useState(false);
@@ -24,6 +30,14 @@ const Agenda = () => {
   const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([]);
   const [gcalLoading, setGcalLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
+  const [gcalLogs, setGcalLogs] = useState<GCalLog[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [gcalError, setGcalError] = useState<string | null>(null);
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
+
+  const addLog = useCallback((message: string, type: GCalLog['type'] = 'info') => {
+    setGcalLogs(prev => [...prev, { time: new Date().toLocaleTimeString('pt-BR'), message, type }]);
+  }, []);
 
   const selectedDateStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
   const todayStr = new Date().toISOString().split('T')[0];
@@ -42,13 +56,14 @@ const Agenda = () => {
   const checkGcalStatus = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      setHasSession(!!session);
+      if (!session) {
+        addLog('Sem sessão autenticada - faça login primeiro', 'error');
+        setGcalError('Faça login para conectar o Google Calendar');
+        return;
+      }
+      addLog('Sessão encontrada, verificando status...', 'info');
 
-      const res = await supabase.functions.invoke('google-calendar', {
-        body: null,
-        headers: {},
-      });
-      // Use query params approach
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/google-calendar?action=status`,
@@ -60,13 +75,23 @@ const Agenda = () => {
         }
       );
       const data = await response.json();
-      setGcalConnected(data.connected || false);
-    } catch {
+      
+      if (response.ok) {
+        setGcalConnected(data.connected || false);
+        setGcalError(null);
+        addLog(`Status: ${data.connected ? 'Conectado' : 'Não conectado'}`, data.connected ? 'success' : 'info');
+      } else {
+        addLog(`Erro ${response.status}: ${JSON.stringify(data)}`, 'error');
+        setGcalError(`Erro ${response.status}: ${data.error || data.detail || 'Erro desconhecido'}`);
+      }
+    } catch (err: any) {
+      addLog(`Exceção: ${err.message}`, 'error');
+      setGcalError(err.message);
       setGcalConnected(false);
     } finally {
       setCheckingStatus(false);
     }
-  }, []);
+  }, [addLog]);
 
   // Fetch Google Calendar events
   const fetchGcalEvents = useCallback(async () => {
@@ -127,9 +152,11 @@ const Agenda = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Faça login primeiro');
+        addLog('Tentativa de conexão sem sessão', 'error');
         return;
       }
 
+      addLog('Gerando URL de autenticação...', 'info');
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const redirectUri = window.location.origin;
 
@@ -143,10 +170,19 @@ const Agenda = () => {
         }
       );
       const data = await response.json();
-      if (data.url) {
+      
+      if (response.ok && data.url) {
+        addLog('URL gerada, redirecionando para o Google...', 'success');
         window.location.href = data.url;
+      } else {
+        const errMsg = `Erro ${response.status}: ${data.error || data.detail || JSON.stringify(data)}`;
+        addLog(errMsg, 'error');
+        setGcalError(errMsg);
+        toast.error('Erro ao conectar com Google Calendar');
       }
-    } catch {
+    } catch (err: any) {
+      addLog(`Exceção: ${err.message}`, 'error');
+      setGcalError(err.message);
       toast.error('Erro ao conectar com Google Calendar');
     }
   };
@@ -187,6 +223,37 @@ const Agenda = () => {
           <p className="text-muted-foreground text-sm mt-1">Compromissos e retornos agendados</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Status badge */}
+          {!checkingStatus && (
+            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+              hasSession === false
+                ? 'bg-destructive/10 text-destructive'
+                : gcalConnected
+                ? 'bg-green-500/10 text-green-600'
+                : gcalError
+                ? 'bg-destructive/10 text-destructive'
+                : 'bg-muted text-muted-foreground'
+            }`}>
+              {hasSession === false ? (
+                <><AlertCircle size={12} /> Sem login</>
+              ) : gcalConnected ? (
+                <><CheckCircle2 size={12} /> Conectado</>
+              ) : gcalError ? (
+                <><AlertCircle size={12} /> Erro</>
+              ) : (
+                <><Info size={12} /> Desconectado</>
+              )}
+            </span>
+          )}
+
+          {/* Logs toggle */}
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted transition"
+          >
+            <Info size={12} /> Logs {gcalLogs.length > 0 && `(${gcalLogs.length})`}
+          </button>
+
           {checkingStatus ? (
             <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 size={14} className="animate-spin" /> Verificando...</span>
           ) : gcalConnected ? (
@@ -203,6 +270,36 @@ const Agenda = () => {
           </button>
         </div>
       </div>
+
+      {/* Error banner */}
+      {gcalError && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+          <AlertCircle size={16} className="flex-shrink-0" />
+          <span>{gcalError}</span>
+        </div>
+      )}
+
+      {/* Logs panel */}
+      {showLogs && (
+        <div className="stat-card space-y-2 max-h-48 overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase">Logs Google Calendar</h3>
+            <button onClick={() => setGcalLogs([])} className="text-xs text-muted-foreground hover:text-foreground">Limpar</button>
+          </div>
+          {gcalLogs.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum log ainda.</p>
+          ) : (
+            gcalLogs.map((log, i) => (
+              <div key={i} className={`text-xs flex items-start gap-2 ${
+                log.type === 'error' ? 'text-destructive' : log.type === 'success' ? 'text-green-600' : 'text-muted-foreground'
+              }`}>
+                <span className="text-muted-foreground/60 flex-shrink-0">{log.time}</span>
+                <span>{log.message}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {showForm && (
         <ScheduleForm onAdd={(e) => { addScheduleEvent(e); setShowForm(false); }} onCancel={() => setShowForm(false)} />
