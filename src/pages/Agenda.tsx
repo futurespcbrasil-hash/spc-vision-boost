@@ -1,5 +1,5 @@
 import { useAppState } from '@/context/AppContext';
-import { Calendar as CalIcon, Check, Clock, Plus, Link, Unlink, Loader2 } from 'lucide-react';
+import { Calendar as CalIcon, Check, Clock, Plus, Link, Unlink, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +14,12 @@ interface GCalEvent {
   description: string;
 }
 
+interface GCalLog {
+  time: string;
+  message: string;
+  type: 'info' | 'error' | 'success';
+}
+
 const Agenda = () => {
   const { schedule, toggleScheduleDone, addScheduleEvent } = useAppState();
   const [showForm, setShowForm] = useState(false);
@@ -24,6 +30,14 @@ const Agenda = () => {
   const [gcalEvents, setGcalEvents] = useState<GCalEvent[]>([]);
   const [gcalLoading, setGcalLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
+  const [gcalLogs, setGcalLogs] = useState<GCalLog[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [gcalError, setGcalError] = useState<string | null>(null);
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
+
+  const addLog = useCallback((message: string, type: GCalLog['type'] = 'info') => {
+    setGcalLogs(prev => [...prev, { time: new Date().toLocaleTimeString('pt-BR'), message, type }]);
+  }, []);
 
   const selectedDateStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
   const todayStr = new Date().toISOString().split('T')[0];
@@ -42,13 +56,14 @@ const Agenda = () => {
   const checkGcalStatus = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      setHasSession(!!session);
+      if (!session) {
+        addLog('Sem sessão autenticada - faça login primeiro', 'error');
+        setGcalError('Faça login para conectar o Google Calendar');
+        return;
+      }
+      addLog('Sessão encontrada, verificando status...', 'info');
 
-      const res = await supabase.functions.invoke('google-calendar', {
-        body: null,
-        headers: {},
-      });
-      // Use query params approach
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/google-calendar?action=status`,
@@ -60,13 +75,23 @@ const Agenda = () => {
         }
       );
       const data = await response.json();
-      setGcalConnected(data.connected || false);
-    } catch {
+      
+      if (response.ok) {
+        setGcalConnected(data.connected || false);
+        setGcalError(null);
+        addLog(`Status: ${data.connected ? 'Conectado' : 'Não conectado'}`, data.connected ? 'success' : 'info');
+      } else {
+        addLog(`Erro ${response.status}: ${JSON.stringify(data)}`, 'error');
+        setGcalError(`Erro ${response.status}: ${data.error || data.detail || 'Erro desconhecido'}`);
+      }
+    } catch (err: any) {
+      addLog(`Exceção: ${err.message}`, 'error');
+      setGcalError(err.message);
       setGcalConnected(false);
     } finally {
       setCheckingStatus(false);
     }
-  }, []);
+  }, [addLog]);
 
   // Fetch Google Calendar events
   const fetchGcalEvents = useCallback(async () => {
