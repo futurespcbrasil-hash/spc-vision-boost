@@ -31,16 +31,65 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const action = url.searchParams.get("action");
+    const supabase = getSupabaseClient();
+
+    // OAuth callback does NOT require auth (comes from Google redirect)
+    if (action === "callback") {
+      const code = url.searchParams.get("code");
+      const stateRaw = url.searchParams.get("state");
+      if (!code || !stateRaw) {
+        return new Response("Missing code or state", { status: 400, headers: corsHeaders });
+      }
+
+      const state = JSON.parse(atob(stateRaw));
+      const callbackUserId = state.user_id;
+      const redirectUri = state.redirect_uri || "https://spc-vision-boost.lovable.app";
+
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          redirect_uri: `${SUPABASE_URL}/functions/v1/google-calendar?action=callback`,
+          grant_type: "authorization_code",
+        }),
+      });
+
+      const tokens = await tokenRes.json();
+      console.log("Token exchange response status:", tokenRes.status);
+      if (tokens.error) {
+        console.error("Token error:", tokens.error, tokens.error_description);
+        return new Response(`Token error: ${tokens.error_description}`, { status: 400, headers: corsHeaders });
+      }
+
+      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+
+      await supabase.from("google_calendar_tokens").upsert({
+        user_id: callbackUserId,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token || "",
+        expires_at: expiresAt,
+      }, { onConflict: "user_id" });
+
+      console.log("Tokens saved for user:", callbackUserId);
+
+      return new Response(null, {
+        status: 302,
+        headers: { ...corsHeaders, Location: `${redirectUri}/agenda?gcal=connected` },
+      });
+    }
+
+    // All other actions require authentication
     const userId = await getUserId(req);
 
     if (!userId) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return new Response(JSON.stringify({ error: "Unauthorized", detail: "No valid session token found" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const supabase = getSupabaseClient();
 
     // Generate OAuth URL
     if (action === "auth-url") {
@@ -60,52 +109,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // OAuth callback
-    if (action === "callback") {
-      const code = url.searchParams.get("code");
-      const stateRaw = url.searchParams.get("state");
-      if (!code || !stateRaw) {
-        return new Response("Missing code or state", { status: 400, headers: corsHeaders });
-      }
-
-      const state = JSON.parse(atob(stateRaw));
-      const callbackUserId = state.user_id;
-      const redirectUri = state.redirect_uri || "https://spc-vision-boost.lovable.app";
-
-      // Exchange code for tokens
-      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: GOOGLE_CLIENT_ID,
-          client_secret: GOOGLE_CLIENT_SECRET,
-          redirect_uri: `${SUPABASE_URL}/functions/v1/google-calendar?action=callback`,
-          grant_type: "authorization_code",
-        }),
-      });
-
-      const tokens = await tokenRes.json();
-      if (tokens.error) {
-        return new Response(`Token error: ${tokens.error_description}`, { status: 400, headers: corsHeaders });
-      }
-
-      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
-
-      // Upsert tokens
-      await supabase.from("google_calendar_tokens").upsert({
-        user_id: callbackUserId,
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token || "",
-        expires_at: expiresAt,
-      }, { onConflict: "user_id" });
-
-      // Redirect back to app
-      return new Response(null, {
-        status: 302,
-        headers: { ...corsHeaders, Location: `${redirectUri}/agenda?gcal=connected` },
-      });
-    }
+    // (callback already handled above)
 
     // Check connection status
     if (action === "status") {
