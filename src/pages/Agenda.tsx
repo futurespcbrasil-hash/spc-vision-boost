@@ -152,9 +152,11 @@ const Agenda = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Faça login primeiro');
+        addLog('Tentativa de conexão sem sessão', 'error');
         return;
       }
 
+      addLog('Gerando URL de autenticação...', 'info');
       const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
       const redirectUri = window.location.origin;
 
@@ -168,10 +170,19 @@ const Agenda = () => {
         }
       );
       const data = await response.json();
-      if (data.url) {
+      
+      if (response.ok && data.url) {
+        addLog('URL gerada, redirecionando para o Google...', 'success');
         window.location.href = data.url;
+      } else {
+        const errMsg = `Erro ${response.status}: ${data.error || data.detail || JSON.stringify(data)}`;
+        addLog(errMsg, 'error');
+        setGcalError(errMsg);
+        toast.error('Erro ao conectar com Google Calendar');
       }
-    } catch {
+    } catch (err: any) {
+      addLog(`Exceção: ${err.message}`, 'error');
+      setGcalError(err.message);
       toast.error('Erro ao conectar com Google Calendar');
     }
   };
