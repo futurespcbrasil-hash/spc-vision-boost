@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      events: {
+        Row: {
+          client_email: string | null
+          created_at: string
+          description: string | null
+          end_datetime: string
+          google_event_id: string | null
+          id: string
+          meet_link: string | null
+          start_datetime: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_email?: string | null
+          created_at?: string
+          description?: string | null
+          end_datetime: string
+          google_event_id?: string | null
+          id?: string
+          meet_link?: string | null
+          start_datetime: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_email?: string | null
+          created_at?: string
+          description?: string | null
+          end_datetime?: string
+          google_event_id?: string | null
+          id?: string
+          meet_link?: string | null
+          start_datetime?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       google_calendar_tokens: {
         Row: {
           access_token: string
