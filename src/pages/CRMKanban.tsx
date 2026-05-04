@@ -20,6 +20,7 @@ const CRMKanban = () => {
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editColLabel, setEditColLabel] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileStage, setMobileStage] = useState<string>('lead_novo');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Load custom stages from localStorage
@@ -134,7 +135,7 @@ const CRMKanban = () => {
               placeholder="Buscar lead por nome..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 w-56"
+              className="pl-8 pr-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 w-full sm:w-56"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -235,9 +236,70 @@ const CRMKanban = () => {
         </div>
       )}
 
-      <div 
+      {/* Mobile column selector */}
+      <div className="md:hidden">
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Selecione a coluna</label>
+        <select
+          value={mobileStage}
+          onChange={e => setMobileStage(e.target.value)}
+          className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground"
+        >
+          {allStages.map(s => {
+            const count = leads.filter(l => l.status === s.key).length;
+            return <option key={s.key} value={s.key}>{s.label} ({count})</option>;
+          })}
+        </select>
+      </div>
+
+      {/* Mobile single-column view */}
+      <div className="md:hidden space-y-2">
+        {(() => {
+          const stage = allStages.find(s => s.key === mobileStage) || allStages[0];
+          const allStageLeads = leads.filter(l => l.status === stage.key);
+          const stageLeads = searchQuery.trim()
+            ? allStageLeads.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase()))
+            : allStageLeads;
+          const isExpanded = expandedStages.has(stage.key as KanbanStage);
+          const visibleLeads = isExpanded ? stageLeads : stageLeads.slice(0, MAX_VISIBLE);
+          const hasMore = stageLeads.length > MAX_VISIBLE;
+
+          if (stageLeads.length === 0) {
+            return <p className="text-sm text-muted-foreground text-center py-8">Sem leads nesta coluna</p>;
+          }
+
+          return (
+            <>
+              {visibleLeads.map(lead => (
+                <LeadCard
+                  key={lead.id}
+                  lead={lead}
+                  allStages={allStages}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => setSelectedLead(lead)}
+                  onStatusChange={handleCardStatusChange}
+                  onObsChange={handleCardObsChange}
+                  onDelete={(l) => { if (confirm('Excluir este lead?')) deleteLead(l.id); }}
+                  onEdit={(l) => { setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
+                />
+              ))}
+              {hasMore && (
+                <button
+                  onClick={() => toggleExpand(stage.key as KanbanStage)}
+                  className="w-full flex items-center justify-center gap-1 py-2 text-xs text-primary font-medium hover:bg-primary/5 rounded-lg transition"
+                >
+                  {isExpanded ? <><ChevronUp size={14} /> Mostrar menos</> : <><ChevronDown size={14} /> Ver mais ({stageLeads.length - MAX_VISIBLE})</>}
+                </button>
+              )}
+            </>
+          );
+        })()}
+      </div>
+
+      {/* Desktop kanban */}
+      <div
         ref={scrollContainerRef}
-        className="overflow-x-auto overflow-y-auto pb-4" 
+        className="hidden md:block overflow-x-auto overflow-y-auto pb-4"
         style={{ maxHeight: 'calc(100vh - 160px)' }}
         onDragOver={handleDragOverContainer}
       >
@@ -289,12 +351,12 @@ const CRMKanban = () => {
                     <p className="text-xs text-muted-foreground text-center py-4">Sem leads</p>
                   )}
                   {visibleLeads.map(lead => (
-                    <LeadCard 
-                      key={lead.id} 
-                      lead={lead} 
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
                       allStages={allStages}
-                      onDragStart={handleDragStart} 
-                      onDragEnd={handleDragEnd} 
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
                       onClick={() => setSelectedLead(lead)}
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
