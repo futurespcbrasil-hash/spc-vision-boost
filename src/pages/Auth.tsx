@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { LogIn, UserPlus, Mail, Lock, User } from 'lucide-react';
+import logoFuture from '@/assets/logo-future.png';
 
 const Auth = () => {
   const { signIn, signUp } = useAuth();
@@ -34,9 +35,7 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl mx-auto mb-4">
-            SPC
-          </div>
+          <img src={logoFuture} alt="Future Soluções" className="h-16 w-auto mx-auto mb-4 object-contain" />
           <h1 className="text-2xl font-bold text-foreground">
             {isLogin ? 'Bem-vindo de volta 👋' : 'Criar conta no sistema'}
           </h1>
