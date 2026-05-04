@@ -26,11 +26,7 @@ const AppSidebar = () => {
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/crm', icon: GitBranch, label: 'CRM / Funil' },
         { to: '/leads', icon: Users, label: 'Leads' },
-        { to: '/produtos', icon: Package, label: 'Produtos' },
-        { to: '/comparador', icon: BarChart3, label: 'Comparador' },
-        { to: '/gerar-link', icon: Link2, label: 'Gerar Link' },
         { to: '/agenda', icon: Calendar, label: 'Agenda' },
-        { to: '/argumentos', icon: MessageSquare, label: 'Argumentos' },
         { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
       ];
 
