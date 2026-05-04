@@ -237,7 +237,7 @@ const CRMKanban = () => {
       )}
 
       {/* Mobile column selector */}
-      <div className="md:hidden">
+      <div className="lg:hidden">
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">Selecione a coluna</label>
         <select
           value={mobileStage}
@@ -252,7 +252,7 @@ const CRMKanban = () => {
       </div>
 
       {/* Mobile single-column view */}
-      <div className="md:hidden space-y-2">
+      <div className="lg:hidden space-y-2">
         {(() => {
           const stage = allStages.find(s => s.key === mobileStage) || allStages[0];
           const allStageLeads = leads.filter(l => l.status === stage.key);
@@ -299,7 +299,7 @@ const CRMKanban = () => {
       {/* Desktop kanban */}
       <div
         ref={scrollContainerRef}
-        className="hidden md:block overflow-x-auto overflow-y-auto pb-4"
+        className="hidden lg:block overflow-x-auto overflow-y-auto pb-4"
         style={{ maxHeight: 'calc(100vh - 160px)' }}
         onDragOver={handleDragOverContainer}
       >
