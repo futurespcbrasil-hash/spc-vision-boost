@@ -59,11 +59,8 @@ const AppSidebar = () => {
     <aside className={`h-screen gradient-spc flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'} sticky top-0`}>
       <div className="flex items-center gap-2 p-4 border-b border-sidebar-border">
         {!collapsed && (
-          <div className="flex items-center gap-2 animate-fade-in">
-            <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm">
-              SPC
-            </div>
-            <span className="text-sidebar-foreground font-semibold text-sm">Vendas SPC</span>
+          <div className="flex items-center animate-fade-in bg-white rounded-md px-2 py-1">
+            <img src="/logo-future.png" alt="Future Soluções" className="h-7 w-auto object-contain" />
           </div>
         )}
         <button 

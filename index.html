@@ -16,7 +16,21 @@
 </head>
 
   <body>
+    <style>
+      #app-splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;z-index:9999;transition:opacity .4s ease}
+      #app-splash img{max-width:260px;width:60%;height:auto;animation:splashPulse 1.6s ease-in-out infinite}
+      @keyframes splashPulse{0%,100%{opacity:.85;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+    </style>
+    <div id="app-splash"><img src="/logo-future.png" alt="Future Soluções" /></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      window.addEventListener('load',function(){
+        setTimeout(function(){
+          var s=document.getElementById('app-splash');
+          if(s){s.style.opacity='0';setTimeout(function(){s.remove()},450)}
+        },600)
+      });
+    </script>
   </body>
 </html>
