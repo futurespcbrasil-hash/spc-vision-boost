@@ -44,7 +44,7 @@ const MobileBottomNav = () => {
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar border-t border-sidebar-border flex items-stretch h-16 pb-[env(safe-area-inset-bottom)]">
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar border-t border-sidebar-border flex items-stretch h-16 pb-[env(safe-area-inset-bottom)]">
         {primary.map(item => (
           <Link
             key={item.to}
@@ -69,7 +69,7 @@ const MobileBottomNav = () => {
       </nav>
 
       {moreOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setMoreOpen(false)}>
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setMoreOpen(false)}>
           <div
             className="absolute bottom-0 inset-x-0 bg-card rounded-t-2xl border-t border-border max-h-[80vh] overflow-y-auto animate-slide-in"
             onClick={e => e.stopPropagation()}
