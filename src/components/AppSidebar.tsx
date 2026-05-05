@@ -19,12 +19,15 @@ const AppSidebar = () => {
   const NAV_ITEMS = role === 'gestor'
     ? [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+        { to: '/crm', icon: GitBranch, label: 'Funil SPC Brasil' },
+        { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
         { to: '/agenda', icon: Calendar, label: 'Agenda' },
         { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
       ]
     : [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/crm', icon: GitBranch, label: 'CRM / Funil' },
+        { to: '/crm', icon: GitBranch, label: 'Funil SPC Brasil' },
+        { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
         { to: '/leads', icon: Users, label: 'Leads' },
         { to: '/agenda', icon: Calendar, label: 'Agenda' },
         { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
