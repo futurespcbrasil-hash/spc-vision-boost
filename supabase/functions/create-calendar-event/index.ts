@@ -139,15 +139,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify(googleBody),
       }
     );
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(googleBody),
-      }
-    );
 
     const gcalData = await gcalRes.json();
 
