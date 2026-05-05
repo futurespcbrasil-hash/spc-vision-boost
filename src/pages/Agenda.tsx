@@ -281,6 +281,7 @@ const Agenda = () => {
             start_datetime: formData.start_datetime,
             end_datetime: formData.end_datetime,
             client_email: formData.client_email,
+            with_meet: formData.with_meet,
           }),
         }
       );
@@ -444,7 +445,7 @@ const Agenda = () => {
           </button>
 
           <button onClick={() => { setEditingEvent(null); setShowEventForm(true); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
-            <Video size={16} /> Criar Evento + Meet
+            <CalIcon size={16} /> Criar Evento
           </button>
         </div>
       </div>
@@ -710,6 +711,7 @@ interface EventFormData {
   start_datetime: string;
   end_datetime: string;
   client_email: string;
+  with_meet: boolean;
 }
 
 const EventForm = ({
@@ -737,6 +739,7 @@ const EventForm = ({
     start_datetime: initialData ? formatForInput(initialData.start_datetime) : '',
     end_datetime: initialData ? formatForInput(initialData.end_datetime) : '',
     client_email: initialData?.client_email || '',
+    with_meet: !!initialData?.meet_link,
   });
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
@@ -751,8 +754,8 @@ const EventForm = ({
   return (
     <form onSubmit={handleSubmit} className="stat-card space-y-3 animate-slide-in border-l-4 border-l-primary">
       <h3 className="font-semibold text-foreground flex items-center gap-2">
-        <Video size={18} className="text-primary" />
-        {initialData ? 'Editar Evento' : 'Novo Evento com Google Meet'}
+        <CalIcon size={18} className="text-primary" />
+        {initialData ? 'Editar Evento' : 'Novo Evento'}
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <input className={inputClass} placeholder="Título do evento *" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
@@ -769,7 +772,17 @@ const EventForm = ({
           <input className={inputClass} type="datetime-local" required value={form.end_datetime} onChange={e => setForm({ ...form, end_datetime: e.target.value })} />
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">🔗 Um link do Google Meet será gerado automaticamente e o cliente receberá um convite por email.</p>
+      <label className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition">
+        <input
+          type="checkbox"
+          checked={form.with_meet}
+          onChange={e => setForm({ ...form, with_meet: e.target.checked })}
+          className="w-4 h-4 accent-primary"
+        />
+        <Video size={16} className="text-primary" />
+        <span className="text-sm text-foreground">Criar link do Google Meet para esta reunião</span>
+      </label>
+      <p className="text-xs text-muted-foreground">📅 O evento será salvo no Google Agenda. {form.with_meet && '🔗 Um link do Meet será gerado e enviado ao cliente.'}</p>
       <div className="flex gap-2 justify-end">
         <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
         <button type="submit" disabled={loading} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50 flex items-center gap-2">
