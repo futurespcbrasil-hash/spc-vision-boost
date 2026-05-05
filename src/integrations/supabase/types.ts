@@ -114,6 +114,7 @@ export type Database = {
         Row: {
           color: string
           created_at: string
+          funnel: string
           id: string
           key: string
           label: string
@@ -124,6 +125,7 @@ export type Database = {
         Insert: {
           color?: string
           created_at?: string
+          funnel?: string
           id?: string
           key: string
           label: string
@@ -134,6 +136,7 @@ export type Database = {
         Update: {
           color?: string
           created_at?: string
+          funnel?: string
           id?: string
           key?: string
           label?: string
@@ -149,6 +152,7 @@ export type Database = {
           cpf_cnpj: string | null
           created_at: string
           email: string | null
+          funnel: string
           id: string
           interactions: Json | null
           name: string
@@ -167,6 +171,7 @@ export type Database = {
           cpf_cnpj?: string | null
           created_at?: string
           email?: string | null
+          funnel?: string
           id?: string
           interactions?: Json | null
           name: string
@@ -185,6 +190,7 @@ export type Database = {
           cpf_cnpj?: string | null
           created_at?: string
           email?: string | null
+          funnel?: string
           id?: string
           interactions?: Json | null
           name?: string
