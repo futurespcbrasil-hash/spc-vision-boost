@@ -28,7 +28,7 @@ const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editColLabel, setEditColLabel] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [mobileStage, setMobileStage] = useState<string>('lead_novo');
+  const [mobileStage, setMobileStage] = useState<string>(baseStages[0]?.key || '');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Load custom stages from database (with localStorage migration fallback)
@@ -40,6 +40,7 @@ const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
       const { data, error } = await supabase
         .from('kanban_stages')
         .select('*')
+        .eq('funnel', funnel)
         .order('position', { ascending: true });
 
       if (error) {
@@ -50,33 +51,36 @@ const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
       if (data && data.length > 0) {
         setCustomStages(data.map(d => ({ key: d.key, label: d.label, color: d.color })));
       } else {
-        // Migrate from localStorage if exists
-        const saved = localStorage.getItem('custom_kanban_stages');
-        if (saved) {
-          try {
-            const local = JSON.parse(saved) as { key: string; label: string; color: string }[];
-            if (local.length > 0) {
-              const rows = local.map((s, i) => ({
-                user_id: user.id,
-                key: s.key,
-                label: s.label,
-                color: s.color,
-                position: i,
-              }));
-              const { data: inserted } = await supabase.from('kanban_stages').insert(rows).select();
-              if (inserted) {
-                setCustomStages(inserted.map(d => ({ key: d.key, label: d.label, color: d.color })));
-                localStorage.removeItem('custom_kanban_stages');
+        // Migrate from localStorage if exists (only for SPC funnel)
+        if (funnel === 'spc') {
+          const saved = localStorage.getItem('custom_kanban_stages');
+          if (saved) {
+            try {
+              const local = JSON.parse(saved) as { key: string; label: string; color: string }[];
+              if (local.length > 0) {
+                const rows = local.map((s, i) => ({
+                  user_id: user.id,
+                  funnel,
+                  key: s.key,
+                  label: s.label,
+                  color: s.color,
+                  position: i,
+                }));
+                const { data: inserted } = await supabase.from('kanban_stages').insert(rows).select();
+                if (inserted) {
+                  setCustomStages(inserted.map(d => ({ key: d.key, label: d.label, color: d.color })));
+                  localStorage.removeItem('custom_kanban_stages');
+                }
               }
-            }
-          } catch (e) { console.error(e); }
+            } catch (e) { console.error(e); }
+          }
         }
       }
     };
     load();
-  }, []);
+  }, [funnel]);
 
-  const allStages = [...KANBAN_STAGES, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
+  const allStages = [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
 
   const handleAddColumn = async () => {
     if (!newColLabel.trim()) return;
