@@ -110,23 +110,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    const requestId = crypto.randomUUID();
-    const googleBody = {
+    const googleBody: any = {
       summary: title,
       description: description || "",
       start: { dateTime: start_datetime, timeZone: "America/Sao_Paulo" },
       end: { dateTime: end_datetime, timeZone: "America/Sao_Paulo" },
       attendees: client_email ? [{ email: client_email }] : [],
-      conferenceData: {
+    };
+
+    if (with_meet) {
+      const requestId = crypto.randomUUID();
+      googleBody.conferenceData = {
         createRequest: {
           requestId,
           conferenceSolutionKey: { type: "hangoutsMeet" },
         },
-      },
-    };
+      };
+    }
 
     const gcalRes = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${with_meet ? "conferenceDataVersion=1&" : ""}sendUpdates=all`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(googleBody),
+      }
+    );
       {
         method: "POST",
         headers: {
