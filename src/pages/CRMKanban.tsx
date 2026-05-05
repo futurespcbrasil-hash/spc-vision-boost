@@ -8,8 +8,14 @@ import {
   Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search
 } from 'lucide-react';
 
-const CRMKanban = () => {
-  const { leads, moveLeadToStage, updateLead, deleteLead } = useAppState();
+interface CRMKanbanProps {
+  funnel?: 'spc' | 'comercial';
+}
+
+const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
+  const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
+  const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
+  const baseStages = funnel === 'spc' ? KANBAN_STAGES : [];
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -22,7 +28,7 @@ const CRMKanban = () => {
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editColLabel, setEditColLabel] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [mobileStage, setMobileStage] = useState<string>('lead_novo');
+  const [mobileStage, setMobileStage] = useState<string>(baseStages[0]?.key || '');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Load custom stages from database (with localStorage migration fallback)
@@ -34,6 +40,7 @@ const CRMKanban = () => {
       const { data, error } = await supabase
         .from('kanban_stages')
         .select('*')
+        .eq('funnel', funnel)
         .order('position', { ascending: true });
 
       if (error) {
@@ -44,33 +51,36 @@ const CRMKanban = () => {
       if (data && data.length > 0) {
         setCustomStages(data.map(d => ({ key: d.key, label: d.label, color: d.color })));
       } else {
-        // Migrate from localStorage if exists
-        const saved = localStorage.getItem('custom_kanban_stages');
-        if (saved) {
-          try {
-            const local = JSON.parse(saved) as { key: string; label: string; color: string }[];
-            if (local.length > 0) {
-              const rows = local.map((s, i) => ({
-                user_id: user.id,
-                key: s.key,
-                label: s.label,
-                color: s.color,
-                position: i,
-              }));
-              const { data: inserted } = await supabase.from('kanban_stages').insert(rows).select();
-              if (inserted) {
-                setCustomStages(inserted.map(d => ({ key: d.key, label: d.label, color: d.color })));
-                localStorage.removeItem('custom_kanban_stages');
+        // Migrate from localStorage if exists (only for SPC funnel)
+        if (funnel === 'spc') {
+          const saved = localStorage.getItem('custom_kanban_stages');
+          if (saved) {
+            try {
+              const local = JSON.parse(saved) as { key: string; label: string; color: string }[];
+              if (local.length > 0) {
+                const rows = local.map((s, i) => ({
+                  user_id: user.id,
+                  funnel,
+                  key: s.key,
+                  label: s.label,
+                  color: s.color,
+                  position: i,
+                }));
+                const { data: inserted } = await supabase.from('kanban_stages').insert(rows).select();
+                if (inserted) {
+                  setCustomStages(inserted.map(d => ({ key: d.key, label: d.label, color: d.color })));
+                  localStorage.removeItem('custom_kanban_stages');
+                }
               }
-            }
-          } catch (e) { console.error(e); }
+            } catch (e) { console.error(e); }
+          }
         }
       }
     };
     load();
-  }, []);
+  }, [funnel]);
 
-  const allStages = [...KANBAN_STAGES, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
+  const allStages = [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
 
   const handleAddColumn = async () => {
     if (!newColLabel.trim()) return;
@@ -84,7 +94,7 @@ const CRMKanban = () => {
     const color = colors[customStages.length % colors.length];
     const { data, error } = await supabase
       .from('kanban_stages')
-      .insert({ user_id: user.id, key, label: newColLabel.trim(), color, position: customStages.length })
+      .insert({ user_id: user.id, funnel, key, label: newColLabel.trim(), color, position: customStages.length })
       .select()
       .single();
     if (error || !data) {
@@ -98,9 +108,10 @@ const CRMKanban = () => {
   };
 
   const handleDeleteColumn = async (key: string) => {
-    if (confirm('Excluir esta coluna? Os leads serão movidos para "Lead Novo".')) {
-      leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, 'lead_novo'));
-      const { error } = await supabase.from('kanban_stages').delete().eq('key', key);
+    const fallback = (baseStages[0]?.key as KanbanStage) || ('lead_novo' as KanbanStage);
+    if (confirm('Excluir esta coluna? Os leads serão movidos para a primeira coluna.')) {
+      leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, fallback));
+      const { error } = await supabase.from('kanban_stages').delete().eq('key', key).eq('funnel', funnel);
       if (error) {
         toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
         return;
@@ -112,7 +123,7 @@ const CRMKanban = () => {
   const handleRenameColumn = async (key: string) => {
     if (!editColLabel.trim()) return;
     const newLabel = editColLabel.trim();
-    const { error } = await supabase.from('kanban_stages').update({ label: newLabel }).eq('key', key);
+    const { error } = await supabase.from('kanban_stages').update({ label: newLabel }).eq('key', key).eq('funnel', funnel);
     if (error) {
       toast({ title: 'Erro ao renomear', description: error.message, variant: 'destructive' });
       return;
@@ -186,7 +197,7 @@ const CRMKanban = () => {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">CRM / Funil de Vendas</h1>
+          <h1 className="text-2xl font-bold text-foreground">{funnel === 'spc' ? 'Funil SPC Brasil' : 'Funil Comercial'}</h1>
           <p className="text-muted-foreground text-sm mt-1">Arraste os leads entre as colunas para atualizar o status</p>
         </div>
         <div className="flex items-center gap-2">

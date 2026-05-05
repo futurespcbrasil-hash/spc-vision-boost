@@ -15,21 +15,24 @@ const MobileBottomNav = () => {
   const primary = role === 'gestor'
     ? [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+        { to: '/crm', icon: GitBranch, label: 'Funil SPC' },
         { to: '/agenda', icon: Calendar, label: 'Agenda' },
         { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
       ]
     : [
         { to: '/', icon: LayoutDashboard, label: 'Início' },
-        { to: '/crm', icon: GitBranch, label: 'Funil' },
+        { to: '/crm', icon: GitBranch, label: 'Funil SPC' },
         { to: '/leads', icon: Users, label: 'Leads' },
         { to: '/agenda', icon: Calendar, label: 'Agenda' },
       ];
 
   const more = role === 'gestor'
     ? [
+        { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
         { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
       ]
     : [
+        { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
         { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
         { to: '/whatsapp/contas', icon: Smartphone, label: 'WhatsApp - Contas' },
         { to: '/whatsapp/conversas', icon: MessagesSquare, label: 'WhatsApp - Conversas' },
