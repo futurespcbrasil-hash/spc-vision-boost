@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { title, description, start_datetime, end_datetime, client_email } = await req.json();
+    const { title, description, start_datetime, end_datetime, client_email, with_meet } = await req.json();
 
     if (!title || !start_datetime || !end_datetime) {
       return new Response(JSON.stringify({ error: "Missing required fields: title, start_datetime, end_datetime" }), {
