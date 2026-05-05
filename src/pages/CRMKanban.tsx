@@ -25,39 +25,99 @@ const CRMKanban = () => {
   const [mobileStage, setMobileStage] = useState<string>('lead_novo');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load custom stages from localStorage
+  // Load custom stages from database (with localStorage migration fallback)
   useEffect(() => {
-    const saved = localStorage.getItem('custom_kanban_stages');
-    if (saved) setCustomStages(JSON.parse(saved));
-  }, []);
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  const saveCustomStages = (stages: typeof customStages) => {
-    setCustomStages(stages);
-    localStorage.setItem('custom_kanban_stages', JSON.stringify(stages));
-  };
+      const { data, error } = await supabase
+        .from('kanban_stages')
+        .select('*')
+        .order('position', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao carregar colunas:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setCustomStages(data.map(d => ({ key: d.key, label: d.label, color: d.color })));
+      } else {
+        // Migrate from localStorage if exists
+        const saved = localStorage.getItem('custom_kanban_stages');
+        if (saved) {
+          try {
+            const local = JSON.parse(saved) as { key: string; label: string; color: string }[];
+            if (local.length > 0) {
+              const rows = local.map((s, i) => ({
+                user_id: user.id,
+                key: s.key,
+                label: s.label,
+                color: s.color,
+                position: i,
+              }));
+              const { data: inserted } = await supabase.from('kanban_stages').insert(rows).select();
+              if (inserted) {
+                setCustomStages(inserted.map(d => ({ key: d.key, label: d.label, color: d.color })));
+                localStorage.removeItem('custom_kanban_stages');
+              }
+            }
+          } catch (e) { console.error(e); }
+        }
+      }
+    };
+    load();
+  }, []);
 
   const allStages = [...KANBAN_STAGES, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
 
-  const handleAddColumn = () => {
+  const handleAddColumn = async () => {
     if (!newColLabel.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({ title: 'Erro', description: 'Você precisa estar logado.', variant: 'destructive' });
+      return;
+    }
     const key = `custom_${Date.now()}`;
     const colors = ['bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-teal-500', 'bg-pink-500'];
     const color = colors[customStages.length % colors.length];
-    saveCustomStages([...customStages, { key, label: newColLabel.trim(), color }]);
+    const { data, error } = await supabase
+      .from('kanban_stages')
+      .insert({ user_id: user.id, key, label: newColLabel.trim(), color, position: customStages.length })
+      .select()
+      .single();
+    if (error || !data) {
+      toast({ title: 'Erro ao criar coluna', description: error?.message, variant: 'destructive' });
+      return;
+    }
+    setCustomStages([...customStages, { key: data.key, label: data.label, color: data.color }]);
     setNewColLabel('');
     setShowAddColumn(false);
+    toast({ title: 'Coluna criada', description: `"${data.label}" foi salva.` });
   };
 
-  const handleDeleteColumn = (key: string) => {
+  const handleDeleteColumn = async (key: string) => {
     if (confirm('Excluir esta coluna? Os leads serão movidos para "Lead Novo".')) {
       leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, 'lead_novo'));
-      saveCustomStages(customStages.filter(s => s.key !== key));
+      const { error } = await supabase.from('kanban_stages').delete().eq('key', key);
+      if (error) {
+        toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
+        return;
+      }
+      setCustomStages(customStages.filter(s => s.key !== key));
     }
   };
 
-  const handleRenameColumn = (key: string) => {
+  const handleRenameColumn = async (key: string) => {
     if (!editColLabel.trim()) return;
-    saveCustomStages(customStages.map(s => s.key === key ? { ...s, label: editColLabel.trim() } : s));
+    const newLabel = editColLabel.trim();
+    const { error } = await supabase.from('kanban_stages').update({ label: newLabel }).eq('key', key);
+    if (error) {
+      toast({ title: 'Erro ao renomear', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setCustomStages(customStages.map(s => s.key === key ? { ...s, label: newLabel } : s));
     setEditingColumn(null);
     setEditColLabel('');
   };
