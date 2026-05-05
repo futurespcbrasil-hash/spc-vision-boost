@@ -444,7 +444,7 @@ const Agenda = () => {
           </button>
 
           <button onClick={() => { setEditingEvent(null); setShowEventForm(true); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
-            <Video size={16} /> Criar Evento + Meet
+            <CalIcon size={16} /> Criar Evento
           </button>
         </div>
       </div>
