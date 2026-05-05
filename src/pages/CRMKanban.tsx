@@ -94,7 +94,7 @@ const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
     const color = colors[customStages.length % colors.length];
     const { data, error } = await supabase
       .from('kanban_stages')
-      .insert({ user_id: user.id, key, label: newColLabel.trim(), color, position: customStages.length })
+      .insert({ user_id: user.id, funnel, key, label: newColLabel.trim(), color, position: customStages.length })
       .select()
       .single();
     if (error || !data) {
@@ -108,9 +108,10 @@ const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
   };
 
   const handleDeleteColumn = async (key: string) => {
-    if (confirm('Excluir esta coluna? Os leads serão movidos para "Lead Novo".')) {
-      leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, 'lead_novo'));
-      const { error } = await supabase.from('kanban_stages').delete().eq('key', key);
+    const fallback = (baseStages[0]?.key as KanbanStage) || ('lead_novo' as KanbanStage);
+    if (confirm('Excluir esta coluna? Os leads serão movidos para a primeira coluna.')) {
+      leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, fallback));
+      const { error } = await supabase.from('kanban_stages').delete().eq('key', key).eq('funnel', funnel);
       if (error) {
         toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
         return;
@@ -122,7 +123,7 @@ const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
   const handleRenameColumn = async (key: string) => {
     if (!editColLabel.trim()) return;
     const newLabel = editColLabel.trim();
-    const { error } = await supabase.from('kanban_stages').update({ label: newLabel }).eq('key', key);
+    const { error } = await supabase.from('kanban_stages').update({ label: newLabel }).eq('key', key).eq('funnel', funnel);
     if (error) {
       toast({ title: 'Erro ao renomear', description: error.message, variant: 'destructive' });
       return;
