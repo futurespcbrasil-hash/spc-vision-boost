@@ -281,6 +281,7 @@ const Agenda = () => {
             start_datetime: formData.start_datetime,
             end_datetime: formData.end_datetime,
             client_email: formData.client_email,
+            with_meet: formData.with_meet,
           }),
         }
       );
