@@ -92,6 +92,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       observations: lead.observations,
       interactions: lead.interactions as any,
       user_id: user?.id,
+      funnel: (lead as any).funnel || 'spc',
     }).select().single();
     if (data) setLeads(prev => [dbToLead(data), ...prev]);
   };

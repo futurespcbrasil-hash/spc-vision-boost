@@ -43,10 +43,8 @@ const ProtectedRoutes = () => {
       <Routes>
         <Route path="/comparacao/:id" element={<PublicComparison />} />
         <Route path="/" element={<AppLayout>{role === 'gestor' ? <GestorDashboard /> : <Dashboard />}</AppLayout>} />
-        <Route path="/crm" element={<AppLayout><CRMKanban funnel="spc" /></AppLayout>} />
-        {role === 'gestor' && (
-          <Route path="/crm-comercial" element={<AppLayout><CRMKanban funnel="comercial" /></AppLayout>} />
-        )}
+        <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
+        <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
         <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
         <Route path="/produtos" element={<AppLayout><Produtos /></AppLayout>} />
         <Route path="/comparador" element={<AppLayout><Comparador /></AppLayout>} />

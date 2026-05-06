@@ -3,6 +3,8 @@ import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
 import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useSectors } from '@/hooks/useSectors';
+import SectorSelector from '@/components/SectorSelector';
 
 interface SearchedLead {
   name: string;
@@ -15,7 +17,10 @@ interface SearchedLead {
 }
 
 const LeadsPage = () => {
-  const { leads, addLead, updateLead, deleteLead } = useAppState();
+  const { leads: allLeads, addLead, updateLead, deleteLead } = useAppState();
+  const { activeSector, sectors } = useSectors();
+  const sectorLabel = sectors.find(s => s.key === activeSector)?.label || activeSector;
+  const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === activeSector);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -58,7 +63,8 @@ const LeadsPage = () => {
             origin: cols[6] || 'Importação', product: cols[7] || 'SPC Maxi',
             status: 'lead_novo', observations: cols[8] || '', interactions: [],
             createdAt: new Date().toISOString().split('T')[0], email: cols[9] || '',
-          });
+            funnel: activeSector,
+          } as any);
         }
       });
     };
@@ -124,7 +130,8 @@ const LeadsPage = () => {
       interactions: [],
       createdAt: new Date().toISOString().split('T')[0],
       address: result.address,
-    });
+      funnel: activeSector,
+    } as any);
     setAddedIds(prev => new Set(prev).add(index));
   };
 
@@ -136,10 +143,11 @@ const LeadsPage = () => {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Leads</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gestão completa de leads</p>
+          <h1 className="text-2xl font-bold text-foreground">Leads — {sectorLabel}</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gestão completa de leads do setor</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <SectorSelector />
           <button onClick={() => setShowSearchModal(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 transition">
             <Globe size={16} /> Buscar na Internet
           </button>
@@ -153,7 +161,7 @@ const LeadsPage = () => {
         </div>
       </div>
 
-      {showForm && <LeadForm onAdd={(lead) => { addLead(lead); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
+      {showForm && <LeadForm onAdd={(lead) => { addLead({ ...lead, funnel: activeSector } as any); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
 
       {/* Internet Search Modal */}
       {showSearchModal && (

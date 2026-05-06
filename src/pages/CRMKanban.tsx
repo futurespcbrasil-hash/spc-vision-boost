@@ -8,14 +8,16 @@ import {
   Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search
 } from 'lucide-react';
 
-interface CRMKanbanProps {
-  funnel?: 'spc' | 'comercial';
-}
+import { useSectors } from '@/hooks/useSectors';
+import SectorSelector from '@/components/SectorSelector';
 
-const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
+const CRMKanban = () => {
+  const { activeSector, sectors } = useSectors();
+  const funnel = activeSector;
+  const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
-  const baseStages = KANBAN_STAGES;
+  const baseStages = funnel === 'spc' ? KANBAN_STAGES : [];
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -197,10 +199,11 @@ const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{funnel === 'spc' ? 'Funil SPC Brasil' : 'Funil Comercial'}</h1>
+          <h1 className="text-2xl font-bold text-foreground">Funil — {sectorLabel}</h1>
           <p className="text-muted-foreground text-sm mt-1">Arraste os leads entre as colunas para atualizar o status</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <SectorSelector />
           <div className="relative">
             <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
