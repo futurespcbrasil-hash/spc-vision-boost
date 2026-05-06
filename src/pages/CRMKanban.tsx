@@ -15,7 +15,7 @@ interface CRMKanbanProps {
 const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
-  const baseStages = funnel === 'spc' ? KANBAN_STAGES : [];
+  const baseStages = KANBAN_STAGES;
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
