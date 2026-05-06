@@ -1,9 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, Users, GitBranch, BarChart3, Link2, Calendar, 
-  MessageSquare, ChevronLeft, ChevronRight, Package, FileBarChart,
-  Phone, ChevronDown, ChevronUp, Smartphone, MessagesSquare, Send,
-  FileText, PieChart, Settings, LogOut, Shield, UserCog
+  LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
+  UserCog, LogOut, MessageCircle
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,35 +10,25 @@ const AppSidebar = () => {
   const location = useLocation();
   const { profile, role, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
-
-  const isWhatsappActive = location.pathname.startsWith('/whatsapp');
 
   const NAV_ITEMS = role === 'gestor'
     ? [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/crm', icon: GitBranch, label: 'Funil SPC Brasil' },
         { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
+        { to: '/leads', icon: Users, label: 'Leads' },
         { to: '/agenda', icon: Calendar, label: 'Agenda' },
         { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+        { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
       ]
     : [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/crm', icon: GitBranch, label: 'Funil SPC Brasil' },
-        { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
         { to: '/leads', icon: Users, label: 'Leads' },
         { to: '/agenda', icon: Calendar, label: 'Agenda' },
         { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+        { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
       ];
-
-  const WHATSAPP_ITEMS = [
-    { to: '/whatsapp/contas', icon: Smartphone, label: 'Contas Conectadas' },
-    { to: '/whatsapp/conversas', icon: MessagesSquare, label: 'Conversas' },
-    { to: '/whatsapp/enviar', icon: Send, label: 'Enviar Mensagem' },
-    { to: '/whatsapp/templates', icon: FileText, label: 'Templates' },
-    { to: '/whatsapp/dashboard', icon: PieChart, label: 'Dashboard' },
-    { to: '/whatsapp/config', icon: Settings, label: 'Configurações' },
-  ];
 
   const renderNavItem = (item: typeof NAV_ITEMS[0], isActive: boolean) => (
     <Link
@@ -68,66 +56,14 @@ const AppSidebar = () => {
         )}
         <button 
           onClick={() => setCollapsed(!collapsed)} 
-          className="ml-auto text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors p-1 rounded"
+          className="ml-auto text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors p-1 rounded text-xs"
         >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {collapsed ? '›' : '‹'}
         </button>
       </div>
 
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(item => renderNavItem(item, location.pathname === item.to))}
-
-        {/* WhatsApp Section - only for vendedor */}
-        {role !== 'gestor' && (
-          <>
-            <button
-              onClick={() => !collapsed && setWhatsappOpen(!whatsappOpen)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
-                ${isWhatsappActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
-                }`}
-              title={collapsed ? 'WhatsApp' : undefined}
-            >
-              <Phone size={18} />
-              {!collapsed && (
-                <>
-                  <span className="flex-1 text-left">WhatsApp</span>
-                  {whatsappOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                </>
-              )}
-            </button>
-
-            {!collapsed && whatsappOpen && (
-              <div className="ml-4 space-y-0.5 border-l-2 border-sidebar-border pl-2">
-                {WHATSAPP_ITEMS.map(item => (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className={`flex items-center gap-2 px-2 py-2 rounded-md text-xs font-medium transition-all duration-150
-                      ${location.pathname === item.to
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                        : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'
-                      }`}
-                  >
-                    <item.icon size={14} />
-                    <span>{item.label}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-
-            {collapsed && (
-              <Link
-                to="/whatsapp/conversas"
-                className="flex items-center justify-center px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-                title="WhatsApp"
-              >
-                <Phone size={18} />
-              </Link>
-            )}
-          </>
-        )}
       </nav>
 
       <div className="p-3 border-t border-sidebar-border space-y-2">
@@ -153,11 +89,6 @@ const AppSidebar = () => {
           <LogOut size={16} />
           {!collapsed && <span>Sair</span>}
         </button>
-        {!collapsed && (
-          <div className="text-sidebar-foreground/50 text-xs text-center">
-            SPC Brasil © 2026
-          </div>
-        )}
       </div>
     </aside>
   );

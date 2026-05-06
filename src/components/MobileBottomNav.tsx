@@ -1,8 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  MoreHorizontal, Phone, MessagesSquare, Send, FileText, PieChart,
-  Settings, UserCog, LogOut, Smartphone, X
+  MoreHorizontal, UserCog, LogOut, MessageCircle, X
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,29 +16,25 @@ const MobileBottomNav = () => {
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/crm', icon: GitBranch, label: 'Funil SPC' },
         { to: '/agenda', icon: Calendar, label: 'Agenda' },
-        { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+        { to: '/chat', icon: MessageCircle, label: 'Chat' },
       ]
     : [
         { to: '/', icon: LayoutDashboard, label: 'Início' },
         { to: '/crm', icon: GitBranch, label: 'Funil SPC' },
         { to: '/leads', icon: Users, label: 'Leads' },
-        { to: '/agenda', icon: Calendar, label: 'Agenda' },
+        { to: '/chat', icon: MessageCircle, label: 'Chat' },
       ];
 
   const more = role === 'gestor'
     ? [
         { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
+        { to: '/leads', icon: Users, label: 'Leads' },
+        { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
         { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
       ]
     : [
-        { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
+        { to: '/agenda', icon: Calendar, label: 'Agenda' },
         { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
-        { to: '/whatsapp/contas', icon: Smartphone, label: 'WhatsApp - Contas' },
-        { to: '/whatsapp/conversas', icon: MessagesSquare, label: 'WhatsApp - Conversas' },
-        { to: '/whatsapp/enviar', icon: Send, label: 'WhatsApp - Enviar' },
-        { to: '/whatsapp/templates', icon: FileText, label: 'WhatsApp - Templates' },
-        { to: '/whatsapp/dashboard', icon: PieChart, label: 'WhatsApp - Dashboard' },
-        { to: '/whatsapp/config', icon: Settings, label: 'WhatsApp - Configurações' },
         { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
       ];
 
