@@ -8,14 +8,16 @@ import {
   Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search
 } from 'lucide-react';
 
-interface CRMKanbanProps {
-  funnel?: 'spc' | 'comercial';
-}
+import { useSectors } from '@/hooks/useSectors';
+import SectorSelector from '@/components/SectorSelector';
 
-const CRMKanban = ({ funnel = 'spc' }: CRMKanbanProps) => {
+const CRMKanban = () => {
+  const { activeSector, sectors } = useSectors();
+  const funnel = activeSector;
+  const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
-  const baseStages = KANBAN_STAGES;
+  const baseStages = funnel === 'spc' ? KANBAN_STAGES : [];
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
