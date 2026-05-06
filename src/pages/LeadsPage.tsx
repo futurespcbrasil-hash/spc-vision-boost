@@ -161,7 +161,7 @@ const LeadsPage = () => {
         </div>
       </div>
 
-      {showForm && <LeadForm onAdd={(lead) => { addLead(lead); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
+      {showForm && <LeadForm onAdd={(lead) => { addLead({ ...lead, funnel: activeSector } as any); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
 
       {/* Internet Search Modal */}
       {showSearchModal && (
