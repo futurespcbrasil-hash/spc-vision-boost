@@ -199,10 +199,11 @@ const CRMKanban = () => {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{funnel === 'spc' ? 'Funil SPC Brasil' : 'Funil Comercial'}</h1>
+          <h1 className="text-2xl font-bold text-foreground">Funil — {sectorLabel}</h1>
           <p className="text-muted-foreground text-sm mt-1">Arraste os leads entre as colunas para atualizar o status</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <SectorSelector />
           <div className="relative">
             <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
