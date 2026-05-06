@@ -3,6 +3,8 @@ import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
 import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useSectors } from '@/hooks/useSectors';
+import SectorSelector from '@/components/SectorSelector';
 
 interface SearchedLead {
   name: string;
@@ -15,7 +17,10 @@ interface SearchedLead {
 }
 
 const LeadsPage = () => {
-  const { leads, addLead, updateLead, deleteLead } = useAppState();
+  const { leads: allLeads, addLead, updateLead, deleteLead } = useAppState();
+  const { activeSector, sectors } = useSectors();
+  const sectorLabel = sectors.find(s => s.key === activeSector)?.label || activeSector;
+  const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === activeSector);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
