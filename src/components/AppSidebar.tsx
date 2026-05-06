@@ -11,24 +11,14 @@ const AppSidebar = () => {
   const { profile, role, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
-  const NAV_ITEMS = role === 'gestor'
-    ? [
-        { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/crm', icon: GitBranch, label: 'Funil SPC Brasil' },
-        { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
-        { to: '/leads', icon: Users, label: 'Leads' },
-        { to: '/agenda', icon: Calendar, label: 'Agenda' },
-        { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
-        { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
-      ]
-    : [
-        { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/crm', icon: GitBranch, label: 'Funil SPC Brasil' },
-        { to: '/leads', icon: Users, label: 'Leads' },
-        { to: '/agenda', icon: Calendar, label: 'Agenda' },
-        { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
-        { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
-      ];
+  const NAV_ITEMS = [
+    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/crm', icon: GitBranch, label: 'Funil' },
+    { to: '/leads', icon: Users, label: 'Leads' },
+    { to: '/agenda', icon: Calendar, label: 'Agenda' },
+    { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+    { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
+  ];
 
   const renderNavItem = (item: typeof NAV_ITEMS[0], isActive: boolean) => (
     <Link

@@ -11,32 +11,18 @@ const MobileBottomNav = () => {
   const { profile, role, signOut } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const primary = role === 'gestor'
-    ? [
-        { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/crm', icon: GitBranch, label: 'Funil SPC' },
-        { to: '/agenda', icon: Calendar, label: 'Agenda' },
-        { to: '/chat', icon: MessageCircle, label: 'Chat' },
-      ]
-    : [
-        { to: '/', icon: LayoutDashboard, label: 'Início' },
-        { to: '/crm', icon: GitBranch, label: 'Funil SPC' },
-        { to: '/leads', icon: Users, label: 'Leads' },
-        { to: '/chat', icon: MessageCircle, label: 'Chat' },
-      ];
+  const primary = [
+    { to: '/', icon: LayoutDashboard, label: 'Início' },
+    { to: '/crm', icon: GitBranch, label: 'Funil' },
+    { to: '/leads', icon: Users, label: 'Leads' },
+    { to: '/chat', icon: MessageCircle, label: 'Chat' },
+  ];
 
-  const more = role === 'gestor'
-    ? [
-        { to: '/crm-comercial', icon: GitBranch, label: 'Funil Comercial' },
-        { to: '/leads', icon: Users, label: 'Leads' },
-        { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
-        { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
-      ]
-    : [
-        { to: '/agenda', icon: Calendar, label: 'Agenda' },
-        { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
-        { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
-      ];
+  const more = [
+    { to: '/agenda', icon: Calendar, label: 'Agenda' },
+    { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+    { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
+  ];
 
   const isActive = (to: string) => pathname === to;
 
