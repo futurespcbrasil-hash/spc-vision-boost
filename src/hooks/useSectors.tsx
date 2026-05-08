@@ -5,6 +5,7 @@ import { toast } from '@/hooks/use-toast';
 export interface Sector {
   key: string;
   label: string;
+  userId?: string;
 }
 
 const DEFAULT_SECTORS: Sector[] = [
@@ -14,8 +15,18 @@ const DEFAULT_SECTORS: Sector[] = [
 
 const STORAGE_KEY = 'active_sector';
 
+const mergeSectors = (rows: any[] = []): Sector[] => {
+  const map = new Map<string, Sector>();
+  DEFAULT_SECTORS.forEach(s => map.set(s.key, s));
+  rows.forEach(row => {
+    if (!map.has(row.key)) map.set(row.key, { key: row.key, label: row.label, userId: row.user_id });
+  });
+  return Array.from(map.values());
+};
+
 export const useSectors = () => {
   const [sectors, setSectors] = useState<Sector[]>(DEFAULT_SECTORS);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSector, setActiveSectorState] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEY) || 'spc';
   });
@@ -29,6 +40,7 @@ export const useSectors = () => {
   const load = useCallback(async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+    setCurrentUserId(user?.id || null);
     if (!user) { setLoading(false); return; }
 
     const { data, error } = await supabase
@@ -48,9 +60,9 @@ export const useSectors = () => {
         user_id: user.id, key: s.key, label: s.label, position: i,
       }));
       const { data: inserted } = await supabase.from('sectors').insert(rows).select();
-      if (inserted) setSectors(inserted.map(d => ({ key: d.key, label: d.label })));
+      setSectors(mergeSectors(inserted || []));
     } else {
-      setSectors(data.map(d => ({ key: d.key, label: d.label })));
+      setSectors(mergeSectors(data));
     }
     setLoading(false);
   }, []);
@@ -70,7 +82,7 @@ export const useSectors = () => {
       toast({ title: 'Erro ao criar setor', description: error?.message, variant: 'destructive' });
       return;
     }
-    setSectors([...sectors, { key: data.key, label: data.label }]);
+    setSectors([...sectors, { key: data.key, label: data.label, userId: data.user_id }]);
     setActiveSector(data.key);
     toast({ title: 'Setor criado', description: `"${data.label}" adicionado.` });
   };
@@ -89,5 +101,5 @@ export const useSectors = () => {
     if (activeSector === key) setActiveSector('spc');
   };
 
-  return { sectors, activeSector, setActiveSector, addSector, deleteSector, loading };
+  return { sectors, activeSector, setActiveSector, addSector, deleteSector, loading, currentUserId };
 };
