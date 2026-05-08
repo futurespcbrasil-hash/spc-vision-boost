@@ -26,6 +26,7 @@ export const useAppState = () => {
 
 const dbToLead = (row: any): Lead => ({
   id: row.id,
+  userId: row.user_id || '',
   name: row.name,
   company: row.company || '',
   phone: row.phone || '',
@@ -40,10 +41,12 @@ const dbToLead = (row: any): Lead => ({
   interactions: Array.isArray(row.interactions) ? row.interactions : [],
   createdAt: row.created_at?.split('T')[0] || '',
   address: row.address || '',
+  funnel: row.funnel || 'spc',
 });
 
 const dbToEvent = (row: any): ScheduleEvent => ({
   id: row.id,
+  userId: row.user_id || '',
   leadId: row.lead_id || '',
   leadName: row.lead_name,
   date: row.date,
@@ -112,6 +115,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       status: lead.status,
       observations: lead.observations,
       interactions: lead.interactions as any,
+      funnel: (lead as any).funnel || 'spc',
     }).eq('id', lead.id);
   };
 

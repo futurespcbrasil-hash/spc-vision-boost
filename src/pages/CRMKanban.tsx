@@ -10,14 +10,16 @@ import {
 
 import { useSectors } from '@/hooks/useSectors';
 import SectorSelector from '@/components/SectorSelector';
+import { useAuth } from '@/hooks/useAuth';
 
 const CRMKanban = () => {
+  const { role, user } = useAuth();
   const { activeSector, sectors } = useSectors();
-  const funnel = activeSector;
+  const funnel = role === 'gestor' ? activeSector : 'spc';
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
-  const baseStages = funnel === 'spc' ? KANBAN_STAGES : [];
+  const baseStages = KANBAN_STAGES;
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -32,6 +34,8 @@ const CRMKanban = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileStage, setMobileStage] = useState<string>(baseStages[0]?.key || '');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
 
   // Load custom stages from database (with localStorage migration fallback)
   useEffect(() => {
@@ -80,6 +84,11 @@ const CRMKanban = () => {
       }
     };
     load();
+  }, [funnel]);
+
+  useEffect(() => {
+    setMobileStage(baseStages[0]?.key || '');
+    setCustomStages([]);
   }, [funnel]);
 
   const allStages = [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
@@ -178,10 +187,18 @@ const CRMKanban = () => {
   };
 
   const handleCardStatusChange = (lead: Lead, newStatus: string) => {
+    if (!canEditLead(lead)) {
+      toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' });
+      return;
+    }
     moveLeadToStage(lead.id, newStatus as KanbanStage);
   };
 
   const handleCardObsChange = (lead: Lead, obs: string) => {
+    if (!canEditLead(lead)) {
+      toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' });
+      return;
+    }
     updateLead({ ...lead, observations: obs });
   };
 
@@ -203,7 +220,7 @@ const CRMKanban = () => {
           <p className="text-muted-foreground text-sm mt-1">Arraste os leads entre as colunas para atualizar o status</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <SectorSelector />
+          {role === 'gestor' && <SectorSelector />}
           <div className="relative">
             <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -355,8 +372,8 @@ const CRMKanban = () => {
                   onClick={() => setSelectedLead(lead)}
                   onStatusChange={handleCardStatusChange}
                   onObsChange={handleCardObsChange}
-                  onDelete={(l) => { if (confirm('Excluir este lead?')) deleteLead(l.id); }}
-                  onEdit={(l) => { setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
+                  onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
+                  onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                 />
               ))}
               {hasMore && (
@@ -436,8 +453,8 @@ const CRMKanban = () => {
                       onClick={() => setSelectedLead(lead)}
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
-                      onDelete={(l) => { if (confirm('Excluir este lead?')) deleteLead(l.id); }}
-                      onEdit={(l) => { setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
+                      onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
+                      onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                     />
                   ))}
                   {hasMore && (

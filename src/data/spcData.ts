@@ -1,5 +1,6 @@
 export interface Lead {
   id: string;
+  userId?: string;
   name: string;
   company: string;
   phone: string;
@@ -14,6 +15,7 @@ export interface Lead {
   interactions: Interaction[];
   createdAt: string;
   address?: string;
+  funnel?: string;
 }
 
 export interface Interaction {
@@ -54,6 +56,7 @@ export interface ComparisonProduct {
 
 export interface ScheduleEvent {
   id: string;
+  userId?: string;
   leadId: string;
   leadName: string;
   date: string;
