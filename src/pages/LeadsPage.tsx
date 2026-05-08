@@ -24,6 +24,7 @@ const LeadsPage = () => {
   const selectedSector = role === 'gestor' ? activeSector : 'spc';
   const sectorLabel = sectors.find(s => s.key === selectedSector)?.label || selectedSector;
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === selectedSector);
+  const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -76,6 +77,7 @@ const LeadsPage = () => {
   };
 
   const handleEdit = (lead: Lead) => {
+    if (!canEditLead(lead)) return;
     setEditData({ ...lead });
     setEditMode(true);
   };
@@ -90,6 +92,7 @@ const LeadsPage = () => {
   };
 
   const handleDelete = (lead: Lead) => {
+    if (!canEditLead(lead)) return;
     if (confirm('Tem certeza que deseja excluir este lead?')) {
       deleteLead(lead.id);
       setSelectedLead(null);
