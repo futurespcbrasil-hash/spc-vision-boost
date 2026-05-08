@@ -220,7 +220,7 @@ const CRMKanban = () => {
           <p className="text-muted-foreground text-sm mt-1">Arraste os leads entre as colunas para atualizar o status</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <SectorSelector />
+          {role === 'gestor' && <SectorSelector />}
           <div className="relative">
             <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -372,8 +372,8 @@ const CRMKanban = () => {
                   onClick={() => setSelectedLead(lead)}
                   onStatusChange={handleCardStatusChange}
                   onObsChange={handleCardObsChange}
-                  onDelete={(l) => { if (confirm('Excluir este lead?')) deleteLead(l.id); }}
-                  onEdit={(l) => { setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
+                  onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
+                  onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                 />
               ))}
               {hasMore && (
@@ -453,8 +453,8 @@ const CRMKanban = () => {
                       onClick={() => setSelectedLead(lead)}
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
-                      onDelete={(l) => { if (confirm('Excluir este lead?')) deleteLead(l.id); }}
-                      onEdit={(l) => { setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
+                      onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
+                      onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                     />
                   ))}
                   {hasMore && (
