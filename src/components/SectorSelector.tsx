@@ -7,7 +7,7 @@ interface SectorSelectorProps {
 }
 
 const SectorSelector = ({ label = 'Setor' }: SectorSelectorProps) => {
-  const { sectors, activeSector, setActiveSector, addSector, deleteSector } = useSectors();
+  const { sectors, activeSector, setActiveSector, addSector, deleteSector, currentUserId } = useSectors();
   const [open, setOpen] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [newLabel, setNewLabel] = useState('');
@@ -41,6 +41,7 @@ const SectorSelector = ({ label = 'Setor' }: SectorSelectorProps) => {
                 {sectors.map(s => {
                   const isDefault = s.key === 'spc' || s.key === 'comercial';
                   const isActive = s.key === activeSector;
+                  const canDelete = !isDefault && s.userId === currentUserId;
                   return (
                     <div key={s.key} className={`flex items-center justify-between px-3 py-2 text-sm hover:bg-muted ${isActive ? 'bg-muted/50' : ''}`}>
                       <button
@@ -50,7 +51,7 @@ const SectorSelector = ({ label = 'Setor' }: SectorSelectorProps) => {
                         {isActive && <Check size={14} className="text-primary" />}
                         <span className={isActive ? 'font-medium' : ''}>{s.label}</span>
                       </button>
-                      {!isDefault && (
+                      {canDelete && (
                         <button
                           onClick={(e) => { e.stopPropagation(); if (confirm(`Excluir setor "${s.label}"?`)) deleteSector(s.key); }}
                           className="p-1 text-muted-foreground hover:text-destructive"
