@@ -154,7 +154,7 @@ const LeadsPage = () => {
           <p className="text-muted-foreground text-sm mt-1">Gestão completa de leads do setor</p>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          {role === 'gestor' && <SectorSelector />}
+          {isGestor && <SectorSelector />}
           <button onClick={() => setShowSearchModal(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 transition">
             <Globe size={16} /> Buscar na Internet
           </button>
