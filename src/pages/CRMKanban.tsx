@@ -13,9 +13,10 @@ import SectorSelector from '@/components/SectorSelector';
 import { useAuth } from '@/hooks/useAuth';
 
 const CRMKanban = () => {
-  const { role, user } = useAuth();
+  const { role, user, loading: authLoading } = useAuth();
   const { activeSector, sectors } = useSectors();
-  const funnel = role === 'gestor' ? activeSector : 'spc';
+  const isGestor = !authLoading && role === 'gestor';
+  const funnel = isGestor ? activeSector : 'spc';
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
@@ -212,6 +213,10 @@ const CRMKanban = () => {
 
   const MAX_VISIBLE = 4;
 
+  if (authLoading) {
+    return <div className="p-6 text-sm text-muted-foreground">Carregando funil...</div>;
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -220,7 +225,7 @@ const CRMKanban = () => {
           <p className="text-muted-foreground text-sm mt-1">Arraste os leads entre as colunas para atualizar o status</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {role === 'gestor' && <SectorSelector />}
+          {isGestor && <SectorSelector />}
           <div className="relative">
             <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input

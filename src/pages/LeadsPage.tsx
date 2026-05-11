@@ -19,9 +19,10 @@ interface SearchedLead {
 
 const LeadsPage = () => {
   const { leads: allLeads, addLead, updateLead, deleteLead } = useAppState();
-  const { role, user } = useAuth();
+  const { role, user, loading: authLoading } = useAuth();
   const { activeSector, sectors } = useSectors();
-  const selectedSector = role === 'gestor' ? activeSector : 'spc';
+  const isGestor = !authLoading && role === 'gestor';
+  const selectedSector = isGestor ? activeSector : 'spc';
   const sectorLabel = sectors.find(s => s.key === selectedSector)?.label || selectedSector;
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === selectedSector);
   const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
@@ -145,6 +146,10 @@ const LeadsPage = () => {
 
   const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
+  if (authLoading) {
+    return <div className="p-6 text-sm text-muted-foreground">Carregando leads...</div>;
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -153,7 +158,7 @@ const LeadsPage = () => {
           <p className="text-muted-foreground text-sm mt-1">Gestão completa de leads do setor</p>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
-          {role === 'gestor' && <SectorSelector />}
+          {isGestor && <SectorSelector />}
           <button onClick={() => setShowSearchModal(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 transition">
             <Globe size={16} /> Buscar na Internet
           </button>
