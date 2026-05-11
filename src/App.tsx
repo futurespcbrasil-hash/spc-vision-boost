@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Dashboard from "@/pages/Dashboard";
 import GestorDashboard from "@/pages/GestorDashboard";
 import CRMKanban from "@/pages/CRMKanban";
