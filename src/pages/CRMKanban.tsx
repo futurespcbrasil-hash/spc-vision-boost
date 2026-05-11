@@ -13,9 +13,10 @@ import SectorSelector from '@/components/SectorSelector';
 import { useAuth } from '@/hooks/useAuth';
 
 const CRMKanban = () => {
-  const { role, user } = useAuth();
+  const { role, user, loading: authLoading } = useAuth();
   const { activeSector, sectors } = useSectors();
-  const funnel = role === 'gestor' ? activeSector : 'spc';
+  const isGestor = !authLoading && role === 'gestor';
+  const funnel = isGestor ? activeSector : 'spc';
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
