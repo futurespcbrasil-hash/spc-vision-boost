@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Dashboard from "@/pages/Dashboard";
 import GestorDashboard from "@/pages/GestorDashboard";
 import CRMKanban from "@/pages/CRMKanban";
@@ -40,22 +41,24 @@ const ProtectedRoutes = () => {
 
   return (
     <AppProvider>
-      <Routes>
-        <Route path="/comparacao/:id" element={<PublicComparison />} />
-        <Route path="/" element={<AppLayout>{role === 'gestor' ? <GestorDashboard /> : <Dashboard />}</AppLayout>} />
-        <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
-        <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
-        <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
-        <Route path="/produtos" element={<AppLayout><Produtos /></AppLayout>} />
-        <Route path="/comparador" element={<AppLayout><Comparador /></AppLayout>} />
-        <Route path="/gerar-link" element={<AppLayout><GerarLink /></AppLayout>} />
-        <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
-        <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
-        <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
-        <Route path="/chat" element={<AppLayout><Chat /></AppLayout>} />
-        <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/comparacao/:id" element={<PublicComparison />} />
+          <Route path="/" element={<AppLayout>{role === 'gestor' ? <GestorDashboard /> : <Dashboard />}</AppLayout>} />
+          <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
+          <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
+          <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
+          <Route path="/produtos" element={<AppLayout><Produtos /></AppLayout>} />
+          <Route path="/comparador" element={<AppLayout><Comparador /></AppLayout>} />
+          <Route path="/gerar-link" element={<AppLayout><GerarLink /></AppLayout>} />
+          <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
+          <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
+          <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
+          <Route path="/chat" element={<AppLayout><Chat /></AppLayout>} />
+          <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </ErrorBoundary>
       <PWAInstallPrompt />
     </AppProvider>
   );

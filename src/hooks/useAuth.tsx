@@ -31,11 +31,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data: p } = await supabase.from('profiles').select('display_name, email').eq('user_id', userId).single();
-    if (p) setProfile(p);
+    try {
+      const { data: p } = await supabase.from('profiles').select('display_name, email').eq('user_id', userId).maybeSingle();
+      if (p) setProfile(p);
 
-    const { data: r } = await supabase.from('user_roles').select('role').eq('user_id', userId).single();
-    if (r) setRole(r.role as AppRole);
+      const { data: r } = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
+      if (r) setRole(r.role as AppRole);
+    } catch (e) {
+      console.error('fetchProfile error', e);
+    }
   };
 
   useEffect(() => {
