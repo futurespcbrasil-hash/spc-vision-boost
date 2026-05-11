@@ -146,6 +146,10 @@ const LeadsPage = () => {
 
   const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
+  if (authLoading) {
+    return <div className="p-6 text-sm text-muted-foreground">Carregando leads...</div>;
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
