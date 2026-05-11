@@ -221,7 +221,7 @@ const CRMKanban = () => {
           <p className="text-muted-foreground text-sm mt-1">Arraste os leads entre as colunas para atualizar o status</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {role === 'gestor' && <SectorSelector />}
+          {isGestor && <SectorSelector />}
           <div className="relative">
             <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
