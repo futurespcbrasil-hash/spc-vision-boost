@@ -19,9 +19,10 @@ interface SearchedLead {
 
 const LeadsPage = () => {
   const { leads: allLeads, addLead, updateLead, deleteLead } = useAppState();
-  const { role, user } = useAuth();
+  const { role, user, loading: authLoading } = useAuth();
   const { activeSector, sectors } = useSectors();
-  const selectedSector = role === 'gestor' ? activeSector : 'spc';
+  const isGestor = !authLoading && role === 'gestor';
+  const selectedSector = isGestor ? activeSector : 'spc';
   const sectorLabel = sectors.find(s => s.key === selectedSector)?.label || selectedSector;
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === selectedSector);
   const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
