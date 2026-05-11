@@ -213,6 +213,10 @@ const CRMKanban = () => {
 
   const MAX_VISIBLE = 4;
 
+  if (authLoading) {
+    return <div className="p-6 text-sm text-muted-foreground">Carregando funil...</div>;
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
