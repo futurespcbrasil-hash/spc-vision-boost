@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
@@ -15,16 +15,32 @@ const DEFAULT_SECTORS: Sector[] = [
 
 const STORAGE_KEY = 'active_sector';
 
-const mergeSectors = (rows: any[] = []): Sector[] => {
+const dedupeSectors = (rows: any[] = []): Sector[] => {
   const map = new Map<string, Sector>();
+  // defaults always first
   DEFAULT_SECTORS.forEach(s => map.set(s.key, s));
   rows.forEach(row => {
-    if (!map.has(row.key)) map.set(row.key, { key: row.key, label: row.label, userId: row.user_id });
+    if (!row?.key) return;
+    if (!map.has(row.key)) {
+      map.set(row.key, { key: row.key, label: row.label, userId: row.user_id });
+    }
   });
   return Array.from(map.values());
 };
 
-export const useSectors = () => {
+interface SectorsCtx {
+  sectors: Sector[];
+  activeSector: string;
+  setActiveSector: (key: string) => void;
+  addSector: (label: string) => Promise<void>;
+  deleteSector: (key: string) => Promise<void>;
+  loading: boolean;
+  currentUserId: string | null;
+}
+
+const SectorsContext = createContext<SectorsCtx | null>(null);
+
+export const SectorsProvider = ({ children }: { children: ReactNode }) => {
   const [sectors, setSectors] = useState<Sector[]>(DEFAULT_SECTORS);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSector, setActiveSectorState] = useState<string>(() => {
@@ -54,15 +70,16 @@ export const useSectors = () => {
       return;
     }
 
-    if (!data || data.length === 0) {
-      // seed defaults for this user
+    const ownRows = (data || []).filter((r: any) => r.user_id === user.id);
+    if (ownRows.length === 0) {
       const rows = DEFAULT_SECTORS.map((s, i) => ({
         user_id: user.id, key: s.key, label: s.label, position: i,
       }));
       const { data: inserted } = await supabase.from('sectors').insert(rows).select();
-      setSectors(mergeSectors(inserted || []));
+      const merged = [...(data || []), ...(inserted || [])];
+      setSectors(dedupeSectors(merged));
     } else {
-      setSectors(mergeSectors(data));
+      setSectors(dedupeSectors(data || []));
     }
     setLoading(false);
   }, []);
@@ -82,7 +99,10 @@ export const useSectors = () => {
       toast({ title: 'Erro ao criar setor', description: error?.message, variant: 'destructive' });
       return;
     }
-    setSectors([...sectors, { key: data.key, label: data.label, userId: data.user_id }]);
+    setSectors(prev => {
+      if (prev.some(s => s.key === data.key)) return prev;
+      return [...prev, { key: data.key, label: data.label, userId: data.user_id }];
+    });
     setActiveSector(data.key);
     toast({ title: 'Setor criado', description: `"${data.label}" adicionado.` });
   };
@@ -97,9 +117,28 @@ export const useSectors = () => {
       toast({ title: 'Erro ao excluir setor', description: error.message, variant: 'destructive' });
       return;
     }
-    setSectors(sectors.filter(s => s.key !== key));
+    setSectors(prev => prev.filter(s => s.key !== key));
     if (activeSector === key) setActiveSector('spc');
   };
 
-  return { sectors, activeSector, setActiveSector, addSector, deleteSector, loading, currentUserId };
+  return (
+    <SectorsContext.Provider value={{ sectors, activeSector, setActiveSector, addSector, deleteSector, loading, currentUserId }}>
+      {children}
+    </SectorsContext.Provider>
+  );
+};
+
+export const useSectors = (): SectorsCtx => {
+  const ctx = useContext(SectorsContext);
+  if (ctx) return ctx;
+  // Fallback for components rendered outside provider — return safe defaults
+  return {
+    sectors: DEFAULT_SECTORS,
+    activeSector: 'spc',
+    setActiveSector: () => {},
+    addSector: async () => {},
+    deleteSector: async () => {},
+    loading: false,
+    currentUserId: null,
+  };
 };
