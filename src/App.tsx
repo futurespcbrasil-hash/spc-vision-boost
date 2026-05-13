@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { SectorsProvider } from "@/hooks/useSectors";
 import AppLayout from "@/components/AppLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Dashboard from "@/pages/Dashboard";
