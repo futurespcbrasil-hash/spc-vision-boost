@@ -22,6 +22,7 @@ import Relatorios from "@/pages/Relatorios";
 import Chat from "@/pages/Chat";
 import Auth from "@/pages/Auth";
 import Perfil from "@/pages/Perfil";
+import Metas from "@/pages/Metas";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
