@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  UserCog, LogOut, MessageCircle
+  UserCog, LogOut, MessageCircle, Target
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
