@@ -22,6 +22,7 @@ import Relatorios from "@/pages/Relatorios";
 import Chat from "@/pages/Chat";
 import Auth from "@/pages/Auth";
 import Perfil from "@/pages/Perfil";
+import Metas from "@/pages/Metas";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
@@ -58,6 +59,7 @@ const ProtectedRoutes = () => {
             <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
             <Route path="/chat" element={<AppLayout><Chat /></AppLayout>} />
             <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
+            <Route path="/metas" element={<AppLayout><Metas /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ErrorBoundary>

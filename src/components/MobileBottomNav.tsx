@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  MoreHorizontal, UserCog, LogOut, MessageCircle, X
+  MoreHorizontal, UserCog, LogOut, MessageCircle, X, Target
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,6 +21,7 @@ const MobileBottomNav = () => {
   const more = [
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+    { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
   ];
 

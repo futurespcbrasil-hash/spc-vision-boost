@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  UserCog, LogOut, MessageCircle
+  UserCog, LogOut, MessageCircle, Target
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,6 +17,7 @@ const AppSidebar = () => {
     { to: '/leads', icon: Users, label: 'Leads' },
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+    { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
   ];
 
