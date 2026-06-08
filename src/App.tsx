@@ -59,6 +59,7 @@ const ProtectedRoutes = () => {
             <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
             <Route path="/chat" element={<AppLayout><Chat /></AppLayout>} />
             <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
+            <Route path="/metas" element={<AppLayout><Metas /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ErrorBoundary>
