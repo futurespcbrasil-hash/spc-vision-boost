@@ -233,6 +233,42 @@ export type Database = {
         }
         Relationships: []
       }
+      metas_faturamento: {
+        Row: {
+          created_at: string
+          faturamento: number | null
+          id: string
+          ordem: number
+          ponto_zero: number
+          referencia: string
+          salario: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          faturamento?: number | null
+          id?: string
+          ordem: number
+          ponto_zero?: number
+          referencia: string
+          salario?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          faturamento?: number | null
+          id?: string
+          ordem?: number
+          ponto_zero?: number
+          referencia?: string
+          salario?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
