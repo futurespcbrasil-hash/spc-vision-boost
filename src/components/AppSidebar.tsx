@@ -17,6 +17,7 @@ const AppSidebar = () => {
     { to: '/leads', icon: Users, label: 'Leads' },
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+    { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
   ];
 
