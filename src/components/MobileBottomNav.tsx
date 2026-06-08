@@ -21,6 +21,7 @@ const MobileBottomNav = () => {
   const more = [
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
+    { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
   ];
 
