@@ -64,7 +64,42 @@ const AppSidebar = () => {
 
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(item => renderNavItem(item, location.pathname === item.to))}
+
+        <button
+          onClick={() => setParceirosOpen(!parceirosOpen)}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+            ${location.pathname.startsWith('/parceiros-spc')
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+          title={collapsed ? 'Parceiros SPC' : undefined}
+        >
+          <Handshake size={18} />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left">Parceiros SPC</span>
+              <ChevronDown size={14} className={`transition-transform ${parceirosOpen ? 'rotate-180' : ''}`} />
+            </>
+          )}
+        </button>
+        {!collapsed && parceirosOpen && (
+          <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
+            {PARCEIROS_SUB.map(sub => (
+              <Link
+                key={sub.to}
+                to={sub.to}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
+                  ${location.pathname === sub.to
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}
+              >
+                <sub.icon size={14} />
+                <span>{sub.label}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </nav>
+
 
       <div className="p-3 border-t border-sidebar-border space-y-2">
         {!collapsed && profile && (
