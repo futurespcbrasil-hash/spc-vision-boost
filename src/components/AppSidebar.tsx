@@ -11,6 +11,8 @@ const AppSidebar = () => {
   const { profile, role, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
+  const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
+
   const NAV_ITEMS = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/crm', icon: GitBranch, label: 'Funil' },
@@ -19,6 +21,13 @@ const AppSidebar = () => {
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
     { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
+  ];
+
+  const PARCEIROS_SUB = [
+    { to: '/parceiros-spc', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/parceiros-spc/parceiros', icon: Handshake, label: 'Parceiros' },
+    { to: '/parceiros-spc/clientes', icon: Building2, label: 'Clientes Indicados' },
+    { to: '/parceiros-spc/relatorios', icon: FileBarChart, label: 'Relatórios' },
   ];
 
   const renderNavItem = (item: typeof NAV_ITEMS[0], isActive: boolean) => (
