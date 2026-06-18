@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  MoreHorizontal, UserCog, LogOut, MessageCircle, X, Target
+  MoreHorizontal, UserCog, LogOut, MessageCircle, X, Target, Handshake, Building2
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,6 +22,10 @@ const MobileBottomNav = () => {
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
     { to: '/metas', icon: Target, label: 'Metas' },
+    { to: '/parceiros-spc', icon: Handshake, label: 'Parceiros SPC' },
+    { to: '/parceiros-spc/parceiros', icon: Handshake, label: '— Parceiros' },
+    { to: '/parceiros-spc/clientes', icon: Building2, label: '— Clientes Indicados' },
+    { to: '/parceiros-spc/relatorios', icon: FileBarChart, label: '— Relatórios Parceiros' },
     { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
   ];
 
