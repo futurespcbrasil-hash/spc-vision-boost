@@ -41,6 +41,77 @@ export type Database = {
         }
         Relationships: []
       }
+      clientes_indicados: {
+        Row: {
+          cidade: string | null
+          cnpj: string | null
+          comissao_gerada: number
+          created_at: string
+          data_indicacao: string
+          email: string | null
+          id: string
+          nome_fantasia: string | null
+          observacoes: string | null
+          parceiro_id: string
+          produto_vendido: string | null
+          razao_social: string
+          responsavel: string | null
+          telefone: string | null
+          updated_at: string
+          user_id: string
+          valor_venda: number
+          whatsapp: string | null
+        }
+        Insert: {
+          cidade?: string | null
+          cnpj?: string | null
+          comissao_gerada?: number
+          created_at?: string
+          data_indicacao?: string
+          email?: string | null
+          id?: string
+          nome_fantasia?: string | null
+          observacoes?: string | null
+          parceiro_id: string
+          produto_vendido?: string | null
+          razao_social: string
+          responsavel?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id: string
+          valor_venda?: number
+          whatsapp?: string | null
+        }
+        Update: {
+          cidade?: string | null
+          cnpj?: string | null
+          comissao_gerada?: number
+          created_at?: string
+          data_indicacao?: string
+          email?: string | null
+          id?: string
+          nome_fantasia?: string | null
+          observacoes?: string | null
+          parceiro_id?: string
+          produto_vendido?: string | null
+          razao_social?: string
+          responsavel?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string
+          valor_venda?: number
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clientes_indicados_parceiro_id_fkey"
+            columns: ["parceiro_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros_spc"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           client_email: string | null
@@ -269,6 +340,63 @@ export type Database = {
         }
         Relationships: []
       }
+      parceiros_spc: {
+        Row: {
+          cidade: string | null
+          cnpj: string | null
+          created_at: string
+          email: string | null
+          endereco: string | null
+          id: string
+          nome_fantasia: string | null
+          observacoes: string | null
+          percentual_comissao: number
+          razao_social: string
+          responsavel: string | null
+          status: string
+          tipo_parceiro: Database["public"]["Enums"]["tipo_parceiro_spc"]
+          updated_at: string
+          user_id: string
+          whatsapp: string | null
+        }
+        Insert: {
+          cidade?: string | null
+          cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome_fantasia?: string | null
+          observacoes?: string | null
+          percentual_comissao?: number
+          razao_social: string
+          responsavel?: string | null
+          status?: string
+          tipo_parceiro?: Database["public"]["Enums"]["tipo_parceiro_spc"]
+          updated_at?: string
+          user_id: string
+          whatsapp?: string | null
+        }
+        Update: {
+          cidade?: string | null
+          cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome_fantasia?: string | null
+          observacoes?: string | null
+          percentual_comissao?: number
+          razao_social?: string
+          responsavel?: string | null
+          status?: string
+          tipo_parceiro?: Database["public"]["Enums"]["tipo_parceiro_spc"]
+          updated_at?: string
+          user_id?: string
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -398,6 +526,12 @@ export type Database = {
     }
     Enums: {
       app_role: "vendedor" | "gestor"
+      tipo_parceiro_spc:
+        | "contabilidade"
+        | "software"
+        | "certificadora"
+        | "consultoria"
+        | "outro"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -526,6 +660,13 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["vendedor", "gestor"],
+      tipo_parceiro_spc: [
+        "contabilidade",
+        "software",
+        "certificadora",
+        "consultoria",
+        "outro",
+      ],
     },
   },
 } as const
