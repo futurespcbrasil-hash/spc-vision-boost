@@ -28,19 +28,28 @@ const ClientesIndicados = () => {
   const { user } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
   const [parceiros, setParceiros] = useState<any[]>([]);
+  const [vendas, setVendas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<any>(emptyForm);
+  // Vendas mensais
+  const [vendasOpen, setVendasOpen] = useState(false);
+  const [vendaCliente, setVendaCliente] = useState<any | null>(null);
+  const [novaVenda, setNovaVenda] = useState({ data_venda: new Date().toISOString().slice(0, 10), valor: 0, observacoes: '' });
 
   const load = async () => {
     setLoading(true);
-    const [c, p] = await Promise.all([
+    const [c, p, v] = await Promise.all([
       supabase.from('clientes_indicados').select('*').order('data_indicacao', { ascending: false }),
       supabase.from('parceiros_spc').select('id, razao_social, nome_fantasia, percentual_comissao'),
+      supabase.from('vendas_indicadas').select('*').order('data_venda', { ascending: false }),
     ]);
     setRows(c.data ?? []);
     setParceiros(p.data ?? []);
+    setVendas(v.data ?? []);
+    setLoading(false);
+  };
     setLoading(false);
   };
 
