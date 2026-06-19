@@ -157,32 +157,38 @@ const ClientesIndicados = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente</TableHead>
-                <TableHead>CNPJ</TableHead>
                 <TableHead>Parceiro</TableHead>
                 <TableHead>Produto</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="text-right">Comissão</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="text-right">Vendas Mês</TableHead>
+                <TableHead className="text-right">Comissão Mês</TableHead>
+                <TableHead>Indicação</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Nenhum cliente indicado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Nenhum cliente indicado</TableCell></TableRow>
               ) : rows.map((r) => {
                 const p = parceiroMap[r.parceiro_id];
+                const totalMes = totalMesCliente(r.id);
+                const comMes = comissaoMesCliente(r.id, r.parceiro_id);
                 return (
                   <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.nome_fantasia || r.razao_social}</TableCell>
-                    <TableCell>{r.cnpj || '-'}</TableCell>
+                    <TableCell className="font-medium">
+                      <div>{r.nome_fantasia || r.razao_social}</div>
+                      <div className="text-xs text-muted-foreground">{r.cnpj || '-'}</div>
+                    </TableCell>
                     <TableCell>{p ? (p.nome_fantasia || p.razao_social) : '-'}</TableCell>
                     <TableCell>{r.produto_vendido || '-'}</TableCell>
-                    <TableCell className="text-right font-medium">{fmt(Number(r.valor_venda))}</TableCell>
-                    <TableCell className="text-right text-green-600">{fmt(Number(r.comissao_gerada))}</TableCell>
+                    <TableCell className="text-right font-medium">{fmt(totalMes)}</TableCell>
+                    <TableCell className="text-right text-green-600 font-semibold">{fmt(comMes)}</TableCell>
                     <TableCell>{fmtDate(r.data_indicacao)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Button size="sm" variant="outline" onClick={() => openVendas(r)} className="mr-1 h-8">
+                        <DollarSign size={14} className="mr-1" /> Vendas
+                      </Button>
                       <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil size={14} /></Button>
                       <Button size="icon" variant="ghost" onClick={() => remove(r.id)}><Trash2 size={14} className="text-destructive" /></Button>
                     </TableCell>
