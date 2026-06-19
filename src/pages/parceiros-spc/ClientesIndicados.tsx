@@ -50,8 +50,6 @@ const ClientesIndicados = () => {
     setVendas(v.data ?? []);
     setLoading(false);
   };
-    setLoading(false);
-  };
 
   useEffect(() => { load(); }, []);
 
