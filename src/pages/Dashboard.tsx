@@ -1,9 +1,10 @@
 import { useAppState } from '@/context/AppContext';
 import { KANBAN_STAGES } from '@/data/spcData';
-import { Users, Phone, Send, Handshake, CheckCircle2, FileText, Link2, Plus, Calendar, TrendingUp, Bell } from 'lucide-react';
+import { Users, Phone, Send, Handshake, CheckCircle2, FileText, Link2, Plus, Calendar, TrendingUp, Bell, StickyNote } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useState, useRef, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 const STAT_ICONS: Record<string, any> = {
   lead_novo: Users,
@@ -47,6 +48,7 @@ const Dashboard = () => {
 
   const [showNotif, setShowNotif] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const [notasLembrete, setNotasLembrete] = useState<any[]>([]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -55,6 +57,20 @@ const Dashboard = () => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    supabase
+      .from('notas')
+      .select('*')
+      .eq('concluido', false)
+      .not('data_lembrete', 'is', null)
+      .lte('data_lembrete', today)
+      .order('data_lembrete', { ascending: true })
+      .then(({ data }) => setNotasLembrete(data ?? []));
+  }, []);
+
+  const totalNotif = upcomingEvents.length + notasLembrete.length;
 
   return (
     <div className="space-y-6 animate-fade-in relative pb-20">
@@ -70,14 +86,34 @@ const Dashboard = () => {
             className="relative p-2 rounded-lg bg-card border border-border text-foreground hover:bg-muted transition"
           >
             <Bell size={18} />
-            {upcomingEvents.length > 0 && (
+            {totalNotif > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-bold">
-                {upcomingEvents.length}
+                {totalNotif}
               </span>
             )}
           </button>
           {showNotif && (
             <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-lg z-50 animate-slide-in">
+              {notasLembrete.length > 0 && (
+                <>
+                  <div className="p-3 border-b border-border flex items-center gap-2">
+                    <StickyNote size={14} className="text-primary" />
+                    <h4 className="text-sm font-semibold text-foreground">Post-its com Lembrete</h4>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto">
+                    {notasLembrete.map((n) => (
+                      <Link to="/notas" key={n.id} onClick={() => setShowNotif(false)}
+                        className="block px-3 py-2.5 border-b border-border/50 hover:bg-muted/50 transition">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-foreground truncate">{n.titulo}</span>
+                          <span className="text-[10px] text-destructive font-semibold">{n.data_lembrete}</span>
+                        </div>
+                        {n.conteudo && <div className="text-xs text-muted-foreground truncate mt-0.5">{n.conteudo}</div>}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="p-3 border-b border-border">
                 <h4 className="text-sm font-semibold text-foreground">📅 Próximos Compromissos</h4>
               </div>
