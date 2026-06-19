@@ -91,10 +91,56 @@ const ClientesIndicados = () => {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('Excluir esta indicação?')) return;
+    if (!confirm('Excluir esta indicação? Todas as vendas mensais vinculadas também serão removidas.')) return;
     const { error } = await supabase.from('clientes_indicados').delete().eq('id', id);
     if (error) { toast.error(error.message); return; }
     toast.success('Indicação removida');
+    load();
+  };
+
+  const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+  const vendasDoCliente = (clienteId: string) =>
+    vendas.filter((v) => v.cliente_indicado_id === clienteId)
+      .sort((a, b) => b.data_venda.localeCompare(a.data_venda));
+
+  const totalMesCliente = (clienteId: string) =>
+    vendasDoCliente(clienteId)
+      .filter((v) => v.data_venda?.startsWith(mesAtual))
+      .reduce((s, v) => s + Number(v.valor || 0), 0);
+
+  const comissaoMesCliente = (clienteId: string, parceiroId: string) => {
+    const p = parceiroMap[parceiroId];
+    const pct = p ? Number(p.percentual_comissao || 0) : 0;
+    return +(totalMesCliente(clienteId) * pct / 100).toFixed(2);
+  };
+
+  const openVendas = (cliente: any) => {
+    setVendaCliente(cliente);
+    setNovaVenda({ data_venda: new Date().toISOString().slice(0, 10), valor: 0, observacoes: '' });
+    setVendasOpen(true);
+  };
+
+  const addVenda = async () => {
+    if (!user || !vendaCliente) return;
+    if (!novaVenda.valor || Number(novaVenda.valor) <= 0) { toast.error('Informe um valor válido'); return; }
+    const { error } = await supabase.from('vendas_indicadas').insert({
+      user_id: user.id,
+      cliente_indicado_id: vendaCliente.id,
+      data_venda: novaVenda.data_venda,
+      valor: Number(novaVenda.valor),
+      observacoes: novaVenda.observacoes || null,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success('Venda registrada');
+    setNovaVenda({ data_venda: new Date().toISOString().slice(0, 10), valor: 0, observacoes: '' });
+    load();
+  };
+
+  const removeVenda = async (id: string) => {
+    if (!confirm('Remover esta venda?')) return;
+    const { error } = await supabase.from('vendas_indicadas').delete().eq('id', id);
+    if (error) { toast.error(error.message); return; }
     load();
   };
 
