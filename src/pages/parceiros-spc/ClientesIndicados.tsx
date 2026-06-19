@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Building2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
 const fmt = (n: number) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -28,19 +28,26 @@ const ClientesIndicados = () => {
   const { user } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
   const [parceiros, setParceiros] = useState<any[]>([]);
+  const [vendas, setVendas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<any>(emptyForm);
+  // Vendas mensais
+  const [vendasOpen, setVendasOpen] = useState(false);
+  const [vendaCliente, setVendaCliente] = useState<any | null>(null);
+  const [novaVenda, setNovaVenda] = useState({ data_venda: new Date().toISOString().slice(0, 10), valor: 0, observacoes: '' });
 
   const load = async () => {
     setLoading(true);
-    const [c, p] = await Promise.all([
+    const [c, p, v] = await Promise.all([
       supabase.from('clientes_indicados').select('*').order('data_indicacao', { ascending: false }),
       supabase.from('parceiros_spc').select('id, razao_social, nome_fantasia, percentual_comissao'),
+      supabase.from('vendas_indicadas').select('*').order('data_venda', { ascending: false }),
     ]);
     setRows(c.data ?? []);
     setParceiros(p.data ?? []);
+    setVendas(v.data ?? []);
     setLoading(false);
   };
 
@@ -75,19 +82,78 @@ const ClientesIndicados = () => {
       comissao_gerada: Number(form.comissao_gerada || 0),
       user_id: user.id,
     };
-    const { error } = editing
-      ? await supabase.from('clientes_indicados').update(payload).eq('id', editing.id)
-      : await supabase.from('clientes_indicados').insert(payload);
-    if (error) { toast.error(error.message); return; }
+    if (editing) {
+      const { error } = await supabase.from('clientes_indicados').update(payload).eq('id', editing.id);
+      if (error) { toast.error(error.message); return; }
+    } else {
+      const { data, error } = await supabase.from('clientes_indicados').insert(payload).select().single();
+      if (error) { toast.error(error.message); return; }
+      // Se houver valor inicial informado, cria automaticamente a primeira venda mensal
+      if (data && Number(form.valor_venda) > 0) {
+        await supabase.from('vendas_indicadas').insert({
+          user_id: user.id,
+          cliente_indicado_id: data.id,
+          data_venda: form.data_indicacao,
+          valor: Number(form.valor_venda),
+          observacoes: 'Venda inicial cadastrada junto com o cliente',
+        });
+      }
+    }
     toast.success(editing ? 'Indicação atualizada' : 'Cliente indicado cadastrado');
     setOpen(false); load();
   };
 
   const remove = async (id: string) => {
-    if (!confirm('Excluir esta indicação?')) return;
+    if (!confirm('Excluir esta indicação? Todas as vendas mensais vinculadas também serão removidas.')) return;
     const { error } = await supabase.from('clientes_indicados').delete().eq('id', id);
     if (error) { toast.error(error.message); return; }
     toast.success('Indicação removida');
+    load();
+  };
+
+  const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+  const vendasDoCliente = (clienteId: string) =>
+    vendas.filter((v) => v.cliente_indicado_id === clienteId)
+      .sort((a, b) => b.data_venda.localeCompare(a.data_venda));
+
+  const totalMesCliente = (clienteId: string) =>
+    vendasDoCliente(clienteId)
+      .filter((v) => v.data_venda?.startsWith(mesAtual))
+      .reduce((s, v) => s + Number(v.valor || 0), 0);
+
+  const comissaoMesCliente = (clienteId: string, parceiroId: string) => {
+    const p = parceiroMap[parceiroId];
+    const pct = p ? Number(p.percentual_comissao || 0) : 0;
+    return +(totalMesCliente(clienteId) * pct / 100).toFixed(2);
+  };
+
+  const openVendas = (cliente: any) => {
+    setVendaCliente(cliente);
+    setNovaVenda({ data_venda: new Date().toISOString().slice(0, 10), valor: 0, observacoes: '' });
+    setVendasOpen(true);
+  };
+
+  const addVenda = async () => {
+    if (!user || !vendaCliente) return;
+    if (!novaVenda.valor || Number(novaVenda.valor) <= 0) { toast.error('Informe um valor válido'); return; }
+    const { error } = await supabase.from('vendas_indicadas').insert({
+      user_id: user.id,
+      cliente_indicado_id: vendaCliente.id,
+      data_venda: novaVenda.data_venda,
+      valor: Number(novaVenda.valor),
+      observacoes: novaVenda.observacoes || null,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success('Venda registrada');
+    setNovaVenda({ data_venda: new Date().toISOString().slice(0, 10), valor: 0, observacoes: '' });
+    load();
+  };
+
+  const removeVenda = async (id: string) => {
+    if (!confirm('Remover esta venda?')) return;
+    const { error } = await supabase.from('vendas_indicadas').delete().eq('id', id);
+    if (error) { toast.error(error.message); return; }
     load();
   };
 
@@ -104,32 +170,38 @@ const ClientesIndicados = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente</TableHead>
-                <TableHead>CNPJ</TableHead>
                 <TableHead>Parceiro</TableHead>
                 <TableHead>Produto</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="text-right">Comissão</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="text-right">Vendas Mês</TableHead>
+                <TableHead className="text-right">Comissão Mês</TableHead>
+                <TableHead>Indicação</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Nenhum cliente indicado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Nenhum cliente indicado</TableCell></TableRow>
               ) : rows.map((r) => {
                 const p = parceiroMap[r.parceiro_id];
+                const totalMes = totalMesCliente(r.id);
+                const comMes = comissaoMesCliente(r.id, r.parceiro_id);
                 return (
                   <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.nome_fantasia || r.razao_social}</TableCell>
-                    <TableCell>{r.cnpj || '-'}</TableCell>
+                    <TableCell className="font-medium">
+                      <div>{r.nome_fantasia || r.razao_social}</div>
+                      <div className="text-xs text-muted-foreground">{r.cnpj || '-'}</div>
+                    </TableCell>
                     <TableCell>{p ? (p.nome_fantasia || p.razao_social) : '-'}</TableCell>
                     <TableCell>{r.produto_vendido || '-'}</TableCell>
-                    <TableCell className="text-right font-medium">{fmt(Number(r.valor_venda))}</TableCell>
-                    <TableCell className="text-right text-green-600">{fmt(Number(r.comissao_gerada))}</TableCell>
+                    <TableCell className="text-right font-medium">{fmt(totalMes)}</TableCell>
+                    <TableCell className="text-right text-green-600 font-semibold">{fmt(comMes)}</TableCell>
                     <TableCell>{fmtDate(r.data_indicacao)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Button size="sm" variant="outline" onClick={() => openVendas(r)} className="mr-1 h-8">
+                        <DollarSign size={14} className="mr-1" /> Vendas
+                      </Button>
                       <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil size={14} /></Button>
                       <Button size="icon" variant="ghost" onClick={() => remove(r.id)}><Trash2 size={14} className="text-destructive" /></Button>
                     </TableCell>
@@ -237,6 +309,101 @@ const ClientesIndicados = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={save}>{editing ? 'Salvar' : 'Cadastrar'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Vendas Mensais */}
+      <Dialog open={vendasOpen} onOpenChange={setVendasOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Vendas — {vendaCliente?.nome_fantasia || vendaCliente?.razao_social}
+            </DialogTitle>
+          </DialogHeader>
+
+          {vendaCliente && (() => {
+            const p = parceiroMap[vendaCliente.parceiro_id];
+            const totalMes = totalMesCliente(vendaCliente.id);
+            const comMes = comissaoMesCliente(vendaCliente.id, vendaCliente.parceiro_id);
+            const lista = vendasDoCliente(vendaCliente.id);
+            return (
+              <>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <Card className="p-3 text-center">
+                    <div className="text-xs text-muted-foreground">Parceiro</div>
+                    <div className="font-semibold text-sm">{p?.nome_fantasia || p?.razao_social || '-'}</div>
+                    <div className="text-xs text-muted-foreground">{Number(p?.percentual_comissao || 0)}% comissão</div>
+                  </Card>
+                  <Card className="p-3 text-center">
+                    <div className="text-xs text-muted-foreground">Vendas do Mês</div>
+                    <div className="font-bold text-primary">{fmt(totalMes)}</div>
+                  </Card>
+                  <Card className="p-3 text-center">
+                    <div className="text-xs text-muted-foreground">Comissão do Mês</div>
+                    <div className="font-bold text-green-600">{fmt(comMes)}</div>
+                  </Card>
+                </div>
+
+                <div className="border rounded-lg p-3 bg-muted/30 mb-4">
+                  <h4 className="font-semibold text-sm mb-2">Adicionar Venda</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div>
+                      <Label className="text-xs">Data</Label>
+                      <Input type="date" value={novaVenda.data_venda}
+                        onChange={(e) => setNovaVenda({ ...novaVenda, data_venda: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Valor (R$)</Label>
+                      <Input type="number" step="0.01" value={novaVenda.valor}
+                        onChange={(e) => setNovaVenda({ ...novaVenda, valor: Number(e.target.value) })} />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs">Observações</Label>
+                      <Input value={novaVenda.observacoes}
+                        onChange={(e) => setNovaVenda({ ...novaVenda, observacoes: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <Button size="sm" onClick={addVenda}><Plus size={14} className="mr-1" /> Salvar Venda</Button>
+                  </div>
+                </div>
+
+                <h4 className="font-semibold text-sm mb-2">Histórico de Vendas</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead>Observações</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lista.length === 0 ? (
+                        <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground text-sm">Nenhuma venda registrada</TableCell></TableRow>
+                      ) : lista.map((v) => (
+                        <TableRow key={v.id}>
+                          <TableCell>{fmtDate(v.data_venda)}</TableCell>
+                          <TableCell className="text-right font-medium">{fmt(Number(v.valor))}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{v.observacoes || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            <Button size="icon" variant="ghost" onClick={() => removeVenda(v.id)}>
+                              <Trash2 size={14} className="text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVendasOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

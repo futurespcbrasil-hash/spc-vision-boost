@@ -23,6 +23,7 @@ import Chat from "@/pages/Chat";
 import Auth from "@/pages/Auth";
 import Perfil from "@/pages/Perfil";
 import Metas from "@/pages/Metas";
+import Notas from "@/pages/Notas";
 import ParceirosDashboard from "@/pages/parceiros-spc/ParceirosDashboard";
 import Parceiros from "@/pages/parceiros-spc/Parceiros";
 import ClientesIndicados from "@/pages/parceiros-spc/ClientesIndicados";
@@ -64,6 +65,7 @@ const ProtectedRoutes = () => {
             <Route path="/chat" element={<AppLayout><Chat /></AppLayout>} />
             <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
             <Route path="/metas" element={<AppLayout><Metas /></AppLayout>} />
+            <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
             <Route path="/parceiros-spc" element={<AppLayout><ParceirosDashboard /></AppLayout>} />
             <Route path="/parceiros-spc/parceiros" element={<AppLayout><Parceiros /></AppLayout>} />
             <Route path="/parceiros-spc/clientes" element={<AppLayout><ClientesIndicados /></AppLayout>} />
