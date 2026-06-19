@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Building2 } from 'lucide-react';
+import { Table as Tbl, TableBody as Tb, TableCell as Td, TableHead as Th, TableHeader as Thd, TableRow as Tr } from '@/components/ui/table';
+import { Plus, Pencil, Trash2, Building2, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
 const fmt = (n: number) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
