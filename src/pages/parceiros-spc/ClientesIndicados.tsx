@@ -299,6 +299,101 @@ const ClientesIndicados = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de Vendas Mensais */}
+      <Dialog open={vendasOpen} onOpenChange={setVendasOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Vendas — {vendaCliente?.nome_fantasia || vendaCliente?.razao_social}
+            </DialogTitle>
+          </DialogHeader>
+
+          {vendaCliente && (() => {
+            const p = parceiroMap[vendaCliente.parceiro_id];
+            const totalMes = totalMesCliente(vendaCliente.id);
+            const comMes = comissaoMesCliente(vendaCliente.id, vendaCliente.parceiro_id);
+            const lista = vendasDoCliente(vendaCliente.id);
+            return (
+              <>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <Card className="p-3 text-center">
+                    <div className="text-xs text-muted-foreground">Parceiro</div>
+                    <div className="font-semibold text-sm">{p?.nome_fantasia || p?.razao_social || '-'}</div>
+                    <div className="text-xs text-muted-foreground">{Number(p?.percentual_comissao || 0)}% comissão</div>
+                  </Card>
+                  <Card className="p-3 text-center">
+                    <div className="text-xs text-muted-foreground">Vendas do Mês</div>
+                    <div className="font-bold text-primary">{fmt(totalMes)}</div>
+                  </Card>
+                  <Card className="p-3 text-center">
+                    <div className="text-xs text-muted-foreground">Comissão do Mês</div>
+                    <div className="font-bold text-green-600">{fmt(comMes)}</div>
+                  </Card>
+                </div>
+
+                <div className="border rounded-lg p-3 bg-muted/30 mb-4">
+                  <h4 className="font-semibold text-sm mb-2">Adicionar Venda</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div>
+                      <Label className="text-xs">Data</Label>
+                      <Input type="date" value={novaVenda.data_venda}
+                        onChange={(e) => setNovaVenda({ ...novaVenda, data_venda: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Valor (R$)</Label>
+                      <Input type="number" step="0.01" value={novaVenda.valor}
+                        onChange={(e) => setNovaVenda({ ...novaVenda, valor: Number(e.target.value) })} />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs">Observações</Label>
+                      <Input value={novaVenda.observacoes}
+                        onChange={(e) => setNovaVenda({ ...novaVenda, observacoes: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <Button size="sm" onClick={addVenda}><Plus size={14} className="mr-1" /> Salvar Venda</Button>
+                  </div>
+                </div>
+
+                <h4 className="font-semibold text-sm mb-2">Histórico de Vendas</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead>Observações</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lista.length === 0 ? (
+                        <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground text-sm">Nenhuma venda registrada</TableCell></TableRow>
+                      ) : lista.map((v) => (
+                        <TableRow key={v.id}>
+                          <TableCell>{fmtDate(v.data_venda)}</TableCell>
+                          <TableCell className="text-right font-medium">{fmt(Number(v.valor))}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{v.observacoes || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            <Button size="icon" variant="ghost" onClick={() => removeVenda(v.id)}>
+                              <Trash2 size={14} className="text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVendasOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
