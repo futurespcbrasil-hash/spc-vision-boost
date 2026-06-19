@@ -340,6 +340,42 @@ export type Database = {
         }
         Relationships: []
       }
+      notas: {
+        Row: {
+          concluido: boolean
+          conteudo: string | null
+          cor: string
+          created_at: string
+          data_lembrete: string | null
+          id: string
+          titulo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          concluido?: boolean
+          conteudo?: string | null
+          cor?: string
+          created_at?: string
+          data_lembrete?: string | null
+          id?: string
+          titulo: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          concluido?: boolean
+          conteudo?: string | null
+          cor?: string
+          created_at?: string
+          data_lembrete?: string | null
+          id?: string
+          titulo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       parceiros_spc: {
         Row: {
           cidade: string | null
@@ -510,6 +546,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vendas_indicadas: {
+        Row: {
+          cliente_indicado_id: string
+          created_at: string
+          data_venda: string
+          id: string
+          observacoes: string | null
+          updated_at: string
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          cliente_indicado_id: string
+          created_at?: string
+          data_venda?: string
+          id?: string
+          observacoes?: string | null
+          updated_at?: string
+          user_id: string
+          valor?: number
+        }
+        Update: {
+          cliente_indicado_id?: string
+          created_at?: string
+          data_venda?: string
+          id?: string
+          observacoes?: string | null
+          updated_at?: string
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendas_indicadas_cliente_indicado_id_fkey"
+            columns: ["cliente_indicado_id"]
+            isOneToOne: false
+            referencedRelation: "clientes_indicados"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
