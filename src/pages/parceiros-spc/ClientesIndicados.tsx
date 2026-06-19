@@ -82,10 +82,23 @@ const ClientesIndicados = () => {
       comissao_gerada: Number(form.comissao_gerada || 0),
       user_id: user.id,
     };
-    const { error } = editing
-      ? await supabase.from('clientes_indicados').update(payload).eq('id', editing.id)
-      : await supabase.from('clientes_indicados').insert(payload);
-    if (error) { toast.error(error.message); return; }
+    if (editing) {
+      const { error } = await supabase.from('clientes_indicados').update(payload).eq('id', editing.id);
+      if (error) { toast.error(error.message); return; }
+    } else {
+      const { data, error } = await supabase.from('clientes_indicados').insert(payload).select().single();
+      if (error) { toast.error(error.message); return; }
+      // Se houver valor inicial informado, cria automaticamente a primeira venda mensal
+      if (data && Number(form.valor_venda) > 0) {
+        await supabase.from('vendas_indicadas').insert({
+          user_id: user.id,
+          cliente_indicado_id: data.id,
+          data_venda: form.data_indicacao,
+          valor: Number(form.valor_venda),
+          observacoes: 'Venda inicial cadastrada junto com o cliente',
+        });
+      }
+    }
     toast.success(editing ? 'Indicação atualizada' : 'Cliente indicado cadastrado');
     setOpen(false); load();
   };
