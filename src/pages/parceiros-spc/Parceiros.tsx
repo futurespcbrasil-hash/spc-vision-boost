@@ -100,7 +100,7 @@ const Parceiros = () => {
                 <TableHead className="text-right">Indicados</TableHead>
                 <TableHead className="text-right">Valor Gerado</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead></TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -121,9 +121,13 @@ const Parceiros = () => {
                     <TableCell>
                       <Badge variant={p.status === 'ativo' ? 'default' : 'secondary'}>{p.status}</Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil size={14} /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => remove(p.id)}><Trash2 size={14} className="text-destructive" /></Button>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(p)} className="mr-1 h-8">
+                        <Pencil size={14} className="mr-1" /> Editar
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => remove(p.id)} className="h-8 text-destructive hover:text-destructive">
+                        <Trash2 size={14} className="mr-1" /> Excluir
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
