@@ -59,14 +59,12 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
     supabase
       .from('notas')
       .select('*')
       .eq('concluido', false)
-      .not('data_lembrete', 'is', null)
-      .lte('data_lembrete', today)
-      .order('data_lembrete', { ascending: true })
+      .order('data_lembrete', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })
       .then(({ data }) => setNotasLembrete(data ?? []));
   }, []);
 
@@ -98,7 +96,7 @@ const Dashboard = () => {
                 <>
                   <div className="p-3 border-b border-border flex items-center gap-2">
                     <StickyNote size={14} className="text-primary" />
-                    <h4 className="text-sm font-semibold text-foreground">Post-its com Lembrete</h4>
+                    <h4 className="text-sm font-semibold text-foreground">Post-its Pendentes</h4>
                   </div>
                   <div className="max-h-40 overflow-y-auto">
                     {notasLembrete.map((n) => (
@@ -106,7 +104,7 @@ const Dashboard = () => {
                         className="block px-3 py-2.5 border-b border-border/50 hover:bg-muted/50 transition">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-foreground truncate">{n.titulo}</span>
-                          <span className="text-[10px] text-destructive font-semibold">{n.data_lembrete}</span>
+                          <span className="text-[10px] text-destructive font-semibold">{n.data_lembrete || 'Sem data'}</span>
                         </div>
                         {n.conteudo && <div className="text-xs text-muted-foreground truncate mt-0.5">{n.conteudo}</div>}
                       </Link>
