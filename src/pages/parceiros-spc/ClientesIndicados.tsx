@@ -202,8 +202,12 @@ const ClientesIndicados = () => {
                       <Button size="sm" variant="outline" onClick={() => openVendas(r)} className="mr-1 h-8">
                         <DollarSign size={14} className="mr-1" /> Vendas
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil size={14} /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => remove(r.id)}><Trash2 size={14} className="text-destructive" /></Button>
+                      <Button size="sm" variant="outline" onClick={() => openEdit(r)} className="mr-1 h-8">
+                        <Pencil size={14} className="mr-1" /> Editar
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => remove(r.id)} className="h-8 text-destructive hover:text-destructive">
+                        <Trash2 size={14} className="mr-1" /> Excluir
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
