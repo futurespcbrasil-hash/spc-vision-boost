@@ -14,11 +14,12 @@ import * as XLSX from 'xlsx';
 const fmt = (n: number) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtDate = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
 
-const PRODUTOS = ['SPC Brasil', 'SPC Maxi', 'Certificado Digital', 'Emissor de Notas', 'Consulta de Crédito', 'Cobrança', 'Outro'];
+const PRODUTOS = ['SPC Brasil', 'Certificado Digital', 'Emissor de Notas', 'Outro'];
 
 const Relatorios = () => {
   const [indicados, setIndicados] = useState<any[]>([]);
   const [parceiros, setParceiros] = useState<any[]>([]);
+  const [vendas, setVendas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dataIni, setDataIni] = useState('');
@@ -28,31 +29,51 @@ const Relatorios = () => {
 
   useEffect(() => {
     (async () => {
-      const [c, p] = await Promise.all([
+      const [c, p, v] = await Promise.all([
         supabase.from('clientes_indicados').select('*').order('data_indicacao', { ascending: false }),
-        supabase.from('parceiros_spc').select('id, razao_social, nome_fantasia'),
+        supabase.from('parceiros_spc').select('id, razao_social, nome_fantasia, percentual_comissao'),
+        supabase.from('vendas_indicadas').select('*').order('data_venda', { ascending: false }),
       ]);
       setIndicados(c.data ?? []);
       setParceiros(p.data ?? []);
+      setVendas(v.data ?? []);
       setLoading(false);
     })();
   }, []);
 
   const parceiroMap = useMemo(() => Object.fromEntries(parceiros.map((p) => [p.id, p])), [parceiros]);
+  const clienteMap = useMemo(() => Object.fromEntries(indicados.map((i) => [i.id, i])), [indicados]);
 
+  // Cada linha do relatório = uma venda mensal
   const filtrados = useMemo(() => {
-    return indicados.filter((r) => {
-      if (dataIni && r.data_indicacao < dataIni) return false;
-      if (dataFim && r.data_indicacao > dataFim) return false;
+    return vendas.map((v) => {
+      const cli = clienteMap[v.cliente_indicado_id];
+      const p = cli ? parceiroMap[cli.parceiro_id] : null;
+      const pct = p ? Number(p.percentual_comissao || 0) : 0;
+      const valor = Number(v.valor || 0);
+      return {
+        id: v.id,
+        cliente: cli,
+        parceiro: p,
+        parceiro_id: cli?.parceiro_id,
+        produto_vendido: cli?.produto_vendido,
+        data: v.data_venda,
+        valor,
+        comissao: +(valor * pct / 100).toFixed(2),
+      };
+    }).filter((r) => {
+      if (!r.cliente) return false;
+      if (dataIni && r.data < dataIni) return false;
+      if (dataFim && r.data > dataFim) return false;
       if (parceiroId !== 'todos' && r.parceiro_id !== parceiroId) return false;
       if (produto !== 'todos' && r.produto_vendido !== produto) return false;
       return true;
     });
-  }, [indicados, dataIni, dataFim, parceiroId, produto]);
+  }, [vendas, clienteMap, parceiroMap, dataIni, dataFim, parceiroId, produto]);
 
   const totalQtd = filtrados.length;
-  const totalVenda = filtrados.reduce((s, r) => s + Number(r.valor_venda || 0), 0);
-  const totalComissao = filtrados.reduce((s, r) => s + Number(r.comissao_gerada || 0), 0);
+  const totalVenda = filtrados.reduce((s, r) => s + r.valor, 0);
+  const totalComissao = filtrados.reduce((s, r) => s + r.comissao, 0);
 
   const exportPDF = () => {
     const doc = new jsPDF();
@@ -64,17 +85,14 @@ const Relatorios = () => {
     autoTable(doc, {
       startY: 38,
       head: [['Cliente', 'Parceiro', 'Produto', 'Data', 'Valor', 'Comissão']],
-      body: filtrados.map((r) => {
-        const p = parceiroMap[r.parceiro_id];
-        return [
-          r.nome_fantasia || r.razao_social,
-          p ? (p.nome_fantasia || p.razao_social) : '-',
-          r.produto_vendido || '-',
-          fmtDate(r.data_indicacao),
-          fmt(Number(r.valor_venda)),
-          fmt(Number(r.comissao_gerada)),
-        ];
-      }),
+      body: filtrados.map((r) => [
+        r.cliente?.nome_fantasia || r.cliente?.razao_social || '-',
+        r.parceiro ? (r.parceiro.nome_fantasia || r.parceiro.razao_social) : '-',
+        r.produto_vendido || '-',
+        fmtDate(r.data),
+        fmt(r.valor),
+        fmt(r.comissao),
+      ]),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [109, 40, 217] },
     });
@@ -82,21 +100,18 @@ const Relatorios = () => {
   };
 
   const exportExcel = () => {
-    const rows = filtrados.map((r) => {
-      const p = parceiroMap[r.parceiro_id];
-      return {
-        Cliente: r.nome_fantasia || r.razao_social,
-        CNPJ: r.cnpj || '',
-        Parceiro: p ? (p.nome_fantasia || p.razao_social) : '',
-        Produto: r.produto_vendido || '',
-        Data: fmtDate(r.data_indicacao),
-        Valor: Number(r.valor_venda),
-        Comissao: Number(r.comissao_gerada),
-      };
-    });
+    const rows = filtrados.map((r) => ({
+      Cliente: r.cliente?.nome_fantasia || r.cliente?.razao_social || '',
+      CNPJ: r.cliente?.cnpj || '',
+      Parceiro: r.parceiro ? (r.parceiro.nome_fantasia || r.parceiro.razao_social) : '',
+      Produto: r.produto_vendido || '',
+      Data: fmtDate(r.data),
+      Valor: r.valor,
+      Comissao: r.comissao,
+    }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Indicações');
+    XLSX.utils.book_append_sheet(wb, ws, 'Vendas');
     XLSX.writeFile(wb, `parceiros-spc-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
@@ -180,19 +195,16 @@ const Relatorios = () => {
                 <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtrados.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
-              ) : filtrados.map((r) => {
-                const p = parceiroMap[r.parceiro_id];
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell>{r.nome_fantasia || r.razao_social}</TableCell>
-                    <TableCell>{p ? (p.nome_fantasia || p.razao_social) : '-'}</TableCell>
-                    <TableCell>{r.produto_vendido || '-'}</TableCell>
-                    <TableCell>{fmtDate(r.data_indicacao)}</TableCell>
-                    <TableCell className="text-right">{fmt(Number(r.valor_venda))}</TableCell>
-                    <TableCell className="text-right text-green-600">{fmt(Number(r.comissao_gerada))}</TableCell>
-                  </TableRow>
-                );
-              })}
+              ) : filtrados.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{r.cliente?.nome_fantasia || r.cliente?.razao_social || '-'}</TableCell>
+                  <TableCell>{r.parceiro ? (r.parceiro.nome_fantasia || r.parceiro.razao_social) : '-'}</TableCell>
+                  <TableCell>{r.produto_vendido || '-'}</TableCell>
+                  <TableCell>{fmtDate(r.data)}</TableCell>
+                  <TableCell className="text-right">{fmt(r.valor)}</TableCell>
+                  <TableCell className="text-right text-green-600">{fmt(r.comissao)}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
