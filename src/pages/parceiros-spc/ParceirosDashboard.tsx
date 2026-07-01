@@ -11,30 +11,46 @@ const ParceirosDashboard = () => {
   const [indicados, setIndicados] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [vendas, setVendas] = useState<any[]>([]);
+
   useEffect(() => {
     (async () => {
-      const [p, c] = await Promise.all([
+      const [p, c, v] = await Promise.all([
         supabase.from('parceiros_spc').select('*'),
         supabase.from('clientes_indicados').select('*'),
+        supabase.from('vendas_indicadas').select('*'),
       ]);
       setParceiros(p.data ?? []);
       setIndicados(c.data ?? []);
+      setVendas(v.data ?? []);
       setLoading(false);
     })();
   }, []);
 
   const ativos = parceiros.filter((p) => p.status === 'ativo').length;
-  const totalVendas = indicados.reduce((s, i) => s + Number(i.valor_venda || 0), 0);
-  const totalComissao = indicados.reduce((s, i) => s + Number(i.comissao_gerada || 0), 0);
+
+  // Mapa cliente -> parceiro para calcular comissão a partir do % do parceiro
+  const clienteToParceiro: Record<string, string> = Object.fromEntries(indicados.map((i) => [i.id, i.parceiro_id]));
+  const parceiroPct: Record<string, number> = Object.fromEntries(parceiros.map((p) => [p.id, Number(p.percentual_comissao || 0)]));
+
+  const totalVendas = vendas.reduce((s, v) => s + Number(v.valor || 0), 0);
+  const totalComissao = vendas.reduce((s, v) => {
+    const pid = clienteToParceiro[v.cliente_indicado_id];
+    const pct = parceiroPct[pid] || 0;
+    return s + Number(v.valor || 0) * pct / 100;
+  }, 0);
 
   const ranking = parceiros
     .map((p) => {
-      const meus = indicados.filter((i) => i.parceiro_id === p.id);
+      const meusClientes = indicados.filter((i) => i.parceiro_id === p.id);
+      const idsClientes = new Set(meusClientes.map((c) => c.id));
+      const minhasVendas = vendas.filter((v) => idsClientes.has(v.cliente_indicado_id));
+      const valorGerado = minhasVendas.reduce((s, v) => s + Number(v.valor || 0), 0);
       return {
         ...p,
-        qtdClientes: meus.length,
-        valorGerado: meus.reduce((s, i) => s + Number(i.valor_venda || 0), 0),
-        comissaoGerada: meus.reduce((s, i) => s + Number(i.comissao_gerada || 0), 0),
+        qtdClientes: meusClientes.length,
+        valorGerado,
+        comissaoGerada: valorGerado * Number(p.percentual_comissao || 0) / 100,
       };
     })
     .sort((a, b) => b.valorGerado - a.valorGerado);
@@ -50,7 +66,7 @@ const ParceirosDashboard = () => {
     <div className="p-4 md:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard - Parceiros SPC</h1>
-        <p className="text-muted-foreground text-sm">Visão geral dos parceiros e clientes indicados</p>
+        <p className="text-muted-foreground text-sm">Visão geral dos parceiros</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
