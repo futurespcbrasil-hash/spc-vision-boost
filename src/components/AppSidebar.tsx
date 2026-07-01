@@ -77,7 +77,7 @@ const AppSidebar = () => {
           <Handshake size={18} />
           {!collapsed && (
             <>
-              <span className="flex-1 text-left">Parceiros SPC</span>
+              <span className="flex-1 text-left">Parceiros</span>
               <ChevronDown size={14} className={`transition-transform ${parceirosOpen ? 'rotate-180' : ''}`} />
             </>
           )}
