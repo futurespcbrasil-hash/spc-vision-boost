@@ -78,8 +78,12 @@ const Parceiros = () => {
   };
 
   const totalsByParceiro = (id: string) => {
-    const arr = indicados.filter((i) => i.parceiro_id === id);
-    return { qtd: arr.length, valor: arr.reduce((s, i) => s + Number(i.valor_venda || 0), 0) };
+    const meusClientes = indicados.filter((i) => i.parceiro_id === id);
+    const idsClientes = new Set(meusClientes.map((c) => c.id));
+    const valor = vendas
+      .filter((v) => idsClientes.has(v.cliente_indicado_id))
+      .reduce((s, v) => s + Number(v.valor || 0), 0);
+    return { qtd: meusClientes.length, valor };
   };
 
   return (
