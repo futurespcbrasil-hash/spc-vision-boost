@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 const fmt = (n: number) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtDate = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
 
-const PRODUTOS = ['SPC Brasil', 'SPC Maxi', 'Certificado Digital', 'Emissor de Notas', 'Consulta de Crédito', 'Cobrança', 'Outro'];
+const PRODUTOS = ['SPC Brasil', 'Certificado Digital', 'Emissor de Notas', 'Outro'];
 
 const emptyForm = {
   parceiro_id: '', razao_social: '', nome_fantasia: '', cnpj: '', responsavel: '',
