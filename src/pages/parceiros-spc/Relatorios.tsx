@@ -85,17 +85,14 @@ const Relatorios = () => {
     autoTable(doc, {
       startY: 38,
       head: [['Cliente', 'Parceiro', 'Produto', 'Data', 'Valor', 'Comissão']],
-      body: filtrados.map((r) => {
-        const p = parceiroMap[r.parceiro_id];
-        return [
-          r.nome_fantasia || r.razao_social,
-          p ? (p.nome_fantasia || p.razao_social) : '-',
-          r.produto_vendido || '-',
-          fmtDate(r.data_indicacao),
-          fmt(Number(r.valor_venda)),
-          fmt(Number(r.comissao_gerada)),
-        ];
-      }),
+      body: filtrados.map((r) => [
+        r.cliente?.nome_fantasia || r.cliente?.razao_social || '-',
+        r.parceiro ? (r.parceiro.nome_fantasia || r.parceiro.razao_social) : '-',
+        r.produto_vendido || '-',
+        fmtDate(r.data),
+        fmt(r.valor),
+        fmt(r.comissao),
+      ]),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [109, 40, 217] },
     });
@@ -103,21 +100,18 @@ const Relatorios = () => {
   };
 
   const exportExcel = () => {
-    const rows = filtrados.map((r) => {
-      const p = parceiroMap[r.parceiro_id];
-      return {
-        Cliente: r.nome_fantasia || r.razao_social,
-        CNPJ: r.cnpj || '',
-        Parceiro: p ? (p.nome_fantasia || p.razao_social) : '',
-        Produto: r.produto_vendido || '',
-        Data: fmtDate(r.data_indicacao),
-        Valor: Number(r.valor_venda),
-        Comissao: Number(r.comissao_gerada),
-      };
-    });
+    const rows = filtrados.map((r) => ({
+      Cliente: r.cliente?.nome_fantasia || r.cliente?.razao_social || '',
+      CNPJ: r.cliente?.cnpj || '',
+      Parceiro: r.parceiro ? (r.parceiro.nome_fantasia || r.parceiro.razao_social) : '',
+      Produto: r.produto_vendido || '',
+      Data: fmtDate(r.data),
+      Valor: r.valor,
+      Comissao: r.comissao,
+    }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Indicações');
+    XLSX.utils.book_append_sheet(wb, ws, 'Vendas');
     XLSX.writeFile(wb, `parceiros-spc-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
