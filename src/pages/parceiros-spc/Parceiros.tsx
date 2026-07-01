@@ -33,6 +33,7 @@ const Parceiros = () => {
   const { user } = useAuth();
   const [parceiros, setParceiros] = useState<any[]>([]);
   const [indicados, setIndicados] = useState<any[]>([]);
+  const [vendas, setVendas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
@@ -40,12 +41,14 @@ const Parceiros = () => {
 
   const load = async () => {
     setLoading(true);
-    const [p, c] = await Promise.all([
+    const [p, c, v] = await Promise.all([
       supabase.from('parceiros_spc').select('*').order('created_at', { ascending: false }),
-      supabase.from('clientes_indicados').select('parceiro_id, valor_venda'),
+      supabase.from('clientes_indicados').select('id, parceiro_id'),
+      supabase.from('vendas_indicadas').select('cliente_indicado_id, valor'),
     ]);
     setParceiros(p.data ?? []);
     setIndicados(c.data ?? []);
+    setVendas(v.data ?? []);
     setLoading(false);
   };
 
@@ -75,8 +78,12 @@ const Parceiros = () => {
   };
 
   const totalsByParceiro = (id: string) => {
-    const arr = indicados.filter((i) => i.parceiro_id === id);
-    return { qtd: arr.length, valor: arr.reduce((s, i) => s + Number(i.valor_venda || 0), 0) };
+    const meusClientes = indicados.filter((i) => i.parceiro_id === id);
+    const idsClientes = new Set(meusClientes.map((c) => c.id));
+    const valor = vendas
+      .filter((v) => idsClientes.has(v.cliente_indicado_id))
+      .reduce((s, v) => s + Number(v.valor || 0), 0);
+    return { qtd: meusClientes.length, valor };
   };
 
   return (

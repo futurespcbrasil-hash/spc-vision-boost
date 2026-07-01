@@ -72,12 +72,12 @@ const AppSidebar = () => {
             ${location.pathname.startsWith('/parceiros-spc')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-          title={collapsed ? 'Parceiros SPC' : undefined}
+          title={collapsed ? 'Parceiros' : undefined}
         >
           <Handshake size={18} />
           {!collapsed && (
             <>
-              <span className="flex-1 text-left">Parceiros SPC</span>
+              <span className="flex-1 text-left">Parceiros</span>
               <ChevronDown size={14} className={`transition-transform ${parceirosOpen ? 'rotate-180' : ''}`} />
             </>
           )}
