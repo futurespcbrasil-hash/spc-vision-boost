@@ -195,19 +195,16 @@ const Relatorios = () => {
                 <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtrados.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Nenhum registro encontrado</TableCell></TableRow>
-              ) : filtrados.map((r) => {
-                const p = parceiroMap[r.parceiro_id];
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell>{r.nome_fantasia || r.razao_social}</TableCell>
-                    <TableCell>{p ? (p.nome_fantasia || p.razao_social) : '-'}</TableCell>
-                    <TableCell>{r.produto_vendido || '-'}</TableCell>
-                    <TableCell>{fmtDate(r.data_indicacao)}</TableCell>
-                    <TableCell className="text-right">{fmt(Number(r.valor_venda))}</TableCell>
-                    <TableCell className="text-right text-green-600">{fmt(Number(r.comissao_gerada))}</TableCell>
-                  </TableRow>
-                );
-              })}
+              ) : filtrados.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{r.cliente?.nome_fantasia || r.cliente?.razao_social || '-'}</TableCell>
+                  <TableCell>{r.parceiro ? (r.parceiro.nome_fantasia || r.parceiro.razao_social) : '-'}</TableCell>
+                  <TableCell>{r.produto_vendido || '-'}</TableCell>
+                  <TableCell>{fmtDate(r.data)}</TableCell>
+                  <TableCell className="text-right">{fmt(r.valor)}</TableCell>
+                  <TableCell className="text-right text-green-600">{fmt(r.comissao)}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
