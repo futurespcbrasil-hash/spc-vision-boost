@@ -23,7 +23,7 @@ const MobileBottomNav = () => {
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
     { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/notas', icon: StickyNote, label: 'Notas / Post-its' },
-    { to: '/parceiros-spc', icon: Handshake, label: 'Parceiros SPC' },
+    { to: '/parceiros-spc', icon: Handshake, label: 'Parceiros' },
     { to: '/parceiros-spc/parceiros', icon: Handshake, label: '— Parceiros' },
     { to: '/parceiros-spc/clientes', icon: Building2, label: '— Clientes Indicados' },
     { to: '/parceiros-spc/relatorios', icon: FileBarChart, label: '— Relatórios Parceiros' },
