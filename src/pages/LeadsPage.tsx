@@ -269,6 +269,9 @@ const LeadsPage = () => {
           <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
             <Upload size={16} /> Importar
           </button>
+          <button onClick={handleExportPDF} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
+            <FileDown size={16} /> Exportar PDF
+          </button>
           <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
             <Plus size={16} /> Novo Lead
           </button>
