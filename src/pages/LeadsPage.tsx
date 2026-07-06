@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
-import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2 } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2, FileDown } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { supabase } from '@/integrations/supabase/client';
 import { useSectors } from '@/hooks/useSectors';
 import SectorSelector from '@/components/SectorSelector';
@@ -142,6 +144,107 @@ const LeadsPage = () => {
     setAddedIds(prev => new Set(prev).add(index));
   };
 
+  const loadLogoDataUrl = async (): Promise<string | null> => {
+    try {
+      const res = await fetch('/logo-future.png');
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const handleExportPDF = async () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const logo = await loadLogoDataUrl();
+
+    // Header
+    if (logo) {
+      try { doc.addImage(logo, 'PNG', 40, 28, 90, 36); } catch {}
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(76, 29, 149);
+    doc.text('Relatório de Leads — Status da Negociação', pageWidth / 2, 46, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(90);
+    doc.text(`Setor: ${sectorLabel}`, pageWidth / 2, 62, { align: 'center' });
+    const now = new Date().toLocaleString('pt-BR');
+    doc.text(`Emitido em: ${now}  •  Total: ${filtered.length} leads`, pageWidth / 2, 76, { align: 'center' });
+
+    let cursorY = 100;
+
+    KANBAN_STAGES.forEach((stage) => {
+      const rows = filtered.filter((l) => l.status === stage.key);
+      if (rows.length === 0) return;
+
+      if (cursorY > doc.internal.pageSize.getHeight() - 120) {
+        doc.addPage();
+        cursorY = 50;
+      }
+
+      // Stage header bar
+      doc.setFillColor(124, 58, 237);
+      doc.rect(40, cursorY, pageWidth - 80, 22, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(`${stage.label}  (${rows.length})`, 50, cursorY + 15);
+      cursorY += 22;
+
+      autoTable(doc, {
+        startY: cursorY,
+        head: [['Nome', 'Empresa', 'Telefone', 'WhatsApp', 'Email', 'Produto', 'Origem', 'Observações']],
+        body: rows.map((l) => [
+          l.name || '—',
+          l.company || '—',
+          l.phone || '—',
+          l.whatsapp || '—',
+          l.email || '—',
+          l.product || '—',
+          l.origin || '—',
+          l.observations || '—',
+        ]),
+        styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
+        headStyles: { fillColor: [237, 233, 254], textColor: [76, 29, 149], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 249, 255] },
+        columnStyles: {
+          0: { cellWidth: 90 },
+          1: { cellWidth: 100 },
+          2: { cellWidth: 75 },
+          3: { cellWidth: 75 },
+          4: { cellWidth: 110 },
+          5: { cellWidth: 70 },
+          6: { cellWidth: 70 },
+          7: { cellWidth: 'auto' },
+        },
+        margin: { left: 40, right: 40 },
+        didDrawPage: () => {
+          const pageCount = doc.getNumberOfPages();
+          const currentPage = doc.getCurrentPageInfo().pageNumber;
+          doc.setFontSize(8);
+          doc.setTextColor(120);
+          doc.text(
+            `Página ${currentPage} de ${pageCount}`,
+            pageWidth - 40,
+            doc.internal.pageSize.getHeight() - 20,
+            { align: 'right' }
+          );
+        },
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 20;
+    });
+
+    doc.save(`leads-${selectedSector}-${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
 
   const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -165,6 +268,9 @@ const LeadsPage = () => {
           <input ref={fileInputRef} type="file" accept=".csv,.txt,.xls,.xlsx,.tsv" className="hidden" onChange={handleImport} />
           <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
             <Upload size={16} /> Importar
+          </button>
+          <button onClick={handleExportPDF} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition">
+            <FileDown size={16} /> Exportar PDF
           </button>
           <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition">
             <Plus size={16} /> Novo Lead
