@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
-import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2 } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2, FileDown } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { supabase } from '@/integrations/supabase/client';
 import { useSectors } from '@/hooks/useSectors';
 import SectorSelector from '@/components/SectorSelector';
