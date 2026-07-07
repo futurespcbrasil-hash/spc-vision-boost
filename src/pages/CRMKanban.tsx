@@ -37,20 +37,7 @@ const CRMKanban = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileStage, setMobileStage] = useState<string>(baseStages[0]?.key || '');
   const [showExport, setShowExport] = useState(false);
-  const EXPORT_COLUMNS: { key: keyof Lead | 'status'; label: string }[] = [
-    { key: 'name', label: 'Nome' },
-    { key: 'company', label: 'Empresa' },
-    { key: 'phone', label: 'Telefone' },
-    { key: 'whatsapp', label: 'WhatsApp' },
-    { key: 'email', label: 'Email' },
-    { key: 'cpfCnpj', label: 'CPF/CNPJ' },
-    { key: 'address', label: 'Endereço' },
-    { key: 'product', label: 'Produto' },
-    { key: 'origin', label: 'Origem' },
-    { key: 'status', label: 'Status' },
-    { key: 'observations', label: 'Observações' },
-  ];
-  const [selectedCols, setSelectedCols] = useState<string[]>(EXPORT_COLUMNS.map(c => c.key as string));
+  const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
