@@ -230,6 +230,70 @@ const CRMKanban = () => {
 
   const MAX_VISIBLE = 4;
 
+  const loadLogoDataUrl = async (): Promise<string | null> => {
+    try {
+      const res = await fetch('/logo-future.png');
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch { return null; }
+  };
+
+  const handleExportPDF = async () => {
+    const cols = EXPORT_COLUMNS.filter(c => selectedCols.includes(c.key as string));
+    if (cols.length === 0) return;
+    const filtered = leads.filter(l =>
+      !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const logo = await loadLogoDataUrl();
+    if (logo) { try { doc.addImage(logo, 'PNG', 40, 28, 90, 36); } catch {} }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(76, 29, 149);
+    doc.text('Relatório do Funil — Status da Negociação', pageWidth / 2, 46, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90);
+    doc.text(`Setor: ${sectorLabel}`, pageWidth / 2, 62, { align: 'center' });
+    doc.text(`Emitido em: ${new Date().toLocaleString('pt-BR')}  •  Total: ${filtered.length} leads`, pageWidth / 2, 76, { align: 'center' });
+
+    let cursorY = 100;
+    allStages.forEach((stage) => {
+      const rows = filtered.filter(l => l.status === stage.key);
+      if (rows.length === 0) return;
+      if (cursorY > doc.internal.pageSize.getHeight() - 120) { doc.addPage(); cursorY = 50; }
+      doc.setFillColor(124, 58, 237);
+      doc.rect(40, cursorY, pageWidth - 80, 22, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text(`${stage.label}  (${rows.length})`, 50, cursorY + 15);
+      cursorY += 22;
+      autoTable(doc, {
+        startY: cursorY,
+        head: [cols.map(c => c.label)],
+        body: rows.map(l => cols.map(c => {
+          if (c.key === 'status') return allStages.find(s => s.key === l.status)?.label || '—';
+          return (l as any)[c.key] || '—';
+        })),
+        styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
+        headStyles: { fillColor: [237, 233, 254], textColor: [76, 29, 149], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 249, 255] },
+        margin: { left: 40, right: 40 },
+        didDrawPage: () => {
+          const pageCount = doc.getNumberOfPages();
+          const currentPage = doc.getCurrentPageInfo().pageNumber;
+          doc.setFontSize(8); doc.setTextColor(120);
+          doc.text(`Página ${currentPage} de ${pageCount}`, pageWidth - 40, doc.internal.pageSize.getHeight() - 20, { align: 'right' });
+        },
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 20;
+    });
+    doc.save(`funil-${funnel}-${new Date().toISOString().split('T')[0]}.pdf`);
+    setShowExport(false);
+  };
+
+
   if (authLoading) {
     return <div className="p-6 text-sm text-muted-foreground">Carregando funil...</div>;
   }
@@ -259,6 +323,12 @@ const CRMKanban = () => {
             )}
           </div>
           <button
+            onClick={() => setShowExport(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition"
+          >
+            <FileDown size={16} /> Exportar PDF
+          </button>
+          <button
             onClick={() => setShowAddColumn(true)}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
           >
@@ -266,6 +336,56 @@ const CRMKanban = () => {
           </button>
         </div>
       </div>
+
+      {/* Export PDF modal */}
+      {showExport && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowExport(false)}>
+          <div className="bg-card rounded-xl border border-border max-w-md w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-foreground flex items-center gap-2"><FileDown size={18} className="text-primary" /> Exportar PDF</h3>
+              <button onClick={() => setShowExport(false)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
+            </div>
+            <p className="text-sm text-muted-foreground">Selecione as colunas que devem aparecer no relatório:</p>
+            <div className="flex gap-2 text-xs">
+              <button
+                onClick={() => setSelectedCols(EXPORT_COLUMNS.map(c => c.key as string))}
+                className="px-2 py-1 rounded border border-border hover:bg-muted transition"
+              >Todas</button>
+              <button
+                onClick={() => setSelectedCols([])}
+                className="px-2 py-1 rounded border border-border hover:bg-muted transition"
+              >Nenhuma</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+              {EXPORT_COLUMNS.map(col => {
+                const checked = selectedCols.includes(col.key as string);
+                return (
+                  <label key={col.key as string} className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={e => {
+                        if (e.target.checked) setSelectedCols([...selectedCols, col.key as string]);
+                        else setSelectedCols(selectedCols.filter(k => k !== col.key));
+                      }}
+                      className="accent-primary"
+                    />
+                    <span>{col.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button onClick={() => setShowExport(false)} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
+              <button
+                onClick={handleExportPDF}
+                disabled={selectedCols.length === 0}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
+              >Gerar PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add column modal */}
       {showAddColumn && (
