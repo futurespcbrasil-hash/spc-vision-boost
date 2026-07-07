@@ -5,8 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { 
   GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, 
-  Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search
+  Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search, FileDown
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 import { useSectors } from '@/hooks/useSectors';
 import SectorSelector from '@/components/SectorSelector';
@@ -34,6 +36,21 @@ const CRMKanban = () => {
   const [editColLabel, setEditColLabel] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileStage, setMobileStage] = useState<string>(baseStages[0]?.key || '');
+  const [showExport, setShowExport] = useState(false);
+  const EXPORT_COLUMNS: { key: keyof Lead | 'status'; label: string }[] = [
+    { key: 'name', label: 'Nome' },
+    { key: 'company', label: 'Empresa' },
+    { key: 'phone', label: 'Telefone' },
+    { key: 'whatsapp', label: 'WhatsApp' },
+    { key: 'email', label: 'Email' },
+    { key: 'cpfCnpj', label: 'CPF/CNPJ' },
+    { key: 'address', label: 'Endereço' },
+    { key: 'product', label: 'Produto' },
+    { key: 'origin', label: 'Origem' },
+    { key: 'status', label: 'Status' },
+    { key: 'observations', label: 'Observações' },
+  ];
+  const [selectedCols, setSelectedCols] = useState<string[]>(EXPORT_COLUMNS.map(c => c.key as string));
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
