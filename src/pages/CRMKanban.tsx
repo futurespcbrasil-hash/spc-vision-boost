@@ -231,8 +231,8 @@ const CRMKanban = () => {
   };
 
   const handleExportPDF = async () => {
-    const cols = EXPORT_COLUMNS.filter(c => selectedCols.includes(c.key as string));
-    if (cols.length === 0) return;
+    const activeStageKeys = selectedStageKeys ?? allStages.map(s => s.key as string);
+    if (activeStageKeys.length === 0) return;
     const filtered = leads.filter(l =>
       !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -244,10 +244,12 @@ const CRMKanban = () => {
     doc.text('Relatório do Funil — Status da Negociação', pageWidth / 2, 46, { align: 'center' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90);
     doc.text(`Setor: ${sectorLabel}`, pageWidth / 2, 62, { align: 'center' });
-    doc.text(`Emitido em: ${new Date().toLocaleString('pt-BR')}  •  Total: ${filtered.length} leads`, pageWidth / 2, 76, { align: 'center' });
+    const totalIncluded = filtered.filter(l => activeStageKeys.includes(l.status as string)).length;
+    doc.text(`Emitido em: ${new Date().toLocaleString('pt-BR')}  •  Total: ${totalIncluded} leads`, pageWidth / 2, 76, { align: 'center' });
 
     let cursorY = 100;
     allStages.forEach((stage) => {
+      if (!activeStageKeys.includes(stage.key as string)) return;
       const rows = filtered.filter(l => l.status === stage.key);
       if (rows.length === 0) return;
       if (cursorY > doc.internal.pageSize.getHeight() - 120) { doc.addPage(); cursorY = 50; }
@@ -258,14 +260,25 @@ const CRMKanban = () => {
       cursorY += 22;
       autoTable(doc, {
         startY: cursorY,
-        head: [cols.map(c => c.label)],
-        body: rows.map(l => cols.map(c => {
-          if (c.key === 'status') return allStages.find(s => s.key === l.status)?.label || '—';
-          return (l as any)[c.key] || '—';
-        })),
+        head: [['Nome', 'Empresa', 'Telefone', 'WhatsApp', 'Email', 'Produto', 'Origem', 'Observações']],
+        body: rows.map((l) => [
+          l.name || '—',
+          l.company || '—',
+          l.phone || '—',
+          l.whatsapp || '—',
+          l.email || '—',
+          l.product || '—',
+          l.origin || '—',
+          l.observations || '—',
+        ]),
         styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak', valign: 'top' },
         headStyles: { fillColor: [237, 233, 254], textColor: [76, 29, 149], fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [250, 249, 255] },
+        columnStyles: {
+          0: { cellWidth: 90 }, 1: { cellWidth: 100 }, 2: { cellWidth: 75 },
+          3: { cellWidth: 75 }, 4: { cellWidth: 110 }, 5: { cellWidth: 70 },
+          6: { cellWidth: 70 }, 7: { cellWidth: 'auto' },
+        },
         margin: { left: 40, right: 40 },
         didDrawPage: () => {
           const pageCount = doc.getNumberOfPages();
@@ -279,6 +292,7 @@ const CRMKanban = () => {
     doc.save(`funil-${funnel}-${new Date().toISOString().split('T')[0]}.pdf`);
     setShowExport(false);
   };
+
 
 
   if (authLoading) {
@@ -332,32 +346,36 @@ const CRMKanban = () => {
               <h3 className="font-bold text-foreground flex items-center gap-2"><FileDown size={18} className="text-primary" /> Exportar PDF</h3>
               <button onClick={() => setShowExport(false)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
             </div>
-            <p className="text-sm text-muted-foreground">Selecione as colunas que devem aparecer no relatório:</p>
+            <p className="text-sm text-muted-foreground">Selecione as colunas do funil que devem aparecer no relatório:</p>
             <div className="flex gap-2 text-xs">
               <button
-                onClick={() => setSelectedCols(EXPORT_COLUMNS.map(c => c.key as string))}
+                onClick={() => setSelectedStageKeys(allStages.map(s => s.key as string))}
                 className="px-2 py-1 rounded border border-border hover:bg-muted transition"
               >Todas</button>
               <button
-                onClick={() => setSelectedCols([])}
+                onClick={() => setSelectedStageKeys([])}
                 className="px-2 py-1 rounded border border-border hover:bg-muted transition"
               >Nenhuma</button>
             </div>
-            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-              {EXPORT_COLUMNS.map(col => {
-                const checked = selectedCols.includes(col.key as string);
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto">
+              {allStages.map(stage => {
+                const activeKeys = selectedStageKeys ?? allStages.map(s => s.key as string);
+                const checked = activeKeys.includes(stage.key as string);
+                const count = leads.filter(l => l.status === stage.key).length;
                 return (
-                  <label key={col.key as string} className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition">
+                  <label key={stage.key as string} className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition">
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={e => {
-                        if (e.target.checked) setSelectedCols([...selectedCols, col.key as string]);
-                        else setSelectedCols(selectedCols.filter(k => k !== col.key));
+                        const base = selectedStageKeys ?? allStages.map(s => s.key as string);
+                        if (e.target.checked) setSelectedStageKeys([...base, stage.key as string]);
+                        else setSelectedStageKeys(base.filter(k => k !== stage.key));
                       }}
                       className="accent-primary"
                     />
-                    <span>{col.label}</span>
+                    <span className="flex-1 truncate">{stage.label}</span>
+                    <span className="text-xs text-muted-foreground">{count}</span>
                   </label>
                 );
               })}
@@ -366,7 +384,7 @@ const CRMKanban = () => {
               <button onClick={() => setShowExport(false)} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
               <button
                 onClick={handleExportPDF}
-                disabled={selectedCols.length === 0}
+                disabled={(selectedStageKeys ?? allStages).length === 0}
                 className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
               >Gerar PDF</button>
             </div>
