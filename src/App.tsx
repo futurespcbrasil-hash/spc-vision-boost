@@ -28,6 +28,7 @@ import ParceirosDashboard from "@/pages/parceiros-spc/ParceirosDashboard";
 import Parceiros from "@/pages/parceiros-spc/Parceiros";
 import ClientesIndicados from "@/pages/parceiros-spc/ClientesIndicados";
 import ParceirosRelatorios from "@/pages/parceiros-spc/Relatorios";
+import ConsultaSPC from "@/pages/ConsultaSPC";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
@@ -70,6 +71,7 @@ const ProtectedRoutes = () => {
             <Route path="/parceiros-spc/parceiros" element={<AppLayout><Parceiros /></AppLayout>} />
             <Route path="/parceiros-spc/clientes" element={<AppLayout><ClientesIndicados /></AppLayout>} />
             <Route path="/parceiros-spc/relatorios" element={<AppLayout><ParceirosRelatorios /></AppLayout>} />
+            <Route path="/consultas" element={<AppLayout><ConsultaSPC /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ErrorBoundary>
