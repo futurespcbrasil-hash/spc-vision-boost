@@ -29,6 +29,9 @@ import Parceiros from "@/pages/parceiros-spc/Parceiros";
 import ClientesIndicados from "@/pages/parceiros-spc/ClientesIndicados";
 import ParceirosRelatorios from "@/pages/parceiros-spc/Relatorios";
 import ConsultaSPC from "@/pages/ConsultaSPC";
+import WhatsAppChat from "@/pages/WhatsAppChat";
+import WhatsAppInstancias from "@/pages/WhatsAppInstancias";
+import WhatsAppAjustes from "@/pages/WhatsAppAjustes";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
@@ -72,6 +75,9 @@ const ProtectedRoutes = () => {
             <Route path="/parceiros-spc/clientes" element={<AppLayout><ClientesIndicados /></AppLayout>} />
             <Route path="/parceiros-spc/relatorios" element={<AppLayout><ParceirosRelatorios /></AppLayout>} />
             <Route path="/consultas" element={<AppLayout><ConsultaSPC /></AppLayout>} />
+            <Route path="/whatsapp" element={<AppLayout><WhatsAppChat /></AppLayout>} />
+            <Route path="/whatsapp/instancias" element={<AppLayout><WhatsAppInstancias /></AppLayout>} />
+            <Route path="/whatsapp/ajustes" element={<AppLayout><WhatsAppAjustes /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ErrorBoundary>

@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  MoreHorizontal, UserCog, LogOut, MessageCircle, X, Target, Handshake, Building2, StickyNote, Search
+  MoreHorizontal, UserCog, LogOut, MessageCircle, MessageSquare, X, Target, Handshake, Building2, StickyNote, Search
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,8 @@ const MobileBottomNav = () => {
   ];
 
   const more = [
+    { to: '/whatsapp', icon: MessageSquare, label: 'WhatsApp' },
+    { to: '/whatsapp/instancias', icon: MessageSquare, label: '— Instâncias WA' },
     { to: '/consultas', icon: Search, label: 'Consultas SPC' },
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
