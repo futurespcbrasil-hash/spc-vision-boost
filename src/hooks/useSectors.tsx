@@ -70,6 +70,16 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Get role and allowed_sectors for this user
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role, allowed_sectors')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const userRole = roleData?.role || 'vendedor';
+    const allowedSectors: string[] = roleData?.allowed_sectors || [];
+
     const ownRows = (data || []).filter((r: any) => r.user_id === user.id);
     if (ownRows.length === 0) {
       const rows = DEFAULT_SECTORS.map((s, i) => ({
@@ -77,9 +87,19 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
       }));
       const { data: inserted } = await supabase.from('sectors').insert(rows).select();
       const merged = [...(data || []), ...(inserted || [])];
-      setSectors(dedupeSectors(merged));
+      const all = dedupeSectors(merged);
+      // Filter by permissions (gestores see all, atendentes see only allowed)
+      const filtered = userRole === 'gestor' || allowedSectors.length === 0
+        ? all
+        : all.filter(s => allowedSectors.includes(s.key));
+      setSectors(filtered);
     } else {
-      setSectors(dedupeSectors(data || []));
+      const all = dedupeSectors(data || []);
+      // Filter by permissions (gestores see all, atendentes see only allowed)
+      const filtered = userRole === 'gestor' || allowedSectors.length === 0
+        ? all
+        : all.filter(s => allowedSectors.includes(s.key));
+      setSectors(filtered);
     }
     setLoading(false);
   }, []);
