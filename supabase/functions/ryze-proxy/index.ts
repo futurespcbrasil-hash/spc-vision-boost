@@ -21,6 +21,7 @@ async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = 
   const { token, headers, ...rest } = opts;
   const authToken = token || TOKEN_ACCOUNT;
   if (!authToken) {
+    console.error('[Ryze API Error] Token de conta/instância não configurado. RYZE_TOKEN_ACCOUNT ausente.');
     return {
       ok: false,
       status: 400,
@@ -28,11 +29,20 @@ async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = 
     };
   }
 
+  const url = `${RYZE_BASE}${path}`;
+  const method = opts.method || 'GET';
+  const startTime = Date.now();
+
+  console.log(`[Ryze API Request] ${method} ${url}`, {
+    tokenPrefix: authToken ? `${authToken.slice(0, 8)}...` : 'NONE',
+    headers: { 'Content-Type': 'application/json', ...(headers || {}) },
+    body: opts.body ? (typeof opts.body === 'string' ? opts.body.slice(0, 500) : opts.body) : undefined,
+  });
+
   let lastErr: unknown;
-  // retry up to 3x on 5xx/network
   for (let i = 0; i < 3; i++) {
     try {
-      const res = await fetch(`${RYZE_BASE}${path}`, {
+      const res = await fetch(url, {
         ...rest,
         headers: {
           'token': authToken,
@@ -41,16 +51,26 @@ async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = 
           ...(headers || {}),
         },
       });
+      const durationMs = Date.now() - startTime;
       const text = await res.text();
       let data: any = {};
       try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+
+      console.log(`[Ryze API Response] ${method} ${url} - Status ${res.status} (${durationMs}ms)`, {
+        ok: res.ok,
+        status: res.status,
+        dataSummary: typeof data === 'object' ? JSON.stringify(data).slice(0, 600) : data,
+      });
+
       if (!res.ok && res.status >= 500 && i < 2) {
+        console.warn(`[Ryze API Retry] Tentativa #${i + 1} para ${url} (status ${res.status})`);
         await new Promise(r => setTimeout(r, 500 * (i + 1)));
         continue;
       }
       return { ok: res.ok, status: res.status, data };
     } catch (e) {
       lastErr = e;
+      console.error(`[Ryze API Network Error] ${method} ${url} (tentativa ${i + 1}):`, (e as Error)?.message || e);
       if (i < 2) await new Promise(r => setTimeout(r, 500 * (i + 1)));
     }
   }
@@ -86,7 +106,7 @@ function extractQrCode(d: any): string | null {
 
 async function getInstance(instanceId: string) {
   const { data, error } = await admin.from('whatsapp_instances').select('*').eq('id', instanceId).maybeSingle();
-  if (error || !data) throw new Error('Instance not found');
+  if (error || !data) throw new Error('Instância não encontrada');
   return data;
 }
 
@@ -94,20 +114,21 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    // authenticate caller
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
+    if (!authHeader?.startsWith('Bearer ')) return json({ error: 'Não autorizado' }, 401);
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
     const jwt = authHeader.replace('Bearer ', '');
     const { data: userData, error: authErr } = await userClient.auth.getUser(jwt);
-    if (authErr || !userData?.user) return json({ error: 'Unauthorized' }, 401);
+    if (authErr || !userData?.user) return json({ error: 'Não autorizado' }, 401);
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
-    if (!action) return json({ error: 'action required' }, 400);
+    if (!action) return json({ error: 'Ação obrigatória' }, 400);
+
+    console.log(`[ryze-proxy Action] ${action} disparada por user: ${userId}`);
 
     // -------- CREATE INSTANCE (uses TokenAccount) --------
     if (action === 'create_instance') {
@@ -137,14 +158,14 @@ Deno.serve(async (req) => {
 
           let existingInfo: any = null;
           if (listRes.ok) {
-            const list = listRes.data?.data || listRes.data;
+            const list = listRes.data?.instances || listRes.data?.data || listRes.data;
             existingInfo = Array.isArray(list) ? list[0] : list;
           }
 
           const ryzeId = existingInfo?.id || existingInfo?.instanceId || existingInfo?.name || name;
           const ryzeToken = existingInfo?.token || existingInfo?.tokenInstance || null;
-          const ryzeStatus = existingInfo?.status || existingInfo?.state || 'disconnected';
-          const ryzePhone = existingInfo?.number || existingInfo?.phone || null;
+          const ryzeStatus = existingInfo?.status || existingInfo?.connection?.state || 'disconnected';
+          const ryzePhone = existingInfo?.connection?.numberJid ? existingInfo.connection.numberJid.split('@')[0] : (existingInfo?.number || existingInfo?.phone || null);
 
           const upserted = await admin.from('whatsapp_instances').upsert({
             owner_id: userId,
@@ -173,7 +194,7 @@ Deno.serve(async (req) => {
 
     // Everything below needs an existing instance
     const instanceId = body.instance_id as string;
-    if (!instanceId) return json({ error: 'instance_id required' }, 400);
+    if (!instanceId) return json({ error: 'instance_id é obrigatório' }, 400);
     const inst = await getInstance(instanceId);
 
     // -------- CONNECT (fetch QR) --------
@@ -222,8 +243,12 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
-      const list = r.data.data || r.data;
+      if (!r.ok) {
+        console.error('[ryze-proxy] Erro ao consultar status da instância', r.data);
+        return json({ error: 'Erro de comunicação com a Ryze API ao verificar status', details: r.data }, r.status);
+      }
+
+      const list = r.data.instances || r.data.data || r.data;
       const item = Array.isArray(list) ? list[0] : list;
 
       const rawState = item?.connection?.state || item?.status || item?.state || 'unknown';
@@ -245,11 +270,11 @@ Deno.serve(async (req) => {
     if (action === 'disconnect' || action === 'logout') {
       try {
         await ryzeFetch(`/api/instance/logout/${encodeURIComponent(inst.name)}`, {
-          method: 'DELETE', token: inst.token_instance,
+          method: 'DELETE', token: inst.token_instance || TOKEN_ACCOUNT,
         });
       } catch {
         await ryzeFetch(`/api/instance/logout/${encodeURIComponent(inst.name)}`, {
-          method: 'POST', token: inst.token_instance,
+          method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
         }).catch(() => null);
       }
       await admin.from('whatsapp_instances').update({
@@ -278,12 +303,12 @@ Deno.serve(async (req) => {
 
     // -------- REGISTER WEBHOOK --------
     if (action === 'register_webhook') {
-      const webhookSecret = Deno.env.get('RYZE_WEBHOOK_SECRET')!;
+      const webhookSecret = Deno.env.get('RYZE_WEBHOOK_SECRET') || 'default-secret';
       const url = `${SUPABASE_URL}/functions/v1/ryze-webhook?instance=${instanceId}&secret=${webhookSecret}`;
       const r = await ryzeFetch(`/api/events/webhook/${encodeURIComponent(inst.name)}`, {
-        method: 'POST', token: inst.token_instance,
+        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
         body: JSON.stringify({
-          label: 'lovable-default', enabled: true, url,
+          label: 'crm-webhook', enabled: true, url,
           events: ['message.exchange', 'group.flow', 'instance.state'],
           mediaBase64: false,
         }),
@@ -294,14 +319,20 @@ Deno.serve(async (req) => {
     // -------- SEND TEXT --------
     if (action === 'send_text') {
       const number = String(body.number || '').replace(/\D/g, '');
-      const text = String(body.text || '');
-      if (!number || !text) return json({ error: 'number and text required' }, 400);
+      const text = String(body.text || body.message || '');
+      if (!number || !text) return json({ error: 'number e text/message são obrigatórios' }, 400);
+
       const r = await ryzeFetch(`/api/message/text/${encodeURIComponent(inst.name)}`, {
-        method: 'POST', token: inst.token_instance,
-        body: JSON.stringify({ number, text }),
+        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        body: JSON.stringify({ number, text, message: text }),
       });
-      if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
+      if (!r.ok) {
+        const errorDetails = r.data?.error?.message || r.data?.message || r.data;
+        return json({ error: `Erro ao enviar mensagem via Ryze API: ${errorDetails}`, details: r.data }, r.status);
+      }
+
       const md = r.data.data || r.data;
+      const waMessageId = md?.messageId || md?.key?.id || md?.id || null;
       const waChatId = `${number}@s.whatsapp.net`;
 
       // Upsert chat
@@ -325,29 +356,36 @@ Deno.serve(async (req) => {
 
       await admin.from('whatsapp_messages').insert({
         chat_id: chatId, instance_id: instanceId,
-        wa_message_id: md?.key?.id || md?.id || null,
+        wa_message_id: waMessageId,
         from_me: true, message_type: 'text', text,
         status: 'sent', timestamp: new Date().toISOString(),
         sent_by: userId, raw: md,
       });
 
-      return json({ ok: true, message_id: md?.key?.id || md?.id });
+      return json({ ok: true, message_id: waMessageId });
     }
 
     // -------- SEND MEDIA --------
     if (action === 'send_media') {
       const number = String(body.number || '').replace(/\D/g, '');
-      const mediaUrl = body.media_url;
-      const mediaType = body.media_type || 'image'; // image|video|document|audio
-      const caption = body.caption || '';
-      if (!number || !mediaUrl) return json({ error: 'number and media_url required' }, 400);
+      const mediaUrl = body.media_url || body.mediaUrl;
+      const mediaType = body.media_type || body.mediaType || 'image'; // image|video|document|audio
+      const caption = body.caption || body.message || '';
+      if (!number || !mediaUrl) return json({ error: 'number e media_url (ou mediaUrl) são obrigatórios' }, 400);
+
       const r = await ryzeFetch(`/api/message/media/${encodeURIComponent(inst.name)}`, {
-        method: 'POST', token: inst.token_instance,
-        body: JSON.stringify({ number, mediatype: mediaType, media: mediaUrl, caption }),
+        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        body: JSON.stringify({ number, mediaType, mediaUrl, message: caption }),
       });
-      if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
+      if (!r.ok) {
+        const errorDetails = r.data?.error?.message || r.data?.message || r.data;
+        return json({ error: `Erro ao enviar mídia via Ryze API: ${errorDetails}`, details: r.data }, r.status);
+      }
+
       const md = r.data.data || r.data;
+      const waMessageId = md?.messageId || md?.key?.id || md?.id || null;
       const waChatId = `${number}@s.whatsapp.net`;
+
       const { data: existingChat } = await admin.from('whatsapp_chats')
         .select('id, assigned_to').eq('instance_id', instanceId).eq('wa_chat_id', waChatId).maybeSingle();
       let chatId = existingChat?.id;
@@ -364,90 +402,179 @@ Deno.serve(async (req) => {
           ...(existingChat.assigned_to ? {} : { assigned_to: userId }),
         }).eq('id', chatId);
       }
+
       await admin.from('whatsapp_messages').insert({
         chat_id: chatId, instance_id: instanceId,
-        wa_message_id: md?.key?.id || md?.id || null,
+        wa_message_id: waMessageId,
         from_me: true, message_type: mediaType, text: caption, media_url: mediaUrl,
         status: 'sent', timestamp: new Date().toISOString(), sent_by: userId, raw: md,
       });
-      return json({ ok: true });
+      return json({ ok: true, message_id: waMessageId });
     }
 
-    // -------- GET CHATS (from Ryze, sync into db) --------
+    // -------- GET CHATS (List contacts/conversations from Ryze & sync into DB) --------
     if (action === 'get_chats') {
-      const r = await ryzeFetch(`/api/chat/findChats/${encodeURIComponent(inst.name)}`, {
-        method: 'POST', token: inst.token_instance, body: JSON.stringify({}),
+      // Ryze Official Endpoint: GET /api/chat/contacts/:instance
+      const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(inst.name)}`, {
+        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
       });
-      if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
-      const arr = Array.isArray(r.data) ? r.data : (r.data.data || r.data.chats || []);
+
+      if (!r.ok) {
+        const errorDetails = r.data?.error?.message || r.data?.message || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
+        console.error('[ryze-proxy] Erro no get_chats ao listar contatos:', errorDetails);
+        return json({ error: `Erro na Ryze API (get_chats): ${errorDetails}`, details: r.data }, r.status);
+      }
+
+      const arr = r.data.contacts || r.data.data || (Array.isArray(r.data) ? r.data : []);
+      let syncedCount = 0;
+
       for (const c of arr) {
-        const remoteJid = c.remoteJid || c.id || c.chatId;
+        const remoteJid = c.jid || c.remoteJid || c.id;
         if (!remoteJid) continue;
         const number = String(remoteJid).split('@')[0];
         const isGroup = String(remoteJid).includes('@g.us');
+        const contactName = c.full_name || c.push_name || c.first_name || c.business_name || c.name || number;
+
         await admin.from('whatsapp_chats').upsert({
-          instance_id: instanceId, wa_chat_id: remoteJid,
-          contact_number: number, contact_name: c.name || c.pushName || number,
-          is_group: isGroup, avatar_url: c.profilePicUrl || null,
-          last_message: c.lastMessage?.text || c.lastMessage?.body || null,
-          last_message_at: c.lastMessageTimestamp ? new Date(c.lastMessageTimestamp * 1000).toISOString() : null,
+          instance_id: instanceId,
+          wa_chat_id: remoteJid,
+          contact_number: number,
+          contact_name: contactName,
+          is_group: isGroup,
+          avatar_url: c.profilePicUrl || c.avatar_url || null,
         }, { onConflict: 'instance_id,wa_chat_id' });
+
+        syncedCount++;
       }
-      return json({ synced: arr.length });
+
+      console.log(`[ryze-proxy] get_chats finalizado. Total sincronizado: ${syncedCount}`);
+      return json({ synced: syncedCount, total: r.data.total || syncedCount });
     }
 
-    // -------- GET MESSAGES for a chat --------
+    // -------- GET MESSAGES (Fetch chat history from Ryze & sync into DB) --------
     if (action === 'get_messages') {
       const waChatId = body.wa_chat_id;
-      if (!waChatId) return json({ error: 'wa_chat_id required' }, 400);
-      const r = await ryzeFetch(`/api/chat/findMessages/${encodeURIComponent(inst.name)}`, {
-        method: 'POST', token: inst.token_instance,
-        body: JSON.stringify({ where: { key: { remoteJid: waChatId } }, limit: 200 }),
+      if (!waChatId) return json({ error: 'wa_chat_id é obrigatório' }, 400);
+
+      // Ryze Official Endpoint: POST /api/chat/history/:instance
+      // Body: { number: waChatId, count: 200 }
+      const r = await ryzeFetch(`/api/chat/history/${encodeURIComponent(inst.name)}`, {
+        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        body: JSON.stringify({ number: waChatId, count: 200 }),
       });
-      if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
-      const arr = Array.isArray(r.data) ? r.data : (r.data.data || r.data.messages || []);
-      const { data: chat } = await admin.from('whatsapp_chats').select('id')
+
+      if (!r.ok) {
+        const errorDetails = r.data?.error?.message || r.data?.message || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
+        console.error(`[ryze-proxy] Erro no get_messages para ${waChatId}:`, errorDetails);
+        return json({ error: `Erro na Ryze API (get_messages): ${errorDetails}`, details: r.data }, r.status);
+      }
+
+      const arr = r.data.messages || r.data.data || (Array.isArray(r.data) ? r.data : []);
+      const number = String(waChatId).split('@')[0];
+      const isGroup = String(waChatId).includes('@g.us');
+
+      // Ensure chat exists in DB
+      let { data: chat } = await admin.from('whatsapp_chats').select('*')
         .eq('instance_id', instanceId).eq('wa_chat_id', waChatId).maybeSingle();
+
+      if (!chat) {
+        const ins = await admin.from('whatsapp_chats').insert({
+          instance_id: instanceId,
+          wa_chat_id: waChatId,
+          contact_number: number,
+          contact_name: number,
+          is_group: isGroup,
+        }).select('*').single();
+        chat = ins.data;
+      }
+
+      let latestMessage: any = null;
+      let syncedCount = 0;
+
       if (chat) {
         for (const m of arr) {
-          const msgId = m.key?.id || m.id;
+          const msgId = m.id || m.key?.id;
           if (!msgId) continue;
-          const text = m.message?.conversation || m.message?.extendedTextMessage?.text || m.text || '';
+          const text = m.content || m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || '';
+          const fromMe = m.fromMe !== undefined ? Boolean(m.fromMe) : !!m.key?.fromMe;
+          const messageType = m.type || 'text';
+          const timestamp = m.timestamp
+            ? (typeof m.timestamp === 'number' ? new Date(m.timestamp * 1000).toISOString() : new Date(m.timestamp).toISOString())
+            : new Date().toISOString();
+
+          if (!latestMessage || new Date(timestamp) > new Date(latestMessage.timestamp)) {
+            latestMessage = { text, timestamp };
+          }
+
           await admin.from('whatsapp_messages').upsert({
-            chat_id: chat.id, instance_id: instanceId, wa_message_id: msgId,
-            from_me: !!m.key?.fromMe, message_type: 'text', text,
-            timestamp: m.messageTimestamp ? new Date(m.messageTimestamp * 1000).toISOString() : new Date().toISOString(),
+            chat_id: chat.id,
+            instance_id: instanceId,
+            wa_message_id: msgId,
+            from_me: fromMe,
+            sender: m.senderJid || (fromMe ? 'Me' : chat.contact_name),
+            message_type: messageType,
+            text,
+            status: fromMe ? 'sent' : 'delivered',
+            timestamp,
             raw: m,
           }, { onConflict: 'instance_id,wa_message_id' });
+
+          syncedCount++;
+        }
+
+        if (latestMessage) {
+          await admin.from('whatsapp_chats').update({
+            last_message: latestMessage.text,
+            last_message_at: latestMessage.timestamp,
+          }).eq('id', chat.id);
         }
       }
-      return json({ synced: arr.length });
+
+      console.log(`[ryze-proxy] get_messages finalizado para ${waChatId}. Total sincronizado: ${syncedCount}`);
+      return json({ synced: syncedCount });
     }
 
     // -------- GET CONTACTS --------
     if (action === 'get_contacts') {
-      const r = await ryzeFetch(`/api/chat/findContacts/${encodeURIComponent(inst.name)}`, {
-        method: 'POST', token: inst.token_instance, body: JSON.stringify({}),
+      // Ryze Official Endpoint: GET /api/chat/contacts/:instance
+      const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(inst.name)}`, {
+        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
       });
-      if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
-      const arr = Array.isArray(r.data) ? r.data : (r.data.data || r.data.contacts || []);
+
+      if (!r.ok) {
+        const errorDetails = r.data?.error?.message || r.data?.message || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
+        console.error('[ryze-proxy] Erro no get_contacts:', errorDetails);
+        return json({ error: `Erro na Ryze API (get_contacts): ${errorDetails}`, details: r.data }, r.status);
+      }
+
+      const arr = r.data.contacts || r.data.data || (Array.isArray(r.data) ? r.data : []);
+      let syncedCount = 0;
+
       for (const c of arr) {
-        const jid = c.id || c.remoteJid;
+        const jid = c.jid || c.remoteJid || c.id;
         if (!jid) continue;
         const number = String(jid).split('@')[0];
+        const contactName = c.full_name || c.push_name || c.first_name || c.business_name || c.name || null;
+
         await admin.from('whatsapp_contacts').upsert({
-          instance_id: instanceId, wa_number: number,
-          name: c.name || c.pushName || null, push_name: c.pushName || null,
-          avatar_url: c.profilePicUrl || null,
-          is_group: String(jid).includes('@g.us'), raw: c,
+          instance_id: instanceId,
+          wa_number: number,
+          name: contactName,
+          push_name: c.push_name || c.pushName || null,
+          avatar_url: c.profilePicUrl || c.avatar_url || null,
+          is_group: String(jid).includes('@g.us'),
+          raw: c,
         }, { onConflict: 'instance_id,wa_number' });
+
+        syncedCount++;
       }
-      return json({ synced: arr.length });
+
+      return json({ synced: syncedCount, total: r.data.total || syncedCount });
     }
 
-    return json({ error: 'unknown action' }, 400);
+    return json({ error: `Ação desconhecida: ${action}` }, 400);
   } catch (e) {
-    console.error('ryze-proxy error', e);
+    console.error('ryze-proxy erro geral:', e);
     return json({ error: (e as Error).message }, 500);
   }
 });
