@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import {
-  Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip, CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare
+  Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
+  CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ryze } from '@/services/ryzeService';
@@ -51,6 +55,7 @@ const getInitials = (name: string) => {
 const WhatsAppChat = () => {
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState<string>('');
   const [chats, setChats] = useState<Chat[]>([]);
@@ -58,6 +63,15 @@ const WhatsAppChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
+
+  // Lead registration modal state
+  const [leadDialog, setLeadDialog] = useState(false);
+  const [leadName, setLeadName] = useState('');
+  const [leadPhone, setLeadPhone] = useState('');
+  const [leadFunnel, setLeadFunnel] = useState('comercial');
+  const [leadStage, setLeadStage] = useState('novo');
+  const [kanbanStages, setKanbanStages] = useState<{key: string; label: string; funnel: string}[]>([]);
+  const [savingLead, setSavingLead] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'todos' | 'grupos' | 'aguardando' | 'resolvidos'>('todos');
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -163,6 +177,50 @@ const WhatsAppChat = () => {
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     }
+  };
+
+  // Load kanban stages on mount
+  useEffect(() => {
+    supabase.from('kanban_stages').select('key, label, funnel').order('position').then(({ data }) => {
+      setKanbanStages((data as any[]) || []);
+    });
+  }, []);
+
+  // Open lead registration modal pre-filled with contact info
+  const handleOpenLeadDialog = () => {
+    if (!selected) return;
+    setLeadName(selected.contact_name || '');
+    setLeadPhone(selected.contact_number.replace('@s.whatsapp.net', '').replace('@c.us', ''));
+    setLeadFunnel('comercial');
+    setLeadStage(kanbanStages.find(s => s.funnel === 'comercial')?.key || 'novo');
+    setLeadDialog(true);
+  };
+
+  // Register selected contact as a lead in the chosen funnel/stage
+  const handleRegisterLead = async () => {
+    if (!leadName.trim() || !user) return;
+    setSavingLead(true);
+    try {
+      const { error } = await supabase.from('leads').insert({
+        user_id: user.id,
+        name: leadName.trim(),
+        phone: leadPhone.trim(),
+        whatsapp: leadPhone.trim(),
+        status: leadStage,
+        funnel: leadFunnel,
+        type: 'comercial',
+        origin: 'WhatsApp',
+      });
+      if (error) throw error;
+      toast({
+        title: '✅ Lead cadastrado!',
+        description: `${leadName} adicionado ao funil. Redirecionando...`,
+      });
+      setLeadDialog(false);
+      setTimeout(() => navigate('/crm'), 1200);
+    } catch (e: any) {
+      toast({ title: 'Erro ao cadastrar lead', description: e.message, variant: 'destructive' });
+    } finally { setSavingLead(false); }
   };
 
   // Filter chats by tab & search query
@@ -398,6 +456,16 @@ const WhatsAppChat = () => {
                 </div>
 
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenLeadDialog}
+                    title="Cadastrar como Lead no Funil"
+                    className="h-8 gap-1 text-xs border-purple-300 text-purple-700 hover:bg-purple-50 hidden sm:flex"
+                  >
+                    <GitBranch size={13}/>
+                    <span>Lead no Funil</span>
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={handleSyncMessages} title="Atualizar mensagens" className="h-9 w-9 text-muted-foreground hover:text-foreground">
                     <RefreshCw size={17} />
                   </Button>
@@ -511,6 +579,65 @@ const WhatsAppChat = () => {
 
       </div>
     </div>
+
+    {/* ─── Lead Registration Dialog ─── */}
+    <Dialog open={leadDialog} onOpenChange={setLeadDialog}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitBranch size={18} className="text-purple-600" />
+            Cadastrar Lead no Funil
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">Transforme este contato em um lead e adicione ao funil de vendas.</p>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <Label htmlFor="lead-name">Nome *</Label>
+            <Input id="lead-name" placeholder="Nome do lead" value={leadName} onChange={e => setLeadName(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="lead-phone">WhatsApp / Telefone</Label>
+            <Input id="lead-phone" placeholder="Número" value={leadPhone} onChange={e => setLeadPhone(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Funil</Label>
+              <Select value={leadFunnel} onValueChange={v => { setLeadFunnel(v); setLeadStage(''); }}>
+                <SelectTrigger><SelectValue placeholder="Selecionar funil" /></SelectTrigger>
+                <SelectContent>
+                  {Array.from(new Set(kanbanStages.map(s => s.funnel))).map(f => (
+                    <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>
+                  ))}
+                  <SelectItem value="comercial">comercial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Etapa Inicial</Label>
+              <Select value={leadStage} onValueChange={setLeadStage}>
+                <SelectTrigger><SelectValue placeholder="Selecionar etapa" /></SelectTrigger>
+                <SelectContent>
+                  {kanbanStages
+                    .filter(s => s.funnel === leadFunnel)
+                    .map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)
+                  }
+                  {kanbanStages.filter(s => s.funnel === leadFunnel).length === 0 && (
+                    <SelectItem value="novo">Novo</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setLeadDialog(false)}>Cancelar</Button>
+          <Button onClick={handleRegisterLead} disabled={savingLead || !leadName.trim()} className="gap-2">
+            <UserPlus size={14} />
+            {savingLead ? 'Salvando...' : 'Cadastrar e Ir ao Funil'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
