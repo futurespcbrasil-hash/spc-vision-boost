@@ -137,6 +137,38 @@ Deno.serve(async (req) => {
       return json({ status, phone, raw: item });
     }
 
+    // -------- DISCONNECT / LOGOUT --------
+    if (action === 'disconnect' || action === 'logout') {
+      try {
+        await ryzeFetch(`/api/instance/logout/${encodeURIComponent(inst.name)}`, {
+          method: 'DELETE', token: inst.token_instance,
+        });
+      } catch {
+        await ryzeFetch(`/api/instance/logout/${encodeURIComponent(inst.name)}`, {
+          method: 'POST', token: inst.token_instance,
+        }).catch(() => null);
+      }
+      await admin.from('whatsapp_instances').update({
+        status: 'disconnected', qr_code: null, last_status_at: new Date().toISOString(),
+      }).eq('id', instanceId);
+      return json({ ok: true });
+    }
+
+    // -------- DELETE INSTANCE --------
+    if (action === 'delete_instance') {
+      try {
+        await ryzeFetch(`/api/instance/delete/${encodeURIComponent(inst.name)}`, {
+          method: 'DELETE', token: inst.token_instance,
+        });
+      } catch {
+        await ryzeFetch(`/api/instance/${encodeURIComponent(inst.name)}`, {
+          method: 'DELETE', token: inst.token_instance,
+        }).catch(() => null);
+      }
+      await admin.from('whatsapp_instances').delete().eq('id', instanceId);
+      return json({ ok: true });
+    }
+
     // -------- REGISTER WEBHOOK --------
     if (action === 'register_webhook') {
       const webhookSecret = Deno.env.get('RYZE_WEBHOOK_SECRET')!;
