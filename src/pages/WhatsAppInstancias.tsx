@@ -63,21 +63,42 @@ const WhatsAppInstancias = () => {
     try {
       const r = await ryze.connect(inst.id);
       await load();
-      const updated = { ...inst, qr_code: r.qr };
-      setQrOpen(updated);
-      // Poll status
+      const qrCode = r.qr || r.raw?.base64 || r.raw?.data?.base64 || r.raw?.code;
+      setQrOpen({ ...inst, qr_code: qrCode });
+
+      // Poll status every 3 seconds to auto-detect QR scan & login
       const iv = setInterval(async () => {
         const s = await ryze.status(inst.id).catch(() => null);
-        if (s?.status === 'connected') { clearInterval(iv); setQrOpen(null); load(); toast({ title: 'Conectado!' }); }
+        const isConnected = s?.status === 'connected' || s?.raw?.connection?.state === 'open' || s?.raw?.connection?.state === 'connected';
+        if (isConnected) {
+          clearInterval(iv);
+          setQrOpen(null);
+          // Register webhook & sync chats automatically
+          await ryze.registerWebhook(inst.id).catch(() => null);
+          await ryze.getChats(inst.id).catch(() => null);
+          await load();
+          toast({
+            title: 'WhatsApp Conectado com Sucesso!',
+            description: `Número vinculado: ${s?.phone || 'Dispositivo conectado'}`,
+          });
+        }
       }, 3000);
       setTimeout(() => clearInterval(iv), 120000);
     } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao obter QR Code', description: e.message, variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
   const handleStatus = async (inst: Instance) => {
-    try { await ryze.status(inst.id); load(); } catch (e: any) {
+    try {
+      const s = await ryze.status(inst.id);
+      load();
+      if (s?.status === 'connected') {
+        toast({ title: 'Instância Online!', description: `Número: ${s.phone || 'Conectado'}` });
+      } else {
+        toast({ title: `Status: ${statusLabel(s?.status || inst.status)}` });
+      }
+    } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     }
   };
@@ -183,7 +204,22 @@ const WhatsAppInstancias = () => {
           <DialogHeader><DialogTitle>Escaneie o QR Code</DialogTitle></DialogHeader>
           <div className="flex flex-col items-center gap-3 py-4">
             {qrOpen?.qr_code ? (
-              <img src={qrOpen.qr_code} alt="QR" className="w-64 h-64 rounded-lg border object-contain" />
+              <div className="flex flex-col items-center gap-2">
+                <img
+                  src={qrOpen.qr_code}
+                  alt="QR Code WhatsApp"
+                  className="w-64 h-64 rounded-lg border shadow-sm object-contain bg-white p-2"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (qrOpen?.qr_code && !img.src.includes('qrserver.com')) {
+                      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrOpen.qr_code)}`;
+                    }
+                  }}
+                />
+                <p className="text-xs font-medium text-green-600 animate-pulse">
+                  Aguardando leitura do QR Code no celular...
+                </p>
+              </div>
             ) : (
               <div className="w-64 h-64 flex flex-col items-center justify-center bg-muted rounded-lg p-4 gap-2">
                 <QrCode size={64} className="text-muted-foreground/40 animate-pulse" />
