@@ -56,6 +56,31 @@ async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = 
   throw lastErr;
 }
 
+function extractQrCode(d: any): string | null {
+  if (!d) return null;
+  const target = d.data || d.qrcode || d;
+  const raw =
+    (Array.isArray(target?.qrImages) ? target.qrImages[0] : null) ||
+    target?.base64 ||
+    target?.qrBase64 ||
+    target?.qrImage ||
+    target?.qrCode ||
+    target?.qr ||
+    target?.code ||
+    d?.base64 ||
+    d?.qrCode ||
+    d?.qr ||
+    d?.code;
+
+  if (typeof raw === 'string' && raw.trim().length > 10) {
+    const s = raw.trim();
+    if (s.startsWith('data:image')) return s;
+    if (s.startsWith('iVBORw0KGgo') || s.startsWith('/9j/')) return `data:image/png;base64,${s}`;
+    return s;
+  }
+  return null;
+}
+
 async function getInstance(instanceId: string) {
   const { data, error } = await admin.from('whatsapp_instances').select('*').eq('id', instanceId).maybeSingle();
   if (error || !data) throw new Error('Instance not found');
@@ -83,19 +108,39 @@ Deno.serve(async (req) => {
 
     // -------- CREATE INSTANCE (uses TokenAccount) --------
     if (action === 'create_instance') {
-      const name = String(body.name || '').trim();
-      if (!name) return json({ error: 'name required' }, 400);
-      const r = await ryzeFetch('/api/instance/new', {
+      const rawName = String(body.name || '').trim();
+      if (!rawName) return json({ error: 'Nome da instância é obrigatório' }, 400);
+      const name = rawName.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+
+      let r = await ryzeFetch('/api/instance/new', {
         method: 'POST',
         body: JSON.stringify({ name }),
       });
-      if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
+
+      if (!r.ok && r.status === 404) {
+        r = await ryzeFetch('/api/instance/create', {
+          method: 'POST',
+          body: JSON.stringify({ instanceName: name, name }),
+        });
+      }
+
+      if (!r.ok) {
+        const errorMsg = r.data?.message || r.data?.error || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
+        if (String(errorMsg).includes('already exists')) {
+          return json({
+            error: `A instância "${rawName}" já existe no Ryze. Exclua a instância antiga com o botão "Excluir" ou escolha outro nome (ex: ${rawName}-01).`,
+            details: r.data,
+          }, 400);
+        }
+        return json({ error: 'Erro ao criar instância no Ryze', details: r.data }, r.status);
+      }
+
       const info = r.data.data || r.data;
       const inserted = await admin.from('whatsapp_instances').insert({
         owner_id: userId,
-        name,
-        ryze_instance_id: info.id,
-        token_instance: info.token,
+        name: rawName,
+        ryze_instance_id: info.id || info.instanceId || info.instance_id || name,
+        token_instance: info.token || info.hash || null,
         status: info.status || 'disconnected',
       }).select('*').single();
       return json({ instance: inserted.data });
@@ -108,12 +153,21 @@ Deno.serve(async (req) => {
 
     // -------- CONNECT (fetch QR) --------
     if (action === 'connect') {
-      const r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(inst.name)}`, {
+      const sanitizedName = inst.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+      let r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(sanitizedName)}`, {
         method: 'GET', token: inst.token_instance,
       });
-      if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
-      const d = r.data.data || r.data;
-      const qrImage = Array.isArray(d.qrImages) ? d.qrImages[0] : d.qrImage || d.qrCode || null;
+
+      if (!r.ok) {
+        r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(inst.name)}`, {
+          method: 'GET', token: inst.token_instance,
+        });
+      }
+
+      if (!r.ok) return json({ error: 'Erro da API Ryze ao obter QR Code', details: r.data }, r.status);
+
+      const d = r.data;
+      const qrImage = extractQrCode(d);
       await admin.from('whatsapp_instances').update({
         qr_code: qrImage, status: 'qr', last_status_at: new Date().toISOString(),
       }).eq('id', instanceId);
