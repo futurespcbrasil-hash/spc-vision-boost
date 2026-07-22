@@ -211,14 +211,29 @@ Deno.serve(async (req) => {
 
     // -------- STATUS --------
     if (action === 'status') {
-      const r = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(inst.name)}`, {
-        method: 'GET', token: inst.token_instance,
+      const sanitizedName = inst.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+      let r = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(sanitizedName)}`, {
+        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
       });
+
+      if (!r.ok) {
+        r = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(inst.name)}`, {
+          method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+        });
+      }
+
       if (!r.ok) return json({ error: 'Ryze error', details: r.data }, r.status);
       const list = r.data.data || r.data;
       const item = Array.isArray(list) ? list[0] : list;
-      const status = item?.status || 'unknown';
-      const phone = item?.number || item?.phone || inst.phone;
+
+      const rawState = item?.connection?.state || item?.status || item?.state || 'unknown';
+      const status = (rawState === 'connected' || rawState === 'open')
+        ? 'connected'
+        : (rawState === 'connecting' || rawState === 'qr' ? 'qr' : 'disconnected');
+
+      let phone = item?.connection?.numberJid ? item.connection.numberJid.split('@')[0] : (item?.number || item?.phone || inst.phone);
+      if (phone && phone.includes(':')) phone = phone.split(':')[0];
+
       await admin.from('whatsapp_instances').update({
         status, phone, last_status_at: new Date().toISOString(),
         ...(status === 'connected' ? { qr_code: null } : {}),
