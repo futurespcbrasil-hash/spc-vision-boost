@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, QrCode, RefreshCcw, Smartphone, Unplug, Webhook } from 'lucide-react';
+import { LogOut, Plus, QrCode, RefreshCcw, Smartphone, Trash2, Unplug, Webhook } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ryze } from '@/services/ryzeService';
 import { useToast } from '@/hooks/use-toast';
@@ -91,6 +91,34 @@ const WhatsAppInstancias = () => {
     }
   };
 
+  const handleDisconnect = async (inst: Instance) => {
+    try {
+      await ryze.disconnect(inst.id);
+      toast({ title: 'Instância desconectada!' });
+      await load();
+    } catch (e: any) {
+      toast({ title: 'Erro ao desconectar', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async (inst: Instance) => {
+    if (!confirm(`Deseja realmente excluir a instância "${inst.name}"?`)) return;
+    try {
+      await ryze.deleteInstance(inst.id);
+      toast({ title: 'Instância excluída!' });
+      await load();
+    } catch (e: any) {
+      // Fallback to local delete if remote fails
+      const { error } = await supabase.from('whatsapp_instances').delete().eq('id', inst.id);
+      if (error) {
+        toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Instância removida!' });
+        await load();
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -129,10 +157,18 @@ const WhatsAppInstancias = () => {
                     <QrCode size={14}/>Conectar
                   </Button>
                 ) : (
-                  <Button size="sm" variant="outline" onClick={() => handleWebhook(inst)} className="gap-1">
-                    <Webhook size={14}/>Registrar Webhook
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => handleWebhook(inst)} className="gap-1">
+                      <Webhook size={14}/>Webhook
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDisconnect(inst)} className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                      <LogOut size={14}/>Desconectar
+                    </Button>
+                  </>
                 )}
+                <Button size="sm" variant="outline" onClick={() => handleDelete(inst)} className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50">
+                  <Trash2 size={14}/>Excluir
+                </Button>
               </div>
             </CardContent>
           </Card>
