@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const RYZE_BASE = Deno.env.get('RYZE_BASE_URL') || 'https://ryzeapi.cloud';
-const TOKEN_ACCOUNT = Deno.env.get('RYZE_TOKEN_ACCOUNT')!;
+const TOKEN_ACCOUNT = Deno.env.get('RYZE_TOKEN_ACCOUNT');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -20,6 +20,14 @@ function json(body: unknown, status = 200) {
 async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = {}) {
   const { token, headers, ...rest } = opts;
   const authToken = token || TOKEN_ACCOUNT;
+  if (!authToken) {
+    return {
+      ok: false,
+      status: 400,
+      data: { error: 'Configuração pendente: RYZE_TOKEN_ACCOUNT não foi definida nos Secrets do Supabase.' },
+    };
+  }
+
   let lastErr: unknown;
   // retry up to 3x on 5xx/network
   for (let i = 0; i < 3; i++) {
@@ -65,9 +73,9 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const jwt = authHeader.replace('Bearer ', '');
-    const { data: claims, error: authErr } = await userClient.auth.getClaims(jwt);
-    if (authErr || !claims?.claims) return json({ error: 'Unauthorized' }, 401);
-    const userId = claims.claims.sub as string;
+    const { data: userData, error: authErr } = await userClient.auth.getUser(jwt);
+    if (authErr || !userData?.user) return json({ error: 'Unauthorized' }, 401);
+    const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
