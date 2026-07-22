@@ -1,11 +1,13 @@
 import { supabase } from '@/integrations/supabase/client';
 
 async function invoke(action: string, payload: Record<string, unknown> = {}) {
+  console.log(`[ryzeService] Invocando ação '${action}'`, payload);
   const { data, error } = await supabase.functions.invoke('ryze-proxy', {
     body: { action, ...payload },
   });
 
   if (error) {
+    console.error(`[ryzeService] Erro retornado pela Edge Function para '${action}':`, error);
     let errorMessage = error.message || 'Erro de comunicação com a API do WhatsApp';
     try {
       if ('context' in error && (error as any).context) {
@@ -23,19 +25,23 @@ async function invoke(action: string, payload: Record<string, unknown> = {}) {
       // fallback
     }
     if (errorMessage.includes('non-2xx status code')) {
-      errorMessage = 'Falha na API do WhatsApp (Ryze): Verifique se a chave RYZE_TOKEN_ACCOUNT está configurada nos Secrets do Supabase.';
+      errorMessage = 'Falha na Ryze API: Verifique se a chave RYZE_TOKEN_ACCOUNT está configurada nos Secrets do Supabase.';
     }
     throw new Error(errorMessage);
   }
 
   if (data?.error) {
+    console.error(`[ryzeService] Resposta da Ryze API com erro para '${action}':`, data);
     let errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
     if (data?.details?.message) {
       errorMessage += `: ${data.details.message}`;
+    } else if (data?.details?.error) {
+      errorMessage += `: ${typeof data.details.error === 'string' ? data.details.error : JSON.stringify(data.details.error)}`;
     }
     throw new Error(errorMessage);
   }
 
+  console.log(`[ryzeService] Sucesso na ação '${action}':`, data);
   return data;
 }
 
@@ -66,4 +72,3 @@ export async function getContacts(instanceId: string) { return ryze.getContacts(
 export async function sendMedia(instanceId: string, number: string, url: string, type: string, caption?: string) {
   return ryze.sendMedia(instanceId, number, url, type, caption);
 }
-
