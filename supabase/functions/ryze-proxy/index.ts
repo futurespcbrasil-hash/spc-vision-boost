@@ -36,6 +36,7 @@ async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = 
         ...rest,
         headers: {
           'token': authToken,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
           ...(headers || {}),
         },
@@ -58,7 +59,7 @@ async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = 
 
 function extractQrCode(d: any): string | null {
   if (!d) return null;
-  const target = d.data || d.qrcode || d;
+  const target = d.data || d.qrcode || d.code || d;
   const raw =
     (Array.isArray(target?.qrImages) ? target.qrImages[0] : null) ||
     target?.base64 ||
@@ -67,16 +68,18 @@ function extractQrCode(d: any): string | null {
     target?.qrCode ||
     target?.qr ||
     target?.code ||
+    (typeof target === 'string' ? target : null) ||
     d?.base64 ||
     d?.qrCode ||
     d?.qr ||
     d?.code;
 
-  if (typeof raw === 'string' && raw.trim().length > 10) {
+  if (typeof raw === 'string' && raw.trim().length > 5) {
     const s = raw.trim();
     if (s.startsWith('data:image')) return s;
     if (s.startsWith('iVBORw0KGgo') || s.startsWith('/9j/')) return `data:image/png;base64,${s}`;
-    return s;
+    if (s.startsWith('http://') || s.startsWith('https://')) return s;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(s)}`;
   }
   return null;
 }
@@ -114,7 +117,7 @@ Deno.serve(async (req) => {
 
       let r = await ryzeFetch('/api/instance/new', {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, instanceName: name }),
       });
 
       if (!r.ok && r.status === 404) {
@@ -125,14 +128,14 @@ Deno.serve(async (req) => {
       }
 
       if (!r.ok) {
-        const errorMsg = r.data?.message || r.data?.error || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
+        const errorMsg = r.data?.error?.message || r.data?.message || r.data?.error || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
         if (String(errorMsg).includes('already exists')) {
           return json({
             error: `A instância "${rawName}" já existe no Ryze. Exclua a instância antiga com o botão "Excluir" ou escolha outro nome (ex: ${rawName}-01).`,
             details: r.data,
           }, 400);
         }
-        return json({ error: 'Erro ao criar instância no Ryze', details: r.data }, r.status);
+        return json({ error: `Erro ao criar instância no Ryze: ${errorMsg}`, details: r.data }, r.status);
       }
 
       const info = r.data.data || r.data;
@@ -155,16 +158,26 @@ Deno.serve(async (req) => {
     if (action === 'connect') {
       const sanitizedName = inst.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
       let r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(sanitizedName)}`, {
-        method: 'GET', token: inst.token_instance,
+        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
       });
 
       if (!r.ok) {
         r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(inst.name)}`, {
-          method: 'GET', token: inst.token_instance,
+          method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
         });
       }
 
-      if (!r.ok) return json({ error: 'Erro da API Ryze ao obter QR Code', details: r.data }, r.status);
+      if (!r.ok && inst.token_instance) {
+        r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(sanitizedName)}`, {
+          method: 'GET', token: TOKEN_ACCOUNT,
+        });
+      }
+
+      if (!r.ok) {
+        const errObj = r.data?.error || r.data;
+        const msg = errObj?.message || (typeof errObj === 'string' ? errObj : JSON.stringify(errObj));
+        return json({ error: `Erro ao obter QR Code da API Ryze: ${msg}`, details: r.data }, r.status);
+      }
 
       const d = r.data;
       const qrImage = extractQrCode(d);
