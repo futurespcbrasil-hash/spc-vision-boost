@@ -130,10 +130,32 @@ Deno.serve(async (req) => {
       if (!r.ok) {
         const errorMsg = r.data?.error?.message || r.data?.message || r.data?.error || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
         if (String(errorMsg).includes('already exists')) {
-          return json({
-            error: `A instância "${rawName}" já existe no Ryze. Exclua a instância antiga com o botão "Excluir" ou escolha outro nome (ex: ${rawName}-01).`,
-            details: r.data,
-          }, 400);
+          // Recover instance automatically from Ryze Cloud
+          const listRes = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(name)}`, {
+            method: 'GET', token: TOKEN_ACCOUNT,
+          });
+
+          let existingInfo: any = null;
+          if (listRes.ok) {
+            const list = listRes.data?.data || listRes.data;
+            existingInfo = Array.isArray(list) ? list[0] : list;
+          }
+
+          const ryzeId = existingInfo?.id || existingInfo?.instanceId || existingInfo?.name || name;
+          const ryzeToken = existingInfo?.token || existingInfo?.tokenInstance || null;
+          const ryzeStatus = existingInfo?.status || existingInfo?.state || 'disconnected';
+          const ryzePhone = existingInfo?.number || existingInfo?.phone || null;
+
+          const upserted = await admin.from('whatsapp_instances').upsert({
+            owner_id: userId,
+            name: rawName,
+            ryze_instance_id: ryzeId,
+            token_instance: ryzeToken,
+            status: ryzeStatus,
+            phone: ryzePhone,
+          }, { onConflict: 'name' }).select('*').single();
+
+          return json({ instance: upserted.data, recovered: true });
         }
         return json({ error: `Erro ao criar instância no Ryze: ${errorMsg}`, details: r.data }, r.status);
       }
@@ -223,15 +245,18 @@ Deno.serve(async (req) => {
 
     // -------- DELETE INSTANCE --------
     if (action === 'delete_instance') {
+      const sanitizedName = inst.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+      try {
+        await ryzeFetch(`/api/instance/delete/${encodeURIComponent(sanitizedName)}`, {
+          method: 'DELETE', token: TOKEN_ACCOUNT,
+        });
+      } catch {}
       try {
         await ryzeFetch(`/api/instance/delete/${encodeURIComponent(inst.name)}`, {
-          method: 'DELETE', token: inst.token_instance,
+          method: 'DELETE', token: TOKEN_ACCOUNT,
         });
-      } catch {
-        await ryzeFetch(`/api/instance/${encodeURIComponent(inst.name)}`, {
-          method: 'DELETE', token: inst.token_instance,
-        }).catch(() => null);
-      }
+      } catch {}
+
       await admin.from('whatsapp_instances').delete().eq('id', instanceId);
       return json({ ok: true });
     }
