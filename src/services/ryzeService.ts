@@ -4,8 +4,38 @@ async function invoke(action: string, payload: Record<string, unknown> = {}) {
   const { data, error } = await supabase.functions.invoke('ryze-proxy', {
     body: { action, ...payload },
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+
+  if (error) {
+    let errorMessage = error.message || 'Erro de comunicação com a API do WhatsApp';
+    try {
+      if ('context' in error && (error as any).context) {
+        const ctx = await (error as any).context.json();
+        if (ctx?.error) {
+          errorMessage = typeof ctx.error === 'string' ? ctx.error : JSON.stringify(ctx.error);
+        }
+        if (ctx?.details?.message) {
+          errorMessage += `: ${ctx.details.message}`;
+        } else if (ctx?.details?.error) {
+          errorMessage += `: ${typeof ctx.details.error === 'string' ? ctx.details.error : JSON.stringify(ctx.details.error)}`;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    if (errorMessage.includes('non-2xx status code')) {
+      errorMessage = 'Falha na API do WhatsApp (Ryze): Verifique se a chave RYZE_TOKEN_ACCOUNT está configurada nos Secrets do Supabase.';
+    }
+    throw new Error(errorMessage);
+  }
+
+  if (data?.error) {
+    let errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+    if (data?.details?.message) {
+      errorMessage += `: ${data.details.message}`;
+    }
+    throw new Error(errorMessage);
+  }
+
   return data;
 }
 
@@ -24,7 +54,7 @@ export const ryze = {
   getContacts: (instance_id: string) => invoke('get_contacts', { instance_id }),
 };
 
-// Convenience helpers (as requested in the spec)
+// Convenience helpers
 export async function sendWhatsappMessage(instanceId: string, number: string, text: string) {
   return ryze.sendText(instanceId, number, text);
 }
@@ -34,3 +64,4 @@ export async function getContacts(instanceId: string) { return ryze.getContacts(
 export async function sendMedia(instanceId: string, number: string, url: string, type: string, caption?: string) {
   return ryze.sendMedia(instanceId, number, url, type, caption);
 }
+
