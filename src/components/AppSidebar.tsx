@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare
+  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,8 +28,7 @@ const AppSidebar = () => {
 
   const WHATSAPP_SUB = [
     { to: '/whatsapp', icon: MessageSquare, label: 'Conversas' },
-    { to: '/whatsapp/instancias', icon: LayoutDashboard, label: 'Instâncias' },
-    { to: '/whatsapp/ajustes', icon: UserCog, label: 'Ajustes' },
+    { to: '/whatsapp/ajustes', icon: Settings2, label: 'Ajustes' },
   ];
 
   const PARCEIROS_SUB = [
