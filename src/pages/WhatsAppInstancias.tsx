@@ -147,14 +147,17 @@ const WhatsAppInstancias = () => {
           <DialogHeader><DialogTitle>Escaneie o QR Code</DialogTitle></DialogHeader>
           <div className="flex flex-col items-center gap-3 py-4">
             {qrOpen?.qr_code ? (
-              <img src={qrOpen.qr_code} alt="QR" className="w-64 h-64 rounded-lg border" />
+              <img src={qrOpen.qr_code} alt="QR" className="w-64 h-64 rounded-lg border object-contain" />
             ) : (
-              <div className="w-64 h-64 flex items-center justify-center bg-muted rounded-lg">
-                <QrCode size={100} className="text-muted-foreground/40 animate-pulse" />
+              <div className="w-64 h-64 flex flex-col items-center justify-center bg-muted rounded-lg p-4 gap-2">
+                <QrCode size={64} className="text-muted-foreground/40 animate-pulse" />
+                <p className="text-xs text-muted-foreground">
+                  Aguardando geração do QR Code pela API Ryze...
+                </p>
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              WhatsApp → Dispositivos conectados → Vincular dispositivo
+              No celular: WhatsApp → Dispositivos conectados → Vincular dispositivo
             </p>
           </div>
         </DialogContent>
