@@ -232,16 +232,9 @@ Deno.serve(async (req) => {
 
     // -------- STATUS --------
     if (action === 'status') {
-      const sanitizedName = inst.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-      let r = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(sanitizedName)}`, {
-        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+      const r = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(inst.name)}`, {
+        method: 'GET', token: TOKEN_ACCOUNT,
       });
-
-      if (!r.ok) {
-        r = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(inst.name)}`, {
-          method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
-        });
-      }
 
       if (!r.ok) {
         console.error('[ryze-proxy] Erro ao consultar status da instância', r.data);
