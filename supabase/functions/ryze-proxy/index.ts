@@ -164,17 +164,10 @@ Deno.serve(async (req) => {
       if (!rawName) return json({ error: 'Nome da instância é obrigatório' }, 400);
       const name = normalizeInstanceName(rawName);
 
-      let r = await ryzeFetch('/api/instance/new', {
+      const r = await ryzeFetch('/api/instance/new', {
         method: 'POST',
-        body: JSON.stringify({ name, instanceName: name }),
+        body: JSON.stringify({ name }),
       });
-
-      if (!r.ok && r.status === 404) {
-        r = await ryzeFetch('/api/instance/create', {
-          method: 'POST',
-          body: JSON.stringify({ instanceName: name, name }),
-        });
-      }
 
       if (!r.ok) {
         const errorMsg = r.data?.error?.message || r.data?.message || r.data?.error || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));

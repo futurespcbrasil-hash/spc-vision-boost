@@ -40,6 +40,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Delivery/read receipts use a separate payload from message.exchange.
+    if (eventName === 'message.status') {
+      const messageIds = Array.isArray(data?.messageIds) ? data.messageIds : [];
+      const receiptStatus = data?.status;
+      if (messageIds.length > 0 && receiptStatus) {
+        await admin.from('whatsapp_messages')
+          .update({ status: receiptStatus })
+          .eq('instance_id', instanceId)
+          .in('wa_message_id', messageIds);
+      }
+    }
+
     // Message received or sent
     if (eventName === 'message.exchange' || data?.key || data?.messages || data?.messageId) {
       const msgs = Array.isArray(data.messages) ? data.messages : [data.message || data];
