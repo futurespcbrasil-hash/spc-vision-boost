@@ -54,30 +54,36 @@ Deno.serve(async (req) => {
 
     // Message received or sent
     if (eventName === 'message.exchange' || data?.key || data?.messages || data?.messageId) {
-      const msgs = Array.isArray(data.messages) ? data.messages : [data.message || data];
+      // Ryze `message.exchange` keeps chat/sender at the top level and the payload
+      // inside `data.message`, so never drop the outer object.
+      const msgs = Array.isArray(data.messages) ? data.messages : [data];
       for (const m of msgs) {
         if (!m) continue;
-        const remoteJid = m.chat?.jid || m.chatJid || m.key?.remoteJid || m.remoteJid;
+        const inner = (m.message && typeof m.message === 'object') ? m.message : {};
+        const remoteJid = m.chat?.jid || m.chatJid || m.key?.remoteJid || m.remoteJid
+          || (m.direction === 'outgoing' ? m.recipient?.jid : m.sender?.jid);
         if (!remoteJid) continue;
 
         const fromMe = m.direction ? m.direction === 'outgoing' : (m.fromMe !== undefined ? Boolean(m.fromMe) : !!m.key?.fromMe);
         const number = String(remoteJid).split('@')[0];
-        const isGroup = String(remoteJid).includes('@g.us');
+        const isGroup = String(remoteJid).includes('@g.us') || m.chat?.type === 'group';
         const msgId = m.id || m.messageId || m.key?.id;
         if (!msgId) continue;
 
-        const text = (typeof m.content === 'string' ? m.content : m.content?.text) || m.text || m.message?.conversation
-          || m.message?.extendedTextMessage?.text
-          || m.message?.imageMessage?.caption
-          || m.message?.videoMessage?.caption
+        const text = (typeof inner.content === 'string' ? inner.content : inner.content?.text)
+          || (typeof m.content === 'string' ? m.content : m.content?.text)
+          || inner.caption || m.text || inner.conversation
+          || inner.extendedTextMessage?.text
+          || inner.imageMessage?.caption
+          || inner.videoMessage?.caption
           || '';
-        let messageType = m.media?.type || m.type || m.messageType || 'text';
-        let mediaMime: string | null = m.media?.mimetype || null;
-        let mediaUrl: string | null = m.media?.s3Url || m.media?.url || null;
-        if (m.message?.imageMessage) { messageType = 'image'; mediaMime = m.message.imageMessage.mimetype; }
-        else if (m.message?.videoMessage) { messageType = 'video'; mediaMime = m.message.videoMessage.mimetype; }
-        else if (m.message?.audioMessage) { messageType = 'audio'; mediaMime = m.message.audioMessage.mimetype; }
-        else if (m.message?.documentMessage) { messageType = 'document'; mediaMime = m.message.documentMessage.mimetype; }
+        let messageType = inner.type || m.media?.type || m.type || m.messageType || 'text';
+        let mediaMime: string | null = inner.media?.mimetype || m.media?.mimetype || null;
+        let mediaUrl: string | null = inner.media?.s3Url || inner.media?.url || m.media?.s3Url || m.media?.url || null;
+        if (inner.imageMessage) { messageType = 'image'; mediaMime = inner.imageMessage.mimetype; }
+        else if (inner.videoMessage) { messageType = 'video'; mediaMime = inner.videoMessage.mimetype; }
+        else if (inner.audioMessage) { messageType = 'audio'; mediaMime = inner.audioMessage.mimetype; }
+        else if (inner.documentMessage) { messageType = 'document'; mediaMime = inner.documentMessage.mimetype; }
 
         // upsert chat
         const { data: existing } = await admin.from('whatsapp_chats')
