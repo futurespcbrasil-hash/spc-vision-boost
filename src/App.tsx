@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,34 +9,42 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SectorsProvider } from "@/hooks/useSectors";
 import AppLayout from "@/components/AppLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import Dashboard from "@/pages/Dashboard";
-import GestorDashboard from "@/pages/GestorDashboard";
-import CRMKanban from "@/pages/CRMKanban";
-import LeadsPage from "@/pages/LeadsPage";
-import Comparador from "@/pages/Comparador";
-import GerarLink from "@/pages/GerarLink";
-import PublicComparison from "@/pages/PublicComparison";
-import Agenda from "@/pages/Agenda";
-import Argumentos from "@/pages/Argumentos";
-import Produtos from "@/pages/Produtos";
-import Relatorios from "@/pages/Relatorios";
-import Chat from "@/pages/Chat";
 import Auth from "@/pages/Auth";
-import Perfil from "@/pages/Perfil";
-import Metas from "@/pages/Metas";
-import Notas from "@/pages/Notas";
-import ParceirosDashboard from "@/pages/parceiros-spc/ParceirosDashboard";
-import Parceiros from "@/pages/parceiros-spc/Parceiros";
-import ClientesIndicados from "@/pages/parceiros-spc/ClientesIndicados";
-import ParceirosRelatorios from "@/pages/parceiros-spc/Relatorios";
-import ConsultaSPC from "@/pages/ConsultaSPC";
-import WhatsAppChat from "@/pages/WhatsAppChat";
-import WhatsAppInstancias from "@/pages/WhatsAppInstancias";
-import WhatsAppAjustes from "@/pages/WhatsAppAjustes";
-import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
+// Rotas carregadas sob demanda (app mais leve e inicialização mais rápida)
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const GestorDashboard = lazy(() => import("@/pages/GestorDashboard"));
+const CRMKanban = lazy(() => import("@/pages/CRMKanban"));
+const LeadsPage = lazy(() => import("@/pages/LeadsPage"));
+const Comparador = lazy(() => import("@/pages/Comparador"));
+const GerarLink = lazy(() => import("@/pages/GerarLink"));
+const PublicComparison = lazy(() => import("@/pages/PublicComparison"));
+const Agenda = lazy(() => import("@/pages/Agenda"));
+const Argumentos = lazy(() => import("@/pages/Argumentos"));
+const Produtos = lazy(() => import("@/pages/Produtos"));
+const Relatorios = lazy(() => import("@/pages/Relatorios"));
+const Chat = lazy(() => import("@/pages/Chat"));
+const Perfil = lazy(() => import("@/pages/Perfil"));
+const Metas = lazy(() => import("@/pages/Metas"));
+const Notas = lazy(() => import("@/pages/Notas"));
+const ParceirosDashboard = lazy(() => import("@/pages/parceiros-spc/ParceirosDashboard"));
+const Parceiros = lazy(() => import("@/pages/parceiros-spc/Parceiros"));
+const ClientesIndicados = lazy(() => import("@/pages/parceiros-spc/ClientesIndicados"));
+const ParceirosRelatorios = lazy(() => import("@/pages/parceiros-spc/Relatorios"));
+const ConsultaSPC = lazy(() => import("@/pages/ConsultaSPC"));
+const WhatsAppChat = lazy(() => import("@/pages/WhatsAppChat"));
+const WhatsAppInstancias = lazy(() => import("@/pages/WhatsAppInstancias"));
+const WhatsAppAjustes = lazy(() => import("@/pages/WhatsAppAjustes"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
 const queryClient = new QueryClient();
+
+const PageLoader = () => (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <span className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+  </div>
+);
 
 const ProtectedRoutes = () => {
   const { user, loading, role } = useAuth();
@@ -54,7 +63,9 @@ const ProtectedRoutes = () => {
     <AppProvider>
       <SectorsProvider>
         <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
           <Routes>
+
             <Route path="/comparacao/:id" element={<PublicComparison />} />
             <Route path="/" element={<AppLayout>{role === 'gestor' ? <GestorDashboard /> : <Dashboard />}</AppLayout>} />
             <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
@@ -80,7 +91,9 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp/ajustes" element={<AppLayout><WhatsAppAjustes /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </ErrorBoundary>
+
         <PWAInstallPrompt />
       </SectorsProvider>
     </AppProvider>
@@ -94,10 +107,13 @@ const App = () => (
       <Sonner />
       <AuthProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/comparacao/:id" element={<PublicComparison />} />
-            <Route path="/*" element={<ProtectedRoutes />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/comparacao/:id" element={<PublicComparison />} />
+              <Route path="/*" element={<ProtectedRoutes />} />
+            </Routes>
+          </Suspense>
+
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>

@@ -161,34 +161,53 @@ const WhatsAppChat = () => {
 
   useEffect(() => { loadChats(); }, [instanceId]);
 
-  // Realtime chats
+  // Realtime chats (com debounce para evitar recargas em rajada)
   useEffect(() => {
     if (!instanceId) return;
+    let t: number | null = null;
+    const schedule = () => {
+      if (t) window.clearTimeout(t);
+      t = window.setTimeout(() => loadChats(), 400);
+    };
     const ch = supabase.channel(`wa-chats-${instanceId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
-        loadChats)
+        schedule)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { if (t) window.clearTimeout(t); supabase.removeChannel(ch); };
   }, [instanceId]);
 
-  // Load messages
+
+  // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string) => {
-    const { data } = await supabase.from('whatsapp_messages').select('*')
-      .eq('chat_id', chatId).order('timestamp', { ascending: true }).limit(500);
-    setMessages((data as Message[]) || []);
-    setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
+    const { data } = await supabase.from('whatsapp_messages')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url')
+      .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
+    const list = ((data as Message[]) || []).slice().reverse();
+    setMessages(list);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }));
   };
 
   useEffect(() => {
     if (!selected) return;
-    loadMessages(selected.id);
-    const ch = supabase.channel(`wa-msgs-${selected.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${selected.id}` },
-        () => loadMessages(selected.id))
+    const chatId = selected.id;
+    setMessages([]);
+    loadMessages(chatId);
+    const ch = supabase.channel(`wa-msgs-${chatId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
+        payload => {
+          const m = payload.new as Message;
+          setMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
+          requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
+        payload => {
+          const m = payload.new as Message;
+          setMessages(prev => prev.map(x => x.id === m.id ? m : x));
+        })
       .subscribe();
 
     if (selected.unread_count > 0) {
-      supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', selected.id);
+      supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chatId).then(() => {});
     }
     return () => { supabase.removeChannel(ch); };
   }, [selected?.id]);
@@ -197,16 +216,26 @@ const WhatsAppChat = () => {
     if (!text.trim() || !selected || !instanceId) return;
     const msg = text.trim();
     setText('');
+    // Envio otimista: a mensagem aparece na hora e é reconciliada pelo realtime
+    const tempId = `temp-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: tempId, chat_id: selected.id, from_me: true, text: msg,
+      message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null,
+    }]);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
     try {
       await ryze.sendText(instanceId, selected.contact_number, msg);
       if (!selected.assigned_to && user) {
         await supabase.from('whatsapp_chats').update({ assigned_to: user.id }).eq('id', selected.id);
       }
-      loadMessages(selected.id);
-      loadChats();
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
+
     } catch (e: any) {
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setText(msg);
       toast({ title: 'Falha ao enviar', description: e.message, variant: 'destructive' });
     }
+
   };
 
   // ── Emoji ───────────────────────────────────────────────
@@ -391,7 +420,7 @@ const WhatsAppChat = () => {
 
   return (
     <>
-    <div className="flex flex-col h-[calc(100vh-80px)] space-y-2 bg-background font-sans">
+    <div className="flex flex-col h-[calc(100dvh-180px)] md:h-[calc(100dvh-120px)] min-h-[460px] space-y-2 bg-background font-sans">
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -421,10 +450,11 @@ const WhatsAppChat = () => {
       </div>
 
       {/* Main Grid Layout (Competitor Style) */}
-      <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-0 border rounded-xl overflow-hidden flex-1 bg-card shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-0 border rounded-xl overflow-hidden flex-1 min-h-0 bg-card shadow-sm">
         
         {/* Left Column: Chat List Sidebar */}
-        <div className="flex flex-col border-r bg-background relative">
+        <div className="flex flex-col min-h-0 overflow-hidden border-r bg-background relative">
+
           
           {/* Header Search & Toolbar */}
           <div className="p-3 space-y-2.5 border-b bg-card">
@@ -581,7 +611,7 @@ const WhatsAppChat = () => {
         </div>
 
         {/* Right Column: Active Conversation Area */}
-        <div className="flex flex-col bg-slate-50/50 dark:bg-zinc-900/50">
+        <div className="flex flex-col min-h-0 overflow-hidden bg-slate-50/50 dark:bg-zinc-900/50">
           {selected ? (
             <>
               {/* Active Chat Header */}
