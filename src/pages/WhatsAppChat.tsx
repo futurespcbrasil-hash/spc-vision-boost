@@ -193,7 +193,16 @@ const WhatsAppChat = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
         schedule)
       .subscribe();
-    return () => { if (t) window.clearTimeout(t); supabase.removeChannel(ch); };
+    // Fallback: garante atualização mesmo se o realtime cair
+    const poll = window.setInterval(() => loadChats(), 8000);
+    const onFocus = () => loadChats();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      if (t) window.clearTimeout(t);
+      window.clearInterval(poll);
+      window.removeEventListener('focus', onFocus);
+      supabase.removeChannel(ch);
+    };
   }, [instanceId]);
 
 
