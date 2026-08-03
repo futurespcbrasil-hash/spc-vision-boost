@@ -193,7 +193,16 @@ const WhatsAppChat = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
         schedule)
       .subscribe();
-    return () => { if (t) window.clearTimeout(t); supabase.removeChannel(ch); };
+    // Fallback: garante atualização mesmo se o realtime cair
+    const poll = window.setInterval(() => loadChats(), 8000);
+    const onFocus = () => loadChats();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      if (t) window.clearTimeout(t);
+      window.clearInterval(poll);
+      window.removeEventListener('focus', onFocus);
+      supabase.removeChannel(ch);
+    };
   }, [instanceId]);
 
 
@@ -206,13 +215,19 @@ const WhatsAppChat = () => {
   };
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
-  const loadMessages = async (chatId: string) => {
+  const loadMessages = async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,wa_message_id,reply_to')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
-    setMessages(list);
-    requestAnimationFrame(() => { scrollToBottom(); setTimeout(() => scrollToBottom(), 120); });
+    let changed = true;
+    setMessages(prev => {
+      changed = prev.length !== list.length || prev[prev.length - 1]?.id !== list[list.length - 1]?.id;
+      return changed ? list : prev;
+    });
+    if (!silent || changed) {
+      requestAnimationFrame(() => { scrollToBottom(!silent ? false : true); setTimeout(() => scrollToBottom(), 120); });
+    }
   };
 
   useEffect(() => {
@@ -237,7 +252,9 @@ const WhatsAppChat = () => {
     if (selected.unread_count > 0) {
       supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chatId).then(() => {});
     }
-    return () => { supabase.removeChannel(ch); };
+    // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
+    const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
+    return () => { window.clearInterval(poll); supabase.removeChannel(ch); };
   }, [selected?.id]);
 
   const handleSend = async () => {

@@ -11,7 +11,7 @@ const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   const url = new URL(req.url);
-  const instanceId = url.searchParams.get('instance');
+  let instanceId = url.searchParams.get('instance');
   const secret = url.searchParams.get('secret');
 
   if (!WEBHOOK_SECRET || !instanceId || secret !== WEBHOOK_SECRET) {
@@ -22,6 +22,26 @@ Deno.serve(async (req) => {
   let payload: any = {};
   try { payload = await req.json(); } catch {}
   const eventName = payload?.event || payload?.type || 'unknown';
+
+  // O webhook registrado na Ryze pode apontar para um id antigo (instância recriada).
+  // Resolve pelo nome da instância enviado no payload para não descartar mensagens.
+  const { data: known } = await admin.from('whatsapp_instances').select('id').eq('id', instanceId).maybeSingle();
+  if (!known) {
+    const remoteName = payload?.instanceData?.instance || payload?.instance || payload?.instanceName;
+    if (remoteName) {
+      const { data: byName } = await admin.from('whatsapp_instances')
+        .select('id').ilike('name', String(remoteName)).maybeSingle();
+      if (byName?.id) {
+        console.log(`[ryze-webhook] Instância ${instanceId} desconhecida — redirecionando para ${byName.id} (${remoteName})`);
+        instanceId = byName.id;
+      }
+    }
+    if (!instanceId || instanceId === url.searchParams.get('instance')) {
+      const { data: only } = await admin.from('whatsapp_instances').select('id').limit(2);
+      if (only && only.length === 1) instanceId = only[0].id;
+    }
+  }
+
   console.log(`[ryze-webhook Event] ${eventName} para instância ${instanceId}`, JSON.stringify(payload).slice(0, 500));
 
   try {
