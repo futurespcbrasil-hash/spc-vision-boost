@@ -421,10 +421,11 @@ const WhatsAppChat = () => {
       </div>
 
       {/* Main Grid Layout (Competitor Style) */}
-      <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-0 border rounded-xl overflow-hidden flex-1 bg-card shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-0 border rounded-xl overflow-hidden flex-1 min-h-0 bg-card shadow-sm">
         
         {/* Left Column: Chat List Sidebar */}
-        <div className="flex flex-col border-r bg-background relative">
+        <div className="flex flex-col min-h-0 overflow-hidden border-r bg-background relative">
+
           
           {/* Header Search & Toolbar */}
           <div className="p-3 space-y-2.5 border-b bg-card">
