@@ -11,8 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import {
   Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
-  CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch
+  CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
+  Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2
 } from 'lucide-react';
+
 import { supabase } from '@/integrations/supabase/client';
 import { ryze } from '@/services/ryzeService';
 import { useAuth } from '@/hooks/useAuth';
@@ -52,6 +54,28 @@ const getInitials = (name: string) => {
   return name.slice(0, 2).toUpperCase();
 };
 
+const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
+  { label: 'Frequentes', emojis: ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','😉','😍','😘','😜','🤔','🤗','👍','👎','👏','🙏','💪','🔥','✅','❌','⚠️','💰','📈','📌','📞','📱','✉️','🗓️','⏰','🎯','🚀','⭐','❤️','🎉','😎','🤝'] },
+  { label: 'Negócios', emojis: ['💼','📊','📋','🧾','🏦','💳','🔒','📎','🖊️','📄','🏢','🤑','💵','🧮','📥','📤'] },
+  { label: 'Reações', emojis: ['😢','😭','😡','😱','😴','🤒','🥳','😬','🙄','😏','😌','🤐','😤','🫡','🫶','👌'] },
+];
+
+const uploadMedia = async (file: Blob, filename: string, userId: string) => {
+  const path = `${userId}/${Date.now()}-${filename.replace(/[^\w.\-]/g, '_')}`;
+  const { error } = await supabase.storage.from('whatsapp-media').upload(path, file, {
+    contentType: (file as File).type || 'application/octet-stream',
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data, error: sErr } = await supabase.storage.from('whatsapp-media').createSignedUrl(path, 60 * 60 * 24 * 7);
+  if (sErr || !data?.signedUrl) throw sErr || new Error('Não foi possível gerar o link do arquivo');
+  return data.signedUrl;
+};
+
+const onlyDigits = (v: string) => v.replace(/\D/g, '');
+
+
+
 const WhatsAppChat = () => {
   const { user, role } = useAuth();
   const { toast } = useToast();
@@ -76,6 +100,29 @@ const WhatsAppChat = () => {
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // New conversation modal
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newChatSearch, setNewChatSearch] = useState('');
+  const [newChatNumber, setNewChatNumber] = useState('');
+  const [newChatMessage, setNewChatMessage] = useState('');
+  const [startingChat, setStartingChat] = useState(false);
+
+  // Attachments / audio
+  const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const timerRef = useRef<number | null>(null);
+  const cancelRecRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+
 
   const userName = user?.email?.split('@')[0] || 'Diogo';
 
@@ -161,6 +208,107 @@ const WhatsAppChat = () => {
       toast({ title: 'Falha ao enviar', description: e.message, variant: 'destructive' });
     }
   };
+
+  // ── Emoji ───────────────────────────────────────────────
+  const insertEmoji = (emoji: string) => {
+    setText(prev => prev + emoji);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  // ── Anexos (arquivo, foto, vídeo, câmera) ───────────────
+  const handleFilePicked = async (e: React.ChangeEvent<HTMLInputElement>, mediaType: 'image' | 'video' | 'document' | 'audio') => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !selected || !instanceId || !user) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast({ title: 'Arquivo muito grande', description: 'O limite é de 25 MB.', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadMedia(file, file.name, user.id);
+      await ryze.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined);
+      setText('');
+      loadMessages(selected.id);
+      loadChats();
+      toast({ title: 'Arquivo enviado' });
+    } catch (err: any) {
+      toast({ title: 'Falha ao enviar arquivo', description: err.message, variant: 'destructive' });
+    } finally { setUploading(false); }
+  };
+
+  // ── Gravação de áudio ───────────────────────────────────
+  const startRecording = async () => {
+    if (!selected || !instanceId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      chunksRef.current = [];
+      cancelRecRef.current = false;
+      rec.ondataavailable = ev => { if (ev.data.size > 0) chunksRef.current.push(ev.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
+        setRecording(false);
+        setRecordSecs(0);
+        if (cancelRecRef.current) return;
+        const blob = new Blob(chunksRef.current, { type: mime });
+        if (blob.size < 2000) {
+          toast({ title: 'Áudio muito curto', description: 'Segure para gravar por mais tempo.', variant: 'destructive' });
+          return;
+        }
+        setUploading(true);
+        try {
+          const ext = mime.includes('webm') ? 'webm' : 'm4a';
+          const url = await uploadMedia(blob, `audio.${ext}`, user!.id);
+          await ryze.sendMedia(instanceId, selected.contact_number, url, 'audio');
+          loadMessages(selected.id);
+          loadChats();
+        } catch (err: any) {
+          toast({ title: 'Falha ao enviar áudio', description: err.message, variant: 'destructive' });
+        } finally { setUploading(false); }
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setRecording(true);
+      setRecordSecs(0);
+      timerRef.current = window.setInterval(() => setRecordSecs(s => s + 1), 1000);
+    } catch {
+      toast({ title: 'Microfone indisponível', description: 'Permita o acesso ao microfone no navegador.', variant: 'destructive' });
+    }
+  };
+
+  const stopRecording = (cancel = false) => {
+    cancelRecRef.current = cancel;
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+  };
+
+  // ── Nova conversa ───────────────────────────────────────
+  const handleStartNewChat = async () => {
+    const digits = onlyDigits(newChatNumber);
+    if (!digits || !instanceId) return;
+    const number = digits.length <= 11 ? `55${digits}` : digits;
+    setStartingChat(true);
+    try {
+      if (newChatMessage.trim()) {
+        await ryze.sendText(instanceId, number, newChatMessage.trim());
+      }
+      await loadChats();
+      const { data } = await supabase.from('whatsapp_chats').select('*')
+        .eq('instance_id', instanceId).ilike('contact_number', `%${digits}%`).limit(1);
+      const chat = (data as Chat[])?.[0];
+      if (chat) setSelected(chat);
+      setNewChatOpen(false);
+      setNewChatNumber(''); setNewChatMessage(''); setNewChatSearch('');
+      toast({ title: newChatMessage.trim() ? 'Mensagem enviada' : 'Conversa aberta' });
+    } catch (e: any) {
+      toast({ title: 'Falha ao iniciar conversa', description: e.message, variant: 'destructive' });
+    } finally { setStartingChat(false); }
+  };
+
+
 
   const handleSync = async () => {
     if (!instanceId) return;
@@ -422,9 +570,14 @@ const WhatsAppChat = () => {
           </ScrollArea>
 
           {/* Floating Action Button (FAB) */}
-          <button className="absolute bottom-4 left-4 w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95">
+          <button
+            onClick={() => setNewChatOpen(true)}
+            title="Nova conversa"
+            className="absolute bottom-4 left-4 w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95"
+          >
             <Plus size={22} />
           </button>
+
         </div>
 
         {/* Right Column: Active Conversation Area */}
@@ -506,9 +659,26 @@ const WhatsAppChat = () => {
                               {userName}:
                             </p>
                           )}
-                          <p className="whitespace-pre-wrap break-words leading-relaxed text-sm">
-                            {m.text}
-                          </p>
+                          {m.media_url && m.message_type === 'image' && (
+                            <img src={m.media_url} alt="Imagem enviada" loading="lazy" className="rounded-lg max-w-full max-h-64 object-cover" />
+                          )}
+                          {m.media_url && m.message_type === 'video' && (
+                            <video src={m.media_url} controls className="rounded-lg max-w-full max-h-64" />
+                          )}
+                          {m.media_url && m.message_type === 'audio' && (
+                            <audio src={m.media_url} controls className="w-56" />
+                          )}
+                          {m.media_url && !['image', 'video', 'audio'].includes(m.message_type) && (
+                            <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs">
+                              <FileText size={14} /> Abrir arquivo
+                            </a>
+                          )}
+                          {m.text && (
+                            <p className="whitespace-pre-wrap break-words leading-relaxed text-sm">
+                              {m.text}
+                            </p>
+                          )}
+
                           <div className="flex items-center justify-end gap-1 pt-0.5 text-[10px] opacity-70">
                             <span>{timeStr}</span>
                             {m.from_me && <CheckCheck size={13} className="text-purple-700 dark:text-purple-300" />}
@@ -526,54 +696,126 @@ const WhatsAppChat = () => {
                 </div>
               </ScrollArea>
 
-              {/* Competitor Style Input Bar */}
-              <div className="p-3 border-t bg-card flex items-center gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground">
-                      <Smile size={20} />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64 p-2 space-y-1 text-xs">
-                    <p className="font-semibold px-2 py-1 text-muted-foreground">Respostas Rápidas</p>
-                    {quickReplies.length === 0 && (
-                      <p className="p-2 text-muted-foreground">Nenhuma resposta rápida cadastrada.</p>
-                    )}
-                    {quickReplies.map(q => (
-                      <button
-                        key={q.id}
-                        onClick={() => setText(q.text)}
-                        className="w-full text-left p-2 rounded hover:bg-muted"
-                      >
-                        <span className="font-bold text-purple-600">/{q.shortcut}</span>
-                        <p className="truncate text-muted-foreground">{q.text}</p>
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
+              {/* Input Bar */}
+              <div className="p-3 border-t bg-card flex items-center gap-1.5">
+                {/* hidden pickers */}
+                <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
+                <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
+                <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={e => handleFilePicked(e, 'video')} />
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
 
-                <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground">
-                  <Paperclip size={20} />
-                </Button>
+                {recording ? (
+                  <div className="flex-1 flex items-center gap-3 px-3 h-10 rounded-full bg-destructive/10 text-destructive">
+                    <span className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />
+                    <span className="text-xs font-medium tabular-nums">
+                      Gravando… {String(Math.floor(recordSecs / 60)).padStart(2, '0')}:{String(recordSecs % 60).padStart(2, '0')}
+                    </span>
+                    <button onClick={() => stopRecording(true)} title="Cancelar gravação" className="ml-auto text-muted-foreground hover:text-destructive">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Emojis */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" title="Emojis" className="h-10 w-10 text-muted-foreground hover:text-foreground">
+                          <Smile size={20} />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-72 p-2 max-h-72 overflow-y-auto">
+                        {EMOJI_GROUPS.map(g => (
+                          <div key={g.label} className="mb-2">
+                            <p className="text-[11px] font-semibold text-muted-foreground px-1 pb-1">{g.label}</p>
+                            <div className="grid grid-cols-8 gap-0.5">
+                              {g.emojis.map(em => (
+                                <button
+                                  key={em}
+                                  type="button"
+                                  onClick={() => insertEmoji(em)}
+                                  className="text-lg leading-none p-1 rounded hover:bg-muted transition"
+                                >
+                                  {em}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </PopoverContent>
+                    </Popover>
 
-                <div className="flex-1 relative">
-                  <Input
-                    placeholder='Tecle "/" para respostas rápidas'
-                    value={text}
-                    onChange={e => setText(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                    className="h-10 text-xs bg-muted/30 border-muted rounded-full px-4 focus-visible:ring-purple-500"
-                  />
-                </div>
+                    {/* Respostas rápidas */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" title="Respostas rápidas" className="h-10 w-10 text-muted-foreground hover:text-foreground">
+                          <Zap size={19} />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-64 p-2 space-y-1 text-xs">
+                        <p className="font-semibold px-2 py-1 text-muted-foreground">Respostas Rápidas</p>
+                        {quickReplies.length === 0 && (
+                          <p className="p-2 text-muted-foreground">Nenhuma resposta rápida cadastrada.</p>
+                        )}
+                        {quickReplies.map(q => (
+                          <button key={q.id} onClick={() => setText(q.text)} className="w-full text-left p-2 rounded hover:bg-muted">
+                            <span className="font-bold text-purple-600">/{q.shortcut}</span>
+                            <p className="truncate text-muted-foreground">{q.text}</p>
+                          </button>
+                        ))}
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Anexos */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" title="Anexar" disabled={uploading} className="h-10 w-10 text-muted-foreground hover:text-foreground">
+                          {uploading ? <Loader2 size={20} className="animate-spin" /> : <Paperclip size={20} />}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-56 p-1.5 text-sm">
+                        <button onClick={() => imageInputRef.current?.click()} className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted">
+                          <ImageIcon size={16} className="text-purple-600" /> Fotos
+                        </button>
+                        <button onClick={() => videoInputRef.current?.click()} className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted">
+                          <Video size={16} className="text-blue-600" /> Vídeos
+                        </button>
+                        <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted">
+                          <FileText size={16} className="text-amber-600" /> Documento
+                        </button>
+                        <button onClick={() => cameraInputRef.current?.click()} className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted">
+                          <Camera size={16} className="text-emerald-600" /> Câmera
+                        </button>
+                      </PopoverContent>
+                    </Popover>
+
+                    <div className="flex-1 relative">
+                      <Input
+                        ref={inputRef}
+                        placeholder="Digite uma mensagem…"
+                        value={text}
+                        onChange={e => setText(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                        className="h-10 text-xs bg-muted/30 border-muted rounded-full px-4 focus-visible:ring-purple-500"
+                      />
+                    </div>
+                  </>
+                )}
 
                 <Button
-                  onClick={handleSend}
+                  onClick={() => {
+                    if (recording) return stopRecording(false);
+                    if (text.trim()) return handleSend();
+                    startRecording();
+                  }}
+                  disabled={uploading}
                   size="icon"
+                  title={recording ? 'Enviar áudio' : text.trim() ? 'Enviar' : 'Gravar áudio'}
                   className="h-10 w-10 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-sm flex-shrink-0"
                 >
-                  {text.trim() ? <Send size={18} /> : <Mic size={18} />}
+                  {recording ? <Square size={16} className="fill-current" /> : text.trim() ? <Send size={18} /> : <Mic size={18} />}
                 </Button>
               </div>
+
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-xs p-8 space-y-3">
@@ -585,6 +827,99 @@ const WhatsAppChat = () => {
 
       </div>
     </div>
+
+    {/* ─── Nova Conversa Dialog ─── */}
+    <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquare size={18} className="text-purple-600" />
+            Nova conversa
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">Busque um contato existente ou digite um novo número.</p>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          <div className="space-y-1">
+            <Label>Buscar nas conversas</Label>
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Nome ou número"
+                value={newChatSearch}
+                onChange={e => setNewChatSearch(e.target.value)}
+              />
+            </div>
+            {newChatSearch.trim() && (
+              <div className="max-h-44 overflow-y-auto border rounded-lg divide-y mt-2">
+                {chats
+                  .filter(c =>
+                    (c.contact_name || '').toLowerCase().includes(newChatSearch.toLowerCase()) ||
+                    c.contact_number.includes(onlyDigits(newChatSearch) || newChatSearch))
+                  .slice(0, 20)
+                  .map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => { setSelected(c); setNewChatOpen(false); setNewChatSearch(''); }}
+                      className="w-full flex items-center gap-2 p-2 text-left hover:bg-muted text-sm"
+                    >
+                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(c.contact_name || c.contact_number)} flex items-center justify-center text-[11px] font-bold`}>
+                        {getInitials(c.contact_name || c.contact_number)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{c.contact_name || c.contact_number}</p>
+                        <p className="text-xs text-muted-foreground truncate">{c.contact_number}</p>
+                      </div>
+                    </button>
+                  ))}
+                {chats.filter(c =>
+                  (c.contact_name || '').toLowerCase().includes(newChatSearch.toLowerCase()) ||
+                  c.contact_number.includes(onlyDigits(newChatSearch) || newChatSearch)).length === 0 && (
+                  <p className="p-3 text-xs text-muted-foreground text-center">Nenhum contato encontrado nas conversas.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="relative flex items-center gap-2">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[11px] uppercase text-muted-foreground">ou novo número</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="new-number">Número (com DDD)</Label>
+            <Input
+              id="new-number"
+              placeholder="54991811902"
+              value={newChatNumber}
+              onChange={e => setNewChatNumber(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="new-msg">Mensagem</Label>
+            <Input
+              id="new-msg"
+              placeholder="Digite a primeira mensagem"
+              value={newChatMessage}
+              onChange={e => setNewChatMessage(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleStartNewChat()}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setNewChatOpen(false)}>Cancelar</Button>
+          <Button onClick={handleStartNewChat} disabled={startingChat || !onlyDigits(newChatNumber)} className="gap-2">
+            {startingChat ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            Enviar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
 
     {/* ─── Lead Registration Dialog ─── */}
     <Dialog open={leadDialog} onOpenChange={setLeadDialog}>
