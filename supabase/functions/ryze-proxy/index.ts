@@ -139,18 +139,26 @@ async function getInstance(instanceId: string) {
   return data;
 }
 
-// Resolves the real remote name/token from the Ryze account (case-insensitive match),
-// persisting what it learns so later calls hit the correct instance.
+// Lists every instance of the Ryze account.
+async function listRemoteInstances(): Promise<any[]> {
+  const r = await ryzeFetch('/api/instance/list', { method: 'GET', token: TOKEN_ACCOUNT });
+  if (!r.ok) return [];
+  const list = r.data?.instances || r.data?.data || (Array.isArray(r.data) ? r.data : []);
+  return Array.isArray(list) ? list : (list ? [list] : []);
+}
+
+async function findRemoteByName(name: string): Promise<any | null> {
+  const wanted = normalizeInstanceName(name);
+  const items = await listRemoteInstances();
+  return items.find((i: any) => normalizeInstanceName(i?.name) === wanted) || null;
+}
+
+// Resolves the real remote name/token from the Ryze account (exact, case-insensitive match).
+// NEVER falls back to another instance — that used to clone the phone/status of a different number.
 async function resolveRemote(inst: any): Promise<{ name: string; token: string | null; remote: any }> {
   const fallback = { name: getRemoteInstanceName(inst), token: inst.token_instance || null, remote: null as any };
   try {
-    const r = await ryzeFetch('/api/instance/list', { method: 'GET', token: TOKEN_ACCOUNT });
-    if (!r.ok) return fallback;
-    const list = r.data?.instances || r.data?.data || (Array.isArray(r.data) ? r.data : []);
-    const items = Array.isArray(list) ? list : [list];
-    const wanted = normalizeInstanceName(getRemoteInstanceName(inst));
-    const match = items.find((i: any) => normalizeInstanceName(i?.name) === wanted)
-      || (items.length === 1 ? items[0] : null);
+    const match = await findRemoteByName(getRemoteInstanceName(inst));
     if (!match) return fallback;
 
     const parsed = parseRemoteInstance(match);
