@@ -125,7 +125,8 @@ const WhatsAppAjustes = () => {
   const delLabel = async (id: string) => { await supabase.from('whatsapp_labels').delete().eq('id', id); loadAll(); };
 
   /* ─── Instances ─── */
-  const canCreate = instances.length === 0;
+  const MAX_INSTANCES = 5;
+  const canCreate = instances.length < MAX_INSTANCES;
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -287,14 +288,17 @@ const WhatsAppAjustes = () => {
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><Smartphone size={16}/>Nova Instância</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {canCreate ? (
-                <div className="flex gap-2">
-                  <Input placeholder="Nome (ex: atendimento-01)" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleCreate()} />
-                  <Button onClick={handleCreate} disabled={creating} className="gap-1 whitespace-nowrap"><Plus size={14}/>Criar</Button>
-                </div>
+                <>
+                  <div className="flex gap-2">
+                    <Input placeholder="Nome (ex: atendimento-01)" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleCreate()} />
+                    <Button onClick={handleCreate} disabled={creating} className="gap-1 whitespace-nowrap"><Plus size={14}/>Criar</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{instances.length} de {MAX_INSTANCES} instâncias utilizadas.</p>
+                </>
               ) : (
                 <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
                   <Settings size={16} className="flex-shrink-0"/>
-                  <p>Já existe uma instância configurada. Exclua a atual para criar uma nova.</p>
+                  <p>Limite de {MAX_INSTANCES} instâncias atingido. Exclua uma para criar outra.</p>
                 </div>
               )}
             </CardContent>
