@@ -501,6 +501,7 @@ export type Database = {
       }
       sectors: {
         Row: {
+          color: string | null
           created_at: string
           id: string
           key: string
@@ -510,6 +511,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          color?: string | null
           created_at?: string
           id?: string
           key: string
@@ -519,6 +521,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          color?: string | null
           created_at?: string
           id?: string
           key?: string
@@ -531,16 +534,19 @@ export type Database = {
       }
       user_roles: {
         Row: {
+          allowed_sectors: string[] | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
+          allowed_sectors?: string[] | null
           id?: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
+          allowed_sectors?: string[] | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
