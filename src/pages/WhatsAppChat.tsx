@@ -29,6 +29,7 @@ interface Chat {
 interface Message {
   id: string; chat_id: string; from_me: boolean; text: string | null;
   message_type: string; status: string | null; timestamp: string; media_url: string | null;
+  wa_message_id?: string | null; reply_to?: string | null;
 }
 interface QuickReply { id: string; shortcut: string; text: string; }
 
@@ -207,7 +208,7 @@ const WhatsAppChat = () => {
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string) => {
     const { data } = await supabase.from('whatsapp_messages')
-      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,wa_message_id,reply_to')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
     setMessages(list);
@@ -706,7 +707,7 @@ const WhatsAppChat = () => {
                 <div className="space-y-3 max-w-3xl mx-auto">
                   {messages.filter(m => m.message_type !== 'reaction').map(m => {
                     const reactions = messages.filter(
-                      r => r.message_type === 'reaction' && (r as any).reply_to === m.id
+                      r => r.message_type === 'reaction' && !!r.reply_to && r.reply_to === m.wa_message_id
                     );
                     const timeStr = m.timestamp
                       ? new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
