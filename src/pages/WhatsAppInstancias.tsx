@@ -63,6 +63,16 @@ const WhatsAppInstancias = () => {
     try {
       const r = await ryze.connect(inst.id);
       await load();
+      if (r.already_connected) {
+        await ryze.registerWebhook(inst.id).catch(() => null);
+        await ryze.getChats(inst.id).catch(() => null);
+        await load();
+        toast({
+          title: 'WhatsApp já está conectado',
+          description: `Número vinculado: ${r.phone || 'dispositivo ativo'}`,
+        });
+        return;
+      }
       const qrCode = r.qr || r.raw?.base64 || r.raw?.data?.base64 || r.raw?.code;
       setQrOpen({ ...inst, qr_code: qrCode });
 
