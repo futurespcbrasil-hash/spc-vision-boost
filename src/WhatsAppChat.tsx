@@ -237,6 +237,7 @@ const WhatsAppChat = () => {
   });
 
   return (
+    <>
     <div className="flex flex-col h-[calc(100vh-80px)] space-y-2 bg-background font-sans">
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
@@ -638,6 +639,7 @@ const WhatsAppChat = () => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 };
 
