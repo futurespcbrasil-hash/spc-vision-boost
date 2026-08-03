@@ -1,0 +1,1 @@
+DELETE FROM public.whatsapp_instances WHERE id = '3b822fb8-c56e-4cc4-92e2-02d243df2b00';

@@ -132,13 +132,41 @@ const WhatsAppAjustes = () => {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      await ryze.createInstance(newName.trim());
+      const r = await ryze.createInstance(newName.trim());
       setNewName('');
-      toast({ title: 'Instância criada!' });
       await loadAll();
+      const created = r?.instance as Instance | undefined;
+      if (created && created.status !== 'connected') {
+        toast({ title: 'Instância criada!', description: 'Escaneie o QR Code para vincular o novo número.' });
+        if (r?.qr) {
+          setQrOpen({ ...created, qr_code: r.qr });
+          watchConnection(created);
+        } else {
+          await handleConnect(created);
+        }
+      } else {
+        toast({ title: 'Instância criada!' });
+      }
     } catch (e: any) {
       toast({ title: 'Erro ao criar', description: e.message, variant: 'destructive' });
     } finally { setCreating(false); }
+  };
+
+  // Observa a leitura do QR e finaliza a conexão (webhook + chats)
+  const watchConnection = (inst: Instance) => {
+    const iv = setInterval(async () => {
+      const s = await ryze.status(inst.id).catch(() => null);
+      const connected = s?.status === 'connected' || s?.raw?.connection?.state === 'open';
+      if (connected) {
+        clearInterval(iv);
+        setQrOpen(null);
+        await ryze.registerWebhook(inst.id).catch(() => null);
+        await ryze.getChats(inst.id).catch(() => null);
+        await loadAll();
+        toast({ title: 'WhatsApp Conectado!', description: `Número: ${s?.phone || 'Dispositivo conectado'}` });
+      }
+    }, 3000);
+    setTimeout(() => clearInterval(iv), 120000);
   };
 
   const handleConnect = async (inst: Instance) => {
@@ -146,21 +174,14 @@ const WhatsAppAjustes = () => {
     try {
       const r = await ryze.connect(inst.id);
       await loadAll();
+      if (r?.already_connected) {
+        await ryze.registerWebhook(inst.id).catch(() => null);
+        toast({ title: 'WhatsApp já conectado', description: `Número: ${r.phone || 'dispositivo ativo'}` });
+        return;
+      }
       const qrCode = r.qr || r.raw?.base64 || r.raw?.data?.base64 || r.raw?.code;
       setQrOpen({ ...inst, qr_code: qrCode });
-      const iv = setInterval(async () => {
-        const s = await ryze.status(inst.id).catch(() => null);
-        const connected = s?.status === 'connected' || s?.raw?.connection?.state === 'open';
-        if (connected) {
-          clearInterval(iv);
-          setQrOpen(null);
-          await ryze.registerWebhook(inst.id).catch(() => null);
-          await ryze.getChats(inst.id).catch(() => null);
-          await loadAll();
-          toast({ title: 'WhatsApp Conectado!', description: `Número: ${s?.phone || 'Dispositivo conectado'}` });
-        }
-      }, 3000);
-      setTimeout(() => clearInterval(iv), 120000);
+      watchConnection(inst);
     } catch (e: any) {
       toast({ title: 'Erro ao conectar', description: e.message, variant: 'destructive' });
     } finally { setInstLoading(false); }
