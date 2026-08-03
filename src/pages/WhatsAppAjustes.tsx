@@ -174,21 +174,14 @@ const WhatsAppAjustes = () => {
     try {
       const r = await ryze.connect(inst.id);
       await loadAll();
+      if (r?.already_connected) {
+        await ryze.registerWebhook(inst.id).catch(() => null);
+        toast({ title: 'WhatsApp já conectado', description: `Número: ${r.phone || 'dispositivo ativo'}` });
+        return;
+      }
       const qrCode = r.qr || r.raw?.base64 || r.raw?.data?.base64 || r.raw?.code;
       setQrOpen({ ...inst, qr_code: qrCode });
-      const iv = setInterval(async () => {
-        const s = await ryze.status(inst.id).catch(() => null);
-        const connected = s?.status === 'connected' || s?.raw?.connection?.state === 'open';
-        if (connected) {
-          clearInterval(iv);
-          setQrOpen(null);
-          await ryze.registerWebhook(inst.id).catch(() => null);
-          await ryze.getChats(inst.id).catch(() => null);
-          await loadAll();
-          toast({ title: 'WhatsApp Conectado!', description: `Número: ${s?.phone || 'Dispositivo conectado'}` });
-        }
-      }, 3000);
-      setTimeout(() => clearInterval(iv), 120000);
+      watchConnection(inst);
     } catch (e: any) {
       toast({ title: 'Erro ao conectar', description: e.message, variant: 'destructive' });
     } finally { setInstLoading(false); }
