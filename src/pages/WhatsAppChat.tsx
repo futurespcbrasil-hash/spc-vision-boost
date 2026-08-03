@@ -11,8 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import {
   Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
-  CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch
+  CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
+  Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2
 } from 'lucide-react';
+
 import { supabase } from '@/integrations/supabase/client';
 import { ryze } from '@/services/ryzeService';
 import { useAuth } from '@/hooks/useAuth';
