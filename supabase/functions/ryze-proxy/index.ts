@@ -281,21 +281,30 @@ Deno.serve(async (req) => {
     const instanceId = body.instance_id as string;
     if (!instanceId) return json({ error: 'instance_id é obrigatório' }, 400);
     const inst = await getInstance(instanceId);
-    const remoteName = getRemoteInstanceName(inst);
+    const resolved = await resolveRemote(inst);
+    const remoteName = resolved.name;
+    const instToken = resolved.token || inst.token_instance || null;
 
     // -------- CONNECT (fetch QR) --------
     if (action === 'connect') {
+      // Already connected on Ryze? No QR needed.
+      const remoteState = resolved.remote?.connection?.state || resolved.remote?.status;
+      if (remoteState === 'connected' || remoteState === 'open') {
+        const phone = parseRemoteInstance(resolved.remote).phone;
+        return json({ qr: null, already_connected: true, status: 'connected', phone });
+      }
+
       let r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}?history=7`, {
-        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'GET', token: instToken || TOKEN_ACCOUNT,
       });
 
       if (!r.ok) {
         r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}`, {
-          method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+          method: 'GET', token: instToken || TOKEN_ACCOUNT,
         });
       }
 
-      if (!r.ok && inst.token_instance) {
+      if (!r.ok && instToken) {
         r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}`, {
           method: 'GET', token: TOKEN_ACCOUNT,
         });
