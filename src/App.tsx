@@ -91,7 +91,9 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp/ajustes" element={<AppLayout><WhatsAppAjustes /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </ErrorBoundary>
+
         <PWAInstallPrompt />
       </SectorsProvider>
     </AppProvider>
