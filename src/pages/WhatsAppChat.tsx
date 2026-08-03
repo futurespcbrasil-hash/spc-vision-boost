@@ -416,7 +416,14 @@ const WhatsAppChat = () => {
     if (activeFilter === 'aguardando') return c.unread_count > 0 || !c.assigned_to;
     if (activeFilter === 'resolvidos') return !!c.assigned_to && c.unread_count === 0;
     return true;
+  }).sort((a, b) => {
+    // Conversas com mensagens novas sempre no topo
+    const au = a.unread_count > 0 ? 1 : 0;
+    const bu = b.unread_count > 0 ? 1 : 0;
+    if (au !== bu) return bu - au;
+    return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
   });
+
 
   return (
     <>
