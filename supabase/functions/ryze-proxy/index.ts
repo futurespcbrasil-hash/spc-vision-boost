@@ -355,11 +355,11 @@ Deno.serve(async (req) => {
     if (action === 'disconnect' || action === 'logout') {
       try {
         await ryzeFetch(`/api/instance/logout/${encodeURIComponent(remoteName)}`, {
-          method: 'DELETE', token: inst.token_instance || TOKEN_ACCOUNT,
+          method: 'DELETE', token: instToken || TOKEN_ACCOUNT,
         });
       } catch {
         await ryzeFetch(`/api/instance/logout/${encodeURIComponent(remoteName)}`, {
-          method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+          method: 'POST', token: instToken || TOKEN_ACCOUNT,
         }).catch(() => null);
       }
       await admin.from('whatsapp_instances').update({
@@ -391,7 +391,7 @@ Deno.serve(async (req) => {
       if (!webhookSecret) return json({ error: 'RYZE_WEBHOOK_SECRET não configurado' }, 500);
       const url = `${SUPABASE_URL}/functions/v1/ryze-webhook?instance=${instanceId}&secret=${webhookSecret}`;
       const r = await ryzeFetch(`/api/events/webhook/${encodeURIComponent(remoteName)}`, {
-        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'POST', token: instToken || TOKEN_ACCOUNT,
         body: JSON.stringify({
           label: 'crm-webhook', enabled: true, url,
           events: ['message.exchange', 'message.status', 'group.flow', 'instance.state'],
@@ -408,7 +408,7 @@ Deno.serve(async (req) => {
       if (!number || !text) return json({ error: 'number e text/message são obrigatórios' }, 400);
 
       const r = await ryzeFetch(`/api/message/text/${encodeURIComponent(remoteName)}`, {
-        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'POST', token: instToken || TOKEN_ACCOUNT,
         body: JSON.stringify({ number, message: text }),
       });
       if (!r.ok) {
@@ -459,7 +459,7 @@ Deno.serve(async (req) => {
       if (!number || !mediaUrl) return json({ error: 'number e media_url (ou mediaUrl) são obrigatórios' }, 400);
 
       const r = await ryzeFetch(`/api/message/media/${encodeURIComponent(remoteName)}`, {
-        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'POST', token: instToken || TOKEN_ACCOUNT,
         body: JSON.stringify({ number, mediaType, mediaUrl, message: caption }),
       });
       if (!r.ok) {
@@ -501,7 +501,7 @@ Deno.serve(async (req) => {
     if (action === 'get_chats') {
       // Ryze Official Endpoint: GET /api/chat/contacts/:instance
       const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(remoteName)}`, {
-        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'GET', token: instToken || TOKEN_ACCOUNT,
       });
 
       if (!r.ok) {
@@ -544,7 +544,7 @@ Deno.serve(async (req) => {
       // Ryze Official Endpoint: POST /api/chat/history/:instance
       // Body: { number: waChatId, count: 200 }
       const r = await ryzeFetch(`/api/chat/history/${encodeURIComponent(remoteName)}`, {
-        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'POST', token: instToken || TOKEN_ACCOUNT,
         body: JSON.stringify({ number: waChatId, count: 200 }),
       });
 
@@ -623,7 +623,7 @@ Deno.serve(async (req) => {
     if (action === 'get_contacts') {
       // Ryze Official Endpoint: GET /api/chat/contacts/:instance
       const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(remoteName)}`, {
-        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'GET', token: instToken || TOKEN_ACCOUNT,
       });
 
       if (!r.ok) {
