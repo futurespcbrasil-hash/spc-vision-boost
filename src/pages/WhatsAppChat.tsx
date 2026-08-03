@@ -215,13 +215,19 @@ const WhatsAppChat = () => {
   };
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
-  const loadMessages = async (chatId: string) => {
+  const loadMessages = async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,wa_message_id,reply_to')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
-    setMessages(list);
-    requestAnimationFrame(() => { scrollToBottom(); setTimeout(() => scrollToBottom(), 120); });
+    let changed = true;
+    setMessages(prev => {
+      changed = prev.length !== list.length || prev[prev.length - 1]?.id !== list[list.length - 1]?.id;
+      return changed ? list : prev;
+    });
+    if (!silent || changed) {
+      requestAnimationFrame(() => { scrollToBottom(!silent ? false : true); setTimeout(() => scrollToBottom(), 120); });
+    }
   };
 
   useEffect(() => {
