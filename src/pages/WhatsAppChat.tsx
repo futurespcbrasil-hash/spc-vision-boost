@@ -54,6 +54,28 @@ const getInitials = (name: string) => {
   return name.slice(0, 2).toUpperCase();
 };
 
+const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
+  { label: 'Frequentes', emojis: ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','😉','😍','😘','😜','🤔','🤗','👍','👎','👏','🙏','💪','🔥','✅','❌','⚠️','💰','📈','📌','📞','📱','✉️','🗓️','⏰','🎯','🚀','⭐','❤️','🎉','😎','🤝'] },
+  { label: 'Negócios', emojis: ['💼','📊','📋','🧾','🏦','💳','🔒','📎','🖊️','📄','🏢','🤑','💵','🧮','📥','📤'] },
+  { label: 'Reações', emojis: ['😢','😭','😡','😱','😴','🤒','🥳','😬','🙄','😏','😌','🤐','😤','🫡','🫶','👌'] },
+];
+
+const uploadMedia = async (file: Blob, filename: string, userId: string) => {
+  const path = `${userId}/${Date.now()}-${filename.replace(/[^\w.\-]/g, '_')}`;
+  const { error } = await supabase.storage.from('whatsapp-media').upload(path, file, {
+    contentType: (file as File).type || 'application/octet-stream',
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data, error: sErr } = await supabase.storage.from('whatsapp-media').createSignedUrl(path, 60 * 60 * 24 * 7);
+  if (sErr || !data?.signedUrl) throw sErr || new Error('Não foi possível gerar o link do arquivo');
+  return data.signedUrl;
+};
+
+const onlyDigits = (v: string) => v.replace(/\D/g, '');
+
+
+
 const WhatsAppChat = () => {
   const { user, role } = useAuth();
   const { toast } = useToast();
