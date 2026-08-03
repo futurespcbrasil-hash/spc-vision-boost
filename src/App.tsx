@@ -107,10 +107,13 @@ const App = () => (
       <Sonner />
       <AuthProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/comparacao/:id" element={<PublicComparison />} />
-            <Route path="/*" element={<ProtectedRoutes />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/comparacao/:id" element={<PublicComparison />} />
+              <Route path="/*" element={<ProtectedRoutes />} />
+            </Routes>
+          </Suspense>
+
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
