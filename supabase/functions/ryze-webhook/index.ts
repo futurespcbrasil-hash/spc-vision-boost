@@ -80,17 +80,38 @@ Deno.serve(async (req) => {
         let messageType = inner.type || m.media?.type || m.type || m.messageType || 'text';
         let mediaMime: string | null = inner.media?.mimetype || m.media?.mimetype || null;
         let mediaUrl: string | null = inner.media?.s3Url || inner.media?.url || m.media?.s3Url || m.media?.url || null;
-        if (inner.imageMessage) { messageType = 'image'; mediaMime = inner.imageMessage.mimetype; }
+        if (inner.stickerMessage) { messageType = 'sticker'; mediaMime = inner.stickerMessage.mimetype; }
+        else if (inner.imageMessage) { messageType = 'image'; mediaMime = inner.imageMessage.mimetype; }
         else if (inner.videoMessage) { messageType = 'video'; mediaMime = inner.videoMessage.mimetype; }
         else if (inner.audioMessage) { messageType = 'audio'; mediaMime = inner.audioMessage.mimetype; }
         else if (inner.documentMessage) { messageType = 'document'; mediaMime = inner.documentMessage.mimetype; }
+
+        // Figurinhas / GIFs animados
+        if (messageType === 'sticker' || inner.stickerMessage) messageType = 'sticker';
+        if (inner.videoMessage?.gifPlayback || m.media?.isGif) messageType = 'gif';
+
+        // Reações: emoji aplicado sobre outra mensagem
+        const reactionRaw = inner.reactionMessage || m.reaction || (inner.type === 'reaction' ? inner : null);
+        const replyTo = reactionRaw?.key?.id || reactionRaw?.messageId || reactionRaw?.targetMessageId
+          || inner.contextInfo?.stanzaId || m.quoted?.id || null;
+        let reactionText: string | null = null;
+        if (reactionRaw) {
+          messageType = 'reaction';
+          reactionText = reactionRaw.text || reactionRaw.emoji || reactionRaw.content || '';
+        }
 
         // upsert chat
         const { data: existing } = await admin.from('whatsapp_chats')
           .select('id, unread_count').eq('instance_id', instanceId).eq('wa_chat_id', remoteJid).maybeSingle();
         let chatId = existing?.id;
 
-        const lastMsgText = text || `[${messageType}]`;
+        const typeLabels: Record<string, string> = {
+          image: '📷 Foto', video: '🎥 Vídeo', audio: '🎤 Áudio',
+          document: '📄 Documento', sticker: '🩷 Figurinha', gif: '🎞️ GIF', reaction: 'Reagiu',
+        };
+        const lastMsgText = reactionRaw
+          ? `${typeLabels.reaction} ${reactionText || ''}`.trim()
+          : (text || typeLabels[messageType] || `[${messageType}]`);
         if (!chatId) {
           const ins = await admin.from('whatsapp_chats').insert({
             instance_id: instanceId, wa_chat_id: remoteJid,
@@ -117,7 +138,8 @@ Deno.serve(async (req) => {
           chat_id: chatId, instance_id: instanceId,
           wa_message_id: msgId, from_me: fromMe,
           sender: m.sender?.name || m.sender?.jid || m.pushName || m.senderJid || number,
-          message_type: messageType, text,
+          message_type: messageType, text: reactionText ?? text,
+          reply_to: replyTo,
           media_mime: mediaMime,
           media_url: mediaUrl,
           status: m.status || (fromMe ? 'sent' : 'delivered'),
