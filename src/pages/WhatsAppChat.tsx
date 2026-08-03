@@ -177,6 +177,14 @@ const WhatsAppChat = () => {
   }, [instanceId]);
 
 
+  // Rola até a última mensagem (o viewport real do ScrollArea do Radix)
+  const scrollToBottom = (smooth = false) => {
+    const root = scrollRef.current as unknown as HTMLElement | null;
+    const vp = (root?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null) || root;
+    if (!vp) return;
+    vp.scrollTo({ top: vp.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  };
+
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string) => {
     const { data } = await supabase.from('whatsapp_messages')
@@ -184,7 +192,7 @@ const WhatsAppChat = () => {
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
     setMessages(list);
-    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }));
+    requestAnimationFrame(() => { scrollToBottom(); setTimeout(() => scrollToBottom(), 120); });
   };
 
   useEffect(() => {
@@ -197,7 +205,7 @@ const WhatsAppChat = () => {
         payload => {
           const m = payload.new as Message;
           setMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
-          requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
+          requestAnimationFrame(() => scrollToBottom(true));
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
@@ -222,7 +230,7 @@ const WhatsAppChat = () => {
       id: tempId, chat_id: selected.id, from_me: true, text: msg,
       message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null,
     }]);
-    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
+    requestAnimationFrame(() => scrollToBottom(true));
     try {
       await ryze.sendText(instanceId, selected.contact_number, msg);
       if (!selected.assigned_to && user) {
