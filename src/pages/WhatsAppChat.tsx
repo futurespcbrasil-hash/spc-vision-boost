@@ -253,7 +253,7 @@ const WhatsAppChat = () => {
       supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chatId).then(() => {});
     }
     // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
-    const poll = window.setInterval(() => loadMessages(chatId), 5000);
+    const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
     return () => { window.clearInterval(poll); supabase.removeChannel(ch); };
   }, [selected?.id]);
 
