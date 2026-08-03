@@ -161,15 +161,21 @@ const WhatsAppChat = () => {
 
   useEffect(() => { loadChats(); }, [instanceId]);
 
-  // Realtime chats
+  // Realtime chats (com debounce para evitar recargas em rajada)
   useEffect(() => {
     if (!instanceId) return;
+    let t: number | null = null;
+    const schedule = () => {
+      if (t) window.clearTimeout(t);
+      t = window.setTimeout(() => loadChats(), 400);
+    };
     const ch = supabase.channel(`wa-chats-${instanceId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
-        loadChats)
+        schedule)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { if (t) window.clearTimeout(t); supabase.removeChannel(ch); };
   }, [instanceId]);
+
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string) => {
