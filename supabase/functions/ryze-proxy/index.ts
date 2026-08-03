@@ -111,8 +111,9 @@ function normalizeInstanceName(value: unknown): string {
 }
 
 function getRemoteInstanceName(inst: any): string {
-  const remoteId = String(inst?.ryze_instance_id || '');
-  return normalizeInstanceName(remoteId && !remoteId.includes('-') ? remoteId : inst?.name);
+  // IMPORTANT: Ryze instance names are case-sensitive — never lowercase them here.
+  const remoteId = String(inst?.ryze_instance_id || '').trim();
+  return (remoteId && !/^[0-9a-f-]{30,}$/i.test(remoteId) ? remoteId : String(inst?.name || '').trim());
 }
 
 function parseRemoteInstance(item: any) {
@@ -126,7 +127,7 @@ function parseRemoteInstance(item: any) {
   return {
     name: item?.name,
     ryze_instance_id: item?.name || item?.instanceName || item?.id,
-    token_instance: item?.token || item?.tokenInstance || null,
+    token_instance: item?.token || item?.tokenInstance || item?.tokenInstancia || item?.apikey || null,
     status,
     phone,
   };
@@ -136,6 +137,40 @@ async function getInstance(instanceId: string) {
   const { data, error } = await admin.from('whatsapp_instances').select('*').eq('id', instanceId).maybeSingle();
   if (error || !data) throw new Error('Instância não encontrada');
   return data;
+}
+
+// Resolves the real remote name/token from the Ryze account (case-insensitive match),
+// persisting what it learns so later calls hit the correct instance.
+async function resolveRemote(inst: any): Promise<{ name: string; token: string | null; remote: any }> {
+  const fallback = { name: getRemoteInstanceName(inst), token: inst.token_instance || null, remote: null as any };
+  try {
+    const r = await ryzeFetch('/api/instance/list', { method: 'GET', token: TOKEN_ACCOUNT });
+    if (!r.ok) return fallback;
+    const list = r.data?.instances || r.data?.data || (Array.isArray(r.data) ? r.data : []);
+    const items = Array.isArray(list) ? list : [list];
+    const wanted = normalizeInstanceName(getRemoteInstanceName(inst));
+    const match = items.find((i: any) => normalizeInstanceName(i?.name) === wanted)
+      || (items.length === 1 ? items[0] : null);
+    if (!match) return fallback;
+
+    const parsed = parseRemoteInstance(match);
+    await admin.from('whatsapp_instances').update({
+      ryze_instance_id: parsed.ryze_instance_id || inst.ryze_instance_id,
+      token_instance: parsed.token_instance || inst.token_instance,
+      status: parsed.status,
+      phone: parsed.phone || inst.phone,
+      last_status_at: new Date().toISOString(),
+      ...(parsed.status === 'connected' ? { qr_code: null } : {}),
+    }).eq('id', inst.id);
+
+    return {
+      name: String(parsed.ryze_instance_id || parsed.name || fallback.name),
+      token: parsed.token_instance || inst.token_instance || null,
+      remote: match,
+    };
+  } catch (_e) {
+    return fallback;
+  }
 }
 
 Deno.serve(async (req) => {
