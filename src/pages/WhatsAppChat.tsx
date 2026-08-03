@@ -659,9 +659,26 @@ const WhatsAppChat = () => {
                               {userName}:
                             </p>
                           )}
-                          <p className="whitespace-pre-wrap break-words leading-relaxed text-sm">
-                            {m.text}
-                          </p>
+                          {m.media_url && m.message_type === 'image' && (
+                            <img src={m.media_url} alt="Imagem enviada" loading="lazy" className="rounded-lg max-w-full max-h-64 object-cover" />
+                          )}
+                          {m.media_url && m.message_type === 'video' && (
+                            <video src={m.media_url} controls className="rounded-lg max-w-full max-h-64" />
+                          )}
+                          {m.media_url && m.message_type === 'audio' && (
+                            <audio src={m.media_url} controls className="w-56" />
+                          )}
+                          {m.media_url && !['image', 'video', 'audio'].includes(m.message_type) && (
+                            <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs">
+                              <FileText size={14} /> Abrir arquivo
+                            </a>
+                          )}
+                          {m.text && (
+                            <p className="whitespace-pre-wrap break-words leading-relaxed text-sm">
+                              {m.text}
+                            </p>
+                          )}
+
                           <div className="flex items-center justify-end gap-1 pt-0.5 text-[10px] opacity-70">
                             <span>{timeStr}</span>
                             {m.from_me && <CheckCheck size={13} className="text-purple-700 dark:text-purple-300" />}
