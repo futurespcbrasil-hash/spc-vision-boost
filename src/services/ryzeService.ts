@@ -46,6 +46,7 @@ async function invoke(action: string, payload: Record<string, unknown> = {}) {
 }
 
 export const ryze = {
+  syncInstances: () => invoke('sync_instances'),
   createInstance: (name: string) => invoke('create_instance', { name }),
   connect: (instance_id: string) => invoke('connect', { instance_id }),
   disconnect: (instance_id: string) => invoke('disconnect', { instance_id }),

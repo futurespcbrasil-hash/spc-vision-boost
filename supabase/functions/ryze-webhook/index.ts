@@ -4,7 +4,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const WEBHOOK_SECRET = Deno.env.get('RYZE_WEBHOOK_SECRET') || 'default-secret';
+const WEBHOOK_SECRET = Deno.env.get('RYZE_WEBHOOK_SECRET');
 
 const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
   const instanceId = url.searchParams.get('instance');
   const secret = url.searchParams.get('secret');
 
-  if (!instanceId || secret !== WEBHOOK_SECRET) {
+  if (!WEBHOOK_SECRET || !instanceId || secret !== WEBHOOK_SECRET) {
     console.warn('[ryze-webhook] Acesso negado: instanceId ou secret inválido', { instanceId });
     return new Response('forbidden', { status: 403, headers: corsHeaders });
   }
@@ -40,27 +40,40 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Delivery/read receipts use a separate payload from message.exchange.
+    if (eventName === 'message.status') {
+      const messageIds = Array.isArray(data?.messageIds) ? data.messageIds : [];
+      const receiptStatus = data?.status;
+      if (messageIds.length > 0 && receiptStatus) {
+        await admin.from('whatsapp_messages')
+          .update({ status: receiptStatus })
+          .eq('instance_id', instanceId)
+          .in('wa_message_id', messageIds);
+      }
+    }
+
     // Message received or sent
-    if (eventName.includes('message') || data?.key || data?.messages || data?.messageId || data?.id) {
-      const msgs = Array.isArray(data.messages) ? data.messages : [data];
+    if (eventName === 'message.exchange' || data?.key || data?.messages || data?.messageId) {
+      const msgs = Array.isArray(data.messages) ? data.messages : [data.message || data];
       for (const m of msgs) {
         if (!m) continue;
-        const remoteJid = m.chatJid || m.key?.remoteJid || m.remoteJid;
+        const remoteJid = m.chat?.jid || m.chatJid || m.key?.remoteJid || m.remoteJid;
         if (!remoteJid) continue;
 
-        const fromMe = m.fromMe !== undefined ? Boolean(m.fromMe) : !!m.key?.fromMe;
+        const fromMe = m.direction ? m.direction === 'outgoing' : (m.fromMe !== undefined ? Boolean(m.fromMe) : !!m.key?.fromMe);
         const number = String(remoteJid).split('@')[0];
         const isGroup = String(remoteJid).includes('@g.us');
         const msgId = m.id || m.messageId || m.key?.id;
         if (!msgId) continue;
 
-        const text = m.content || m.text || m.message?.conversation
+        const text = (typeof m.content === 'string' ? m.content : m.content?.text) || m.text || m.message?.conversation
           || m.message?.extendedTextMessage?.text
           || m.message?.imageMessage?.caption
           || m.message?.videoMessage?.caption
           || '';
-        let messageType = m.type || m.messageType || 'text';
-        let mediaMime: string | null = null;
+        let messageType = m.media?.type || m.type || m.messageType || 'text';
+        let mediaMime: string | null = m.media?.mimetype || null;
+        let mediaUrl: string | null = m.media?.s3Url || m.media?.url || null;
         if (m.message?.imageMessage) { messageType = 'image'; mediaMime = m.message.imageMessage.mimetype; }
         else if (m.message?.videoMessage) { messageType = 'video'; mediaMime = m.message.videoMessage.mimetype; }
         else if (m.message?.audioMessage) { messageType = 'audio'; mediaMime = m.message.audioMessage.mimetype; }
@@ -75,7 +88,7 @@ Deno.serve(async (req) => {
         if (!chatId) {
           const ins = await admin.from('whatsapp_chats').insert({
             instance_id: instanceId, wa_chat_id: remoteJid,
-            contact_number: number, contact_name: m.pushName || m.senderJid?.split('@')[0] || number,
+            contact_number: number, contact_name: m.chat?.name || m.sender?.name || m.pushName || m.senderJid?.split('@')[0] || number,
             is_group: isGroup,
             last_message: lastMsgText,
             last_message_at: new Date().toISOString(),
@@ -97,9 +110,10 @@ Deno.serve(async (req) => {
         await admin.from('whatsapp_messages').upsert({
           chat_id: chatId, instance_id: instanceId,
           wa_message_id: msgId, from_me: fromMe,
-          sender: m.pushName || m.senderJid || number,
+          sender: m.sender?.name || m.sender?.jid || m.pushName || m.senderJid || number,
           message_type: messageType, text,
           media_mime: mediaMime,
+          media_url: mediaUrl,
           status: m.status || (fromMe ? 'sent' : 'delivered'),
           timestamp: msgTimestamp,
           raw: m,

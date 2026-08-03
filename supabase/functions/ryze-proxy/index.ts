@@ -34,7 +34,7 @@ async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = 
   const startTime = Date.now();
 
   console.log(`[Ryze API Request] ${method} ${url}`, {
-    tokenPrefix: authToken ? `${authToken.slice(0, 8)}...` : 'NONE',
+    authenticated: Boolean(authToken),
     headers: { 'Content-Type': 'application/json', ...(headers || {}) },
     body: opts.body ? (typeof opts.body === 'string' ? opts.body.slice(0, 500) : opts.body) : undefined,
   });
@@ -84,12 +84,14 @@ function extractQrCode(d: any): string | null {
     (Array.isArray(target?.qrImages) ? target.qrImages[0] : null) ||
     target?.base64 ||
     target?.qrBase64 ||
+    target?.qrCodeBase64 ||
     target?.qrImage ||
     target?.qrCode ||
     target?.qr ||
     target?.code ||
     (typeof target === 'string' ? target : null) ||
     d?.base64 ||
+    d?.qrCodeBase64 ||
     d?.qrCode ||
     d?.qr ||
     d?.code;
@@ -102,6 +104,32 @@ function extractQrCode(d: any): string | null {
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(s)}`;
   }
   return null;
+}
+
+function normalizeInstanceName(value: unknown): string {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+}
+
+function getRemoteInstanceName(inst: any): string {
+  const remoteId = String(inst?.ryze_instance_id || '');
+  return normalizeInstanceName(remoteId && !remoteId.includes('-') ? remoteId : inst?.name);
+}
+
+function parseRemoteInstance(item: any) {
+  const numberJid = item?.connection?.numberJid || item?.numberJid || null;
+  let phone = numberJid ? String(numberJid).split('@')[0] : (item?.number || item?.phone || null);
+  if (phone?.includes(':')) phone = phone.split(':')[0];
+  const rawState = item?.connection?.state || item?.status || item?.state || 'disconnected';
+  const status = rawState === 'connected' || rawState === 'open'
+    ? 'connected'
+    : rawState === 'connecting' || rawState === 'qr' ? 'qr' : 'disconnected';
+  return {
+    name: item?.name,
+    ryze_instance_id: item?.name || item?.instanceName || item?.id,
+    token_instance: item?.token || item?.tokenInstance || null,
+    status,
+    phone,
+  };
 }
 
 async function getInstance(instanceId: string) {
@@ -134,19 +162,12 @@ Deno.serve(async (req) => {
     if (action === 'create_instance') {
       const rawName = String(body.name || '').trim();
       if (!rawName) return json({ error: 'Nome da instância é obrigatório' }, 400);
-      const name = rawName.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+      const name = normalizeInstanceName(rawName);
 
-      let r = await ryzeFetch('/api/instance/new', {
+      const r = await ryzeFetch('/api/instance/new', {
         method: 'POST',
-        body: JSON.stringify({ name, instanceName: name }),
+        body: JSON.stringify({ name }),
       });
-
-      if (!r.ok && r.status === 404) {
-        r = await ryzeFetch('/api/instance/create', {
-          method: 'POST',
-          body: JSON.stringify({ instanceName: name, name }),
-        });
-      }
 
       if (!r.ok) {
         const errorMsg = r.data?.error?.message || r.data?.message || r.data?.error || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
@@ -181,37 +202,66 @@ Deno.serve(async (req) => {
         return json({ error: `Erro ao criar instância no Ryze: ${errorMsg}`, details: r.data }, r.status);
       }
 
-      const info = r.data.data || r.data;
+      const info = r.data.instance || r.data.data?.instance || r.data.data || r.data;
       const inserted = await admin.from('whatsapp_instances').insert({
         owner_id: userId,
-        name: rawName,
-        ryze_instance_id: info.id || info.instanceId || info.instance_id || name,
-        token_instance: info.token || info.hash || null,
+        name: info.name || name,
+        ryze_instance_id: info.name || info.instanceName || info.id || name,
+        token_instance: info.token || info.tokenInstance || info.hash || null,
         status: info.status || 'disconnected',
+        phone: info.numberJid ? String(info.numberJid).split('@')[0] : null,
       }).select('*').single();
       return json({ instance: inserted.data });
+    }
+
+    // -------- RECONCILE ACCOUNT INSTANCES --------
+    if (action === 'sync_instances') {
+      const r = await ryzeFetch('/api/instance/list', { method: 'GET', token: TOKEN_ACCOUNT });
+      if (!r.ok) return json({ error: 'Não foi possível listar as instâncias da conta Ryze', details: r.data }, r.status);
+
+      const remoteItems = r.data?.instances || r.data?.data || (Array.isArray(r.data) ? r.data : []);
+      const { data: localItems } = await admin.from('whatsapp_instances').select('*').eq('owner_id', userId);
+      const synced = [];
+
+      for (const remote of remoteItems) {
+        const parsed = parseRemoteInstance(remote);
+        if (!parsed.name) continue;
+        const local = (localItems || []).find((item: any) => normalizeInstanceName(item.name) === normalizeInstanceName(parsed.name));
+        const values = {
+          owner_id: userId,
+          ...parsed,
+          last_status_at: new Date().toISOString(),
+          ...(parsed.status === 'connected' ? { qr_code: null } : {}),
+        };
+        const result = local
+          ? await admin.from('whatsapp_instances').update(values).eq('id', local.id).select('*').single()
+          : await admin.from('whatsapp_instances').insert(values).select('*').single();
+        if (result.data) synced.push(result.data);
+      }
+
+      return json({ instances: synced, total: synced.length });
     }
 
     // Everything below needs an existing instance
     const instanceId = body.instance_id as string;
     if (!instanceId) return json({ error: 'instance_id é obrigatório' }, 400);
     const inst = await getInstance(instanceId);
+    const remoteName = getRemoteInstanceName(inst);
 
     // -------- CONNECT (fetch QR) --------
     if (action === 'connect') {
-      const sanitizedName = inst.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-      let r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(sanitizedName)}`, {
+      let r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}?history=7`, {
         method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
       });
 
       if (!r.ok) {
-        r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(inst.name)}`, {
+        r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}`, {
           method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
         });
       }
 
       if (!r.ok && inst.token_instance) {
-        r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(sanitizedName)}`, {
+        r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}`, {
           method: 'GET', token: TOKEN_ACCOUNT,
         });
       }
@@ -232,7 +282,7 @@ Deno.serve(async (req) => {
 
     // -------- STATUS --------
     if (action === 'status') {
-      const r = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(inst.name)}`, {
+      const r = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(remoteName)}`, {
         method: 'GET', token: TOKEN_ACCOUNT,
       });
 
@@ -244,16 +294,14 @@ Deno.serve(async (req) => {
       const list = r.data.instances || r.data.data || r.data;
       const item = Array.isArray(list) ? list[0] : list;
 
-      const rawState = item?.connection?.state || item?.status || item?.state || 'unknown';
-      const status = (rawState === 'connected' || rawState === 'open')
-        ? 'connected'
-        : (rawState === 'connecting' || rawState === 'qr' ? 'qr' : 'disconnected');
-
-      let phone = item?.connection?.numberJid ? item.connection.numberJid.split('@')[0] : (item?.number || item?.phone || inst.phone);
-      if (phone && phone.includes(':')) phone = phone.split(':')[0];
+      const parsed = parseRemoteInstance(item);
+      const status = parsed.status;
+      const phone = parsed.phone || inst.phone;
 
       await admin.from('whatsapp_instances').update({
-        status, phone, last_status_at: new Date().toISOString(),
+        status, phone, token_instance: parsed.token_instance || inst.token_instance,
+        ryze_instance_id: parsed.ryze_instance_id || inst.ryze_instance_id,
+        last_status_at: new Date().toISOString(),
         ...(status === 'connected' ? { qr_code: null } : {}),
       }).eq('id', instanceId);
       return json({ status, phone, raw: item });
@@ -262,11 +310,11 @@ Deno.serve(async (req) => {
     // -------- DISCONNECT / LOGOUT --------
     if (action === 'disconnect' || action === 'logout') {
       try {
-        await ryzeFetch(`/api/instance/logout/${encodeURIComponent(inst.name)}`, {
+        await ryzeFetch(`/api/instance/logout/${encodeURIComponent(remoteName)}`, {
           method: 'DELETE', token: inst.token_instance || TOKEN_ACCOUNT,
         });
       } catch {
-        await ryzeFetch(`/api/instance/logout/${encodeURIComponent(inst.name)}`, {
+        await ryzeFetch(`/api/instance/logout/${encodeURIComponent(remoteName)}`, {
           method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
         }).catch(() => null);
       }
@@ -278,14 +326,13 @@ Deno.serve(async (req) => {
 
     // -------- DELETE INSTANCE --------
     if (action === 'delete_instance') {
-      const sanitizedName = inst.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
       try {
-        await ryzeFetch(`/api/instance/delete/${encodeURIComponent(sanitizedName)}`, {
+        await ryzeFetch(`/api/instance/delete/${encodeURIComponent(remoteName)}`, {
           method: 'DELETE', token: TOKEN_ACCOUNT,
         });
       } catch {}
       try {
-        await ryzeFetch(`/api/instance/delete/${encodeURIComponent(inst.name)}`, {
+        await ryzeFetch(`/api/instance/delete/${encodeURIComponent(remoteName)}`, {
           method: 'DELETE', token: TOKEN_ACCOUNT,
         });
       } catch {}
@@ -296,13 +343,14 @@ Deno.serve(async (req) => {
 
     // -------- REGISTER WEBHOOK --------
     if (action === 'register_webhook') {
-      const webhookSecret = Deno.env.get('RYZE_WEBHOOK_SECRET') || 'default-secret';
+      const webhookSecret = Deno.env.get('RYZE_WEBHOOK_SECRET');
+      if (!webhookSecret) return json({ error: 'RYZE_WEBHOOK_SECRET não configurado' }, 500);
       const url = `${SUPABASE_URL}/functions/v1/ryze-webhook?instance=${instanceId}&secret=${webhookSecret}`;
-      const r = await ryzeFetch(`/api/events/webhook/${encodeURIComponent(inst.name)}`, {
+      const r = await ryzeFetch(`/api/events/webhook/${encodeURIComponent(remoteName)}`, {
         method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
         body: JSON.stringify({
           label: 'crm-webhook', enabled: true, url,
-          events: ['message.exchange', 'group.flow', 'instance.state'],
+          events: ['message.exchange', 'message.status', 'group.flow', 'instance.state'],
           mediaBase64: false,
         }),
       });
@@ -315,9 +363,9 @@ Deno.serve(async (req) => {
       const text = String(body.text || body.message || '');
       if (!number || !text) return json({ error: 'number e text/message são obrigatórios' }, 400);
 
-      const r = await ryzeFetch(`/api/message/text/${encodeURIComponent(inst.name)}`, {
+      const r = await ryzeFetch(`/api/message/text/${encodeURIComponent(remoteName)}`, {
         method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
-        body: JSON.stringify({ number, text, message: text }),
+        body: JSON.stringify({ number, message: text }),
       });
       if (!r.ok) {
         const errorDetails = r.data?.error?.message || r.data?.message || r.data;
@@ -366,7 +414,7 @@ Deno.serve(async (req) => {
       const caption = body.caption || body.message || '';
       if (!number || !mediaUrl) return json({ error: 'number e media_url (ou mediaUrl) são obrigatórios' }, 400);
 
-      const r = await ryzeFetch(`/api/message/media/${encodeURIComponent(inst.name)}`, {
+      const r = await ryzeFetch(`/api/message/media/${encodeURIComponent(remoteName)}`, {
         method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
         body: JSON.stringify({ number, mediaType, mediaUrl, message: caption }),
       });
@@ -408,7 +456,7 @@ Deno.serve(async (req) => {
     // -------- GET CHATS (List contacts/conversations from Ryze & sync into DB) --------
     if (action === 'get_chats') {
       // Ryze Official Endpoint: GET /api/chat/contacts/:instance
-      const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(inst.name)}`, {
+      const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(remoteName)}`, {
         method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
       });
 
@@ -451,7 +499,7 @@ Deno.serve(async (req) => {
 
       // Ryze Official Endpoint: POST /api/chat/history/:instance
       // Body: { number: waChatId, count: 200 }
-      const r = await ryzeFetch(`/api/chat/history/${encodeURIComponent(inst.name)}`, {
+      const r = await ryzeFetch(`/api/chat/history/${encodeURIComponent(remoteName)}`, {
         method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
         body: JSON.stringify({ number: waChatId, count: 200 }),
       });
@@ -530,7 +578,7 @@ Deno.serve(async (req) => {
     // -------- GET CONTACTS --------
     if (action === 'get_contacts') {
       // Ryze Official Endpoint: GET /api/chat/contacts/:instance
-      const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(inst.name)}`, {
+      const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(remoteName)}`, {
         method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
       });
 
