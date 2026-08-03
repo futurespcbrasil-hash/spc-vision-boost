@@ -497,44 +497,58 @@ Deno.serve(async (req) => {
       return json({ ok: true, message_id: waMessageId });
     }
 
-    // -------- GET CHATS (List contacts/conversations from Ryze & sync into DB) --------
+    // -------- GET CHATS (sync only REAL conversations, never the whole address book) --------
     if (action === 'get_chats') {
-      // Ryze Official Endpoint: GET /api/chat/contacts/:instance
+      // 1) Contacts are used ONLY to enrich names/avatars — they are NOT conversations.
       const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(remoteName)}`, {
         method: 'GET', token: instToken || TOKEN_ACCOUNT,
       });
 
-      if (!r.ok) {
-        const errorDetails = r.data?.error?.message || r.data?.message || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
-        console.error('[ryze-proxy] Erro no get_chats ao listar contatos:', errorDetails);
-        return json({ error: `Erro na Ryze API (get_chats): ${errorDetails}`, details: r.data }, r.status);
-      }
-
-      const arr = r.data.contacts || r.data.data || (Array.isArray(r.data) ? r.data : []);
-      let syncedCount = 0;
-
+      const arr = r.ok ? (r.data.contacts || r.data.data || (Array.isArray(r.data) ? r.data : [])) : [];
+      const nameByNumber = new Map<string, { name: string | null; avatar: string | null }>();
       for (const c of arr) {
-        const remoteJid = c.jid || c.remoteJid || c.id;
-        if (!remoteJid) continue;
-        const number = String(remoteJid).split('@')[0];
-        const isGroup = String(remoteJid).includes('@g.us');
-        const contactName = c.full_name || c.push_name || c.first_name || c.business_name || c.name || number;
-
-        await admin.from('whatsapp_chats').upsert({
-          instance_id: instanceId,
-          wa_chat_id: remoteJid,
-          contact_number: number,
-          contact_name: contactName,
-          is_group: isGroup,
-          avatar_url: c.profilePicUrl || c.avatar_url || null,
-        }, { onConflict: 'instance_id,wa_chat_id' });
-
-        syncedCount++;
+        const jid = c.jid || c.remoteJid || c.id;
+        if (!jid) continue;
+        const number = String(jid).split('@')[0];
+        nameByNumber.set(number, {
+          name: c.full_name || c.push_name || c.first_name || c.business_name || c.name || null,
+          avatar: c.profilePicUrl || c.avatar_url || null,
+        });
       }
 
-      console.log(`[ryze-proxy] get_chats finalizado. Total sincronizado: ${syncedCount}`);
-      return json({ synced: syncedCount, total: r.data.total || syncedCount });
+      // 2) Remove "phantom" chats previously created from the address book (no messages at all).
+      const { data: existingChats } = await admin.from('whatsapp_chats')
+        .select('id, contact_number, contact_name, last_message_at').eq('instance_id', instanceId);
+      const emptyIds = (existingChats || []).filter((c: any) => !c.last_message_at).map((c: any) => c.id);
+      if (emptyIds.length) {
+        await admin.from('whatsapp_messages').delete().in('chat_id', emptyIds);
+        await admin.from('whatsapp_chats').delete().in('id', emptyIds);
+      }
+
+      // 3) Enrich the remaining real conversations with contact names/avatars.
+      let enriched = 0;
+      for (const c of (existingChats || [])) {
+        if (!c.last_message_at) continue;
+        const info = nameByNumber.get(c.contact_number);
+        if (!info?.name) continue;
+        if (c.contact_name && c.contact_name !== c.contact_number) continue;
+        await admin.from('whatsapp_chats')
+          .update({ contact_name: info.name, ...(info.avatar ? { avatar_url: info.avatar } : {}) })
+          .eq('id', c.id);
+        enriched++;
+      }
+
+      // 4) Ask Ryze to replay the last 7 days of history through the webhook,
+      //    so recent conversations show up without importing every contact.
+      await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}?history=7`, {
+        method: 'GET', token: instToken || TOKEN_ACCOUNT,
+      }).catch(() => null);
+
+      const remaining = (existingChats || []).length - emptyIds.length;
+      console.log(`[ryze-proxy] get_chats: ${remaining} conversas reais, ${emptyIds.length} vazias removidas, ${enriched} nomes atualizados`);
+      return json({ synced: remaining, removed: emptyIds.length, enriched, contacts: nameByNumber.size });
     }
+
 
     // -------- GET MESSAGES (Fetch chat history from Ryze & sync into DB) --------
     if (action === 'get_messages') {
@@ -542,11 +556,13 @@ Deno.serve(async (req) => {
       if (!waChatId) return json({ error: 'wa_chat_id é obrigatório' }, 400);
 
       // Ryze Official Endpoint: POST /api/chat/history/:instance
-      // Body: { number: waChatId, count: 200 }
+      // Only the latest messages are needed — the rest arrives live via webhook.
+      const count = Math.min(Number(body.count) || 50, 100);
       const r = await ryzeFetch(`/api/chat/history/${encodeURIComponent(remoteName)}`, {
         method: 'POST', token: instToken || TOKEN_ACCOUNT,
-        body: JSON.stringify({ number: waChatId, count: 200 }),
+        body: JSON.stringify({ number: waChatId, count }),
       });
+
 
       if (!r.ok) {
         const errorDetails = r.data?.error?.message || r.data?.message || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));

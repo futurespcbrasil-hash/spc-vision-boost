@@ -98,14 +98,19 @@ const WhatsAppChat = () => {
   // Load chats
   const loadChats = async () => {
     if (!instanceId) return;
+    // Only real conversations (that have at least one message), most recent first.
     const { data } = await supabase.from('whatsapp_chats').select('*')
-      .eq('instance_id', instanceId).order('last_message_at', { ascending: false, nullsFirst: false });
+      .eq('instance_id', instanceId)
+      .not('last_message_at', 'is', null)
+      .order('last_message_at', { ascending: false })
+      .limit(50);
     const list = (data as Chat[]) || [];
     setChats(list);
     if (list.length > 0 && !selected) {
       setSelected(list[0]);
     }
   };
+
 
   useEffect(() => { loadChats(); }, [instanceId]);
 
