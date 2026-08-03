@@ -207,6 +207,27 @@ Deno.serve(async (req) => {
       if (!rawName) return json({ error: 'Nome da instância é obrigatório' }, 400);
       const name = normalizeInstanceName(rawName);
 
+      // 1) Nome já usado localmente?
+      const { data: locals } = await admin.from('whatsapp_instances').select('*');
+      const localDup = (locals || []).find((i: any) => normalizeInstanceName(i.name) === name);
+      if (localDup) return json({ error: `Já existe uma instância chamada "${localDup.name}". Escolha outro nome.` }, 409);
+
+      // 2) Nome já existe na Ryze? Recupera exatamente ela (sem clonar outra instância).
+      const existingRemote = await findRemoteByName(name);
+      if (existingRemote) {
+        const parsed = parseRemoteInstance(existingRemote);
+        const recovered = await admin.from('whatsapp_instances').insert({
+          owner_id: userId,
+          name: parsed.name || rawName,
+          ryze_instance_id: parsed.ryze_instance_id,
+          token_instance: parsed.token_instance,
+          status: parsed.status,
+          phone: parsed.phone,
+        }).select('*').single();
+        return json({ instance: recovered.data, recovered: true });
+      }
+
+      // 3) Cria de fato na Ryze
       const r = await ryzeFetch('/api/instance/new', {
         method: 'POST',
         body: JSON.stringify({ name }),
@@ -214,47 +235,46 @@ Deno.serve(async (req) => {
 
       if (!r.ok) {
         const errorMsg = r.data?.error?.message || r.data?.message || r.data?.error || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
-        if (String(errorMsg).includes('already exists')) {
-          // Recover instance automatically from Ryze Cloud
-          const listRes = await ryzeFetch(`/api/instance/list?instanceName=${encodeURIComponent(name)}`, {
-            method: 'GET', token: TOKEN_ACCOUNT,
-          });
-
-          let existingInfo: any = null;
-          if (listRes.ok) {
-            const list = listRes.data?.instances || listRes.data?.data || listRes.data;
-            existingInfo = Array.isArray(list) ? list[0] : list;
-          }
-
-          const ryzeId = existingInfo?.id || existingInfo?.instanceId || existingInfo?.name || name;
-          const ryzeToken = existingInfo?.token || existingInfo?.tokenInstance || null;
-          const ryzeStatus = existingInfo?.status || existingInfo?.connection?.state || 'disconnected';
-          const ryzePhone = existingInfo?.connection?.numberJid ? existingInfo.connection.numberJid.split('@')[0] : (existingInfo?.number || existingInfo?.phone || null);
-
-          const upserted = await admin.from('whatsapp_instances').upsert({
-            owner_id: userId,
-            name: rawName,
-            ryze_instance_id: ryzeId,
-            token_instance: ryzeToken,
-            status: ryzeStatus,
-            phone: ryzePhone,
-          }, { onConflict: 'name' }).select('*').single();
-
-          return json({ instance: upserted.data, recovered: true });
-        }
         return json({ error: `Erro ao criar instância no Ryze: ${errorMsg}`, details: r.data }, r.status);
       }
 
       const info = r.data.instance || r.data.data?.instance || r.data.data || r.data;
+      const remoteName = String(info.name || info.instanceName || name);
+      const instToken = info.token || info.tokenInstance || info.hash || null;
+
       const inserted = await admin.from('whatsapp_instances').insert({
         owner_id: userId,
-        name: info.name || name,
-        ryze_instance_id: info.name || info.instanceName || info.id || name,
-        token_instance: info.token || info.tokenInstance || info.hash || null,
-        status: info.status || 'disconnected',
-        phone: info.numberJid ? String(info.numberJid).split('@')[0] : null,
+        name: rawName,
+        ryze_instance_id: remoteName,
+        token_instance: instToken,
+        status: 'qr',
+        phone: null,
       }).select('*').single();
-      return json({ instance: inserted.data });
+
+      if (inserted.error || !inserted.data) {
+        // Rollback remoto para não deixar instância órfã na Ryze
+        await ryzeFetch(`/api/instance/delete/${encodeURIComponent(remoteName)}`, { method: 'DELETE', token: TOKEN_ACCOUNT }).catch(() => null);
+        return json({ error: `Erro ao salvar instância: ${inserted.error?.message}` }, 500);
+      }
+
+      // 4) Já devolve o QR Code para vincular um novo número
+      let qr: string | null = null;
+      try {
+        let c = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}?history=7`, {
+          method: 'GET', token: instToken || TOKEN_ACCOUNT,
+        });
+        if (!c.ok) {
+          c = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}`, {
+            method: 'GET', token: TOKEN_ACCOUNT,
+          });
+        }
+        if (c.ok) {
+          qr = extractQrCode(c.data);
+          if (qr) await admin.from('whatsapp_instances').update({ qr_code: qr, last_status_at: new Date().toISOString() }).eq('id', inserted.data.id);
+        }
+      } catch (_e) { /* QR pode ser buscado depois pelo botão Conectar */ }
+
+      return json({ instance: inserted.data, qr });
     }
 
     // -------- RECONCILE ACCOUNT INSTANCES --------
@@ -262,27 +282,40 @@ Deno.serve(async (req) => {
       const r = await ryzeFetch('/api/instance/list', { method: 'GET', token: TOKEN_ACCOUNT });
       if (!r.ok) return json({ error: 'Não foi possível listar as instâncias da conta Ryze', details: r.data }, r.status);
 
-      const remoteItems = r.data?.instances || r.data?.data || (Array.isArray(r.data) ? r.data : []);
-      const { data: localItems } = await admin.from('whatsapp_instances').select('*').eq('owner_id', userId);
+      const rawList = r.data?.instances || r.data?.data || (Array.isArray(r.data) ? r.data : []);
+      const remoteItems = Array.isArray(rawList) ? rawList : (rawList ? [rawList] : []);
+      const { data: localItems } = await admin.from('whatsapp_instances').select('*');
       const synced = [];
+      const remoteNames = new Set<string>();
 
       for (const remote of remoteItems) {
         const parsed = parseRemoteInstance(remote);
         if (!parsed.name) continue;
-        const local = (localItems || []).find((item: any) => normalizeInstanceName(item.name) === normalizeInstanceName(parsed.name));
-        const values = {
-          owner_id: userId,
+        remoteNames.add(normalizeInstanceName(parsed.name));
+        const local = (localItems || []).find((item: any) =>
+          normalizeInstanceName(getRemoteInstanceName(item)) === normalizeInstanceName(parsed.name)
+          || normalizeInstanceName(item.name) === normalizeInstanceName(parsed.name));
+        const values: Record<string, unknown> = {
           ...parsed,
           last_status_at: new Date().toISOString(),
           ...(parsed.status === 'connected' ? { qr_code: null } : {}),
         };
+        if (local) delete values.name; // preserva o nome amigável escolhido pelo usuário
         const result = local
           ? await admin.from('whatsapp_instances').update(values).eq('id', local.id).select('*').single()
-          : await admin.from('whatsapp_instances').insert(values).select('*').single();
+          : await admin.from('whatsapp_instances').insert({ owner_id: userId, ...values }).select('*').single();
         if (result.data) synced.push(result.data);
       }
 
-      return json({ instances: synced, total: synced.length });
+      // Remove localmente as instâncias que não existem mais na Ryze
+      const orphans = (localItems || []).filter((item: any) =>
+        !remoteNames.has(normalizeInstanceName(getRemoteInstanceName(item)))
+        && !remoteNames.has(normalizeInstanceName(item.name)));
+      for (const orphan of orphans) {
+        await admin.from('whatsapp_instances').delete().eq('id', orphan.id);
+      }
+
+      return json({ instances: synced, total: synced.length, removed: orphans.length });
     }
 
     // Everything below needs an existing instance
