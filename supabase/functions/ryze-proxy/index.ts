@@ -111,8 +111,9 @@ function normalizeInstanceName(value: unknown): string {
 }
 
 function getRemoteInstanceName(inst: any): string {
-  const remoteId = String(inst?.ryze_instance_id || '');
-  return normalizeInstanceName(remoteId && !remoteId.includes('-') ? remoteId : inst?.name);
+  // IMPORTANT: Ryze instance names are case-sensitive — never lowercase them here.
+  const remoteId = String(inst?.ryze_instance_id || '').trim();
+  return (remoteId && !/^[0-9a-f-]{30,}$/i.test(remoteId) ? remoteId : String(inst?.name || '').trim());
 }
 
 function parseRemoteInstance(item: any) {
@@ -126,7 +127,7 @@ function parseRemoteInstance(item: any) {
   return {
     name: item?.name,
     ryze_instance_id: item?.name || item?.instanceName || item?.id,
-    token_instance: item?.token || item?.tokenInstance || null,
+    token_instance: item?.token || item?.tokenInstance || item?.tokenInstancia || item?.apikey || null,
     status,
     phone,
   };
@@ -136,6 +137,40 @@ async function getInstance(instanceId: string) {
   const { data, error } = await admin.from('whatsapp_instances').select('*').eq('id', instanceId).maybeSingle();
   if (error || !data) throw new Error('Instância não encontrada');
   return data;
+}
+
+// Resolves the real remote name/token from the Ryze account (case-insensitive match),
+// persisting what it learns so later calls hit the correct instance.
+async function resolveRemote(inst: any): Promise<{ name: string; token: string | null; remote: any }> {
+  const fallback = { name: getRemoteInstanceName(inst), token: inst.token_instance || null, remote: null as any };
+  try {
+    const r = await ryzeFetch('/api/instance/list', { method: 'GET', token: TOKEN_ACCOUNT });
+    if (!r.ok) return fallback;
+    const list = r.data?.instances || r.data?.data || (Array.isArray(r.data) ? r.data : []);
+    const items = Array.isArray(list) ? list : [list];
+    const wanted = normalizeInstanceName(getRemoteInstanceName(inst));
+    const match = items.find((i: any) => normalizeInstanceName(i?.name) === wanted)
+      || (items.length === 1 ? items[0] : null);
+    if (!match) return fallback;
+
+    const parsed = parseRemoteInstance(match);
+    await admin.from('whatsapp_instances').update({
+      ryze_instance_id: parsed.ryze_instance_id || inst.ryze_instance_id,
+      token_instance: parsed.token_instance || inst.token_instance,
+      status: parsed.status,
+      phone: parsed.phone || inst.phone,
+      last_status_at: new Date().toISOString(),
+      ...(parsed.status === 'connected' ? { qr_code: null } : {}),
+    }).eq('id', inst.id);
+
+    return {
+      name: String(parsed.ryze_instance_id || parsed.name || fallback.name),
+      token: parsed.token_instance || inst.token_instance || null,
+      remote: match,
+    };
+  } catch (_e) {
+    return fallback;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -246,21 +281,30 @@ Deno.serve(async (req) => {
     const instanceId = body.instance_id as string;
     if (!instanceId) return json({ error: 'instance_id é obrigatório' }, 400);
     const inst = await getInstance(instanceId);
-    const remoteName = getRemoteInstanceName(inst);
+    const resolved = await resolveRemote(inst);
+    const remoteName = resolved.name;
+    const instToken = resolved.token || inst.token_instance || null;
 
     // -------- CONNECT (fetch QR) --------
     if (action === 'connect') {
+      // Already connected on Ryze? No QR needed.
+      const remoteState = resolved.remote?.connection?.state || resolved.remote?.status;
+      if (remoteState === 'connected' || remoteState === 'open') {
+        const phone = parseRemoteInstance(resolved.remote).phone;
+        return json({ qr: null, already_connected: true, status: 'connected', phone });
+      }
+
       let r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}?history=7`, {
-        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'GET', token: instToken || TOKEN_ACCOUNT,
       });
 
       if (!r.ok) {
         r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}`, {
-          method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+          method: 'GET', token: instToken || TOKEN_ACCOUNT,
         });
       }
 
-      if (!r.ok && inst.token_instance) {
+      if (!r.ok && instToken) {
         r = await ryzeFetch(`/api/instance/connect/${encodeURIComponent(remoteName)}`, {
           method: 'GET', token: TOKEN_ACCOUNT,
         });
@@ -311,11 +355,11 @@ Deno.serve(async (req) => {
     if (action === 'disconnect' || action === 'logout') {
       try {
         await ryzeFetch(`/api/instance/logout/${encodeURIComponent(remoteName)}`, {
-          method: 'DELETE', token: inst.token_instance || TOKEN_ACCOUNT,
+          method: 'DELETE', token: instToken || TOKEN_ACCOUNT,
         });
       } catch {
         await ryzeFetch(`/api/instance/logout/${encodeURIComponent(remoteName)}`, {
-          method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+          method: 'POST', token: instToken || TOKEN_ACCOUNT,
         }).catch(() => null);
       }
       await admin.from('whatsapp_instances').update({
@@ -347,7 +391,7 @@ Deno.serve(async (req) => {
       if (!webhookSecret) return json({ error: 'RYZE_WEBHOOK_SECRET não configurado' }, 500);
       const url = `${SUPABASE_URL}/functions/v1/ryze-webhook?instance=${instanceId}&secret=${webhookSecret}`;
       const r = await ryzeFetch(`/api/events/webhook/${encodeURIComponent(remoteName)}`, {
-        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'POST', token: instToken || TOKEN_ACCOUNT,
         body: JSON.stringify({
           label: 'crm-webhook', enabled: true, url,
           events: ['message.exchange', 'message.status', 'group.flow', 'instance.state'],
@@ -364,7 +408,7 @@ Deno.serve(async (req) => {
       if (!number || !text) return json({ error: 'number e text/message são obrigatórios' }, 400);
 
       const r = await ryzeFetch(`/api/message/text/${encodeURIComponent(remoteName)}`, {
-        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'POST', token: instToken || TOKEN_ACCOUNT,
         body: JSON.stringify({ number, message: text }),
       });
       if (!r.ok) {
@@ -415,7 +459,7 @@ Deno.serve(async (req) => {
       if (!number || !mediaUrl) return json({ error: 'number e media_url (ou mediaUrl) são obrigatórios' }, 400);
 
       const r = await ryzeFetch(`/api/message/media/${encodeURIComponent(remoteName)}`, {
-        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'POST', token: instToken || TOKEN_ACCOUNT,
         body: JSON.stringify({ number, mediaType, mediaUrl, message: caption }),
       });
       if (!r.ok) {
@@ -457,7 +501,7 @@ Deno.serve(async (req) => {
     if (action === 'get_chats') {
       // Ryze Official Endpoint: GET /api/chat/contacts/:instance
       const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(remoteName)}`, {
-        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'GET', token: instToken || TOKEN_ACCOUNT,
       });
 
       if (!r.ok) {
@@ -500,7 +544,7 @@ Deno.serve(async (req) => {
       // Ryze Official Endpoint: POST /api/chat/history/:instance
       // Body: { number: waChatId, count: 200 }
       const r = await ryzeFetch(`/api/chat/history/${encodeURIComponent(remoteName)}`, {
-        method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'POST', token: instToken || TOKEN_ACCOUNT,
         body: JSON.stringify({ number: waChatId, count: 200 }),
       });
 
@@ -579,7 +623,7 @@ Deno.serve(async (req) => {
     if (action === 'get_contacts') {
       // Ryze Official Endpoint: GET /api/chat/contacts/:instance
       const r = await ryzeFetch(`/api/chat/contacts/${encodeURIComponent(remoteName)}`, {
-        method: 'GET', token: inst.token_instance || TOKEN_ACCOUNT,
+        method: 'GET', token: instToken || TOKEN_ACCOUNT,
       });
 
       if (!r.ok) {
