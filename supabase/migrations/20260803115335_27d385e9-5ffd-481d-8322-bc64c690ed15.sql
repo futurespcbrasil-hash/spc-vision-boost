@@ -1,0 +1,1 @@
+delete from auth.users where email like 'qa.gestor.%@futuretest.dev';
