@@ -828,6 +828,99 @@ const WhatsAppChat = () => {
       </div>
     </div>
 
+    {/* ─── Nova Conversa Dialog ─── */}
+    <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquare size={18} className="text-purple-600" />
+            Nova conversa
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">Busque um contato existente ou digite um novo número.</p>
+        </DialogHeader>
+
+        <div className="space-y-4 py-1">
+          <div className="space-y-1">
+            <Label>Buscar nas conversas</Label>
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Nome ou número"
+                value={newChatSearch}
+                onChange={e => setNewChatSearch(e.target.value)}
+              />
+            </div>
+            {newChatSearch.trim() && (
+              <div className="max-h-44 overflow-y-auto border rounded-lg divide-y mt-2">
+                {chats
+                  .filter(c =>
+                    (c.contact_name || '').toLowerCase().includes(newChatSearch.toLowerCase()) ||
+                    c.contact_number.includes(onlyDigits(newChatSearch) || newChatSearch))
+                  .slice(0, 20)
+                  .map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => { setSelected(c); setNewChatOpen(false); setNewChatSearch(''); }}
+                      className="w-full flex items-center gap-2 p-2 text-left hover:bg-muted text-sm"
+                    >
+                      <div className={`w-8 h-8 rounded-full ${getAvatarColor(c.contact_name || c.contact_number)} flex items-center justify-center text-[11px] font-bold`}>
+                        {getInitials(c.contact_name || c.contact_number)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{c.contact_name || c.contact_number}</p>
+                        <p className="text-xs text-muted-foreground truncate">{c.contact_number}</p>
+                      </div>
+                    </button>
+                  ))}
+                {chats.filter(c =>
+                  (c.contact_name || '').toLowerCase().includes(newChatSearch.toLowerCase()) ||
+                  c.contact_number.includes(onlyDigits(newChatSearch) || newChatSearch)).length === 0 && (
+                  <p className="p-3 text-xs text-muted-foreground text-center">Nenhum contato encontrado nas conversas.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="relative flex items-center gap-2">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[11px] uppercase text-muted-foreground">ou novo número</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="new-number">Número (com DDD)</Label>
+            <Input
+              id="new-number"
+              placeholder="54991811902"
+              value={newChatNumber}
+              onChange={e => setNewChatNumber(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="new-msg">Mensagem</Label>
+            <Input
+              id="new-msg"
+              placeholder="Digite a primeira mensagem"
+              value={newChatMessage}
+              onChange={e => setNewChatMessage(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleStartNewChat()}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setNewChatOpen(false)}>Cancelar</Button>
+          <Button onClick={handleStartNewChat} disabled={startingChat || !onlyDigits(newChatNumber)} className="gap-2">
+            {startingChat ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            Enviar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+
     {/* ─── Lead Registration Dialog ─── */}
     <Dialog open={leadDialog} onOpenChange={setLeadDialog}>
       <DialogContent className="max-w-md">
