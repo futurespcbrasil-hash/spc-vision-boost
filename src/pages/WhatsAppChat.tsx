@@ -679,54 +679,126 @@ const WhatsAppChat = () => {
                 </div>
               </ScrollArea>
 
-              {/* Competitor Style Input Bar */}
-              <div className="p-3 border-t bg-card flex items-center gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground">
-                      <Smile size={20} />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64 p-2 space-y-1 text-xs">
-                    <p className="font-semibold px-2 py-1 text-muted-foreground">Respostas Rápidas</p>
-                    {quickReplies.length === 0 && (
-                      <p className="p-2 text-muted-foreground">Nenhuma resposta rápida cadastrada.</p>
-                    )}
-                    {quickReplies.map(q => (
-                      <button
-                        key={q.id}
-                        onClick={() => setText(q.text)}
-                        className="w-full text-left p-2 rounded hover:bg-muted"
-                      >
-                        <span className="font-bold text-purple-600">/{q.shortcut}</span>
-                        <p className="truncate text-muted-foreground">{q.text}</p>
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
+              {/* Input Bar */}
+              <div className="p-3 border-t bg-card flex items-center gap-1.5">
+                {/* hidden pickers */}
+                <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
+                <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
+                <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={e => handleFilePicked(e, 'video')} />
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
 
-                <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground">
-                  <Paperclip size={20} />
-                </Button>
+                {recording ? (
+                  <div className="flex-1 flex items-center gap-3 px-3 h-10 rounded-full bg-destructive/10 text-destructive">
+                    <span className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />
+                    <span className="text-xs font-medium tabular-nums">
+                      Gravando… {String(Math.floor(recordSecs / 60)).padStart(2, '0')}:{String(recordSecs % 60).padStart(2, '0')}
+                    </span>
+                    <button onClick={() => stopRecording(true)} title="Cancelar gravação" className="ml-auto text-muted-foreground hover:text-destructive">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Emojis */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" title="Emojis" className="h-10 w-10 text-muted-foreground hover:text-foreground">
+                          <Smile size={20} />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-72 p-2 max-h-72 overflow-y-auto">
+                        {EMOJI_GROUPS.map(g => (
+                          <div key={g.label} className="mb-2">
+                            <p className="text-[11px] font-semibold text-muted-foreground px-1 pb-1">{g.label}</p>
+                            <div className="grid grid-cols-8 gap-0.5">
+                              {g.emojis.map(em => (
+                                <button
+                                  key={em}
+                                  type="button"
+                                  onClick={() => insertEmoji(em)}
+                                  className="text-lg leading-none p-1 rounded hover:bg-muted transition"
+                                >
+                                  {em}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </PopoverContent>
+                    </Popover>
 
-                <div className="flex-1 relative">
-                  <Input
-                    placeholder='Tecle "/" para respostas rápidas'
-                    value={text}
-                    onChange={e => setText(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                    className="h-10 text-xs bg-muted/30 border-muted rounded-full px-4 focus-visible:ring-purple-500"
-                  />
-                </div>
+                    {/* Respostas rápidas */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" title="Respostas rápidas" className="h-10 w-10 text-muted-foreground hover:text-foreground">
+                          <Zap size={19} />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-64 p-2 space-y-1 text-xs">
+                        <p className="font-semibold px-2 py-1 text-muted-foreground">Respostas Rápidas</p>
+                        {quickReplies.length === 0 && (
+                          <p className="p-2 text-muted-foreground">Nenhuma resposta rápida cadastrada.</p>
+                        )}
+                        {quickReplies.map(q => (
+                          <button key={q.id} onClick={() => setText(q.text)} className="w-full text-left p-2 rounded hover:bg-muted">
+                            <span className="font-bold text-purple-600">/{q.shortcut}</span>
+                            <p className="truncate text-muted-foreground">{q.text}</p>
+                          </button>
+                        ))}
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Anexos */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" title="Anexar" disabled={uploading} className="h-10 w-10 text-muted-foreground hover:text-foreground">
+                          {uploading ? <Loader2 size={20} className="animate-spin" /> : <Paperclip size={20} />}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-56 p-1.5 text-sm">
+                        <button onClick={() => imageInputRef.current?.click()} className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted">
+                          <ImageIcon size={16} className="text-purple-600" /> Fotos
+                        </button>
+                        <button onClick={() => videoInputRef.current?.click()} className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted">
+                          <Video size={16} className="text-blue-600" /> Vídeos
+                        </button>
+                        <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted">
+                          <FileText size={16} className="text-amber-600" /> Documento
+                        </button>
+                        <button onClick={() => cameraInputRef.current?.click()} className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted">
+                          <Camera size={16} className="text-emerald-600" /> Câmera
+                        </button>
+                      </PopoverContent>
+                    </Popover>
+
+                    <div className="flex-1 relative">
+                      <Input
+                        ref={inputRef}
+                        placeholder="Digite uma mensagem…"
+                        value={text}
+                        onChange={e => setText(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                        className="h-10 text-xs bg-muted/30 border-muted rounded-full px-4 focus-visible:ring-purple-500"
+                      />
+                    </div>
+                  </>
+                )}
 
                 <Button
-                  onClick={handleSend}
+                  onClick={() => {
+                    if (recording) return stopRecording(false);
+                    if (text.trim()) return handleSend();
+                    startRecording();
+                  }}
+                  disabled={uploading}
                   size="icon"
+                  title={recording ? 'Enviar áudio' : text.trim() ? 'Enviar' : 'Gravar áudio'}
                   className="h-10 w-10 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-sm flex-shrink-0"
                 >
-                  {text.trim() ? <Send size={18} /> : <Mic size={18} />}
+                  {recording ? <Square size={16} className="fill-current" /> : text.trim() ? <Send size={18} /> : <Mic size={18} />}
                 </Button>
               </div>
+
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-xs p-8 space-y-3">
