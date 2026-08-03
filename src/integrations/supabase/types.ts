@@ -815,6 +815,7 @@ export type Database = {
           media_url: string | null
           message_type: string
           raw: Json | null
+          reply_to: string | null
           sender: string | null
           sent_by: string | null
           status: string | null
@@ -834,6 +835,7 @@ export type Database = {
           media_url?: string | null
           message_type?: string
           raw?: Json | null
+          reply_to?: string | null
           sender?: string | null
           sent_by?: string | null
           status?: string | null
@@ -853,6 +855,7 @@ export type Database = {
           media_url?: string | null
           message_type?: string
           raw?: Json | null
+          reply_to?: string | null
           sender?: string | null
           sent_by?: string | null
           status?: string | null
