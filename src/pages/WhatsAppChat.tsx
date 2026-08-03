@@ -209,6 +209,107 @@ const WhatsAppChat = () => {
     }
   };
 
+  // ── Emoji ───────────────────────────────────────────────
+  const insertEmoji = (emoji: string) => {
+    setText(prev => prev + emoji);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  // ── Anexos (arquivo, foto, vídeo, câmera) ───────────────
+  const handleFilePicked = async (e: React.ChangeEvent<HTMLInputElement>, mediaType: 'image' | 'video' | 'document' | 'audio') => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !selected || !instanceId || !user) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast({ title: 'Arquivo muito grande', description: 'O limite é de 25 MB.', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadMedia(file, file.name, user.id);
+      await ryze.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined);
+      setText('');
+      loadMessages(selected.id);
+      loadChats();
+      toast({ title: 'Arquivo enviado' });
+    } catch (err: any) {
+      toast({ title: 'Falha ao enviar arquivo', description: err.message, variant: 'destructive' });
+    } finally { setUploading(false); }
+  };
+
+  // ── Gravação de áudio ───────────────────────────────────
+  const startRecording = async () => {
+    if (!selected || !instanceId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      chunksRef.current = [];
+      cancelRecRef.current = false;
+      rec.ondataavailable = ev => { if (ev.data.size > 0) chunksRef.current.push(ev.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
+        setRecording(false);
+        setRecordSecs(0);
+        if (cancelRecRef.current) return;
+        const blob = new Blob(chunksRef.current, { type: mime });
+        if (blob.size < 2000) {
+          toast({ title: 'Áudio muito curto', description: 'Segure para gravar por mais tempo.', variant: 'destructive' });
+          return;
+        }
+        setUploading(true);
+        try {
+          const ext = mime.includes('webm') ? 'webm' : 'm4a';
+          const url = await uploadMedia(blob, `audio.${ext}`, user!.id);
+          await ryze.sendMedia(instanceId, selected.contact_number, url, 'audio');
+          loadMessages(selected.id);
+          loadChats();
+        } catch (err: any) {
+          toast({ title: 'Falha ao enviar áudio', description: err.message, variant: 'destructive' });
+        } finally { setUploading(false); }
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setRecording(true);
+      setRecordSecs(0);
+      timerRef.current = window.setInterval(() => setRecordSecs(s => s + 1), 1000);
+    } catch {
+      toast({ title: 'Microfone indisponível', description: 'Permita o acesso ao microfone no navegador.', variant: 'destructive' });
+    }
+  };
+
+  const stopRecording = (cancel = false) => {
+    cancelRecRef.current = cancel;
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+  };
+
+  // ── Nova conversa ───────────────────────────────────────
+  const handleStartNewChat = async () => {
+    const digits = onlyDigits(newChatNumber);
+    if (!digits || !instanceId) return;
+    const number = digits.length <= 11 ? `55${digits}` : digits;
+    setStartingChat(true);
+    try {
+      if (newChatMessage.trim()) {
+        await ryze.sendText(instanceId, number, newChatMessage.trim());
+      }
+      await loadChats();
+      const { data } = await supabase.from('whatsapp_chats').select('*')
+        .eq('instance_id', instanceId).ilike('contact_number', `%${digits}%`).limit(1);
+      const chat = (data as Chat[])?.[0];
+      if (chat) setSelected(chat);
+      setNewChatOpen(false);
+      setNewChatNumber(''); setNewChatMessage(''); setNewChatSearch('');
+      toast({ title: newChatMessage.trim() ? 'Mensagem enviada' : 'Conversa aberta' });
+    } catch (e: any) {
+      toast({ title: 'Falha ao iniciar conversa', description: e.message, variant: 'destructive' });
+    } finally { setStartingChat(false); }
+  };
+
+
+
   const handleSync = async () => {
     if (!instanceId) return;
     setSyncing(true);
