@@ -556,11 +556,13 @@ Deno.serve(async (req) => {
       if (!waChatId) return json({ error: 'wa_chat_id é obrigatório' }, 400);
 
       // Ryze Official Endpoint: POST /api/chat/history/:instance
-      // Body: { number: waChatId, count: 200 }
+      // Only the latest messages are needed — the rest arrives live via webhook.
+      const count = Math.min(Number(body.count) || 50, 100);
       const r = await ryzeFetch(`/api/chat/history/${encodeURIComponent(remoteName)}`, {
         method: 'POST', token: instToken || TOKEN_ACCOUNT,
-        body: JSON.stringify({ number: waChatId, count: 200 }),
+        body: JSON.stringify({ number: waChatId, count }),
       });
+
 
       if (!r.ok) {
         const errorDetails = r.data?.error?.message || r.data?.message || (typeof r.data === 'string' ? r.data : JSON.stringify(r.data));
