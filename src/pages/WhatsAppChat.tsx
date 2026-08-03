@@ -29,6 +29,7 @@ interface Chat {
 interface Message {
   id: string; chat_id: string; from_me: boolean; text: string | null;
   message_type: string; status: string | null; timestamp: string; media_url: string | null;
+  wa_message_id?: string | null; reply_to?: string | null;
 }
 interface QuickReply { id: string; shortcut: string; text: string; }
 
@@ -73,6 +74,25 @@ const uploadMedia = async (file: Blob, filename: string, userId: string) => {
 };
 
 const onlyDigits = (v: string) => v.replace(/\D/g, '');
+
+// Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
+const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
+
+// Transforma links em âncoras clicáveis
+const renderRichText = (text: string) => {
+  const parts = text.split(/(https?:\/\/[^\s]+|www\.[^\s]+)/gi);
+  return parts.map((part, i) => {
+    if (/^(https?:\/\/|www\.)/i.test(part)) {
+      const href = part.startsWith('http') ? part : `https://${part}`;
+      return (
+        <a key={i} href={href} target="_blank" rel="noreferrer" className="underline break-all text-blue-600 dark:text-blue-400">
+          {part}
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+};
 
 
 
@@ -177,14 +197,22 @@ const WhatsAppChat = () => {
   }, [instanceId]);
 
 
+  // Rola até a última mensagem (o viewport real do ScrollArea do Radix)
+  const scrollToBottom = (smooth = false) => {
+    const root = scrollRef.current as unknown as HTMLElement | null;
+    const vp = (root?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null) || root;
+    if (!vp) return;
+    vp.scrollTo({ top: vp.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  };
+
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string) => {
     const { data } = await supabase.from('whatsapp_messages')
-      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,wa_message_id,reply_to')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
     setMessages(list);
-    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }));
+    requestAnimationFrame(() => { scrollToBottom(); setTimeout(() => scrollToBottom(), 120); });
   };
 
   useEffect(() => {
@@ -197,7 +225,7 @@ const WhatsAppChat = () => {
         payload => {
           const m = payload.new as Message;
           setMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
-          requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
+          requestAnimationFrame(() => scrollToBottom(true));
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
@@ -222,7 +250,7 @@ const WhatsAppChat = () => {
       id: tempId, chat_id: selected.id, from_me: true, text: msg,
       message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null,
     }]);
-    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
+    requestAnimationFrame(() => scrollToBottom(true));
     try {
       await ryze.sendText(instanceId, selected.contact_number, msg);
       if (!selected.assigned_to && user) {
@@ -416,7 +444,14 @@ const WhatsAppChat = () => {
     if (activeFilter === 'aguardando') return c.unread_count > 0 || !c.assigned_to;
     if (activeFilter === 'resolvidos') return !!c.assigned_to && c.unread_count === 0;
     return true;
+  }).sort((a, b) => {
+    // Conversas com mensagens novas sempre no topo
+    const au = a.unread_count > 0 ? 1 : 0;
+    const bu = b.unread_count > 0 ? 1 : 0;
+    if (au !== bu) return bu - au;
+    return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
   });
+
 
   return (
     <>
@@ -670,7 +705,10 @@ const WhatsAppChat = () => {
               {/* Chat Message Canvas */}
               <ScrollArea className="flex-1 p-4 bg-slate-100/70 dark:bg-zinc-950/70" ref={scrollRef as any}>
                 <div className="space-y-3 max-w-3xl mx-auto">
-                  {messages.map(m => {
+                  {messages.filter(m => m.message_type !== 'reaction').map(m => {
+                    const reactions = messages.filter(
+                      r => r.message_type === 'reaction' && !!r.reply_to && r.reply_to === m.wa_message_id
+                    );
                     const timeStr = m.timestamp
                       ? new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
                       : '';
@@ -689,23 +727,32 @@ const WhatsAppChat = () => {
                               {userName}:
                             </p>
                           )}
-                          {m.media_url && m.message_type === 'image' && (
-                            <img src={m.media_url} alt="Imagem enviada" loading="lazy" className="rounded-lg max-w-full max-h-64 object-cover" />
+                          {m.media_url && ['image', 'sticker', 'gif'].includes(m.message_type) && (
+                            <img
+                              src={m.media_url}
+                              alt={m.message_type === 'sticker' ? 'Figurinha' : 'Imagem'}
+                              loading="lazy"
+                              className={m.message_type === 'sticker'
+                                ? 'w-32 h-32 object-contain'
+                                : 'rounded-lg max-w-full max-h-64 object-cover'}
+                            />
                           )}
                           {m.media_url && m.message_type === 'video' && (
-                            <video src={m.media_url} controls className="rounded-lg max-w-full max-h-64" />
+                            <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-64" />
                           )}
                           {m.media_url && m.message_type === 'audio' && (
                             <audio src={m.media_url} controls className="w-56" />
                           )}
-                          {m.media_url && !['image', 'video', 'audio'].includes(m.message_type) && (
+                          {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio'].includes(m.message_type) && (
                             <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs">
                               <FileText size={14} /> Abrir arquivo
                             </a>
                           )}
                           {m.text && (
-                            <p className="whitespace-pre-wrap break-words leading-relaxed text-sm">
-                              {m.text}
+                            <p className={`whitespace-pre-wrap break-words leading-relaxed ${
+                              EMOJI_ONLY.test(m.text.trim()) ? 'text-3xl leading-tight' : 'text-sm'
+                            }`}>
+                              {renderRichText(m.text)}
                             </p>
                           )}
 
@@ -713,6 +760,16 @@ const WhatsAppChat = () => {
                             <span>{timeStr}</span>
                             {m.from_me && <CheckCheck size={13} className="text-purple-700 dark:text-purple-300" />}
                           </div>
+
+                          {reactions.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {reactions.map(r => (
+                                <span key={r.id} className="rounded-full bg-background/80 border px-1.5 py-0.5 text-sm leading-none shadow-xs">
+                                  {r.text}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
