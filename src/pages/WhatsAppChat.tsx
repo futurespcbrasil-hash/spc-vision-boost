@@ -171,24 +171,37 @@ const WhatsAppChat = () => {
     return () => { supabase.removeChannel(ch); };
   }, [instanceId]);
 
-  // Load messages
+  // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string) => {
-    const { data } = await supabase.from('whatsapp_messages').select('*')
-      .eq('chat_id', chatId).order('timestamp', { ascending: true }).limit(500);
-    setMessages((data as Message[]) || []);
-    setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
+    const { data } = await supabase.from('whatsapp_messages')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url')
+      .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
+    const list = ((data as Message[]) || []).slice().reverse();
+    setMessages(list);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }));
   };
 
   useEffect(() => {
     if (!selected) return;
-    loadMessages(selected.id);
-    const ch = supabase.channel(`wa-msgs-${selected.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${selected.id}` },
-        () => loadMessages(selected.id))
+    const chatId = selected.id;
+    setMessages([]);
+    loadMessages(chatId);
+    const ch = supabase.channel(`wa-msgs-${chatId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
+        payload => {
+          const m = payload.new as Message;
+          setMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
+          requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
+        })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
+        payload => {
+          const m = payload.new as Message;
+          setMessages(prev => prev.map(x => x.id === m.id ? m : x));
+        })
       .subscribe();
 
     if (selected.unread_count > 0) {
-      supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', selected.id);
+      supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chatId).then(() => {});
     }
     return () => { supabase.removeChannel(ch); };
   }, [selected?.id]);
@@ -197,13 +210,20 @@ const WhatsAppChat = () => {
     if (!text.trim() || !selected || !instanceId) return;
     const msg = text.trim();
     setText('');
+    // Envio otimista: a mensagem aparece na hora e é reconciliada pelo realtime
+    const tempId = `temp-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: tempId, chat_id: selected.id, from_me: true, text: msg,
+      message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null,
+    }]);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }));
     try {
       await ryze.sendText(instanceId, selected.contact_number, msg);
       if (!selected.assigned_to && user) {
         await supabase.from('whatsapp_chats').update({ assigned_to: user.id }).eq('id', selected.id);
       }
-      loadMessages(selected.id);
-      loadChats();
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
+
     } catch (e: any) {
       toast({ title: 'Falha ao enviar', description: e.message, variant: 'destructive' });
     }
