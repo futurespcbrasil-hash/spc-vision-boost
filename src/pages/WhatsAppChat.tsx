@@ -225,8 +225,11 @@ const WhatsAppChat = () => {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
 
     } catch (e: any) {
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setText(msg);
       toast({ title: 'Falha ao enviar', description: e.message, variant: 'destructive' });
     }
+
   };
 
   // ── Emoji ───────────────────────────────────────────────
