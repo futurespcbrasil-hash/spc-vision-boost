@@ -38,7 +38,7 @@ const WhatsAppInstancias = () => {
   };
 
   useEffect(() => {
-    load();
+    ryze.syncInstances().catch(() => null).finally(load);
     const ch = supabase.channel('wa-instances')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_instances' }, load)
       .subscribe();

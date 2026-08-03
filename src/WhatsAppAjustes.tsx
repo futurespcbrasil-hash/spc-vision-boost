@@ -102,7 +102,9 @@ const WhatsAppAjustes = () => {
     }
   };
 
-  useEffect(() => { loadAll(); }, [isGestor]);
+  useEffect(() => {
+    ryze.syncInstances().catch(() => null).finally(loadAll);
+  }, [isGestor]);
 
   /* ─── Quick Replies ─── */
   const addReply = async () => {
