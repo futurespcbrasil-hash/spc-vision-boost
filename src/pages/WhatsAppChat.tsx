@@ -101,6 +101,29 @@ const WhatsAppChat = () => {
   const [syncing, setSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // New conversation modal
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newChatSearch, setNewChatSearch] = useState('');
+  const [newChatNumber, setNewChatNumber] = useState('');
+  const [newChatMessage, setNewChatMessage] = useState('');
+  const [startingChat, setStartingChat] = useState(false);
+
+  // Attachments / audio
+  const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const timerRef = useRef<number | null>(null);
+  const cancelRecRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+
+
   const userName = user?.email?.split('@')[0] || 'Diogo';
 
   // Load instances
