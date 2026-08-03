@@ -4,7 +4,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const WEBHOOK_SECRET = Deno.env.get('RYZE_WEBHOOK_SECRET') || 'default-secret';
+const WEBHOOK_SECRET = Deno.env.get('RYZE_WEBHOOK_SECRET');
 
 const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
   const instanceId = url.searchParams.get('instance');
   const secret = url.searchParams.get('secret');
 
-  if (!instanceId || secret !== WEBHOOK_SECRET) {
+  if (!WEBHOOK_SECRET || !instanceId || secret !== WEBHOOK_SECRET) {
     console.warn('[ryze-webhook] Acesso negado: instanceId ou secret inválido', { instanceId });
     return new Response('forbidden', { status: 403, headers: corsHeaders });
   }

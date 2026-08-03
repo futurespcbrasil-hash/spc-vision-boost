@@ -34,7 +34,7 @@ async function ryzeFetch(path: string, opts: RequestInit & { token?: string } = 
   const startTime = Date.now();
 
   console.log(`[Ryze API Request] ${method} ${url}`, {
-    tokenPrefix: authToken ? `${authToken.slice(0, 8)}...` : 'NONE',
+    authenticated: Boolean(authToken),
     headers: { 'Content-Type': 'application/json', ...(headers || {}) },
     body: opts.body ? (typeof opts.body === 'string' ? opts.body.slice(0, 500) : opts.body) : undefined,
   });
@@ -350,7 +350,8 @@ Deno.serve(async (req) => {
 
     // -------- REGISTER WEBHOOK --------
     if (action === 'register_webhook') {
-      const webhookSecret = Deno.env.get('RYZE_WEBHOOK_SECRET') || 'default-secret';
+      const webhookSecret = Deno.env.get('RYZE_WEBHOOK_SECRET');
+      if (!webhookSecret) return json({ error: 'RYZE_WEBHOOK_SECRET não configurado' }, 500);
       const url = `${SUPABASE_URL}/functions/v1/ryze-webhook?instance=${instanceId}&secret=${webhookSecret}`;
       const r = await ryzeFetch(`/api/events/webhook/${encodeURIComponent(remoteName)}`, {
         method: 'POST', token: inst.token_instance || TOKEN_ACCOUNT,
