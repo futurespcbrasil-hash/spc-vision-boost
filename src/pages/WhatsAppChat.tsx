@@ -570,9 +570,14 @@ const WhatsAppChat = () => {
           </ScrollArea>
 
           {/* Floating Action Button (FAB) */}
-          <button className="absolute bottom-4 left-4 w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95">
+          <button
+            onClick={() => setNewChatOpen(true)}
+            title="Nova conversa"
+            className="absolute bottom-4 left-4 w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95"
+          >
             <Plus size={22} />
           </button>
+
         </div>
 
         {/* Right Column: Active Conversation Area */}
