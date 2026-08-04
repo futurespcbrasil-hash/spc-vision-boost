@@ -530,17 +530,29 @@ const WhatsAppChat = () => {
     } finally { setSavingLead(false); }
   };
 
+  // Grupos vão exclusivamente para a aba "Grupos"
+  const isGroupChat = (c: Chat) => !!c.is_group || c.wa_chat_id.includes('@g.us');
+
+  const matchesFilter = (c: Chat, f: typeof activeFilter) => {
+    if (f === 'grupos') return isGroupChat(c);
+    if (isGroupChat(c)) return false;
+    if (f === 'aguardando') return c.unread_count > 0 || !c.assigned_to;
+    if (f === 'resolvidos') return !!c.assigned_to && c.unread_count === 0;
+    return true;
+  };
+
+  // Contadores de não lidas por aba
+  const tabUnread = (f: typeof activeFilter) =>
+    chats.filter(c => matchesFilter(c, f)).reduce((s, c) => s + (c.unread_count || 0), 0);
+  const tabCount = (f: typeof activeFilter) => chats.filter(c => matchesFilter(c, f)).length;
+
   // Filter chats by tab & search query
   const filteredChats = chats.filter(c => {
     const matchSearch = !search ||
       (c.contact_name || '').toLowerCase().includes(search.toLowerCase()) ||
-      c.contact_number.includes(search);
+      c.contact_number.includes(onlyDigits(search) || search);
     if (!matchSearch) return false;
-
-    if (activeFilter === 'grupos') return c.is_group || c.wa_chat_id.includes('@g.us');
-    if (activeFilter === 'aguardando') return c.unread_count > 0 || !c.assigned_to;
-    if (activeFilter === 'resolvidos') return !!c.assigned_to && c.unread_count === 0;
-    return true;
+    return matchesFilter(c, activeFilter);
   }).sort((a, b) => {
     // Conversas com mensagens novas sempre no topo
     const au = a.unread_count > 0 ? 1 : 0;
@@ -548,6 +560,33 @@ const WhatsAppChat = () => {
     if (au !== bu) return bu - au;
     return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
   });
+
+  // Participantes do grupo (a partir dos remetentes das mensagens carregadas)
+  const groupParticipants = Array.from(
+    new Set(messages.filter(m => !m.from_me && m.sender).map(m => String(m.sender)))
+  );
+
+  // Salvar nome do contato
+  const handleSaveContact = async () => {
+    if (!selected || !contactNameInput.trim()) return;
+    setSavingContact(true);
+    try {
+      const { error } = await supabase.from('whatsapp_chats')
+        .update({ contact_name: contactNameInput.trim() }).eq('id', selected.id);
+      if (error) throw error;
+      setSelected(prev => prev ? { ...prev, contact_name: contactNameInput.trim() } : prev);
+      setSaveContactOpen(false);
+      loadChats();
+      toast({ title: 'Contato salvo' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao salvar contato', description: e.message, variant: 'destructive' });
+    } finally { setSavingContact(false); }
+  };
+
+  const totalOtherUnread = Object.entries(instanceUnread)
+    .filter(([id]) => id !== instanceId)
+    .reduce((s, [, v]) => s + v, 0);
+
 
 
   return (
