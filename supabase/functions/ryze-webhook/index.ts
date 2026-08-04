@@ -132,10 +132,16 @@ Deno.serve(async (req) => {
         const lastMsgText = reactionRaw
           ? `${typeLabels.reaction} ${reactionText || ''}`.trim()
           : (text || typeLabels[messageType] || `[${messageType}]`);
+        const contactName = m.chat?.name || m.sender?.name || m.pushName
+          || m.contact?.name || m.senderName || null;
+        const avatarUrl = m.chat?.profilePicUrl || m.chat?.imageUrl || m.sender?.profilePicUrl
+          || m.sender?.imageUrl || m.profilePicUrl || null;
+
         if (!chatId) {
           const ins = await admin.from('whatsapp_chats').insert({
             instance_id: instanceId, wa_chat_id: remoteJid,
-            contact_number: number, contact_name: m.chat?.name || m.sender?.name || m.pushName || m.senderJid?.split('@')[0] || number,
+            contact_number: number, contact_name: contactName || number,
+            avatar_url: avatarUrl,
             is_group: isGroup,
             last_message: lastMsgText,
             last_message_at: new Date().toISOString(),
@@ -146,6 +152,8 @@ Deno.serve(async (req) => {
           await admin.from('whatsapp_chats').update({
             last_message: lastMsgText,
             last_message_at: new Date().toISOString(),
+            ...(contactName && !fromMe ? { contact_name: contactName } : {}),
+            ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
             unread_count: fromMe ? (existing.unread_count || 0) : (existing.unread_count || 0) + 1,
           }).eq('id', chatId);
         }
