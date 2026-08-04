@@ -701,7 +701,7 @@ const WhatsAppChat = () => {
           <ScrollArea className="flex-1">
             <div className="divide-y divide-border/40">
               {filteredChats.map((c, idx) => {
-                const name = c.contact_name || c.contact_number;
+                const name = chatTitle(c);
                 const isSelected = selected?.id === c.id;
                 const avatarColor = getAvatarColor(name);
                 const initials = getInitials(name);
@@ -726,9 +726,14 @@ const WhatsAppChat = () => {
 
                     {/* Avatar Circle with WhatsApp Icon badge */}
                     <div className="relative flex-shrink-0">
-                      <div className={`w-11 h-11 rounded-full ${avatarColor} flex items-center justify-center font-bold text-sm shadow-sm`}>
-                        {initials}
-                      </div>
+                      {c.avatar_url ? (
+                        <img src={c.avatar_url} alt={name} loading="lazy"
+                          className="w-11 h-11 rounded-full object-cover shadow-sm" />
+                      ) : (
+                        <div className={`w-11 h-11 rounded-full ${avatarColor} flex items-center justify-center font-bold text-sm shadow-sm`}>
+                          {initials}
+                        </div>
+                      )}
                       <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 text-white rounded-full p-0.5 border-2 border-background">
                         <MessageSquare size={10} className="fill-current" />
                       </div>
@@ -741,10 +746,10 @@ const WhatsAppChat = () => {
                         {timeStr && <span className="text-[11px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        <span className="font-semibold text-foreground/80">{userName}: </span>
                         {c.last_message || 'Clique para abrir conversa'}
                       </p>
                     </div>
+
 
                     {/* Status Dot / Unread Badge */}
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
