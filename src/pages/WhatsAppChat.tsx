@@ -276,16 +276,28 @@ const WhatsAppChat = () => {
     vp.scrollTo({ top: vp.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   };
 
+  // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
+  const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
+    const temps = prev.filter(m => m.id.startsWith('temp-'));
+    if (temps.length === 0) return list;
+    const keep = temps.filter(t => !list.some(s =>
+      s.from_me && (s.text || '').trim() === (t.text || '').trim() &&
+      Math.abs(new Date(s.timestamp).getTime() - new Date(t.timestamp).getTime()) < 120000
+    ));
+    return [...list, ...keep];
+  };
+
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
-      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,wa_message_id,reply_to')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
     let changed = true;
     setMessages(prev => {
-      changed = prev.length !== list.length || prev[prev.length - 1]?.id !== list[list.length - 1]?.id;
-      return changed ? list : prev;
+      const merged = dropConfirmedTemps(list, prev);
+      changed = prev.length !== merged.length || prev[prev.length - 1]?.id !== merged[merged.length - 1]?.id;
+      return changed ? merged : prev;
     });
     if (!silent || changed) {
       requestAnimationFrame(() => { scrollToBottom(!silent ? false : true); setTimeout(() => scrollToBottom(), 120); });
