@@ -25,11 +25,13 @@ interface Chat {
   id: string; instance_id: string; wa_chat_id: string; contact_number: string;
   contact_name: string | null; last_message: string | null; last_message_at: string | null;
   unread_count: number; assigned_to: string | null; funnel_stage: string | null; is_group?: boolean;
+  avatar_url?: string | null;
 }
 interface Message {
   id: string; chat_id: string; from_me: boolean; text: string | null;
   message_type: string; status: string | null; timestamp: string; media_url: string | null;
-  wa_message_id?: string | null; reply_to?: string | null;
+  wa_message_id?: string | null; reply_to?: string | null; sender?: string | null;
+  media_mime?: string | null;
 }
 interface QuickReply { id: string; shortcut: string; text: string; }
 
@@ -74,6 +76,39 @@ const uploadMedia = async (file: Blob, filename: string, userId: string) => {
 };
 
 const onlyDigits = (v: string) => v.replace(/\D/g, '');
+
+// Formata número brasileiro: 5554991811902 -> +55 (54) 99181-1902
+const formatNumber = (raw: string) => {
+  const d = onlyDigits(raw || '');
+  if (d.length >= 12 && d.startsWith('55')) {
+    const ddd = d.slice(2, 4);
+    const rest = d.slice(4);
+    return `+55 (${ddd}) ${rest.slice(0, rest.length - 4)}-${rest.slice(-4)}`;
+  }
+  return raw ? `+${d}` : raw;
+};
+
+// Nome do contato quando existir; caso contrário, o número formatado
+const chatTitle = (c?: Chat | null) => {
+  if (!c) return '';
+  const name = (c.contact_name || '').trim();
+  if (name && onlyDigits(name) !== onlyDigits(c.contact_number)) return name;
+  return formatNumber(c.contact_number);
+};
+const hasRealName = (c?: Chat | null) => {
+  if (!c) return false;
+  const name = (c.contact_name || '').trim();
+  return !!name && onlyDigits(name) !== onlyDigits(c.contact_number);
+};
+
+// Nome (ou número formatado) do remetente em grupos
+const senderLabel = (raw?: string | null) => {
+  const v = (raw || '').trim();
+  if (!v) return '';
+  if (v.includes('@')) return formatNumber(v.split('@')[0]);
+  if (onlyDigits(v).length >= 10 && onlyDigits(v) === v.replace(/\D/g, '')) return formatNumber(v);
+  return v;
+};
 
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
@@ -120,6 +155,16 @@ const WhatsAppChat = () => {
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<Chat | null>(null);
+  const [instanceUnread, setInstanceUnread] = useState<Record<string, number>>({});
+
+  // Salvar contato
+  const [saveContactOpen, setSaveContactOpen] = useState(false);
+  const [contactNameInput, setContactNameInput] = useState('');
+  const [savingContact, setSavingContact] = useState(false);
+
+  // Info do grupo
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
 
   // New conversation modal
   const [newChatOpen, setNewChatOpen] = useState(false);
@@ -145,6 +190,10 @@ const WhatsAppChat = () => {
 
 
   const userName = user?.email?.split('@')[0] || 'Diogo';
+  const currentInstance = instances.find(i => i.id === instanceId);
+
+  // Mantém a conversa selecionada acessível dentro de intervalos/realtime
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
 
   // Load instances
   useEffect(() => {
@@ -162,6 +211,25 @@ const WhatsAppChat = () => {
     supabase.from('whatsapp_quick_replies').select('*').then(({ data }) => setQuickReplies((data as QuickReply[]) || []));
   }, [user]);
 
+  // Não lidas por instância (badge no seletor de instâncias)
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from('whatsapp_chats')
+        .select('instance_id,unread_count').gt('unread_count', 0);
+      const map: Record<string, number> = {};
+      (data as { instance_id: string; unread_count: number }[] | null)?.forEach(r => {
+        map[r.instance_id] = (map[r.instance_id] || 0) + (r.unread_count || 0);
+      });
+      setInstanceUnread(map);
+    };
+    load();
+    const ch = supabase.channel('wa-unread-global')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats' }, () => load())
+      .subscribe();
+    const poll = window.setInterval(load, 10000);
+    return () => { window.clearInterval(poll); supabase.removeChannel(ch); };
+  }, []);
+
   // Load chats
   const loadChats = async () => {
     if (!instanceId) return;
@@ -173,13 +241,33 @@ const WhatsAppChat = () => {
       .limit(50);
     const list = (data as Chat[]) || [];
     setChats(list);
-    if (list.length > 0 && !selected) {
-      setSelected(list[0]);
+    // NUNCA troca a conversa aberta sozinho — apenas atualiza os dados dela.
+    const cur = selectedRef.current;
+    if (cur) {
+      const fresh = list.find(c => c.id === cur.id);
+      if (fresh) setSelected(prev => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev));
     }
   };
 
+  // Não lidas de TODAS as instâncias (badge no seletor)
+  const loadInstanceUnread = async () => {
+    const { data } = await supabase.from('whatsapp_chats')
+      .select('instance_id,unread_count').gt('unread_count', 0);
+    const map: Record<string, number> = {};
+    (data || []).forEach((r: any) => {
+      map[r.instance_id] = (map[r.instance_id] || 0) + (r.unread_count || 0);
+    });
+    setInstanceUnread(map);
+  };
 
   useEffect(() => { loadChats(); }, [instanceId]);
+
+  useEffect(() => {
+    loadInstanceUnread();
+    const t = window.setInterval(loadInstanceUnread, 8000);
+    return () => window.clearInterval(t);
+  }, []);
+
 
   // Realtime chats (com debounce para evitar recargas em rajada)
   useEffect(() => {
@@ -214,16 +302,28 @@ const WhatsAppChat = () => {
     vp.scrollTo({ top: vp.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   };
 
+  // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
+  const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
+    const temps = prev.filter(m => m.id.startsWith('temp-'));
+    if (temps.length === 0) return list;
+    const keep = temps.filter(t => !list.some(s =>
+      s.from_me && (s.text || '').trim() === (t.text || '').trim() &&
+      Math.abs(new Date(s.timestamp).getTime() - new Date(t.timestamp).getTime()) < 120000
+    ));
+    return [...list, ...keep];
+  };
+
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
-      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,wa_message_id,reply_to')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
     let changed = true;
     setMessages(prev => {
-      changed = prev.length !== list.length || prev[prev.length - 1]?.id !== list[list.length - 1]?.id;
-      return changed ? list : prev;
+      const merged = dropConfirmedTemps(list, prev);
+      changed = prev.length !== merged.length || prev[prev.length - 1]?.id !== merged[merged.length - 1]?.id;
+      return changed ? merged : prev;
     });
     if (!silent || changed) {
       requestAnimationFrame(() => { scrollToBottom(!silent ? false : true); setTimeout(() => scrollToBottom(), 120); });
@@ -239,7 +339,13 @@ const WhatsAppChat = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
           const m = payload.new as Message;
-          setMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
+          setMessages(prev => {
+            if (prev.some(x => x.id === m.id || (!!m.wa_message_id && x.wa_message_id === m.wa_message_id))) return prev;
+            // descarta o balão otimista equivalente
+            const cleaned = prev.filter(x => !(x.id.startsWith('temp-') && m.from_me &&
+              (x.text || '').trim() === (m.text || '').trim()));
+            return [...cleaned, m];
+          });
           requestAnimationFrame(() => scrollToBottom(true));
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
@@ -450,17 +556,29 @@ const WhatsAppChat = () => {
     } finally { setSavingLead(false); }
   };
 
+  // Grupos vão exclusivamente para a aba "Grupos"
+  const isGroupChat = (c: Chat) => !!c.is_group || c.wa_chat_id.includes('@g.us');
+
+  const matchesFilter = (c: Chat, f: typeof activeFilter) => {
+    if (f === 'grupos') return isGroupChat(c);
+    if (isGroupChat(c)) return false;
+    if (f === 'aguardando') return c.unread_count > 0 || !c.assigned_to;
+    if (f === 'resolvidos') return !!c.assigned_to && c.unread_count === 0;
+    return true;
+  };
+
+  // Contadores de não lidas por aba
+  const tabUnread = (f: typeof activeFilter) =>
+    chats.filter(c => matchesFilter(c, f)).reduce((s, c) => s + (c.unread_count || 0), 0);
+  const tabCount = (f: typeof activeFilter) => chats.filter(c => matchesFilter(c, f)).length;
+
   // Filter chats by tab & search query
   const filteredChats = chats.filter(c => {
     const matchSearch = !search ||
       (c.contact_name || '').toLowerCase().includes(search.toLowerCase()) ||
-      c.contact_number.includes(search);
+      c.contact_number.includes(onlyDigits(search) || search);
     if (!matchSearch) return false;
-
-    if (activeFilter === 'grupos') return c.is_group || c.wa_chat_id.includes('@g.us');
-    if (activeFilter === 'aguardando') return c.unread_count > 0 || !c.assigned_to;
-    if (activeFilter === 'resolvidos') return !!c.assigned_to && c.unread_count === 0;
-    return true;
+    return matchesFilter(c, activeFilter);
   }).sort((a, b) => {
     // Conversas com mensagens novas sempre no topo
     const au = a.unread_count > 0 ? 1 : 0;
@@ -468,6 +586,33 @@ const WhatsAppChat = () => {
     if (au !== bu) return bu - au;
     return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
   });
+
+  // Participantes do grupo (a partir dos remetentes das mensagens carregadas)
+  const groupParticipants = Array.from(
+    new Set(messages.filter(m => !m.from_me && m.sender).map(m => String(m.sender)))
+  );
+
+  // Salvar nome do contato
+  const handleSaveContact = async () => {
+    if (!selected || !contactNameInput.trim()) return;
+    setSavingContact(true);
+    try {
+      const { error } = await supabase.from('whatsapp_chats')
+        .update({ contact_name: contactNameInput.trim() }).eq('id', selected.id);
+      if (error) throw error;
+      setSelected(prev => prev ? { ...prev, contact_name: contactNameInput.trim() } : prev);
+      setSaveContactOpen(false);
+      loadChats();
+      toast({ title: 'Contato salvo' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao salvar contato', description: e.message, variant: 'destructive' });
+    } finally { setSavingContact(false); }
+  };
+
+  const totalOtherUnread = Object.entries(instanceUnread)
+    .filter(([id]) => id !== instanceId)
+    .reduce((s, [, v]) => s + v, 0);
+
 
 
   return (
@@ -482,18 +627,32 @@ const WhatsAppChat = () => {
           </Badge>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={instanceId} onValueChange={setInstanceId}>
-            <SelectTrigger className="w-56 h-9 bg-card text-xs">
-              <SelectValue placeholder="Selecionar instância" />
-            </SelectTrigger>
-            <SelectContent>
-              {instances.map(i => (
-                <SelectItem key={i.id} value={i.id} className="text-xs">
-                  {i.name} {i.status === 'connected' ? '🟢' : '⚫'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative">
+            <Select value={instanceId} onValueChange={setInstanceId}>
+              <SelectTrigger className="w-56 h-9 bg-card text-xs">
+                <SelectValue placeholder="Selecionar instância" />
+              </SelectTrigger>
+              <SelectContent>
+                {instances.map(i => (
+                  <SelectItem key={i.id} value={i.id} className="text-xs">
+                    <span className="flex items-center gap-2">
+                      {i.name} {i.status === 'connected' ? '🟢' : '⚫'}
+                      {(instanceUnread[i.id] || 0) > 0 && (
+                        <span className="bg-purple-600 text-white rounded-full px-1.5 text-[10px] font-bold">
+                          {instanceUnread[i.id]}
+                        </span>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {totalOtherUnread > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-purple-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shadow">
+                {totalOtherUnread}
+              </span>
+            )}
+          </div>
           <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="h-9 gap-1 text-xs">
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
             Sincronizar
@@ -530,51 +689,37 @@ const WhatsAppChat = () => {
 
             {/* Filter Pills (Todos, Grupos, Aguardando, Resolvidos) */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <button
-                onClick={() => setActiveFilter('todos')}
-                className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  activeFilter === 'todos'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                Todos <span className="text-[10px] bg-purple-700/50 text-white px-1.5 py-0.5 rounded-full">{chats.length}</span>
-                <ChevronDown size={12} />
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('grupos')}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  activeFilter === 'grupos'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                Grupos
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('aguardando')}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  activeFilter === 'aguardando'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                Aguardando
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('resolvidos')}
-                className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  activeFilter === 'resolvidos'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                Resolvidos <span className="text-[10px] bg-muted-foreground/20 text-foreground px-1.5 py-0.5 rounded-full">38</span>
-                <ChevronDown size={12} />
-              </button>
+              {([
+                { key: 'todos', label: 'Todos' },
+                { key: 'grupos', label: 'Grupos' },
+                { key: 'aguardando', label: 'Aguardando' },
+                { key: 'resolvidos', label: 'Resolvidos' },
+              ] as { key: typeof activeFilter; label: string }[]).map(tab => {
+                const unread = tabUnread(tab.key);
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveFilter(tab.key)}
+                    className={`relative flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
+                      activeFilter === tab.key
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                  >
+                    {tab.label}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                      activeFilter === tab.key ? 'bg-purple-700/50 text-white' : 'bg-muted-foreground/20 text-foreground'
+                    }`}>
+                      {tabCount(tab.key)}
+                    </span>
+                    {unread > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[17px] h-[17px] px-1 flex items-center justify-center shadow">
+                        {unread}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -582,7 +727,7 @@ const WhatsAppChat = () => {
           <ScrollArea className="flex-1">
             <div className="divide-y divide-border/40">
               {filteredChats.map((c, idx) => {
-                const name = c.contact_name || c.contact_number;
+                const name = chatTitle(c);
                 const isSelected = selected?.id === c.id;
                 const avatarColor = getAvatarColor(name);
                 const initials = getInitials(name);
@@ -607,9 +752,14 @@ const WhatsAppChat = () => {
 
                     {/* Avatar Circle with WhatsApp Icon badge */}
                     <div className="relative flex-shrink-0">
-                      <div className={`w-11 h-11 rounded-full ${avatarColor} flex items-center justify-center font-bold text-sm shadow-sm`}>
-                        {initials}
-                      </div>
+                      {c.avatar_url ? (
+                        <img src={c.avatar_url} alt={name} loading="lazy"
+                          className="w-11 h-11 rounded-full object-cover shadow-sm" />
+                      ) : (
+                        <div className={`w-11 h-11 rounded-full ${avatarColor} flex items-center justify-center font-bold text-sm shadow-sm`}>
+                          {initials}
+                        </div>
+                      )}
                       <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 text-white rounded-full p-0.5 border-2 border-background">
                         <MessageSquare size={10} className="fill-current" />
                       </div>
@@ -622,10 +772,10 @@ const WhatsAppChat = () => {
                         {timeStr && <span className="text-[11px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        <span className="font-semibold text-foreground/80">{userName}: </span>
                         {c.last_message || 'Clique para abrir conversa'}
                       </p>
                     </div>
+
 
                     {/* Status Dot / Unread Badge */}
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -673,28 +823,42 @@ const WhatsAppChat = () => {
                     <ArrowLeft size={18} />
                   </Button>
 
-                  <div className={`w-10 h-10 rounded-full ${getAvatarColor(selected.contact_name || selected.contact_number)} flex items-center justify-center font-bold text-sm`}>
-                    {getInitials(selected.contact_name || selected.contact_number)}
-                  </div>
+                  {selected.avatar_url ? (
+                    <img src={selected.avatar_url} alt={chatTitle(selected)} className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className={`w-10 h-10 rounded-full ${getAvatarColor(chatTitle(selected))} flex items-center justify-center font-bold text-sm`}>
+                      {getInitials(chatTitle(selected))}
+                    </div>
+                  )}
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-foreground">
-                        {selected.contact_name || selected.contact_number}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">#8444778</span>
+                      <button
+                        onClick={() => { if (isGroupChat(selected)) setGroupInfoOpen(true); }}
+                        className={`font-semibold text-sm text-foreground ${isGroupChat(selected) ? 'hover:underline' : 'cursor-default'}`}
+                      >
+                        {chatTitle(selected)}
+                      </button>
+                      {!isGroupChat(selected) && !hasRealName(selected) && (
+                        <Button
+                          variant="outline" size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => { setContactNameInput(''); setSaveContactOpen(true); }}
+                        >
+                          Salvar contato
+                        </Button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>Atribuído à: <strong className="text-foreground">{userName}</strong></span>
-                      <button className="w-4 h-4 rounded-full border border-muted-foreground/40 flex items-center justify-center text-[10px] hover:bg-muted">
-                        +
-                      </button>
-                      <Badge variant="outline" className="h-5 gap-1 text-[10px] bg-purple-50 text-purple-700 border-purple-200 font-normal">
-                        <Clock size={10} /> 23h 56m
-                      </Badge>
+                      <span>{instances.find(i => i.id === instanceId)?.name || 'Instância'}</span>
+                      {!isGroupChat(selected) && hasRealName(selected) && (
+                        <span className="font-mono">{formatNumber(selected.contact_number)}</span>
+                      )}
+                      {isGroupChat(selected) && <span>Grupo</span>}
                     </div>
                   </div>
                 </div>
+
 
                 <div className="flex items-center gap-1">
                   <Button
@@ -739,9 +903,9 @@ const WhatsAppChat = () => {
                               : 'bg-white text-slate-900 border border-slate-200/80 rounded-tl-xs dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-700/60'
                           }`}
                         >
-                          {m.from_me && (
-                            <p className="font-bold text-[11px] text-purple-900 dark:text-purple-300">
-                              {userName}:
+                          {!m.from_me && isGroupChat(selected) && m.sender && (
+                            <p className="font-bold text-[11px] text-emerald-700 dark:text-emerald-300">
+                              {senderLabel(m.sender)}
                             </p>
                           )}
                           {m.media_url && ['image', 'sticker', 'gif'].includes(m.message_type) && (
@@ -757,8 +921,14 @@ const WhatsAppChat = () => {
                           {m.media_url && m.message_type === 'video' && (
                             <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-64" />
                           )}
-                          {m.media_url && m.message_type === 'audio' && (
-                            <audio src={m.media_url} controls className="w-56" />
+                          {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').startsWith('audio')) && (
+                            <audio controls preload="metadata" className="w-56 max-w-full">
+                              <source src={m.media_url} type={m.media_mime || 'audio/ogg; codecs=opus'} />
+                              <source src={m.media_url} type="audio/mpeg" />
+                            </audio>
+                          )}
+                          {!m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt') && (
+                            <span className="text-[11px] italic opacity-70">🎤 Áudio indisponível</span>
                           )}
                           {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio'].includes(m.message_type) && (
                             <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs">
@@ -1083,7 +1253,62 @@ const WhatsAppChat = () => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Salvar contato */}
+    <Dialog open={saveContactOpen} onOpenChange={setSaveContactOpen}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Salvar contato</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground font-mono">
+            {selected ? formatNumber(selected.contact_number) : ''}
+          </p>
+          <Input
+            placeholder="Nome do contato"
+            value={contactNameInput}
+            onChange={e => setContactNameInput(e.target.value)}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setSaveContactOpen(false)}>Cancelar</Button>
+          <Button onClick={handleSaveContact} disabled={savingContact || !contactNameInput.trim()}>
+            {savingContact ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Info do grupo */}
+    <Dialog open={groupInfoOpen} onOpenChange={setGroupInfoOpen}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{selected ? chatTitle(selected) : 'Grupo'}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Participantes ativos ({groupParticipants.length})
+          </p>
+          <div className="max-h-64 overflow-y-auto divide-y">
+            {groupParticipants.map(p => (
+              <div key={p} className="flex items-center gap-2 py-2">
+                <div className={`w-8 h-8 rounded-full ${getAvatarColor(senderLabel(p))} flex items-center justify-center text-[11px] font-bold`}>
+                  {getInitials(senderLabel(p))}
+                </div>
+                <span className="text-xs">{senderLabel(p)}</span>
+              </div>
+            ))}
+            {groupParticipants.length === 0 && (
+              <p className="text-xs text-muted-foreground py-4 text-center">
+                Nenhum participante identificado nas mensagens recentes.
+              </p>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
+
   );
 };
 
