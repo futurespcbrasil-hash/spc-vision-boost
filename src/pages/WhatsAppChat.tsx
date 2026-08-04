@@ -797,28 +797,42 @@ const WhatsAppChat = () => {
                     <ArrowLeft size={18} />
                   </Button>
 
-                  <div className={`w-10 h-10 rounded-full ${getAvatarColor(selected.contact_name || selected.contact_number)} flex items-center justify-center font-bold text-sm`}>
-                    {getInitials(selected.contact_name || selected.contact_number)}
-                  </div>
+                  {selected.avatar_url ? (
+                    <img src={selected.avatar_url} alt={chatTitle(selected)} className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className={`w-10 h-10 rounded-full ${getAvatarColor(chatTitle(selected))} flex items-center justify-center font-bold text-sm`}>
+                      {getInitials(chatTitle(selected))}
+                    </div>
+                  )}
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-foreground">
-                        {selected.contact_name || selected.contact_number}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">#8444778</span>
+                      <button
+                        onClick={() => { if (isGroupChat(selected)) setGroupInfoOpen(true); }}
+                        className={`font-semibold text-sm text-foreground ${isGroupChat(selected) ? 'hover:underline' : 'cursor-default'}`}
+                      >
+                        {chatTitle(selected)}
+                      </button>
+                      {!isGroupChat(selected) && !hasRealName(selected) && (
+                        <Button
+                          variant="outline" size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => { setContactNameInput(''); setSaveContactOpen(true); }}
+                        >
+                          Salvar contato
+                        </Button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>Atribuído à: <strong className="text-foreground">{userName}</strong></span>
-                      <button className="w-4 h-4 rounded-full border border-muted-foreground/40 flex items-center justify-center text-[10px] hover:bg-muted">
-                        +
-                      </button>
-                      <Badge variant="outline" className="h-5 gap-1 text-[10px] bg-purple-50 text-purple-700 border-purple-200 font-normal">
-                        <Clock size={10} /> 23h 56m
-                      </Badge>
+                      <span>{instances.find(i => i.id === instanceId)?.name || 'Instância'}</span>
+                      {!isGroupChat(selected) && hasRealName(selected) && (
+                        <span className="font-mono">{formatNumber(selected.contact_number)}</span>
+                      )}
+                      {isGroupChat(selected) && <span>Grupo</span>}
                     </div>
                   </div>
                 </div>
+
 
                 <div className="flex items-center gap-1">
                   <Button
