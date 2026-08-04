@@ -601,18 +601,32 @@ const WhatsAppChat = () => {
           </Badge>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={instanceId} onValueChange={setInstanceId}>
-            <SelectTrigger className="w-56 h-9 bg-card text-xs">
-              <SelectValue placeholder="Selecionar instância" />
-            </SelectTrigger>
-            <SelectContent>
-              {instances.map(i => (
-                <SelectItem key={i.id} value={i.id} className="text-xs">
-                  {i.name} {i.status === 'connected' ? '🟢' : '⚫'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative">
+            <Select value={instanceId} onValueChange={setInstanceId}>
+              <SelectTrigger className="w-56 h-9 bg-card text-xs">
+                <SelectValue placeholder="Selecionar instância" />
+              </SelectTrigger>
+              <SelectContent>
+                {instances.map(i => (
+                  <SelectItem key={i.id} value={i.id} className="text-xs">
+                    <span className="flex items-center gap-2">
+                      {i.name} {i.status === 'connected' ? '🟢' : '⚫'}
+                      {(instanceUnread[i.id] || 0) > 0 && (
+                        <span className="bg-purple-600 text-white rounded-full px-1.5 text-[10px] font-bold">
+                          {instanceUnread[i.id]}
+                        </span>
+                      )}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {totalOtherUnread > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-purple-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shadow">
+                {totalOtherUnread}
+              </span>
+            )}
+          </div>
           <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="h-9 gap-1 text-xs">
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
             Sincronizar
