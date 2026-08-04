@@ -313,7 +313,13 @@ const WhatsAppChat = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
           const m = payload.new as Message;
-          setMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
+          setMessages(prev => {
+            if (prev.some(x => x.id === m.id || (!!m.wa_message_id && x.wa_message_id === m.wa_message_id))) return prev;
+            // descarta o balão otimista equivalente
+            const cleaned = prev.filter(x => !(x.id.startsWith('temp-') && m.from_me &&
+              (x.text || '').trim() === (m.text || '').trim()));
+            return [...cleaned, m];
+          });
           requestAnimationFrame(() => scrollToBottom(true));
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
