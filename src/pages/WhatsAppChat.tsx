@@ -877,9 +877,9 @@ const WhatsAppChat = () => {
                               : 'bg-white text-slate-900 border border-slate-200/80 rounded-tl-xs dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-700/60'
                           }`}
                         >
-                          {m.from_me && (
-                            <p className="font-bold text-[11px] text-purple-900 dark:text-purple-300">
-                              {userName}:
+                          {!m.from_me && isGroupChat(selected) && m.sender && (
+                            <p className="font-bold text-[11px] text-emerald-700 dark:text-emerald-300">
+                              {senderLabel(m.sender)}
                             </p>
                           )}
                           {m.media_url && ['image', 'sticker', 'gif'].includes(m.message_type) && (
@@ -895,8 +895,14 @@ const WhatsAppChat = () => {
                           {m.media_url && m.message_type === 'video' && (
                             <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-64" />
                           )}
-                          {m.media_url && m.message_type === 'audio' && (
-                            <audio src={m.media_url} controls className="w-56" />
+                          {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').startsWith('audio')) && (
+                            <audio controls preload="metadata" className="w-56 max-w-full">
+                              <source src={m.media_url} type={m.media_mime || 'audio/ogg; codecs=opus'} />
+                              <source src={m.media_url} type="audio/mpeg" />
+                            </audio>
+                          )}
+                          {!m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt') && (
+                            <span className="text-[11px] italic opacity-70">🎤 Áudio indisponível</span>
                           )}
                           {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio'].includes(m.message_type) && (
                             <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs">
