@@ -180,6 +180,10 @@ const WhatsAppChat = () => {
 
 
   const userName = user?.email?.split('@')[0] || 'Diogo';
+  const currentInstance = instances.find(i => i.id === instanceId);
+
+  // Mantém a conversa selecionada acessível dentro de intervalos/realtime
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
 
   // Load instances
   useEffect(() => {
@@ -197,6 +201,25 @@ const WhatsAppChat = () => {
     supabase.from('whatsapp_quick_replies').select('*').then(({ data }) => setQuickReplies((data as QuickReply[]) || []));
   }, [user]);
 
+  // Não lidas por instância (badge no seletor de instâncias)
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from('whatsapp_chats')
+        .select('instance_id,unread_count').gt('unread_count', 0);
+      const map: Record<string, number> = {};
+      (data as { instance_id: string; unread_count: number }[] | null)?.forEach(r => {
+        map[r.instance_id] = (map[r.instance_id] || 0) + (r.unread_count || 0);
+      });
+      setInstanceUnread(map);
+    };
+    load();
+    const ch = supabase.channel('wa-unread-global')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats' }, () => load())
+      .subscribe();
+    const poll = window.setInterval(load, 10000);
+    return () => { window.clearInterval(poll); supabase.removeChannel(ch); };
+  }, []);
+
   // Load chats
   const loadChats = async () => {
     if (!instanceId) return;
@@ -208,10 +231,14 @@ const WhatsAppChat = () => {
       .limit(50);
     const list = (data as Chat[]) || [];
     setChats(list);
-    if (list.length > 0 && !selected) {
-      setSelected(list[0]);
+    // NUNCA troca a conversa aberta sozinho — apenas atualiza os dados dela.
+    const cur = selectedRef.current;
+    if (cur) {
+      const fresh = list.find(c => c.id === cur.id);
+      if (fresh) setSelected(prev => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev));
     }
   };
+
 
 
   useEffect(() => { loadChats(); }, [instanceId]);
