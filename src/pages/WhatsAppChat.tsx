@@ -663,51 +663,37 @@ const WhatsAppChat = () => {
 
             {/* Filter Pills (Todos, Grupos, Aguardando, Resolvidos) */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <button
-                onClick={() => setActiveFilter('todos')}
-                className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  activeFilter === 'todos'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                Todos <span className="text-[10px] bg-purple-700/50 text-white px-1.5 py-0.5 rounded-full">{chats.length}</span>
-                <ChevronDown size={12} />
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('grupos')}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  activeFilter === 'grupos'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                Grupos
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('aguardando')}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  activeFilter === 'aguardando'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                Aguardando
-              </button>
-
-              <button
-                onClick={() => setActiveFilter('resolvidos')}
-                className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
-                  activeFilter === 'resolvidos'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                Resolvidos <span className="text-[10px] bg-muted-foreground/20 text-foreground px-1.5 py-0.5 rounded-full">38</span>
-                <ChevronDown size={12} />
-              </button>
+              {([
+                { key: 'todos', label: 'Todos' },
+                { key: 'grupos', label: 'Grupos' },
+                { key: 'aguardando', label: 'Aguardando' },
+                { key: 'resolvidos', label: 'Resolvidos' },
+              ] as { key: typeof activeFilter; label: string }[]).map(tab => {
+                const unread = tabUnread(tab.key);
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveFilter(tab.key)}
+                    className={`relative flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
+                      activeFilter === tab.key
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`}
+                  >
+                    {tab.label}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                      activeFilter === tab.key ? 'bg-purple-700/50 text-white' : 'bg-muted-foreground/20 text-foreground'
+                    }`}>
+                      {tabCount(tab.key)}
+                    </span>
+                    {unread > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[17px] h-[17px] px-1 flex items-center justify-center shadow">
+                        {unread}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
