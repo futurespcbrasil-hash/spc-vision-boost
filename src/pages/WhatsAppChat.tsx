@@ -249,9 +249,25 @@ const WhatsAppChat = () => {
     }
   };
 
-
+  // Não lidas de TODAS as instâncias (badge no seletor)
+  const loadInstanceUnread = async () => {
+    const { data } = await supabase.from('whatsapp_chats')
+      .select('instance_id,unread_count').gt('unread_count', 0);
+    const map: Record<string, number> = {};
+    (data || []).forEach((r: any) => {
+      map[r.instance_id] = (map[r.instance_id] || 0) + (r.unread_count || 0);
+    });
+    setInstanceUnread(map);
+  };
 
   useEffect(() => { loadChats(); }, [instanceId]);
+
+  useEffect(() => {
+    loadInstanceUnread();
+    const t = window.setInterval(loadInstanceUnread, 8000);
+    return () => window.clearInterval(t);
+  }, []);
+
 
   // Realtime chats (com debounce para evitar recargas em rajada)
   useEffect(() => {
