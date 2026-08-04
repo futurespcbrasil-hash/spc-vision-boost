@@ -316,7 +316,7 @@ const WhatsAppChat = () => {
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
-      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,wa_message_id,reply_to,sender')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
     let changed = true;
