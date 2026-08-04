@@ -1253,7 +1253,62 @@ const WhatsAppChat = () => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Salvar contato */}
+    <Dialog open={saveContactOpen} onOpenChange={setSaveContactOpen}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Salvar contato</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground font-mono">
+            {selected ? formatNumber(selected.contact_number) : ''}
+          </p>
+          <Input
+            placeholder="Nome do contato"
+            value={contactNameInput}
+            onChange={e => setContactNameInput(e.target.value)}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setSaveContactOpen(false)}>Cancelar</Button>
+          <Button onClick={handleSaveContact} disabled={savingContact || !contactNameInput.trim()}>
+            {savingContact ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Info do grupo */}
+    <Dialog open={groupInfoOpen} onOpenChange={setGroupInfoOpen}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{selected ? chatTitle(selected) : 'Grupo'}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Participantes ativos ({groupParticipants.length})
+          </p>
+          <div className="max-h-64 overflow-y-auto divide-y">
+            {groupParticipants.map(p => (
+              <div key={p} className="flex items-center gap-2 py-2">
+                <div className={`w-8 h-8 rounded-full ${getAvatarColor(senderLabel(p))} flex items-center justify-center text-[11px] font-bold`}>
+                  {getInitials(senderLabel(p))}
+                </div>
+                <span className="text-xs">{senderLabel(p)}</span>
+              </div>
+            ))}
+            {groupParticipants.length === 0 && (
+              <p className="text-xs text-muted-foreground py-4 text-center">
+                Nenhum participante identificado nas mensagens recentes.
+              </p>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
+
   );
 };
 
