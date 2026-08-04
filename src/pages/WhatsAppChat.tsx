@@ -101,6 +101,15 @@ const hasRealName = (c?: Chat | null) => {
   return !!name && onlyDigits(name) !== onlyDigits(c.contact_number);
 };
 
+// Nome (ou número formatado) do remetente em grupos
+const senderLabel = (raw?: string | null) => {
+  const v = (raw || '').trim();
+  if (!v) return '';
+  if (v.includes('@')) return formatNumber(v.split('@')[0]);
+  if (onlyDigits(v).length >= 10 && onlyDigits(v) === v.replace(/\D/g, '')) return formatNumber(v);
+  return v;
+};
+
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
 
