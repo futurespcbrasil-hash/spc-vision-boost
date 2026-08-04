@@ -76,6 +76,30 @@ const uploadMedia = async (file: Blob, filename: string, userId: string) => {
 
 const onlyDigits = (v: string) => v.replace(/\D/g, '');
 
+// Formata número brasileiro: 5554991811902 -> +55 (54) 99181-1902
+const formatNumber = (raw: string) => {
+  const d = onlyDigits(raw || '');
+  if (d.length >= 12 && d.startsWith('55')) {
+    const ddd = d.slice(2, 4);
+    const rest = d.slice(4);
+    return `+55 (${ddd}) ${rest.slice(0, rest.length - 4)}-${rest.slice(-4)}`;
+  }
+  return raw ? `+${d}` : raw;
+};
+
+// Nome do contato quando existir; caso contrário, o número formatado
+const chatTitle = (c?: Chat | null) => {
+  if (!c) return '';
+  const name = (c.contact_name || '').trim();
+  if (name && onlyDigits(name) !== onlyDigits(c.contact_number)) return name;
+  return formatNumber(c.contact_number);
+};
+const hasRealName = (c?: Chat | null) => {
+  if (!c) return false;
+  const name = (c.contact_name || '').trim();
+  return !!name && onlyDigits(name) !== onlyDigits(c.contact_number);
+};
+
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
 
