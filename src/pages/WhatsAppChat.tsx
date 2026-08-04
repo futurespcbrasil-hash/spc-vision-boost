@@ -145,6 +145,16 @@ const WhatsAppChat = () => {
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<Chat | null>(null);
+  const [instanceUnread, setInstanceUnread] = useState<Record<string, number>>({});
+
+  // Salvar contato
+  const [saveContactOpen, setSaveContactOpen] = useState(false);
+  const [contactNameInput, setContactNameInput] = useState('');
+  const [savingContact, setSavingContact] = useState(false);
+
+  // Info do grupo
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
 
   // New conversation modal
   const [newChatOpen, setNewChatOpen] = useState(false);
