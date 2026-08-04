@@ -31,6 +31,7 @@ interface Message {
   id: string; chat_id: string; from_me: boolean; text: string | null;
   message_type: string; status: string | null; timestamp: string; media_url: string | null;
   wa_message_id?: string | null; reply_to?: string | null; sender?: string | null;
+  media_mime?: string | null;
 }
 interface QuickReply { id: string; shortcut: string; text: string; }
 
