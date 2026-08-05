@@ -81,10 +81,13 @@ Deno.serve(async (req) => {
         if (!m) continue;
         const inner = (m.message && typeof m.message === 'object') ? m.message : {};
         const remoteJid = m.chat?.jid || m.chatJid || m.key?.remoteJid || m.remoteJid
-          || (m.direction === 'outgoing' ? m.recipient?.jid : m.sender?.jid);
-        if (!remoteJid) continue;
+          || (m.direction === 'outgoing' ? (m.recipient?.jid || m.key?.remoteJid) : m.sender?.jid);
+        if (!remoteJid) {
+          console.warn('[ryze-webhook] remoteJid não encontrado no payload', JSON.stringify(m).slice(0, 300));
+          continue;
+        }
 
-        const fromMe = m.direction ? m.direction === 'outgoing' : (m.fromMe !== undefined ? Boolean(m.fromMe) : !!m.key?.fromMe);
+        const fromMe = m.direction === 'outgoing' || m.fromMe === true || m.key?.fromMe === true;
         const number = String(remoteJid).split('@')[0];
         const isGroup = String(remoteJid).includes('@g.us') || m.chat?.type === 'group';
         const msgId = m.id || m.messageId || m.key?.id;
@@ -100,6 +103,10 @@ Deno.serve(async (req) => {
         let messageType = inner.type || m.media?.type || m.type || m.messageType || 'text';
         let mediaMime: string | null = inner.media?.mimetype || m.media?.mimetype || null;
         let mediaUrl: string | null = inner.media?.s3Url || inner.media?.url || m.media?.s3Url || m.media?.url || null;
+        
+        // Se for uma mensagem de texto simples mas sem texto no 'content', pode estar no m.body
+        if (!text && m.body) text = m.body;
+
         if (inner.stickerMessage) { messageType = 'sticker'; mediaMime = inner.stickerMessage.mimetype; }
         else if (inner.imageMessage) { messageType = 'image'; mediaMime = inner.imageMessage.mimetype; }
         else if (inner.videoMessage) { messageType = 'video'; mediaMime = inner.videoMessage.mimetype; }
