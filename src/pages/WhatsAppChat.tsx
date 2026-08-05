@@ -1187,7 +1187,7 @@ const WhatsAppChat = () => {
                   disabled={uploading}
                   size="icon"
                   title={recording ? 'Enviar áudio' : text.trim() ? 'Enviar' : 'Gravar áudio'}
-                  className="h-10 w-10 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-sm flex-shrink-0"
+                  className="h-10 w-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex-shrink-0"
                 >
                   {recording ? <Square size={16} className="fill-current" /> : text.trim() ? <Send size={18} /> : <Mic size={18} />}
                 </Button>
