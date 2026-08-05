@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import {
   Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
   CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
-  Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2
+  Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
+  Pin, PinOff, Eye
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
