@@ -940,7 +940,8 @@ const WhatsAppChat = () => {
               {/* Active Chat Header */}
               <div className="p-3 border-b bg-card flex items-center justify-between shadow-2xs">
                 <div className="flex items-center gap-3">
-                  <Button variant="ghost" size="icon" className="md:hidden h-8 w-8 text-muted-foreground">
+                  <Button variant="ghost" size="icon" className="md:hidden h-8 w-8 text-muted-foreground"
+                    onClick={() => { setMobileShowChat(false); setSelected(null); }}>
                     <ArrowLeft size={18} />
                   </Button>
 
