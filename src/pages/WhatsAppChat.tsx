@@ -988,7 +988,7 @@ const WhatsAppChat = () => {
 
               {/* Chat Message Canvas */}
               <ScrollArea className="flex-1 p-4 bg-slate-100/70 dark:bg-zinc-950/70" ref={scrollRef as any}>
-                <div className="space-y-3 max-w-3xl mx-auto">
+                <div className="space-y-3 max-w-5xl mx-auto pb-4">
                   {messages.filter(m => m.message_type !== 'reaction').map(m => {
                     const reactions = messages.filter(
                       r => r.message_type === 'reaction' && !!r.reply_to && r.reply_to === m.wa_message_id
