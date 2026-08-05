@@ -406,6 +406,12 @@ const WhatsAppChat = () => {
             return [...cleaned, m];
           });
           requestAnimationFrame(() => scrollToBottom(true));
+
+          // Notificação Push se não for minha e a janela estiver oculta ou outro chat selecionado
+          if (!m.from_me && (document.hidden || selectedRef.current?.id !== chatId)) {
+            const chat = chats.find(c => c.id === chatId);
+            if (chat) showPushNotification(chat, m.text || 'Nova mensagem de mídia');
+          }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
