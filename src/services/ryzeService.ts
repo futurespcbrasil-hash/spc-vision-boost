@@ -61,6 +61,8 @@ export const ryze = {
   getMessages: (instance_id: string, wa_chat_id: string) =>
     invoke('get_messages', { instance_id, wa_chat_id }),
   getContacts: (instance_id: string) => invoke('get_contacts', { instance_id }),
+  getProfilePic: (instance_id: string, wa_chat_id: string) =>
+    invoke('get_profile_pic', { instance_id, wa_chat_id }),
 };
 
 // Convenience helpers
