@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ryze } from '@/services/ryzeService';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Instance { id: string; name: string; status: string; }
 interface Chat {
@@ -160,6 +161,8 @@ const WhatsAppChat = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [selected, setSelected] = useState<Chat | null>(null);
   const [peeking, setPeeking] = useState<string | null>(null);
+  const [mobileShowChat, setMobileShowChat] = useState(false);
+  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
@@ -712,7 +715,7 @@ const WhatsAppChat = () => {
 
   return (
     <>
-    <div className="flex flex-col h-screen md:h-full bg-background font-sans overflow-hidden">
+    <div className="flex flex-col h-full bg-background font-sans overflow-hidden">
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -759,7 +762,7 @@ const WhatsAppChat = () => {
       <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-0 border-t overflow-hidden flex-1 min-h-0 bg-card">
         
         {/* Left Column: Chat List Sidebar */}
-        <div className="flex flex-col min-h-0 overflow-hidden border-r bg-background relative">
+        <div className={`flex flex-col min-h-0 overflow-hidden border-r bg-background relative ${isMobile && mobileShowChat ? 'hidden' : 'flex'}`}>
 
           
           {/* Header Search & Toolbar */}
@@ -837,7 +840,7 @@ const WhatsAppChat = () => {
                 return (
                   <div key={c.id} className="group relative">
                     <button
-                      onClick={() => { setPeeking(null); setSelected(c); }}
+                      onClick={() => { setPeeking(null); setSelected(c); if (isMobile) setMobileShowChat(true); }}
                       className={`w-full flex items-center gap-3 p-3 text-left relative transition-all hover:bg-muted/50 ${
                         isSelected ? 'bg-muted/80' : ''
                       }`}
@@ -931,13 +934,14 @@ const WhatsAppChat = () => {
         </div>
 
         {/* Right Column: Active Conversation Area */}
-        <div className="flex flex-col min-h-0 overflow-hidden bg-slate-50/50 dark:bg-zinc-900/50">
+        <div className={`flex flex-col min-h-0 overflow-hidden bg-slate-50/50 dark:bg-zinc-900/50 ${isMobile && !mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
           {selected ? (
             <>
               {/* Active Chat Header */}
               <div className="p-3 border-b bg-card flex items-center justify-between shadow-2xs">
                 <div className="flex items-center gap-3">
-                  <Button variant="ghost" size="icon" className="md:hidden h-8 w-8 text-muted-foreground">
+                  <Button variant="ghost" size="icon" className="md:hidden h-8 w-8 text-muted-foreground"
+                    onClick={() => { setMobileShowChat(false); setSelected(null); }}>
                     <ArrowLeft size={18} />
                   </Button>
 
