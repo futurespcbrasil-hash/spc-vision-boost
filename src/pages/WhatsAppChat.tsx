@@ -934,7 +934,7 @@ const WhatsAppChat = () => {
         </div>
 
         {/* Right Column: Active Conversation Area */}
-        <div className="flex flex-col min-h-0 overflow-hidden bg-slate-50/50 dark:bg-zinc-900/50">
+        <div className={`flex flex-col min-h-0 overflow-hidden bg-slate-50/50 dark:bg-zinc-900/50 ${isMobile && !mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
           {selected ? (
             <>
               {/* Active Chat Header */}
