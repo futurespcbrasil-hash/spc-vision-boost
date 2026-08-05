@@ -762,7 +762,7 @@ const WhatsAppChat = () => {
       <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-0 border-t overflow-hidden flex-1 min-h-0 bg-card">
         
         {/* Left Column: Chat List Sidebar */}
-        <div className="flex flex-col min-h-0 overflow-hidden border-r bg-background relative">
+        <div className={`flex flex-col min-h-0 overflow-hidden border-r bg-background relative ${isMobile && mobileShowChat ? 'hidden' : 'flex'}`}>
 
           
           {/* Header Search & Toolbar */}
