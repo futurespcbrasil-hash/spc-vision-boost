@@ -639,6 +639,7 @@ export type Database = {
           id: string
           instance_id: string
           is_group: boolean
+          is_pinned: boolean | null
           last_message: string | null
           last_message_at: string | null
           unread_count: number
@@ -656,6 +657,7 @@ export type Database = {
           id?: string
           instance_id: string
           is_group?: boolean
+          is_pinned?: boolean | null
           last_message?: string | null
           last_message_at?: string | null
           unread_count?: number
@@ -673,6 +675,7 @@ export type Database = {
           id?: string
           instance_id?: string
           is_group?: boolean
+          is_pinned?: boolean | null
           last_message?: string | null
           last_message_at?: string | null
           unread_count?: number

@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import {
   Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
   CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
-  Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2
+  Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
+  Pin, PinOff, Eye
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -25,7 +26,7 @@ interface Chat {
   id: string; instance_id: string; wa_chat_id: string; contact_number: string;
   contact_name: string | null; last_message: string | null; last_message_at: string | null;
   unread_count: number; assigned_to: string | null; funnel_stage: string | null; is_group?: boolean;
-  avatar_url?: string | null;
+  avatar_url?: string | null; is_pinned?: boolean;
 }
 interface Message {
   id: string; chat_id: string; from_me: boolean; text: string | null;
@@ -113,16 +114,35 @@ const senderLabel = (raw?: string | null) => {
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
 
-// Transforma links em âncoras clicáveis
-const renderRichText = (text: string) => {
-  const parts = text.split(/(https?:\/\/[^\s]+|www\.[^\s]+)/gi);
+// Transforma links e números de telefone em âncoras clicáveis
+const renderRichText = (text: string, onNumberClick?: (num: string) => void) => {
+  // Regex para links
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  // Regex simplificada para números de telefone (DDI+DDD+9 dígitos)
+  const phoneRegex = /(\+?55\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4})/g;
+
+  const parts = text.split(new RegExp(`(${urlRegex.source}|${phoneRegex.source})`, 'gi'));
+
   return parts.map((part, i) => {
-    if (/^(https?:\/\/|www\.)/i.test(part)) {
+    if (!part) return null;
+    if (urlRegex.test(part)) {
       const href = part.startsWith('http') ? part : `https://${part}`;
       return (
         <a key={i} href={href} target="_blank" rel="noreferrer" className="underline break-all text-blue-600 dark:text-blue-400">
           {part}
         </a>
+      );
+    }
+    if (phoneRegex.test(part)) {
+      const cleanNum = onlyDigits(part);
+      return (
+        <button
+          key={i}
+          onClick={() => onNumberClick?.(cleanNum)}
+          className="underline text-blue-600 dark:text-blue-400 hover:opacity-80 transition-opacity"
+        >
+          {part}
+        </button>
       );
     }
     return <span key={i}>{part}</span>;
@@ -139,6 +159,7 @@ const WhatsAppChat = () => {
   const [instanceId, setInstanceId] = useState<string>('');
   const [chats, setChats] = useState<Chat[]>([]);
   const [selected, setSelected] = useState<Chat | null>(null);
+  const [peeking, setPeeking] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
@@ -237,15 +258,53 @@ const WhatsAppChat = () => {
     const { data } = await supabase.from('whatsapp_chats').select('*')
       .eq('instance_id', instanceId)
       .not('last_message_at', 'is', null)
+      .order('is_pinned', { ascending: false })
       .order('last_message_at', { ascending: false })
-      .limit(50);
+      .limit(80);
     const list = (data as Chat[]) || [];
     setChats(list);
     // NUNCA troca a conversa aberta sozinho — apenas atualiza os dados dela.
     const cur = selectedRef.current;
     if (cur) {
       const fresh = list.find(c => c.id === cur.id);
-      if (fresh) setSelected(prev => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev));
+      if (fresh) {
+        setSelected(prev => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev));
+      }
+    }
+  };
+
+  const togglePin = async (chat: Chat) => {
+    const pinnedCount = chats.filter(c => c.is_pinned).length;
+    if (!chat.is_pinned && pinnedCount >= 5) {
+      toast({ title: 'Limite atingido', description: 'Você pode fixar no máximo 5 conversas.', variant: 'destructive' });
+      return;
+    }
+    const newVal = !chat.is_pinned;
+    try {
+      const { error } = await supabase.from('whatsapp_chats').update({ is_pinned: newVal }).eq('id', chat.id);
+      if (error) throw error;
+      setChats(prev => prev.map(c => c.id === chat.id ? { ...c, is_pinned: newVal } : c));
+      if (selected?.id === chat.id) setSelected(prev => prev ? { ...prev, is_pinned: newVal } : prev);
+      toast({ title: newVal ? 'Conversa fixada' : 'Conversa desafixada' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao fixar', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  // Solicita permissão para notificações push
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const showPushNotification = (chat: Chat, msg: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const title = chat.contact_name || chat.contact_number;
+      new Notification(title, {
+        body: msg,
+        icon: chat.avatar_url || '/favicon.ico',
+      });
     }
   };
 
@@ -347,6 +406,12 @@ const WhatsAppChat = () => {
             return [...cleaned, m];
           });
           requestAnimationFrame(() => scrollToBottom(true));
+
+          // Notificação Push se não for minha e a janela estiver oculta ou outro chat selecionado
+          if (!m.from_me && (document.hidden || selectedRef.current?.id !== chatId)) {
+            const chat = chats.find(c => c.id === chatId);
+            if (chat) showPushNotification(chat, m.text || 'Nova mensagem de mídia');
+          }
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
@@ -355,8 +420,10 @@ const WhatsAppChat = () => {
         })
       .subscribe();
 
-    if (selected.unread_count > 0) {
-      supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chatId).then(() => {});
+    if (selected.unread_count > 0 && peeking !== chatId) {
+      supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chatId).then(() => {
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, unread_count: 0 } : c));
+      });
     }
     // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
     const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
@@ -490,6 +557,12 @@ const WhatsAppChat = () => {
 
 
 
+  const handleNumberClick = (number: string) => {
+    setNewChatNumber(number);
+    setNewChatOpen(true);
+    setNewChatMessage('');
+  };
+
   const handleSync = async () => {
     if (!instanceId) return;
     setSyncing(true);
@@ -580,10 +653,17 @@ const WhatsAppChat = () => {
     if (!matchSearch) return false;
     return matchesFilter(c, activeFilter);
   }).sort((a, b) => {
-    // Conversas com mensagens novas sempre no topo
+    // 1. Fixados (Pined) no topo
+    const ap = a.is_pinned ? 1 : 0;
+    const bp = b.is_pinned ? 1 : 0;
+    if (ap !== bp) return bp - ap;
+
+    // 2. Conversas com mensagens novas (não lidas) logo abaixo dos fixados
     const au = a.unread_count > 0 ? 1 : 0;
     const bu = b.unread_count > 0 ? 1 : 0;
     if (au !== bu) return bu - au;
+
+    // 3. Ordem cronológica
     return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
   });
 
@@ -617,7 +697,7 @@ const WhatsAppChat = () => {
 
   return (
     <>
-    <div className="flex flex-col h-[calc(100dvh-180px)] md:h-[calc(100dvh-120px)] min-h-[460px] space-y-2 bg-background font-sans">
+    <div className="flex flex-col h-screen md:h-full bg-background font-sans overflow-hidden">
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -661,7 +741,7 @@ const WhatsAppChat = () => {
       </div>
 
       {/* Main Grid Layout (Competitor Style) */}
-      <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-0 border rounded-xl overflow-hidden flex-1 min-h-0 bg-card shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-0 border-t overflow-hidden flex-1 min-h-0 bg-card">
         
         {/* Left Column: Chat List Sidebar */}
         <div className="flex flex-col min-h-0 overflow-hidden border-r bg-background relative">
@@ -740,54 +820,77 @@ const WhatsAppChat = () => {
                 const indicatorColor = indicatorColors[idx % indicatorColors.length];
 
                 return (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelected(c)}
-                    className={`w-full flex items-center gap-3 p-3 text-left relative transition-all hover:bg-muted/50 ${
-                      isSelected ? 'bg-muted/80' : ''
-                    }`}
-                  >
-                    {/* Left vertical color bar */}
-                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${indicatorColor}`} />
+                  <div key={c.id} className="group relative">
+                    <button
+                      onClick={() => { setPeeking(null); setSelected(c); }}
+                      className={`w-full flex items-center gap-3 p-3 text-left relative transition-all hover:bg-muted/50 ${
+                        isSelected ? 'bg-muted/80' : ''
+                      }`}
+                    >
+                      {/* Left vertical color bar */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${indicatorColor}`} />
 
-                    {/* Avatar Circle with WhatsApp Icon badge */}
-                    <div className="relative flex-shrink-0">
-                      {c.avatar_url ? (
-                        <img src={c.avatar_url} alt={name} loading="lazy"
-                          className="w-11 h-11 rounded-full object-cover shadow-sm" />
-                      ) : (
-                        <div className={`w-11 h-11 rounded-full ${avatarColor} flex items-center justify-center font-bold text-sm shadow-sm`}>
-                          {initials}
+                      {/* Avatar Circle */}
+                      <div className="relative flex-shrink-0">
+                        {c.avatar_url ? (
+                          <img src={c.avatar_url} alt={name} loading="lazy"
+                            className="w-11 h-11 rounded-full object-cover shadow-sm border border-border/50" />
+                        ) : (
+                          <div className={`w-11 h-11 rounded-full ${avatarColor} flex items-center justify-center font-bold text-sm shadow-sm border border-border/50`}>
+                            {initials}
+                          </div>
+                        )}
+                        <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 text-white rounded-full p-0.5 border-2 border-background">
+                          <MessageSquare size={10} className="fill-current" />
                         </div>
-                      )}
-                      <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 text-white rounded-full p-0.5 border-2 border-background">
-                        <MessageSquare size={10} className="fill-current" />
                       </div>
-                    </div>
 
-                    {/* Chat Content Preview */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-semibold text-xs text-foreground truncate">{name}</span>
-                        {timeStr && <span className="text-[11px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
+                      {/* Chat Content Preview */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {c.is_pinned && <Pin size={10} className="text-purple-600 fill-current flex-shrink-0" />}
+                            <span className="font-semibold text-xs text-foreground truncate">{name}</span>
+                          </div>
+                          {timeStr && <span className="text-[10px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5 pr-6">
+                          {c.last_message || 'Clique para abrir'}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {c.last_message || 'Clique para abrir conversa'}
-                      </p>
-                    </div>
 
+                      {/* Badges / Unread */}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0 min-w-[20px]">
+                        {c.unread_count > 0 && (
+                          <span className="bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center shadow-sm">
+                            {c.unread_count}
+                          </span>
+                        )}
+                      </div>
+                    </button>
 
-                    {/* Status Dot / Unread Badge */}
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      {c.unread_count > 0 ? (
-                        <Badge className="bg-purple-600 text-white text-[10px] h-5 min-w-5 rounded-full flex items-center justify-center p-0">
-                          {c.unread_count}
-                        </Badge>
-                      ) : (
-                        <span className={`w-2.5 h-2.5 rounded-full ${idx % 2 === 0 ? 'bg-amber-400' : 'bg-emerald-500'}`} />
-                      )}
+                    {/* Hover Actions (Pin & Peek) */}
+                    <div className="absolute right-2 bottom-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border text-muted-foreground hover:text-purple-600"
+                        onClick={(e) => { e.stopPropagation(); togglePin(c); }}
+                        title={c.is_pinned ? "Desafixar" : "Fixar"}
+                      >
+                        {c.is_pinned ? <PinOff size={14} /> : <Pin size={14} />}
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border text-muted-foreground hover:text-blue-600"
+                        onClick={(e) => { e.stopPropagation(); setPeeking(c.id); setSelected(c); }}
+                        title="Espiar (não marcar como lida)"
+                      >
+                        <Eye size={14} />
+                      </Button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
 
@@ -885,7 +988,7 @@ const WhatsAppChat = () => {
 
               {/* Chat Message Canvas */}
               <ScrollArea className="flex-1 p-4 bg-slate-100/70 dark:bg-zinc-950/70" ref={scrollRef as any}>
-                <div className="space-y-3 max-w-3xl mx-auto">
+                <div className="space-y-3 max-w-5xl mx-auto pb-4">
                   {messages.filter(m => m.message_type !== 'reaction').map(m => {
                     const reactions = messages.filter(
                       r => r.message_type === 'reaction' && !!r.reply_to && r.reply_to === m.wa_message_id
@@ -939,7 +1042,7 @@ const WhatsAppChat = () => {
                             <p className={`whitespace-pre-wrap break-words leading-relaxed ${
                               EMOJI_ONLY.test(m.text.trim()) ? 'text-3xl leading-tight' : 'text-sm'
                             }`}>
-                              {renderRichText(m.text)}
+                              {renderRichText(m.text, handleNumberClick)}
                             </p>
                           )}
 
@@ -971,7 +1074,7 @@ const WhatsAppChat = () => {
               </ScrollArea>
 
               {/* Input Bar */}
-              <div className="p-3 border-t bg-card flex items-center gap-1.5">
+              <div className="p-2 border-t bg-card flex items-center gap-2">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
@@ -1084,7 +1187,7 @@ const WhatsAppChat = () => {
                   disabled={uploading}
                   size="icon"
                   title={recording ? 'Enviar áudio' : text.trim() ? 'Enviar' : 'Gravar áudio'}
-                  className="h-10 w-10 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-sm flex-shrink-0"
+                  className="h-10 w-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex-shrink-0"
                 >
                   {recording ? <Square size={16} className="fill-current" /> : text.trim() ? <Send size={18} /> : <Mic size={18} />}
                 </Button>
