@@ -1036,7 +1036,7 @@ const WhatsAppChat = () => {
                             <p className={`whitespace-pre-wrap break-words leading-relaxed ${
                               EMOJI_ONLY.test(m.text.trim()) ? 'text-3xl leading-tight' : 'text-sm'
                             }`}>
-                              {renderRichText(m.text)}
+                              {renderRichText(m.text, handleNumberClick)}
                             </p>
                           )}
 
