@@ -808,45 +808,77 @@ const WhatsAppChat = () => {
                 const indicatorColor = indicatorColors[idx % indicatorColors.length];
 
                 return (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelected(c)}
-                    className={`w-full flex items-center gap-3 p-3 text-left relative transition-all hover:bg-muted/50 ${
-                      isSelected ? 'bg-muted/80' : ''
-                    }`}
-                  >
-                    {/* Left vertical color bar */}
-                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${indicatorColor}`} />
+                  <div key={c.id} className="group relative">
+                    <button
+                      onClick={() => { setPeeking(null); setSelected(c); }}
+                      className={`w-full flex items-center gap-3 p-3 text-left relative transition-all hover:bg-muted/50 ${
+                        isSelected ? 'bg-muted/80' : ''
+                      }`}
+                    >
+                      {/* Left vertical color bar */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${indicatorColor}`} />
 
-                    {/* Avatar Circle with WhatsApp Icon badge */}
-                    <div className="relative flex-shrink-0">
-                      {c.avatar_url ? (
-                        <img src={c.avatar_url} alt={name} loading="lazy"
-                          className="w-11 h-11 rounded-full object-cover shadow-sm" />
-                      ) : (
-                        <div className={`w-11 h-11 rounded-full ${avatarColor} flex items-center justify-center font-bold text-sm shadow-sm`}>
-                          {initials}
+                      {/* Avatar Circle */}
+                      <div className="relative flex-shrink-0">
+                        {c.avatar_url ? (
+                          <img src={c.avatar_url} alt={name} loading="lazy"
+                            className="w-11 h-11 rounded-full object-cover shadow-sm border border-border/50" />
+                        ) : (
+                          <div className={`w-11 h-11 rounded-full ${avatarColor} flex items-center justify-center font-bold text-sm shadow-sm border border-border/50`}>
+                            {initials}
+                          </div>
+                        )}
+                        <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 text-white rounded-full p-0.5 border-2 border-background">
+                          <MessageSquare size={10} className="fill-current" />
                         </div>
-                      )}
-                      <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 text-white rounded-full p-0.5 border-2 border-background">
-                        <MessageSquare size={10} className="fill-current" />
                       </div>
-                    </div>
 
-                    {/* Chat Content Preview */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-semibold text-xs text-foreground truncate">{name}</span>
-                        {timeStr && <span className="text-[11px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
+                      {/* Chat Content Preview */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {c.is_pinned && <Pin size={10} className="text-purple-600 fill-current flex-shrink-0" />}
+                            <span className="font-semibold text-xs text-foreground truncate">{name}</span>
+                          </div>
+                          {timeStr && <span className="text-[10px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5 pr-6">
+                          {c.last_message || 'Clique para abrir'}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {c.last_message || 'Clique para abrir conversa'}
-                      </p>
+
+                      {/* Badges / Unread */}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0 min-w-[20px]">
+                        {c.unread_count > 0 && (
+                          <span className="bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center shadow-sm">
+                            {c.unread_count}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Hover Actions (Pin & Peek) */}
+                    <div className="absolute right-2 bottom-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border text-muted-foreground hover:text-purple-600"
+                        onClick={(e) => { e.stopPropagation(); togglePin(c); }}
+                        title={c.is_pinned ? "Desafixar" : "Fixar"}
+                      >
+                        {c.is_pinned ? <PinOff size={14} /> : <Pin size={14} />}
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 rounded-full bg-background/90 shadow-sm border text-muted-foreground hover:text-blue-600"
+                        onClick={(e) => { e.stopPropagation(); setPeeking(c.id); setSelected(c); }}
+                        title="Espiar (não marcar como lida)"
+                      >
+                        <Eye size={14} />
+                      </Button>
                     </div>
-
-
-                    {/* Status Dot / Unread Badge */}
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  </div>
                       {c.unread_count > 0 ? (
                         <Badge className="bg-purple-600 text-white text-[10px] h-5 min-w-5 rounded-full flex items-center justify-center p-0">
                           {c.unread_count}
