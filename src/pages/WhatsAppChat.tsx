@@ -256,15 +256,53 @@ const WhatsAppChat = () => {
     const { data } = await supabase.from('whatsapp_chats').select('*')
       .eq('instance_id', instanceId)
       .not('last_message_at', 'is', null)
+      .order('is_pinned', { ascending: false })
       .order('last_message_at', { ascending: false })
-      .limit(50);
+      .limit(80);
     const list = (data as Chat[]) || [];
     setChats(list);
     // NUNCA troca a conversa aberta sozinho — apenas atualiza os dados dela.
     const cur = selectedRef.current;
     if (cur) {
       const fresh = list.find(c => c.id === cur.id);
-      if (fresh) setSelected(prev => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev));
+      if (fresh) {
+        setSelected(prev => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev));
+      }
+    }
+  };
+
+  const togglePin = async (chat: Chat) => {
+    const pinnedCount = chats.filter(c => c.is_pinned).length;
+    if (!chat.is_pinned && pinnedCount >= 5) {
+      toast({ title: 'Limite atingido', description: 'Você pode fixar no máximo 5 conversas.', variant: 'destructive' });
+      return;
+    }
+    const newVal = !chat.is_pinned;
+    try {
+      const { error } = await supabase.from('whatsapp_chats').update({ is_pinned: newVal }).eq('id', chat.id);
+      if (error) throw error;
+      setChats(prev => prev.map(c => c.id === chat.id ? { ...c, is_pinned: newVal } : c));
+      if (selected?.id === chat.id) setSelected(prev => prev ? { ...prev, is_pinned: newVal } : prev);
+      toast({ title: newVal ? 'Conversa fixada' : 'Conversa desafixada' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao fixar', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  // Solicita permissão para notificações push
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const showPushNotification = (chat: Chat, msg: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const title = chat.contact_name || chat.contact_number;
+      new Notification(title, {
+        body: msg,
+        icon: chat.avatar_url || '/favicon.ico',
+      });
     }
   };
 
