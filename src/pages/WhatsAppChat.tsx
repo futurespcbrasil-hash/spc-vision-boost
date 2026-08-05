@@ -1074,7 +1074,7 @@ const WhatsAppChat = () => {
               </ScrollArea>
 
               {/* Input Bar */}
-              <div className="p-3 border-t bg-card flex items-center gap-1.5">
+              <div className="p-2 border-t bg-card flex items-center gap-2">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
