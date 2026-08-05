@@ -840,7 +840,7 @@ const WhatsAppChat = () => {
                 return (
                   <div key={c.id} className="group relative">
                     <button
-                      onClick={() => { setPeeking(null); setSelected(c); }}
+                      onClick={() => { setPeeking(null); setSelected(c); if (isMobile) setMobileShowChat(true); }}
                       className={`w-full flex items-center gap-3 p-3 text-left relative transition-all hover:bg-muted/50 ${
                         isSelected ? 'bg-muted/80' : ''
                       }`}
