@@ -551,6 +551,12 @@ const WhatsAppChat = () => {
 
 
 
+  const handleNumberClick = (number: string) => {
+    setNewChatNumber(number);
+    setNewChatOpen(true);
+    setNewChatMessage('');
+  };
+
   const handleSync = async () => {
     if (!instanceId) return;
     setSyncing(true);
