@@ -25,7 +25,7 @@ interface Chat {
   id: string; instance_id: string; wa_chat_id: string; contact_number: string;
   contact_name: string | null; last_message: string | null; last_message_at: string | null;
   unread_count: number; assigned_to: string | null; funnel_stage: string | null; is_group?: boolean;
-  avatar_url?: string | null;
+  avatar_url?: string | null; is_pinned?: boolean;
 }
 interface Message {
   id: string; chat_id: string; from_me: boolean; text: string | null;
