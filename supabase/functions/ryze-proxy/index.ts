@@ -714,6 +714,62 @@ Deno.serve(async (req) => {
       return json({ synced: syncedCount, total: r.data.total || syncedCount });
     }
 
+    // -------- GET PROFILE PICTURE (uma vez por conversa) --------
+    if (action === 'get_profile_pic') {
+      // Ryze Official Endpoint: GET /api/profile/getAccount/:instance?number=5511988887777
+      const rawJid = String(body.wa_chat_id || body.number || '').trim();
+      if (!rawJid) return json({ error: 'wa_chat_id ou number obrigatório' }, 400);
+      const number = rawJid.split('@')[0].replace(/\D/g, '');
+      if (!number) return json({ error: 'Número inválido' }, 400);
+
+      // Se já temos avatar salvo, não repetimos o GET na Ryze.
+      const { data: existing } = await admin
+        .from('whatsapp_chats')
+        .select('id, avatar_url')
+        .eq('instance_id', instanceId)
+        .eq('wa_chat_id', rawJid)
+        .maybeSingle();
+
+      if (existing?.avatar_url) {
+        return json({ avatar_url: existing.avatar_url, cached: true });
+      }
+
+      const r = await ryzeFetch(
+        `/api/profile/getAccount/${encodeURIComponent(remoteName)}?number=${encodeURIComponent(number)}`,
+        { method: 'GET', token: instToken || TOKEN_ACCOUNT },
+      );
+
+      if (!r.ok) {
+        const errorDetails = r.data?.error?.message || r.data?.message || JSON.stringify(r.data);
+        console.warn('[ryze-proxy] get_profile_pic falhou:', errorDetails);
+        return json({ avatar_url: null, error_details: errorDetails });
+      }
+
+      const d = r.data?.data || r.data || {};
+      const avatar =
+        d.profilePicUrl || d.picture || d.profile_pic_url || d.imgUrl ||
+        d.profilePictureUrl || d.avatar_url || r.data?.profilePicUrl || null;
+      const displayName = d.name || d.pushName || d.verifiedName || d.business_name || null;
+
+      if (avatar) {
+        if (existing?.id) {
+          await admin.from('whatsapp_chats')
+            .update({ avatar_url: avatar })
+            .eq('id', existing.id);
+        }
+        await admin.from('whatsapp_contacts').upsert({
+          instance_id: instanceId,
+          wa_number: number,
+          name: displayName,
+          avatar_url: avatar,
+          is_group: rawJid.includes('@g.us'),
+          raw: d,
+        }, { onConflict: 'instance_id,wa_number' });
+      }
+
+      return json({ avatar_url: avatar, name: displayName, cached: false });
+    }
+
     return json({ error: `Ação desconhecida: ${action}` }, 400);
   } catch (e) {
     console.error('ryze-proxy erro geral:', e);
