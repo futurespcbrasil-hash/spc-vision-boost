@@ -879,15 +879,6 @@ const WhatsAppChat = () => {
                       </Button>
                     </div>
                   </div>
-                      {c.unread_count > 0 ? (
-                        <Badge className="bg-purple-600 text-white text-[10px] h-5 min-w-5 rounded-full flex items-center justify-center p-0">
-                          {c.unread_count}
-                        </Badge>
-                      ) : (
-                        <span className={`w-2.5 h-2.5 rounded-full ${idx % 2 === 0 ? 'bg-amber-400' : 'bg-emerald-500'}`} />
-                      )}
-                    </div>
-                  </button>
                 );
               })}
 
