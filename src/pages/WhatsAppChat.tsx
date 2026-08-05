@@ -637,10 +637,17 @@ const WhatsAppChat = () => {
     if (!matchSearch) return false;
     return matchesFilter(c, activeFilter);
   }).sort((a, b) => {
-    // Conversas com mensagens novas sempre no topo
+    // 1. Fixados (Pined) no topo
+    const ap = a.is_pinned ? 1 : 0;
+    const bp = b.is_pinned ? 1 : 0;
+    if (ap !== bp) return bp - ap;
+
+    // 2. Conversas com mensagens novas (não lidas) logo abaixo dos fixados
     const au = a.unread_count > 0 ? 1 : 0;
     const bu = b.unread_count > 0 ? 1 : 0;
     if (au !== bu) return bu - au;
+
+    // 3. Ordem cronológica
     return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
   });
 
