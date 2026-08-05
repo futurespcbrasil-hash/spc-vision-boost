@@ -113,16 +113,35 @@ const senderLabel = (raw?: string | null) => {
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
 
-// Transforma links em âncoras clicáveis
-const renderRichText = (text: string) => {
-  const parts = text.split(/(https?:\/\/[^\s]+|www\.[^\s]+)/gi);
+// Transforma links e números de telefone em âncoras clicáveis
+const renderRichText = (text: string, onNumberClick?: (num: string) => void) => {
+  // Regex para links
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  // Regex simplificada para números de telefone (DDI+DDD+9 dígitos)
+  const phoneRegex = /(\+?55\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4})/g;
+
+  const parts = text.split(new RegExp(`(${urlRegex.source}|${phoneRegex.source})`, 'gi'));
+
   return parts.map((part, i) => {
-    if (/^(https?:\/\/|www\.)/i.test(part)) {
+    if (!part) return null;
+    if (urlRegex.test(part)) {
       const href = part.startsWith('http') ? part : `https://${part}`;
       return (
         <a key={i} href={href} target="_blank" rel="noreferrer" className="underline break-all text-blue-600 dark:text-blue-400">
           {part}
         </a>
+      );
+    }
+    if (phoneRegex.test(part)) {
+      const cleanNum = onlyDigits(part);
+      return (
+        <button
+          key={i}
+          onClick={() => onNumberClick?.(cleanNum)}
+          className="underline text-blue-600 dark:text-blue-400 hover:opacity-80 transition-opacity"
+        >
+          {part}
+        </button>
       );
     }
     return <span key={i}>{part}</span>;
