@@ -177,6 +177,7 @@ const WhatsAppChat = () => {
   const [syncing, setSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<Chat | null>(null);
+  const profilePicFetched = useRef<Set<string>>(new Set());
   const [instanceUnread, setInstanceUnread] = useState<Record<string, number>>({});
 
   // Salvar contato
@@ -394,6 +395,20 @@ const WhatsAppChat = () => {
     const chatId = selected.id;
     setMessages([]);
     loadMessages(chatId);
+
+    // Foto de perfil: apenas 1 GET por conversa (Ryze /api/profile/getAccount)
+    if (!selected.avatar_url && instanceId && !profilePicFetched.current.has(chatId)) {
+      profilePicFetched.current.add(chatId);
+      ryze.getProfilePic(instanceId, selected.wa_chat_id)
+        .then((res: any) => {
+          const url = res?.avatar_url;
+          if (!url) return;
+          setChats(prev => prev.map(c => c.id === chatId ? { ...c, avatar_url: url } : c));
+          setSelected(prev => prev && prev.id === chatId ? { ...prev, avatar_url: url } : prev);
+        })
+        .catch(err => console.warn('[WhatsApp] Falha ao buscar foto de perfil:', err?.message));
+    }
+
     const ch = supabase.channel(`wa-msgs-${chatId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
