@@ -414,8 +414,10 @@ const WhatsAppChat = () => {
         })
       .subscribe();
 
-    if (selected.unread_count > 0) {
-      supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chatId).then(() => {});
+    if (selected.unread_count > 0 && peeking !== chatId) {
+      supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chatId).then(() => {
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, unread_count: 0 } : c));
+      });
     }
     // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
     const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
