@@ -177,6 +177,7 @@ const WhatsAppChat = () => {
   const [syncing, setSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<Chat | null>(null);
+  const profilePicFetched = useRef<Set<string>>(new Set());
   const [instanceUnread, setInstanceUnread] = useState<Record<string, number>>({});
 
   // Salvar contato
