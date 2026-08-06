@@ -467,7 +467,7 @@ const WhatsAppChat = () => {
     // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
     const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
     return () => { window.clearInterval(poll); supabase.removeChannel(ch); };
-  }, [selected?.id]);
+  }, [selected?.id, loadMessages, instanceId]);
 
   const handleSend = async () => {
     if (!text.trim() || !selected || !instanceId) return;
