@@ -1133,7 +1133,7 @@ const WhatsAppChat = () => {
 
               
               {/* Input Bar - Travada no rodapé */}
-              <div className="p-2 border-t bg-card flex items-center gap-2 flex-shrink-0 relative z-10 sticky bottom-0 border-b md:border-b-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+              <div className="p-2 border-t bg-card flex items-center gap-2 flex-shrink-0 relative z-50 sticky bottom-0 border-b md:border-b-0 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
