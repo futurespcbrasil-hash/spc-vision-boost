@@ -11,6 +11,7 @@ import DashboardRelatorios from '@/components/DashboardRelatorios';
 
 interface CommissionData {
   vendedor: string;
+  email?: string;
   protocolo: string;
   valorVenda: number;
   comissao: number;
@@ -20,26 +21,30 @@ interface CommissionData {
   numeroPedido?: string;
   tipoEmissao?: string;
   statusVenda?: string;
+  regra?: number;
 }
 
 
 const RelatoriosComissoes = () => {
+  const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [loading, setLoading] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
-  const [results, setResults] = useState<Record<string, CommissionData[]>>({});
-  const [vendedoresConfig, setVendedoresConfig] = useState<Record<string, number>>({});
-  const [vendedoresDB, setVendedoresDB] = useState<Record<string, number>>({});
+  const [vendedoresConfig, setVendedoresConfig] = useState<Record<string, { percentual: number, email?: string }>>({});
+  const [vendedoresDB, setVendedoresDB] = useState<Record<string, { percentual: number, email?: string }>>({});
 
   useEffect(() => {
     const fetchVendedores = async () => {
       const { data, error } = await supabase
         .from('vendedores_comissoes')
-        .select('nome, percentual_comissao');
+        .select('nome, percentual_comissao, email');
       
       if (!error && data) {
-        const config: Record<string, number> = {};
+        const config: Record<string, { percentual: number, email?: string }> = {};
         data.forEach(v => {
-          config[v.nome.trim()] = Number(v.percentual_comissao);
+          config[v.nome.trim()] = { 
+            percentual: Number(v.percentual_comissao),
+            email: v.email || undefined
+          };
         });
         setVendedoresDB(config);
       }
@@ -75,13 +80,16 @@ const RelatoriosComissoes = () => {
         if (typeof comissaoRaw === 'string') {
           percentual = parseFloat(comissaoRaw.replace('%', '').replace(',', '.'));
         } else if (typeof comissaoRaw === 'number') {
-          // Se for decimal como 0.4, converte para 40. Se for 40, mantém 40.
           percentual = comissaoRaw < 1 ? comissaoRaw * 100 : comissaoRaw;
         }
 
         const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || '').trim();
+        const email = String(row['E-MAIL'] || row['Email'] || row['email'] || '').trim();
         if (nome && !isNaN(percentual)) {
-          config[nome] = percentual;
+          config[nome] = { 
+            percentual,
+            email: email || config[nome]?.email 
+          };
         }
       });
       setVendedoresConfig(config);
@@ -113,8 +121,8 @@ const RelatoriosComissoes = () => {
               
               let matchedVendedor = '';
               let basePercentual = 0;
+              let matchedEmail = '';
 
-              // Lógica de cruzamento: procura o nome do cadastro dentro do nome do vendedor no relatório de vendas
               const match = Object.entries(configToUse).find(([name]) => 
                 vendedorRaw.toLowerCase().includes(name.toLowerCase()) || 
                 name.toLowerCase().includes(vendedorRaw.toLowerCase())
@@ -122,7 +130,8 @@ const RelatoriosComissoes = () => {
 
               if (match) {
                 matchedVendedor = match[0];
-                basePercentual = match[1];
+                basePercentual = match[1].percentual;
+                matchedEmail = match[1].email || '';
               }
 
               if (basePercentual > 0) {
@@ -133,6 +142,7 @@ const RelatoriosComissoes = () => {
                 
                 commissions[reportKey].push({
                   vendedor: reportKey,
+                  email: matchedEmail,
                   protocolo,
                   valorVenda,
                   comissao: valorComissao,
@@ -141,7 +151,8 @@ const RelatoriosComissoes = () => {
                   telefone,
                   numeroPedido,
                   tipoEmissao,
-                  statusVenda
+                  statusVenda,
+                  regra: basePercentual
                 });
               }
             }
@@ -206,13 +217,33 @@ const RelatoriosComissoes = () => {
     let body: any[][] = [];
 
     if (type === 'resumido') {
-      headers = [['Protocolo', 'Cliente', 'Produto', 'Valor Venda', 'Comissão']];
-      body = data.map(item => [
-        item.protocolo,
-        item.cliente,
-        item.produto,
-        `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      headers = [['Vendedor', 'E-mail', 'Regra', 'Protocolos', 'Total Vendas', 'Total a Pagar']];
+      
+      // No resumido, agrupamos os dados por vendedor para mostrar o total como na planilha
+      const groupedByVendedor: Record<string, { email: string, regra: string, protocolos: number, totalVendas: number, totalComissao: number }> = {};
+      
+      data.forEach(item => {
+        if (!groupedByVendedor[item.vendedor]) {
+          groupedByVendedor[item.vendedor] = {
+            email: item.email || '-',
+            regra: `${item.regra}%`,
+            protocolos: 0,
+            totalVendas: 0,
+            totalComissao: 0
+          };
+        }
+        groupedByVendedor[item.vendedor].protocolos += 1;
+        groupedByVendedor[item.vendedor].totalVendas += item.valorVenda;
+        groupedByVendedor[item.vendedor].totalComissao += item.comissao;
+      });
+
+      body = Object.entries(groupedByVendedor).map(([vend, info]) => [
+        vend,
+        info.email,
+        info.regra,
+        info.protocolos,
+        `R$ ${info.totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${info.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
     } else if (type === 'completo') {
       headers = [['Protocolo', 'Pedido', 'Cliente', 'Produto', 'Tipo', 'Valor Venda', 'Comissão']];
@@ -247,10 +278,10 @@ const RelatoriosComissoes = () => {
       head: headers,
       body: body,
       foot: [[
-        'TOTAL',
+        'TOTAL GERAL',
         '',
-        ...(type === 'completo' ? ['', '', ''] : []),
-        ...(type === 'avancado' ? ['', '', '', '', '', ''] : []),
+        '',
+        data.length,
         `R$ ${totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]],
