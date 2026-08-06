@@ -1246,8 +1246,9 @@ const WhatsAppChat = () => {
             </div>
           )}
         </div>
-
+      </div>
     </div>
+
 
 
     {/* ─── Nova Conversa Dialog ─── */}
