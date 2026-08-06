@@ -107,6 +107,11 @@ Deno.serve(async (req) => {
         // Se for uma mensagem de texto simples mas sem texto no 'content', pode estar no m.body
         if (!text && m.body) text = m.body;
 
+        // Message revocation detection
+        if (m.type === 'protocol' && inner.type === 'revoke') {
+          text = '[message_revoke]';
+        }
+
         if (inner.stickerMessage) { messageType = 'sticker'; mediaMime = inner.stickerMessage.mimetype; }
         else if (inner.imageMessage) { messageType = 'image'; mediaMime = inner.imageMessage.mimetype; }
         else if (inner.videoMessage) { messageType = 'video'; mediaMime = inner.videoMessage.mimetype; }

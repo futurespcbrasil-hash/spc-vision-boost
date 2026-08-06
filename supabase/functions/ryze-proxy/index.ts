@@ -533,6 +533,7 @@ Deno.serve(async (req) => {
         chat_id: chatId, instance_id: instanceId,
         wa_message_id: waMessageId,
         from_me: true, message_type: mediaType, text: caption, media_url: mediaUrl,
+        media_mime: body.media_mime || body.mimetype || null,
         status: 'sent', timestamp: new Date().toISOString(), sent_by: userId, raw: md,
       });
       return json({ ok: true, message_id: waMessageId });
