@@ -406,9 +406,11 @@ const WhatsAppChat = () => {
       return changed ? merged : prev;
     });
     if (!silent || changed) {
-      requestAnimationFrame(() => { 
-        if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: !silent ? 'auto' : 'smooth' });
-      });
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: !silent ? 'auto' : 'smooth', block: 'end' });
+        }
+      }, 100);
     }
   };
 
@@ -477,9 +479,9 @@ const WhatsAppChat = () => {
       id: tempId, chat_id: selected.id, from_me: true, text: msg,
       message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null,
     }]);
-    requestAnimationFrame(() => {
-      if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    });
+    setTimeout(() => {
+      if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 100);
     try {
       await ryze.sendText(instanceId, selected.contact_number, msg);
       if (!selected.assigned_to && user) {
@@ -736,7 +738,7 @@ const WhatsAppChat = () => {
 
   return (
     <>
-    <div className="flex flex-col h-[calc(100vh-64px)] md:h-screen bg-background font-sans overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-64px)] md:h-screen bg-background font-sans overflow-hidden fixed inset-0 md:relative z-40">
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -964,7 +966,7 @@ const WhatsAppChat = () => {
         </div>
 
         {/* Right Column: Active Conversation Area */}
-        <div className={`flex flex-col min-h-0 bg-slate-50/50 dark:bg-zinc-900/50 relative ${isMobile && !mobileShowChat ? 'hidden md:flex' : 'flex flex-1'}`}>
+        <div className={`flex flex-col min-h-0 h-full bg-slate-50/50 dark:bg-zinc-900/50 relative ${isMobile && !mobileShowChat ? 'hidden md:flex' : 'flex flex-1'}`}>
           {selected ? (
             <>
               {/* Active Chat Header */}
@@ -1036,7 +1038,7 @@ const WhatsAppChat = () => {
               </div>
 
               {/* Chat Message Canvas */}
-              <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth custom-scrollbar relative">
+              <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth custom-scrollbar relative flex flex-col">
                 <div className="flex flex-col justify-end min-h-full space-y-3 max-w-5xl mx-auto pb-4">
                   {messages.filter(m => m.message_type !== 'reaction').map(m => {
                     const reactions = messages.filter(
@@ -1133,7 +1135,7 @@ const WhatsAppChat = () => {
 
               
               {/* Input Bar - Travada no rodapé */}
-              <div className="p-2 border-t bg-card flex items-center gap-2 flex-shrink-0 relative z-10 sticky bottom-0 border-b md:border-b-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+              <div className="p-2 border-t bg-card flex items-center gap-2 flex-shrink-0 relative z-50 sticky bottom-0 border-b md:border-b-0 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
