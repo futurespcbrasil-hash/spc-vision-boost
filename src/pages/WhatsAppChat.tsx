@@ -1024,7 +1024,7 @@ const WhatsAppChat = () => {
               </div>
 
               {/* Chat Message Canvas */}
-              <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth" ref={scrollRef}>
+              <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth custom-scrollbar" ref={scrollRef}>
                 <div className="flex flex-col justify-end min-h-full space-y-3 max-w-5xl mx-auto pb-4">
                   {messages.filter(m => m.message_type !== 'reaction').map(m => {
                     const reactions = messages.filter(
