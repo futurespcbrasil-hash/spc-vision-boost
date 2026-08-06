@@ -69,10 +69,19 @@ const RelatoriosComissoes = () => {
       
       const config = { ...vendedoresDB };
       vendsJson.forEach(row => {
-        const valor = parseFloat(String(row['Comissão'] || row['Base'] || Object.values(row)[0]).replace(',', '.'));
-        const nome = String(row['Vendedor'] || Object.values(row)[1]);
-        if (nome && !isNaN(valor)) {
-          config[nome.trim()] = valor;
+        const comissaoRaw = row['Comissão'] || row['Comissao'] || row['REGRA'];
+        let percentual = 0;
+        
+        if (typeof comissaoRaw === 'string') {
+          percentual = parseFloat(comissaoRaw.replace('%', '').replace(',', '.'));
+        } else if (typeof comissaoRaw === 'number') {
+          // Se for decimal como 0.4, converte para 40. Se for 40, mantém 40.
+          percentual = comissaoRaw < 1 ? comissaoRaw * 100 : comissaoRaw;
+        }
+
+        const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || '').trim();
+        if (nome && !isNaN(percentual)) {
+          config[nome] = percentual;
         }
       });
       setVendedoresConfig(config);
@@ -88,9 +97,9 @@ const RelatoriosComissoes = () => {
           const commissions: Record<string, CommissionData[]> = {};
 
           rows.forEach(row => {
-            const statusVenda = row['Status Venda'] || row['status da venda'];
-            const vendedorRaw = row['Vendedor'] || row['vendedor'];
-            const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda']).replace(',', '.'));
+            const statusVenda = (row['Status Venda'] || row['status da venda'] || '').trim();
+            const vendedorRaw = (row['Vendedor'] || row['vendedor'] || '').trim();
+            const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || '0').replace(',', '.'));
             const protocolo = row['Nº Protocolo'] || row['numero do protocolo'];
             const produto = row['Produto'] || row['produto'];
             const cliente = row['Cliente'] || row['nome do cliente'];
@@ -98,20 +107,32 @@ const RelatoriosComissoes = () => {
             const numeroPedido = row['Nº Pedido'] || row['numero do pedido'];
             const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'];
 
-            // "protocolo gerado" não gera comissão, "Emitida" gera.
+            // Regra: "Emitida" gera comissão.
             if (vendedorRaw && statusVenda === 'Emitida') {
-              let vendedorNome = vendedorRaw.trim();
+              const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
               
-              const configToUse = Object.keys(vendedoresConfig).length > 0 ? vendedoresConfig : vendedoresDB;
-              const basePercentual = configToUse[vendedorNome] || Object.entries(configToUse).find(([k]) => vendedorNome.includes(k))?.[1];
+              let matchedVendedor = '';
+              let basePercentual = 0;
 
-              if (basePercentual && basePercentual > 0) {
-                if (!commissions[vendedorNome]) commissions[vendedorNome] = [];
+              // Lógica de cruzamento: procura o nome do cadastro dentro do nome do vendedor no relatório de vendas
+              const match = Object.entries(configToUse).find(([name]) => 
+                vendedorRaw.toLowerCase().includes(name.toLowerCase()) || 
+                name.toLowerCase().includes(vendedorRaw.toLowerCase())
+              );
+
+              if (match) {
+                matchedVendedor = match[0];
+                basePercentual = match[1];
+              }
+
+              if (basePercentual > 0) {
+                const reportKey = matchedVendedor || vendedorRaw;
+                if (!commissions[reportKey]) commissions[reportKey] = [];
                 
                 const valorComissao = (valorVenda * basePercentual) / 100;
                 
-                commissions[vendedorNome].push({
-                  vendedor: vendedorNome,
+                commissions[reportKey].push({
+                  vendedor: reportKey,
                   protocolo,
                   valorVenda,
                   comissao: valorComissao,
@@ -125,7 +146,6 @@ const RelatoriosComissoes = () => {
               }
             }
           });
-
 
           setResults(commissions);
           setLoading(false);
