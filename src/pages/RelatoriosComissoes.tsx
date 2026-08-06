@@ -6,6 +6,9 @@ import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from "@/integrations/supabase/client";
+import { Database, Tables } from "@/integrations/supabase/types";
+
+type ImportacaoComissoes = Database['public']['Tables']['importacoes_comissoes']['Row'];
 import DashboardRelatorios from '@/components/DashboardRelatorios';
 
 
@@ -29,7 +32,7 @@ const RelatoriosComissoes = () => {
   const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [loading, setLoading] = useState(false);
   const [vendedoresDB, setVendedoresDB] = useState<Record<string, { percentual: number, email?: string }>>({});
-  const [savedImports, setSavedImports] = useState<Tables<"importacoes_comissoes">[]>([]);
+  const [savedImports, setSavedImports] = useState<ImportacaoComissoes[]>([]);
   const [importName, setImportName] = useState("");
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
 
