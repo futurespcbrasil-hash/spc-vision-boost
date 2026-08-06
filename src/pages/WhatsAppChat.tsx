@@ -399,7 +399,9 @@ const WhatsAppChat = () => {
       return changed ? merged : prev;
     });
     if (!silent || changed) {
-      requestAnimationFrame(() => { scrollToBottom(!silent ? false : true); setTimeout(() => scrollToBottom(), 120); });
+      requestAnimationFrame(() => { 
+        if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: !silent ? 'auto' : 'smooth' });
+      });
     }
   };
 
