@@ -1,3 +1,4 @@
+// Relatório de Comissões - Ajustado para filtrar apenas status 'Emitida' (case-insensitive) e melhorar precisão do matching de vendedores.
 import React, { useState, useRef, useEffect } from 'react';
 import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText } from 'lucide-react';
 import { toast } from 'sonner';
