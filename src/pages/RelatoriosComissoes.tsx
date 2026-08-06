@@ -281,36 +281,42 @@ const RelatoriosComissoes = () => {
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <FileBarChart className="text-primary" size={24} />
           <h1 className="text-2xl font-bold text-foreground">Relatório de Comissões</h1>
         </div>
-        <div className="flex gap-2">
-          {Object.keys(results).length > 0 && (
+        
+        {Object.keys(results).length > 0 && (
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setShowDashboard(!showDashboard)}
-              className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition"
-            >
-              <BarChart3 size={18} />
-              {showDashboard ? 'Voltar ao Relatório' : 'Ver Dashboard'}
-            </button>
-          )}
-          {Object.keys(results).length > 0 && (
-            <button
-              onClick={exportAllPDFs}
-              className="flex items-center gap-2 bg-success text-white px-4 py-2 rounded-lg hover:opacity-90 transition"
+              onClick={() => exportGeneralReport('resumido')}
+              className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition text-sm"
             >
               <FileDown size={18} />
-              Exportar Todos PDFs
+              Geral Resumido
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => exportGeneralReport('avancado')}
+              className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition text-sm"
+            >
+              <FileText size={18} />
+              Geral Avançado
+            </button>
+            <button
+              onClick={exportAllPDFs}
+              className="flex items-center gap-2 bg-success text-white px-4 py-2 rounded-lg hover:opacity-90 transition text-sm"
+            >
+              <FileDown size={18} />
+              Exportar Todos Individuais
+            </button>
+          </div>
+        )}
       </div>
 
-      {showDashboard ? (
+      {Object.keys(results).length > 0 && (
         <DashboardRelatorios data={Object.values(results).flat()} />
-      ) : (
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm space-y-4">
@@ -377,6 +383,13 @@ const RelatoriosComissoes = () => {
                     >
                       <FileText size={18} className="text-secondary" />
                     </button>
+                    <button
+                      onClick={() => exportPDF(vendedor, data, 'avancado')}
+                      className="p-2 text-primary hover:bg-primary/10 rounded-full transition"
+                      title="Baixar PDF Avançado"
+                    >
+                      <FileBarChart size={18} className="text-success" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -389,7 +402,6 @@ const RelatoriosComissoes = () => {
           )}
         </div>
       </div>
-      )}
     </div>
   );
 };
