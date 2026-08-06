@@ -158,23 +158,38 @@ const RelatoriosComissoes = () => {
             const numeroPedido = row['Nº Pedido'] || row['numero do pedido'];
             const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'];
 
-            // Regra: "Emitida" gera comissão.
-            if (vendedorRaw && statusVenda === 'Emitida') {
+            // Regra: "Emitida" gera comissão. "Protocolo Gerado" não gera.
+            // O usuário mencionou que o valor total correto deveria ser 6111,5 (comissões).
+            if (vendedorRaw && statusVenda.toLowerCase() === 'emitida') {
               const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
               
               let matchedVendedor = '';
               let basePercentual = 0;
               let matchedEmail = '';
 
+              // Ajuste no matching: Priorizar match exato ou começar com.
+              // O vendedor "Rigo" não deve aparecer se não houver venda emitida para ele.
               const match = Object.entries(configToUse).find(([name]) => 
-                vendedorRaw.toLowerCase().includes(name.toLowerCase()) || 
-                name.toLowerCase().includes(vendedorRaw.toLowerCase())
+                vendedorRaw.toLowerCase() === name.toLowerCase() ||
+                vendedorRaw.toLowerCase().startsWith(name.toLowerCase() + " ") ||
+                name.toLowerCase().startsWith(vendedorRaw.toLowerCase() + " ")
               );
 
               if (match) {
                 matchedVendedor = match[0];
                 basePercentual = match[1].percentual;
                 matchedEmail = match[1].email || '';
+              } else {
+                // Tenta um match parcial se não achou exato, mas sendo mais rigoroso
+                const partialMatch = Object.entries(configToUse).find(([name]) => 
+                  vendedorRaw.toLowerCase().includes(name.toLowerCase()) || 
+                  name.toLowerCase().includes(vendedorRaw.toLowerCase())
+                );
+                if (partialMatch) {
+                  matchedVendedor = partialMatch[0];
+                  basePercentual = partialMatch[1].percentual;
+                  matchedEmail = partialMatch[1].email || '';
+                }
               }
 
               if (basePercentual > 0) {
