@@ -149,7 +149,7 @@ const RelatoriosComissoes = () => {
           const commissions: Record<string, CommissionData[]> = {};
 
           rows.forEach(row => {
-            const statusVenda = (row['Status Venda'] || row['status da venda'] || '').trim();
+            const statusVenda = (row['Status Venda'] || row['status da venda'] || '').trim().toLowerCase();
             const vendedorRaw = (row['Vendedor'] || row['vendedor'] || '').trim();
             const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || '0').replace(',', '.'));
             const protocolo = row['Nº Protocolo'] || row['numero do protocolo'];
@@ -160,8 +160,8 @@ const RelatoriosComissoes = () => {
             const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'];
 
             // Regra: "Emitida" gera comissão. "Protocolo Gerado" não gera.
-            // O usuário mencionou que o valor total correto deveria ser 6111,5 (comissões).
-            if (vendedorRaw && statusVenda.toLowerCase() === 'emitida') {
+            // Verificação estrita de "emitida"
+            if (vendedorRaw && statusVenda === 'emitida') {
               const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
               
               let matchedVendedor = '';
@@ -172,8 +172,7 @@ const RelatoriosComissoes = () => {
               // O vendedor "Rigo" não deve aparecer se não houver venda emitida para ele.
               const match = Object.entries(configToUse).find(([name]) => 
                 vendedorRaw.toLowerCase() === name.toLowerCase() ||
-                vendedorRaw.toLowerCase().startsWith(name.toLowerCase() + " ") ||
-                name.toLowerCase().startsWith(vendedorRaw.toLowerCase() + " ")
+                vendedorRaw.toLowerCase().startsWith(name.toLowerCase() + " ")
               );
 
               if (match) {
