@@ -1247,8 +1247,8 @@ const WhatsAppChat = () => {
           )}
         </div>
 
-      </div>
     </div>
+
 
     {/* ─── Nova Conversa Dialog ─── */}
     <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
