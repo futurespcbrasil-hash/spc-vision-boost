@@ -1456,7 +1456,6 @@ const WhatsAppChat = () => {
       </DialogContent>
     </Dialog>
     </>
-
   );
 };
 
