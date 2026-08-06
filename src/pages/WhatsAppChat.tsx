@@ -470,7 +470,9 @@ const WhatsAppChat = () => {
       id: tempId, chat_id: selected.id, from_me: true, text: msg,
       message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null,
     }]);
-    requestAnimationFrame(() => scrollToBottom(true));
+    requestAnimationFrame(() => {
+      if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    });
     try {
       await ryze.sendText(instanceId, selected.contact_number, msg);
       if (!selected.assigned_to && user) {
