@@ -84,7 +84,7 @@ const RelatoriosComissoes = () => {
         }
 
         const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || '').trim();
-        const email = String(row['E-MAIL'] || row['Email'] || row['email'] || '').trim();
+        const email = String(row['ENVIO'] || row['Envio'] || row['E-MAIL'] || row['Email'] || row['email'] || '').trim();
         if (nome && !isNaN(percentual)) {
           config[nome] = { 
             percentual,
