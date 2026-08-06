@@ -88,7 +88,7 @@ const RelatoriosComissoes = () => {
   };
 
   const loadImport = (imp: any) => {
-    setResults(imp.dados_processados as Record<string, CommissionData[]>);
+    setResults(imp.dados_processados as unknown as Record<string, CommissionData[]>);
     setSelectedImportId(imp.id);
     setImportName(imp.nome_importacao);
     toast.success(`Importação "${imp.nome_importacao}" carregada.`);
