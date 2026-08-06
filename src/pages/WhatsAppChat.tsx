@@ -1116,7 +1116,9 @@ const WhatsAppChat = () => {
                     </div>
                   )}
                 </div>
+              <div ref={messagesEndRef} />
               </div>
+
               
               {/* Input Bar - Travada no rodapé */}
               <div className="p-2 border-t bg-card flex items-center gap-2 flex-shrink-0 relative z-10 sticky bottom-0">
