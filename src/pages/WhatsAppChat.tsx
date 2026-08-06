@@ -115,6 +115,13 @@ const senderLabel = (raw?: string | null) => {
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
 
+// Forçar rolagem para o final sem usar scrollToBottom
+const scrollToBottomDirect = (ref: React.RefObject<HTMLDivElement>, behavior: ScrollBehavior = 'auto') => {
+  if (ref.current) {
+    ref.current.scrollIntoView({ behavior });
+  }
+};
+
 // Helper to check if string is a valid phone number format
 const isPotentialPhone = (v: string) => {
   const digits = onlyDigits(v);
@@ -188,6 +195,7 @@ const WhatsAppChat = () => {
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<Chat | null>(null);
   const profilePicFetched = useRef<Set<string>>(new Set());
   const [instanceUnread, setInstanceUnread] = useState<Record<string, number>>({});
@@ -398,7 +406,9 @@ const WhatsAppChat = () => {
       return changed ? merged : prev;
     });
     if (!silent || changed) {
-      requestAnimationFrame(() => { scrollToBottom(!silent ? false : true); setTimeout(() => scrollToBottom(), 120); });
+      requestAnimationFrame(() => { 
+        if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: !silent ? 'auto' : 'smooth' });
+      });
     }
   };
 
@@ -467,7 +477,9 @@ const WhatsAppChat = () => {
       id: tempId, chat_id: selected.id, from_me: true, text: msg,
       message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null,
     }]);
-    requestAnimationFrame(() => scrollToBottom(true));
+    requestAnimationFrame(() => {
+      if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    });
     try {
       await ryze.sendText(instanceId, selected.contact_number, msg);
       if (!selected.assigned_to && user) {
@@ -724,7 +736,7 @@ const WhatsAppChat = () => {
 
   return (
     <>
-    <div className="flex flex-col h-[calc(100vh-64px)] md:h-full bg-background font-sans overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-64px)] md:h-screen bg-background font-sans overflow-hidden">
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -952,7 +964,7 @@ const WhatsAppChat = () => {
         </div>
 
         {/* Right Column: Active Conversation Area */}
-        <div className={`flex flex-col min-h-0 overflow-hidden bg-slate-50/50 dark:bg-zinc-900/50 ${isMobile && !mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`flex flex-col min-h-0 bg-slate-50/50 dark:bg-zinc-900/50 relative ${isMobile && !mobileShowChat ? 'hidden md:flex' : 'flex flex-1'}`}>
           {selected ? (
             <>
               {/* Active Chat Header */}
@@ -1024,7 +1036,7 @@ const WhatsAppChat = () => {
               </div>
 
               {/* Chat Message Canvas */}
-              <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth" ref={scrollRef}>
+              <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth custom-scrollbar relative">
                 <div className="flex flex-col justify-end min-h-full space-y-3 max-w-5xl mx-auto pb-4">
                   {messages.filter(m => m.message_type !== 'reaction').map(m => {
                     const reactions = messages.filter(
@@ -1116,10 +1128,12 @@ const WhatsAppChat = () => {
                     </div>
                   )}
                 </div>
+              <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Bar */}
-              <div className="p-2 border-t bg-card flex items-center gap-2">
+              
+              {/* Input Bar - Travada no rodapé */}
+              <div className="p-2 border-t bg-card flex items-center gap-2 flex-shrink-0 relative z-10 sticky bottom-0 border-b md:border-b-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
@@ -1246,12 +1260,14 @@ const WhatsAppChat = () => {
             </div>
           )}
         </div>
-
       </div>
     </div>
 
+
+
     {/* ─── Nova Conversa Dialog ─── */}
     <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1456,7 +1472,6 @@ const WhatsAppChat = () => {
       </DialogContent>
     </Dialog>
     </>
-
   );
 };
 
