@@ -596,8 +596,11 @@ export type Database = {
       }
       vendedores_comissoes: {
         Row: {
+          chave_pix: string | null
           cidade: string | null
           created_at: string | null
+          dados_bancarios: string | null
+          email: string | null
           id: string
           nome: string
           percentual_comissao: number
@@ -605,8 +608,11 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          chave_pix?: string | null
           cidade?: string | null
           created_at?: string | null
+          dados_bancarios?: string | null
+          email?: string | null
           id?: string
           nome: string
           percentual_comissao?: number
@@ -614,8 +620,11 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          chave_pix?: string | null
           cidade?: string | null
           created_at?: string | null
+          dados_bancarios?: string | null
+          email?: string | null
           id?: string
           nome?: string
           percentual_comissao?: number

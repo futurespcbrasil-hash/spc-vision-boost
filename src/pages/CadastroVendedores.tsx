@@ -17,6 +17,9 @@ interface Vendedor {
   nome: string;
   cidade: string | null;
   percentual_comissao: number;
+  email: string | null;
+  chave_pix: string | null;
+  dados_bancarios: string | null;
 }
 
 const CadastroVendedores = () => {
@@ -30,6 +33,9 @@ const CadastroVendedores = () => {
     nome: '',
     cidade: '',
     percentual_comissao: 0,
+    email: '',
+    chave_pix: '',
+    dados_bancarios: '',
   });
 
   const { data: vendedores, isLoading } = useQuery({
@@ -78,6 +84,9 @@ const CadastroVendedores = () => {
           nome: vendedor.nome,
           cidade: vendedor.cidade,
           percentual_comissao: vendedor.percentual_comissao,
+          email: vendedor.email,
+          chave_pix: vendedor.chave_pix,
+          dados_bancarios: vendedor.dados_bancarios,
         })
         .eq('id', vendedor.id)
         .select()
@@ -117,7 +126,14 @@ const CadastroVendedores = () => {
   });
 
   const resetForm = () => {
-    setFormData({ nome: '', cidade: '', percentual_comissao: 0 });
+    setFormData({ 
+      nome: '', 
+      cidade: '', 
+      percentual_comissao: 0,
+      email: '',
+      chave_pix: '',
+      dados_bancarios: '',
+    });
     setEditingVendedor(null);
   };
 
@@ -127,6 +143,9 @@ const CadastroVendedores = () => {
       nome: vendedor.nome,
       cidade: vendedor.cidade || '',
       percentual_comissao: vendedor.percentual_comissao,
+      email: vendedor.email || '',
+      chave_pix: vendedor.chave_pix || '',
+      dados_bancarios: vendedor.dados_bancarios || '',
     });
     setIsDialogOpen(true);
   };
@@ -163,7 +182,7 @@ const CadastroVendedores = () => {
               Cadastrar Vendedor
             </button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingVendedor ? 'Editar Vendedor' : 'Novo Vendedor'}</DialogTitle>
             </DialogHeader>
@@ -177,6 +196,16 @@ const CadastroVendedores = () => {
                   onChange={(e) => setFormData({...formData, nome: e.target.value})}
                   className="w-full p-2 rounded-md border border-input bg-background"
                   placeholder="Ex: João Silva"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Email</label>
+                <input 
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full p-2 rounded-md border border-input bg-background"
+                  placeholder="Ex: joao@email.com"
                 />
               </div>
               <div className="space-y-2">
@@ -199,6 +228,25 @@ const CadastroVendedores = () => {
                   onChange={(e) => setFormData({...formData, percentual_comissao: parseFloat(e.target.value)})}
                   className="w-full p-2 rounded-md border border-input bg-background"
                   placeholder="Ex: 5.0"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Chave PIX</label>
+                <input 
+                  type="text"
+                  value={formData.chave_pix}
+                  onChange={(e) => setFormData({...formData, chave_pix: e.target.value})}
+                  className="w-full p-2 rounded-md border border-input bg-background"
+                  placeholder="CPF, Email, Telefone..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Dados Bancários (Depósito)</label>
+                <textarea 
+                  value={formData.dados_bancarios}
+                  onChange={(e) => setFormData({...formData, dados_bancarios: e.target.value})}
+                  className="w-full p-2 rounded-md border border-input bg-background min-h-[80px]"
+                  placeholder="Banco, Agência, Conta..."
                 />
               </div>
               <DialogFooter>
@@ -236,31 +284,52 @@ const CadastroVendedores = () => {
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
               <tr>
-                <th className="px-6 py-3">Nome</th>
+                <th className="px-6 py-3">Nome / Email</th>
                 <th className="px-6 py-3">Cidade</th>
                 <th className="px-6 py-3">Comissão (%)</th>
+                <th className="px-6 py-3">Pagamento</th>
                 <th className="px-6 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center">
+                  <td colSpan={5} className="px-6 py-12 text-center">
                     <Loader2 className="animate-spin mx-auto text-primary" size={32} />
                   </td>
                 </tr>
               ) : filteredVendedores?.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
                     Nenhum vendedor encontrado.
                   </td>
                 </tr>
               ) : (
                 filteredVendedores?.map((vendedor) => (
                   <tr key={vendedor.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-medium">{vendedor.nome}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-medium">{vendedor.nome}</div>
+                      <div className="text-[10px] text-muted-foreground">{vendedor.email || 'Sem email'}</div>
+                    </td>
                     <td className="px-6 py-4 text-muted-foreground">{vendedor.cidade || '-'}</td>
                     <td className="px-6 py-4">{vendedor.percentual_comissao}%</td>
+                    <td className="px-6 py-4">
+                      <div className="text-[10px] space-y-1">
+                        {vendedor.chave_pix && (
+                          <div className="flex flex-col">
+                            <span className="font-bold text-primary">PIX:</span>
+                            <span className="truncate max-w-[120px]">{vendedor.chave_pix}</span>
+                          </div>
+                        )}
+                        {vendedor.dados_bancarios && (
+                          <div className="flex flex-col">
+                            <span className="font-bold text-primary">Banco:</span>
+                            <span className="truncate max-w-[120px]">{vendedor.dados_bancarios}</span>
+                          </div>
+                        )}
+                        {!vendedor.chave_pix && !vendedor.dados_bancarios && '-'}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button 
