@@ -1252,6 +1252,7 @@ const WhatsAppChat = () => {
 
     {/* ─── Nova Conversa Dialog ─── */}
     <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
