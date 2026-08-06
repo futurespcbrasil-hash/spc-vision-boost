@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers
+  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -78,7 +78,6 @@ const AppSidebar = () => {
 
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(item => {
-          if (item.role === 'gestor' && role !== 'gestor') return null;
           return renderNavItem(item, location.pathname === item.to);
         })}
 
