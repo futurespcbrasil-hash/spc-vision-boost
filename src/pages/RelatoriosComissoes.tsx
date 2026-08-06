@@ -149,18 +149,18 @@ const RelatoriosComissoes = () => {
           const commissions: Record<string, CommissionData[]> = {};
 
           rows.forEach(row => {
-            const statusVenda = (row['Status Venda'] || row['status da venda'] || '').trim().toLowerCase();
-            const vendedorRaw = (row['Vendedor'] || row['vendedor'] || '').trim();
-            const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || '0').replace(',', '.'));
-            const protocolo = row['Nº Protocolo'] || row['numero do protocolo'];
-            const produto = row['Produto'] || row['produto'];
-            const cliente = row['Cliente'] || row['nome do cliente'];
-            const telefone = row['Telefone'] || row['telefone'];
-            const numeroPedido = row['Nº Pedido'] || row['numero do pedido'];
-            const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'];
-
-            // Regra: "Emitida" gera comissão. "Protocolo Gerado" não gera.
-            // Verificação estrita de "emitida"
+            // Log de depuração para verificar as colunas disponíveis na primeira linha
+            const statusVenda = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim().toLowerCase();
+            const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
+            const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || row['VALOR'] || '0').replace(',', '.'));
+            const protocolo = row['Nº Protocolo'] || row['numero do protocolo'] || row['PROTOCOLO'] || '';
+            const produto = row['Produto'] || row['produto'] || row['PRODUTO'] || '';
+            const cliente = row['Cliente'] || row['nome do cliente'] || row['CLIENTE'] || '';
+            const telefone = row['Telefone'] || row['telefone'] || row['TELEFONE'] || '';
+            const numeroPedido = row['Nº Pedido'] || row['numero do pedido'] || row['PEDIDO'] || '';
+            const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'] || row['TIPO EMISSAO'] || '';
+            
+            // Verificação estrita de "emitida" e presença de vendedor
             if (vendedorRaw && statusVenda === 'emitida') {
               const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
               
