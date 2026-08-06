@@ -289,7 +289,8 @@ const CRMKanban = () => {
       });
       cursorY = (doc as any).lastAutoTable.finalY + 20;
     });
-    doc.save(`funil-${funnel}-${new Date().toISOString().split('T')[0]}.pdf`);
+    const safeFunnelName = funnel.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    doc.save(`funil-${safeFunnelName}-${new Date().toISOString().split('T')[0]}.pdf`);
     setShowExport(false);
   };
 

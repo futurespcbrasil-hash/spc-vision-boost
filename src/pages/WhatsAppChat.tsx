@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1150,15 +1150,30 @@ const WhatsAppChat = () => {
                             <span className="text-[11px] italic opacity-70">🎤 Áudio indisponível</span>
                           )}
                           {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio', 'ptt'].includes(m.message_type || '') && (
-                            <a 
-                              href={m.media_url} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              download
-                              className="flex items-center gap-2 underline text-xs p-2 bg-black/5 rounded hover:bg-black/10 transition-colors"
+                            <button 
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                try {
+                                  const response = await fetch(m.media_url!);
+                                  const blob = await response.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  // Tenta extrair nome do arquivo da URL ou usa padrão
+                                  const fileName = m.text || (m.media_mime?.includes('pdf') ? 'documento.pdf' : 'arquivo');
+                                  a.download = fileName.endsWith('.pdf') || !m.media_mime?.includes('pdf') ? fileName : `${fileName}.pdf`;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  window.URL.revokeObjectURL(url);
+                                  document.body.removeChild(a);
+                                } catch (err) {
+                                  window.open(m.media_url!, '_blank');
+                                }
+                              }}
+                              className="flex items-center gap-2 underline text-xs p-2 bg-black/5 rounded hover:bg-black/10 transition-colors w-full text-left"
                             >
-                              <FileText size={14} /> {m.text || 'Baixar arquivo'}
-                            </a>
+                              <FileText size={14} /> {m.text || (m.media_mime?.includes('pdf') ? 'Documento PDF' : 'Baixar arquivo')}
+                            </button>
                           )}
                           {m.text && !m.text.includes('[message_revoke]') && (
                             <p className={`whitespace-pre-wrap break-words leading-relaxed ${
@@ -1191,6 +1206,17 @@ const WhatsAppChat = () => {
                       </div>
                     );
                   })}
+
+                  {/* Typing Indicator */}
+                  {selected && syncing && (
+                    <div className="flex justify-start">
+                      <div className="bg-white dark:bg-zinc-800 p-2 rounded-2xl shadow-xs border border-border/50 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    </div>
+                  )}
 
                   {messages.length === 0 && (
                     <div className="py-16 text-center text-xs text-muted-foreground space-y-2">
