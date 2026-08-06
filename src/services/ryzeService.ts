@@ -55,8 +55,8 @@ export const ryze = {
   registerWebhook: (instance_id: string) => invoke('register_webhook', { instance_id }),
   sendText: (instance_id: string, number: string, text: string) =>
     invoke('send_text', { instance_id, number, text }),
-  sendMedia: (instance_id: string, number: string, media_url: string, media_type: string, caption?: string) =>
-    invoke('send_media', { instance_id, number, media_url, media_type, caption }),
+  sendMedia: (instance_id: string, number: string, media_url: string, media_type: string, caption?: string, media_mime?: string) =>
+    invoke('send_media', { instance_id, number, media_url, media_type, caption, media_mime }),
   getChats: (instance_id: string) => invoke('get_chats', { instance_id }),
   getMessages: (instance_id: string, wa_chat_id: string) =>
     invoke('get_messages', { instance_id, wa_chat_id }),

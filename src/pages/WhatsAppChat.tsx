@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -169,6 +169,7 @@ const renderRichText = (text: string, onNumberClick?: (num: string) => void) => 
 
 
 const WhatsAppChat = () => {
+  const [clipboardFiles, setClipboardFiles] = useState<File[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -228,6 +229,50 @@ const WhatsAppChat = () => {
   const timerRef = useRef<number | null>(null);
   const cancelRecRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Paste handler for prints/images from clipboard
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items || !selected) return;
+      
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      
+      if (files.length > 0) {
+        setClipboardFiles(files);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [selected]);
+
+  const handleSendPaste = async () => {
+    if (clipboardFiles.length === 0 || !selected || !instanceId || !user) return;
+    
+    setUploading(true);
+    try {
+      for (const file of clipboardFiles) {
+        const url = await uploadMedia(file, file.name || 'clipboard-image.png', user.id);
+        await ryze.sendMedia(instanceId, selected.contact_number, url, 'image', text.trim() || undefined);
+      }
+      setClipboardFiles([]);
+      setText('');
+      loadMessages(selected.id);
+      loadChats();
+      toast({ title: 'Imagens enviadas' });
+    } catch (err: any) {
+      toast({ title: 'Falha ao enviar clipboard', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
 
 
 
@@ -515,7 +560,7 @@ const WhatsAppChat = () => {
     setUploading(true);
     try {
       const url = await uploadMedia(file, file.name, user.id);
-      await ryze.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined);
+      await ryze.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined, file.type);
       setText('');
       loadMessages(selected.id);
       loadChats();
@@ -904,8 +949,8 @@ const WhatsAppChat = () => {
                           </div>
                           {timeStr && <span className="text-[10px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5 pr-6">
-                          {c.last_message || 'Clique para abrir'}
+                        <p className={`text-xs truncate mt-0.5 pr-6 ${c.unread_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                          {c.last_message?.includes('[message_revoke]') ? '🚫 Mensagem apagada' : (c.last_message || 'Clique para abrir')}
                         </p>
                       </div>
 
@@ -1105,21 +1150,41 @@ const WhatsAppChat = () => {
                             <span className="text-[11px] italic opacity-70">🎤 Áudio indisponível</span>
                           )}
                           {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio', 'ptt'].includes(m.message_type || '') && (
-                            <a 
-                              href={m.media_url} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              download
-                              className="flex items-center gap-2 underline text-xs p-2 bg-black/5 rounded hover:bg-black/10 transition-colors"
+                            <button 
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                try {
+                                  const response = await fetch(m.media_url!);
+                                  const blob = await response.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  // Tenta extrair nome do arquivo da URL ou usa padrão
+                                  const fileName = m.text || (m.media_mime?.includes('pdf') ? 'documento.pdf' : 'arquivo');
+                                  a.download = fileName.endsWith('.pdf') || !m.media_mime?.includes('pdf') ? fileName : `${fileName}.pdf`;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  window.URL.revokeObjectURL(url);
+                                  document.body.removeChild(a);
+                                } catch (err) {
+                                  window.open(m.media_url!, '_blank');
+                                }
+                              }}
+                              className="flex items-center gap-2 underline text-xs p-2 bg-black/5 rounded hover:bg-black/10 transition-colors w-full text-left"
                             >
-                              <FileText size={14} /> {m.text || 'Baixar arquivo'}
-                            </a>
+                              <FileText size={14} /> {m.text || (m.media_mime?.includes('pdf') ? 'Documento PDF' : 'Baixar arquivo')}
+                            </button>
                           )}
-                          {m.text && (
+                          {m.text && !m.text.includes('[message_revoke]') && (
                             <p className={`whitespace-pre-wrap break-words leading-relaxed ${
                               EMOJI_ONLY.test(m.text.trim()) ? 'text-3xl leading-tight' : 'text-sm'
                             }`}>
                               {renderRichText(m.text, handleNumberClick)}
+                            </p>
+                          )}
+                          {m.text && m.text.includes('[message_revoke]') && (
+                            <p className="text-xs italic text-muted-foreground flex items-center gap-1 opacity-60">
+                              <Clock size={12} /> Mensagem apagada
                             </p>
                           )}
 
@@ -1141,6 +1206,17 @@ const WhatsAppChat = () => {
                       </div>
                     );
                   })}
+
+                  {/* Typing Indicator */}
+                  {selected && syncing && (
+                    <div className="flex justify-start">
+                      <div className="bg-white dark:bg-zinc-800 p-2 rounded-2xl shadow-xs border border-border/50 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    </div>
+                  )}
 
                   {messages.length === 0 && (
                     <div className="py-16 text-center text-xs text-muted-foreground space-y-2">
@@ -1277,6 +1353,53 @@ const WhatsAppChat = () => {
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-xs p-8 space-y-3">
               <MessageSquare size={48} className="text-muted-foreground/30" />
               <p className="font-medium text-sm">Selecione uma conversa para iniciar o atendimento</p>
+            </div>
+          )}
+
+          {/* Paste Preview Overlay */}
+          {clipboardFiles.length > 0 && (
+            <div className="absolute inset-0 z-[150] bg-black/60 flex items-center justify-center p-4 md:p-10 backdrop-blur-sm">
+              <div className="bg-card w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col border border-border">
+                <div className="p-4 border-b flex items-center justify-between bg-muted/20">
+                  <h3 className="font-semibold">Enviar {clipboardFiles.length} {clipboardFiles.length === 1 ? 'imagem' : 'imagens'}</h3>
+                  <Button variant="ghost" size="icon" onClick={() => setClipboardFiles([])} className="h-8 w-8">
+                    <Trash2 size={16} />
+                  </Button>
+                </div>
+                <div className="p-4 flex flex-wrap gap-2 justify-center max-h-[50vh] overflow-y-auto bg-slate-50/50 dark:bg-zinc-900/50">
+                  {clipboardFiles.map((file, i) => (
+                    <div key={i} className="relative group rounded-lg overflow-hidden border shadow-sm bg-background">
+                      <img 
+                        src={URL.createObjectURL(file)} 
+                        alt="Clipboard preview" 
+                        className="max-h-48 object-contain" 
+                      />
+                      <button 
+                        onClick={() => setClipboardFiles(prev => prev.filter((_, idx) => idx !== i))}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-4 border-t space-y-3">
+                  <Input 
+                    placeholder="Legenda (opcional)" 
+                    value={text} 
+                    onChange={e => setText(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSendPaste()}
+                    className="rounded-lg"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setClipboardFiles([])} disabled={uploading}>Cancelar</Button>
+                    <Button onClick={handleSendPaste} disabled={uploading} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+                      {uploading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      Enviar
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
