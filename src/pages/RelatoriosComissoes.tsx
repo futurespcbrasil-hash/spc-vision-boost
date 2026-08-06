@@ -170,26 +170,20 @@ const RelatoriosComissoes = () => {
 
               // Ajuste no matching: Priorizar match exato ou começar com.
               // O vendedor "Rigo" não deve aparecer se não houver venda emitida para ele.
-              const match = Object.entries(configToUse).find(([name]) => 
-                vendedorRaw.toLowerCase() === name.toLowerCase() ||
-                vendedorRaw.toLowerCase().startsWith(name.toLowerCase() + " ")
-              );
+              // Refinado para ser mais estrito e evitar parciais indesejados.
+              const match = Object.entries(configToUse).find(([name]) => {
+                const normalizedVendedor = vendedorRaw.toLowerCase();
+                const normalizedName = name.toLowerCase();
+                
+                return normalizedVendedor === normalizedName || 
+                       normalizedVendedor.startsWith(normalizedName + " -") ||
+                       normalizedVendedor.startsWith(normalizedName + "  ");
+              });
 
               if (match) {
                 matchedVendedor = match[0];
                 basePercentual = match[1].percentual;
                 matchedEmail = match[1].email || '';
-              } else {
-                // Tenta um match parcial se não achou exato, mas sendo mais rigoroso
-                const partialMatch = Object.entries(configToUse).find(([name]) => 
-                  vendedorRaw.toLowerCase().includes(name.toLowerCase()) || 
-                  name.toLowerCase().includes(vendedorRaw.toLowerCase())
-                );
-                if (partialMatch) {
-                  matchedVendedor = partialMatch[0];
-                  basePercentual = partialMatch[1].percentual;
-                  matchedEmail = partialMatch[1].email || '';
-                }
               }
 
               if (basePercentual > 0) {
