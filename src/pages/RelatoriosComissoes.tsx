@@ -1,4 +1,5 @@
-// Relatório de Comissões - Ajustado para filtrar apenas status 'Emitida' (case-insensitive) e melhorar precisão do matching de vendedores.
+// Relatório de Comissões - Ajustado para filtrar apenas status 'Emitida' (case-insensitive) para comissões e melhorar precisão do matching de vendedores.
+// Versão estável com suporte a todos os status de venda no dashboard.
 import React, { useState, useRef, useEffect } from 'react';
 import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText } from 'lucide-react';
 import { toast } from 'sonner';
@@ -150,7 +151,8 @@ const RelatoriosComissoes = () => {
 
           rows.forEach(row => {
             // Log de depuração para verificar as colunas disponíveis na primeira linha
-            const statusVenda = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim().toLowerCase();
+            const statusVendaRaw = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim();
+            const statusVenda = statusVendaRaw.toLowerCase();
             const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
             const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || row['VALOR'] || '0').replace(',', '.'));
             const protocolo = row['Nº Protocolo'] || row['numero do protocolo'] || row['PROTOCOLO'] || '';
@@ -203,7 +205,7 @@ const RelatoriosComissoes = () => {
                   telefone,
                   numeroPedido,
                   tipoEmissao,
-                  statusVenda: statusVenda || 'Não informado',
+                  statusVenda: statusVendaRaw || 'Não informado',
                   regra: basePercentual
                 });
               }
