@@ -115,6 +115,13 @@ const senderLabel = (raw?: string | null) => {
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
 
+// Forçar rolagem para o final sem usar scrollToBottom
+const scrollToBottomDirect = (ref: React.RefObject<HTMLDivElement>, behavior: ScrollBehavior = 'auto') => {
+  if (ref.current) {
+    ref.current.scrollIntoView({ behavior });
+  }
+};
+
 // Helper to check if string is a valid phone number format
 const isPotentialPhone = (v: string) => {
   const digits = onlyDigits(v);
