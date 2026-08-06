@@ -232,7 +232,7 @@ const RelatoriosComissoes = () => {
       .from('importacoes_comissoes')
       .insert({
         nome_importacao: finalName,
-        dados_processados: data,
+        dados_processados: data as any,
         total_vendas: totalVendas,
         total_comissao: totalComissao,
         quantidade_vendas: allRows.length
