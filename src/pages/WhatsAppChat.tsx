@@ -1118,8 +1118,8 @@ const WhatsAppChat = () => {
                 </div>
               </div>
               
-              {/* Input Bar - Fixed with sticky/absolute if needed but flex-col + overflow-auto usually works */}
-              <div className="p-2 border-t bg-card flex items-center gap-2 mt-auto">
+              {/* Input Bar - Travada no rodapé da coluna */}
+              <div className="p-2 border-t bg-card flex items-center gap-2 flex-shrink-0">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
