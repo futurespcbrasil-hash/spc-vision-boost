@@ -394,7 +394,7 @@ const WhatsAppChat = () => {
   };
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
-  const loadMessages = async (chatId: string, silent = false) => {
+  const loadMessages = useCallback(async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
@@ -412,7 +412,7 @@ const WhatsAppChat = () => {
         }
       }, 100);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
