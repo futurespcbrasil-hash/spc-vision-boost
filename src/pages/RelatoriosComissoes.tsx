@@ -153,6 +153,12 @@ const RelatoriosComissoes = () => {
             const statusVenda = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim().toLowerCase();
             const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
             const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || row['VALOR'] || '0').replace(',', '.'));
+            const protocolo = row['Nº Protocolo'] || row['numero do protocolo'] || row['PROTOCOLO'] || '';
+            const produto = row['Produto'] || row['produto'] || row['PRODUTO'] || '';
+            const cliente = row['Cliente'] || row['nome do cliente'] || row['CLIENTE'] || '';
+            const telefone = row['Telefone'] || row['telefone'] || row['TELEFONE'] || '';
+            const numeroPedido = row['Nº Pedido'] || row['numero do pedido'] || row['PEDIDO'] || '';
+            const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'] || row['TIPO EMISSAO'] || '';
             
             // Verificação estrita de "emitida" e presença de vendedor
             if (vendedorRaw && statusVenda === 'emitida') {
