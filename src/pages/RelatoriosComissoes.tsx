@@ -29,7 +29,7 @@ const RelatoriosComissoes = () => {
   const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [loading, setLoading] = useState(false);
   const [vendedoresDB, setVendedoresDB] = useState<Record<string, { percentual: number, email?: string }>>({});
-  const [savedImports, setSavedImports] = useState<any[]>([]);
+  const [savedImports, setSavedImports] = useState<Tables<"importacoes_comissoes">[]>([]);
   const [importName, setImportName] = useState("");
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
 
