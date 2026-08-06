@@ -204,7 +204,7 @@ const RelatoriosComissoes = () => {
                   telefone,
                   numeroPedido,
                   tipoEmissao,
-                  statusVenda: statusVenda || 'Não informado',
+                  statusVenda: statusVendaRaw || 'Não informado',
                   regra: basePercentual
                 });
               }
