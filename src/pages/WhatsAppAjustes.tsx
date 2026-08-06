@@ -192,7 +192,14 @@ const WhatsAppAjustes = () => {
       const s = await ryze.status(inst.id);
       loadAll();
       toast({ title: s?.status === 'connected' ? 'Instância Online!' : `Status: ${statusLabel(s?.status || inst.status)}` });
-    } catch (e: any) { toast({ title: 'Erro', description: e.message, variant: 'destructive' }); }
+    } catch (e: any) {
+      console.error('[WhatsAppAjustes] Erro ao verificar status:', e);
+      toast({ 
+        title: 'Erro de Conexão', 
+        description: 'Não foi possível estabelecer comunicação com a Ryze API. Verifique se a instância existe e se os tokens estão corretos nos Secrets do backend.',
+        variant: 'destructive' 
+      }); 
+    }
   };
 
   const handleWebhook = async (inst: Instance) => {
