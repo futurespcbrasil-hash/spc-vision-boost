@@ -115,12 +115,18 @@ const senderLabel = (raw?: string | null) => {
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
 
+// Helper to check if string is a valid phone number format
+const isPotentialPhone = (v: string) => {
+  const digits = onlyDigits(v);
+  return digits.length >= 10 && digits.length <= 13;
+};
+
 // Transforma links e números de telefone em âncoras clicáveis
 const renderRichText = (text: string, onNumberClick?: (num: string) => void) => {
-  // Regex para links
+  if (!text) return null;
   const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-  // Regex simplificada para números de telefone (DDI+DDD+9 dígitos)
-  const phoneRegex = /(\+?55\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4})/g;
+  // Regex mais abrangente para números que parecem WhatsApp (ex: 54991811902)
+  const phoneRegex = /(\+?\d{1,2}\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4}|\d{10,13})/g;
 
   const parts = text.split(new RegExp(`(${urlRegex.source}|${phoneRegex.source})`, 'gi'));
 
@@ -134,12 +140,15 @@ const renderRichText = (text: string, onNumberClick?: (num: string) => void) => 
         </a>
       );
     }
-    if (phoneRegex.test(part)) {
+    if (phoneRegex.test(part) && isPotentialPhone(part)) {
       const cleanNum = onlyDigits(part);
       return (
         <button
           key={i}
-          onClick={() => onNumberClick?.(cleanNum)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onNumberClick?.(cleanNum);
+          }}
           className="underline text-blue-600 dark:text-blue-400 hover:opacity-80 transition-opacity"
         >
           {part}
@@ -715,7 +724,7 @@ const WhatsAppChat = () => {
 
   return (
     <>
-    <div className="flex flex-col h-full bg-background font-sans overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-64px)] md:h-full bg-background font-sans overflow-hidden">
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -840,7 +849,16 @@ const WhatsAppChat = () => {
                 return (
                   <div key={c.id} className="group relative">
                     <button
-                      onClick={() => { setPeeking(null); setSelected(c); if (isMobile) setMobileShowChat(true); }}
+                      onClick={() => {
+                        setPeeking(null);
+                        setSelected(c);
+                        if (isMobile) setMobileShowChat(true);
+                        // Limpa contador ao abrir (exceto se estiver apenas espiando)
+                        if (c.unread_count > 0) {
+                          setChats(prev => prev.map(p => p.id === c.id ? { ...p, unread_count: 0 } : p));
+                          supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', c.id).then(() => {});
+                        }
+                      }}
                       className={`w-full flex items-center gap-3 p-3 text-left relative transition-all hover:bg-muted/50 ${
                         isSelected ? 'bg-muted/80' : ''
                       }`}
