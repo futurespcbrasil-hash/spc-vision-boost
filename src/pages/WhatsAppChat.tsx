@@ -115,12 +115,18 @@ const senderLabel = (raw?: string | null) => {
 // Detecta mensagens compostas só por emojis (mostradas em tamanho maior)
 const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D\s]){1,8}$/u;
 
+// Helper to check if string is a valid phone number format
+const isPotentialPhone = (v: string) => {
+  const digits = onlyDigits(v);
+  return digits.length >= 10 && digits.length <= 13;
+};
+
 // Transforma links e números de telefone em âncoras clicáveis
 const renderRichText = (text: string, onNumberClick?: (num: string) => void) => {
-  // Regex para links
+  if (!text) return null;
   const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-  // Regex simplificada para números de telefone (DDI+DDD+9 dígitos)
-  const phoneRegex = /(\+?55\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4})/g;
+  // Regex mais abrangente para números que parecem WhatsApp (ex: 54991811902)
+  const phoneRegex = /(\+?\d{1,2}\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4}|\d{10,13})/g;
 
   const parts = text.split(new RegExp(`(${urlRegex.source}|${phoneRegex.source})`, 'gi'));
 
@@ -134,12 +140,15 @@ const renderRichText = (text: string, onNumberClick?: (num: string) => void) => 
         </a>
       );
     }
-    if (phoneRegex.test(part)) {
+    if (phoneRegex.test(part) && isPotentialPhone(part)) {
       const cleanNum = onlyDigits(part);
       return (
         <button
           key={i}
-          onClick={() => onNumberClick?.(cleanNum)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onNumberClick?.(cleanNum);
+          }}
           className="underline text-blue-600 dark:text-blue-400 hover:opacity-80 transition-opacity"
         >
           {part}
@@ -715,7 +724,7 @@ const WhatsAppChat = () => {
 
   return (
     <>
-    <div className="flex flex-col h-full bg-background font-sans overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-64px)] md:h-full bg-background font-sans overflow-hidden">
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
@@ -840,7 +849,16 @@ const WhatsAppChat = () => {
                 return (
                   <div key={c.id} className="group relative">
                     <button
-                      onClick={() => { setPeeking(null); setSelected(c); if (isMobile) setMobileShowChat(true); }}
+                      onClick={() => {
+                        setPeeking(null);
+                        setSelected(c);
+                        if (isMobile) setMobileShowChat(true);
+                        // Limpa contador ao abrir (exceto se estiver apenas espiando)
+                        if (c.unread_count > 0) {
+                          setChats(prev => prev.map(p => p.id === c.id ? { ...p, unread_count: 0 } : p));
+                          supabase.from('whatsapp_chats').update({ unread_count: 0 }).eq('id', c.id).then(() => {});
+                        }
+                      }}
                       className={`w-full flex items-center gap-3 p-3 text-left relative transition-all hover:bg-muted/50 ${
                         isSelected ? 'bg-muted/80' : ''
                       }`}
@@ -1006,8 +1024,8 @@ const WhatsAppChat = () => {
               </div>
 
               {/* Chat Message Canvas */}
-              <ScrollArea className="flex-1 p-4 bg-slate-100/70 dark:bg-zinc-950/70" ref={scrollRef as any}>
-                <div className="space-y-3 max-w-5xl mx-auto pb-4">
+              <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth" ref={scrollRef}>
+                <div className="flex flex-col justify-end min-h-full space-y-3 max-w-5xl mx-auto pb-4">
                   {messages.filter(m => m.message_type !== 'reaction').map(m => {
                     const reactions = messages.filter(
                       r => r.message_type === 'reaction' && !!r.reply_to && r.reply_to === m.wa_message_id
@@ -1015,6 +1033,8 @@ const WhatsAppChat = () => {
                     const timeStr = m.timestamp
                       ? new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
                       : '';
+
+                    const isMedia = ['image', 'sticker', 'gif', 'video', 'audio', 'ptt', 'document'].includes(m.message_type || '');
 
                     return (
                       <div key={m.id} className={`flex ${m.from_me ? 'justify-end' : 'justify-start'}`}>
@@ -1037,24 +1057,30 @@ const WhatsAppChat = () => {
                               loading="lazy"
                               className={m.message_type === 'sticker'
                                 ? 'w-32 h-32 object-contain'
-                                : 'rounded-lg max-w-full max-h-64 object-cover'}
+                                : 'rounded-lg max-w-full max-h-64 object-cover cursor-pointer hover:opacity-90'}
+                              onClick={() => window.open(m.media_url!, '_blank')}
                             />
                           )}
                           {m.media_url && m.message_type === 'video' && (
                             <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-64" />
                           )}
                           {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').startsWith('audio')) && (
-                            <audio controls preload="metadata" className="w-56 max-w-full">
-                              <source src={m.media_url} type={m.media_mime || 'audio/ogg; codecs=opus'} />
-                              <source src={m.media_url} type="audio/mpeg" />
-                            </audio>
+                            <div className="flex flex-col gap-1">
+                              <audio controls preload="metadata" className="w-56 max-w-full h-8">
+                                <source src={m.media_url} type={m.media_mime || 'audio/ogg; codecs=opus'} />
+                                <source src={m.media_url} type="audio/mpeg" />
+                                <source src={m.media_url} type="audio/mp4" />
+                                <source src={m.media_url} type="audio/wav" />
+                              </audio>
+                              <a href={m.media_url} target="_blank" rel="noreferrer" className="text-[10px] underline opacity-50 px-2">Baixar áudio</a>
+                            </div>
                           )}
                           {!m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt') && (
                             <span className="text-[11px] italic opacity-70">🎤 Áudio indisponível</span>
                           )}
-                          {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio'].includes(m.message_type) && (
-                            <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs">
-                              <FileText size={14} /> Abrir arquivo
+                          {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio', 'ptt'].includes(m.message_type) && (
+                            <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs p-2 bg-black/5 rounded">
+                              <FileText size={14} /> {m.text || 'Abrir arquivo'}
                             </a>
                           )}
                           {m.text && (
@@ -1090,7 +1116,7 @@ const WhatsAppChat = () => {
                     </div>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
 
               {/* Input Bar */}
               <div className="p-2 border-t bg-card flex items-center gap-2">

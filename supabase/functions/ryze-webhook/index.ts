@@ -101,8 +101,8 @@ Deno.serve(async (req) => {
           || inner.videoMessage?.caption
           || '';
         let messageType = inner.type || m.media?.type || m.type || m.messageType || 'text';
-        let mediaMime: string | null = inner.media?.mimetype || m.media?.mimetype || null;
-        let mediaUrl: string | null = inner.media?.s3Url || inner.media?.url || m.media?.s3Url || m.media?.url || null;
+        let mediaMime: string | null = inner.media?.mimetype || m.media?.mimetype || m.mimetype || null;
+        let mediaUrl: string | null = inner.media?.s3Url || inner.media?.url || m.media?.s3Url || m.media?.url || m.url || null;
         
         // Se for uma mensagem de texto simples mas sem texto no 'content', pode estar no m.body
         if (!text && m.body) text = m.body;
