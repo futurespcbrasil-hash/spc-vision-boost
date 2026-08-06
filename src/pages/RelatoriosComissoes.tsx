@@ -162,23 +162,38 @@ const RelatoriosComissoes = () => {
     
     pdf.setTextColor(0, 0, 0);
     pdf.setFontSize(14);
-    pdf.text(`Vendedor: ${vendedor}`, 15, 55);
-    pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 150, 55);
+    pdf.text(`Vendedor: ${vendedor}`, 15, 50);
+    pdf.text(`Tipo: ${type === 'resumido' ? 'Resumido' : 'Completo'}`, 15, 58);
+    pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 150, 50);
+
+    const headers = type === 'resumido' 
+      ? [['Protocolo', 'Cliente', 'Produto', 'Valor Venda', 'Comissão']]
+      : [['Protocolo', 'Pedido', 'Cliente', 'Produto', 'Tipo', 'Valor Venda', 'Comissão']];
+
+    const body = data.map(item => type === 'resumido' ? [
+      item.protocolo,
+      item.cliente,
+      item.produto,
+      `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    ] : [
+      item.protocolo,
+      item.numeroPedido,
+      item.cliente,
+      item.produto,
+      item.tipoEmissao,
+      `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    ]);
 
     autoTable(pdf, {
       startY: 65,
-      head: [['Protocolo', 'Cliente', 'Produto', 'Valor Venda', 'Comissão']],
-      body: data.map(item => [
-        item.protocolo,
-        item.cliente,
-        item.produto,
-        `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      ]),
+      head: headers,
+      body: body,
       foot: [[
         'TOTAL',
         '',
-        '',
+        ...(type === 'completo' ? ['', '', ''] : []),
         `R$ ${totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]],
@@ -186,6 +201,7 @@ const RelatoriosComissoes = () => {
       headStyles: { fillColor: [63, 81, 181] },
       footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
+
 
     pdf.save(`comissao-${vendedor.toLowerCase().replace(/\s+/g, '-')}-${type}.pdf`);
   };
