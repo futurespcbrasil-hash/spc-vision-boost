@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from "@/integrations/supabase/client";
+import DashboardRelatorios from '@/components/DashboardRelatorios';
+
 
 interface CommissionData {
   vendedor: string;
@@ -18,6 +20,7 @@ interface CommissionData {
 
 const RelatoriosComissoes = () => {
   const [loading, setLoading] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [vendedoresConfig, setVendedoresConfig] = useState<Record<string, number>>({});
   const [vendedoresDB, setVendedoresDB] = useState<Record<string, number>>({});
@@ -193,16 +196,31 @@ const RelatoriosComissoes = () => {
           <FileBarChart className="text-primary" size={24} />
           <h1 className="text-2xl font-bold text-foreground">Relatório de Comissões</h1>
         </div>
-        {Object.keys(results).length > 0 && (
-          <button
-            onClick={exportAllPDFs}
-            className="flex items-center gap-2 bg-success text-white px-4 py-2 rounded-lg hover:opacity-90 transition"
-          >
-            <FileDown size={18} />
-            Exportar Todos PDFs
-          </button>
-        )}
+        <div className="flex gap-2">
+          {Object.keys(results).length > 0 && (
+            <button
+              onClick={() => setShowDashboard(!showDashboard)}
+              className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition"
+            >
+              <BarChart3 size={18} />
+              {showDashboard ? 'Voltar ao Relatório' : 'Ver Dashboard'}
+            </button>
+          )}
+          {Object.keys(results).length > 0 && (
+            <button
+              onClick={exportAllPDFs}
+              className="flex items-center gap-2 bg-success text-white px-4 py-2 rounded-lg hover:opacity-90 transition"
+            >
+              <FileDown size={18} />
+              Exportar Todos PDFs
+            </button>
+          )}
+        </div>
       </div>
+
+      {showDashboard ? (
+        <DashboardRelatorios data={Object.values(results).flat()} />
+      ) : (
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm space-y-4">
@@ -272,6 +290,7 @@ const RelatoriosComissoes = () => {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };
