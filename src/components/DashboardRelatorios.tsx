@@ -11,9 +11,21 @@ interface CommissionData {
   comissao: number;
   produto: string;
   cliente: string;
+  statusVenda?: string;
 }
 
 const DashboardRelatorios = ({ data }: { data: CommissionData[] }) => {
+  const statusStats = data.reduce((acc, curr) => {
+    const status = curr.statusVenda || 'Não informado';
+    if (!acc[status]) acc[status] = 0;
+    acc[status] += 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const statusChartData = Object.entries(statusStats)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
   const vendedorStats = data.reduce((acc, curr) => {
     if (!acc[curr.vendedor]) acc[curr.vendedor] = { valor: 0, comissao: 0, count: 0 };
     acc[curr.vendedor].valor += curr.valorVenda;
