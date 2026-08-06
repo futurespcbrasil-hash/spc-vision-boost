@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { supabase } from "@/integrations/supabase/client";
 
 interface CommissionData {
   vendedor: string;
@@ -19,6 +20,24 @@ const RelatoriosComissoes = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [vendedoresConfig, setVendedoresConfig] = useState<Record<string, number>>({});
+  const [vendedoresDB, setVendedoresDB] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const fetchVendedores = async () => {
+      const { data, error } = await supabase
+        .from('vendedores_comissoes')
+        .select('nome, percentual_comissao');
+      
+      if (!error && data) {
+        const config: Record<string, number> = {};
+        data.forEach(v => {
+          config[v.nome.trim()] = Number(v.percentual_comissao);
+        });
+        setVendedoresDB(config);
+      }
+    };
+    fetchVendedores();
+  }, []);
   
   const fileInputVendedores = useRef<HTMLInputElement>(null);
   const fileInputVendas = useRef<HTMLInputElement>(null);
@@ -40,9 +59,8 @@ const RelatoriosComissoes = () => {
       const vendsSheet = vendsWorkbook.Sheets[vendsWorkbook.SheetNames[0]];
       const vendsJson: any[] = XLSX.utils.sheet_to_json(vendsSheet);
       
-      const config: Record<string, number> = {};
+      const config = { ...vendedoresDB };
       vendsJson.forEach(row => {
-        // Coluna A: Base cálculo, Coluna B: Vendedor
         const valor = parseFloat(String(row['Comissão'] || row['Base'] || Object.values(row)[0]).replace(',', '.'));
         const nome = String(row['Vendedor'] || Object.values(row)[1]);
         if (nome && !isNaN(valor)) {
@@ -77,16 +95,20 @@ const RelatoriosComissoes = () => {
               }
 
               // Verificar se vendedor está na planilha de vendedores
-              const baseComissao = config[vendedorNome] || Object.entries(config).find(([k]) => vendedorNome.includes(k))?.[1];
+              // Priorizar configuração da planilha se houver, senão usar do DB
+              const configToUse = Object.keys(vendedoresConfig).length > 0 ? vendedoresConfig : vendedoresDB;
+              const basePercentual = configToUse[vendedorNome] || Object.entries(configToUse).find(([k]) => vendedorNome.includes(k))?.[1];
 
-              if (baseComissao && baseComissao > 0) {
+              if (basePercentual && basePercentual > 0) {
                 if (!commissions[vendedorNome]) commissions[vendedorNome] = [];
+                
+                const valorComissao = (valorVenda * basePercentual) / 100;
                 
                 commissions[vendedorNome].push({
                   vendedor: vendedorNome,
                   protocolo,
                   valorVenda,
-                  comissao: baseComissao,
+                  comissao: valorComissao,
                   produto,
                   cliente
                 });

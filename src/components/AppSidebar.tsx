@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers
+  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,6 +13,7 @@ const AppSidebar = () => {
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
+  const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
 
   const NAV_ITEMS = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -24,7 +25,11 @@ const AppSidebar = () => {
     { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/notas', icon: StickyNote, label: 'Notas' },
     { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
-    { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatório de Comissões', role: 'gestor' },
+  ];
+
+  const COMISSOES_SUB = [
+    { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatórios' },
+    { to: '/cadastro-vendedores', icon: UserPlus, label: 'Cadastro Vendedores' },
   ];
 
   const WHATSAPP_SUB = [
@@ -73,7 +78,6 @@ const AppSidebar = () => {
 
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(item => {
-          if (item.role === 'gestor' && role !== 'gestor') return null;
           return renderNavItem(item, location.pathname === item.to);
         })}
 
@@ -106,6 +110,44 @@ const AppSidebar = () => {
               </Link>
             ))}
           </div>
+        )}
+
+        {role === 'gestor' && (
+          <>
+            <button
+              onClick={() => setComissoesOpen(!comissoesOpen)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+                ${(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'))
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+              title={collapsed ? 'Comissões' : undefined}
+            >
+              <FileBarChart size={18} />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">Comissões</span>
+                  <ChevronDown size={14} className={`transition-transform ${comissoesOpen ? 'rotate-180' : ''}`} />
+                </>
+              )}
+            </button>
+            {!collapsed && comissoesOpen && (
+              <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
+                {COMISSOES_SUB.map(sub => (
+                  <Link
+                    key={sub.to}
+                    to={sub.to}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
+                      ${location.pathname === sub.to
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}
+                  >
+                    <sub.icon size={14} />
+                    <span>{sub.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         <button
