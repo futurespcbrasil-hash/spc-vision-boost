@@ -150,7 +150,8 @@ const RelatoriosComissoes = () => {
 
           rows.forEach(row => {
             // Log de depuração para verificar as colunas disponíveis na primeira linha
-            const statusVenda = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim().toLowerCase();
+            const statusVendaRaw = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim();
+            const statusVenda = statusVendaRaw.toLowerCase();
             const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
             const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || row['VALOR'] || '0').replace(',', '.'));
             const protocolo = row['Nº Protocolo'] || row['numero do protocolo'] || row['PROTOCOLO'] || '';
