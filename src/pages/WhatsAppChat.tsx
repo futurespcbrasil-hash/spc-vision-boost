@@ -169,7 +169,7 @@ const renderRichText = (text: string, onNumberClick?: (num: string) => void) => 
 
 
 const WhatsAppChat = () => {
-  const { user, role } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -1064,7 +1064,7 @@ const WhatsAppChat = () => {
                               {senderLabel(m.sender)}
                             </p>
                           )}
-                          {m.media_url && ['image', 'sticker', 'gif'].includes(m.message_type) && (
+                          {m.media_url && ['image', 'sticker', 'gif'].includes(m.message_type || '') && (
                             <img
                               src={m.media_url}
                               alt={m.message_type === 'sticker' ? 'Figurinha' : 'Imagem'}
@@ -1073,10 +1073,16 @@ const WhatsAppChat = () => {
                                 ? 'w-32 h-32 object-contain'
                                 : 'rounded-lg max-w-full max-h-64 object-cover cursor-pointer hover:opacity-90'}
                               onClick={() => window.open(m.media_url!, '_blank')}
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = 'https://placehold.co/400x300?text=Erro+ao+carregar+imagem';
+                                target.onclick = null;
+                                target.style.cursor = 'default';
+                              }}
                             />
                           )}
                           {m.media_url && m.message_type === 'video' && (
-                            <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-64" />
+                            <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-64" preload="metadata" />
                           )}
                           {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').startsWith('audio')) && (
                             <div className="flex flex-col gap-1">
@@ -1086,15 +1092,21 @@ const WhatsAppChat = () => {
                                 <source src={m.media_url} type="audio/mp4" />
                                 <source src={m.media_url} type="audio/wav" />
                               </audio>
-                              <a href={m.media_url} target="_blank" rel="noreferrer" className="text-[10px] underline opacity-50 px-2">Baixar áudio</a>
+                              <a href={m.media_url} target="_blank" rel="noreferrer" className="text-[10px] underline opacity-50 px-2" download>Baixar áudio</a>
                             </div>
                           )}
                           {!m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt') && (
                             <span className="text-[11px] italic opacity-70">🎤 Áudio indisponível</span>
                           )}
-                          {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio', 'ptt'].includes(m.message_type) && (
-                            <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-xs p-2 bg-black/5 rounded">
-                              <FileText size={14} /> {m.text || 'Abrir arquivo'}
+                          {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio', 'ptt'].includes(m.message_type || '') && (
+                            <a 
+                              href={m.media_url} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              download
+                              className="flex items-center gap-2 underline text-xs p-2 bg-black/5 rounded hover:bg-black/10 transition-colors"
+                            >
+                              <FileText size={14} /> {m.text || 'Baixar arquivo'}
                             </a>
                           )}
                           {m.text && (
@@ -1135,7 +1147,7 @@ const WhatsAppChat = () => {
 
               
               {/* Input Bar - Travada no rodapé */}
-              <div className="p-2 border-t bg-card flex items-center gap-2 flex-shrink-0 relative z-50 sticky bottom-0 border-b md:border-b-0 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+              <div className="p-3 border-t bg-card flex items-center gap-3 flex-shrink-0 relative z-[100] sticky bottom-0 border-b md:border-b-0 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] pb-safe-bottom">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleFilePicked(e, 'image')} />
