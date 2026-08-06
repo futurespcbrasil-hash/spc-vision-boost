@@ -176,6 +176,7 @@ const WhatsAppChat = () => {
   const [instanceId, setInstanceId] = useState<string>('');
   const [chats, setChats] = useState<Chat[]>([]);
   const [selected, setSelected] = useState<Chat | null>(null);
+  const [peeking, setPeeking] = useState<string | null>(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Message[]>([]);
