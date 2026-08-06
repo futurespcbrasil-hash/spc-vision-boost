@@ -170,14 +170,17 @@ const RelatoriosComissoes = () => {
 
               // Ajuste no matching: Priorizar match exato ou começar com.
               // O vendedor "Rigo" não deve aparecer se não houver venda emitida para ele.
-              // Refinado para ser mais estrito e evitar parciais indesejados.
+              // Refinado para ser mais flexível se o nome do vendedor na planilha tiver sufixos,
+              // mas ainda evitando matches parciais em outras colunas.
               const match = Object.entries(configToUse).find(([name]) => {
-                const normalizedVendedor = vendedorRaw.toLowerCase();
-                const normalizedName = name.toLowerCase();
+                const normalizedVendedor = vendedorRaw.toLowerCase().trim();
+                const normalizedName = name.toLowerCase().trim();
                 
+                // Match exato ou se o campo Vendedor começar com o nome do vendedor cadastrado
+                // Ex: "ANDERSON ZANELLA" coincide com "ANDERSON ZANELLA - Alguma Coisa"
                 return normalizedVendedor === normalizedName || 
-                       normalizedVendedor.startsWith(normalizedName + " -") ||
-                       normalizedVendedor.startsWith(normalizedName + "  ");
+                       normalizedVendedor.startsWith(normalizedName + " ") ||
+                       normalizedVendedor.startsWith(normalizedName + "-");
               });
 
               if (match) {
