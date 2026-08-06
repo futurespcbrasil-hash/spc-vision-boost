@@ -95,16 +95,20 @@ const RelatoriosComissoes = () => {
               }
 
               // Verificar se vendedor está na planilha de vendedores
-              const baseComissao = config[vendedorNome] || Object.entries(config).find(([k]) => vendedorNome.includes(k))?.[1];
+              // Priorizar configuração da planilha se houver, senão usar do DB
+              const configToUse = Object.keys(vendedoresConfig).length > 0 ? vendedoresConfig : vendedoresDB;
+              const basePercentual = configToUse[vendedorNome] || Object.entries(configToUse).find(([k]) => vendedorNome.includes(k))?.[1];
 
-              if (baseComissao && baseComissao > 0) {
+              if (basePercentual && basePercentual > 0) {
                 if (!commissions[vendedorNome]) commissions[vendedorNome] = [];
+                
+                const valorComissao = (valorVenda * basePercentual) / 100;
                 
                 commissions[vendedorNome].push({
                   vendedor: vendedorNome,
                   protocolo,
                   valorVenda,
-                  comissao: baseComissao,
+                  comissao: valorComissao,
                   produto,
                   cliente
                 });
