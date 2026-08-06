@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3 } from 'lucide-react';
+import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -16,7 +16,12 @@ interface CommissionData {
   comissao: number;
   produto: string;
   cliente: string;
+  telefone?: string;
+  numeroPedido?: string;
+  tipoEmissao?: string;
+  statusVenda?: string;
 }
+
 
 const RelatoriosComissoes = () => {
   const [loading, setLoading] = useState(false);
@@ -83,22 +88,20 @@ const RelatoriosComissoes = () => {
           const commissions: Record<string, CommissionData[]> = {};
 
           rows.forEach(row => {
-            const status = row['Status Venda'];
-            const vendedorRaw = row['Vendedor'];
-            const valorVenda = parseFloat(String(row['Valor Venda']).replace(',', '.'));
-            const protocolo = row['Nº Protocolo'];
-            const produto = row['Produto'];
-            const cliente = row['Cliente'];
+            const statusVenda = row['Status Venda'] || row['status da venda'];
+            const vendedorRaw = row['Vendedor'] || row['vendedor'];
+            const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda']).replace(',', '.'));
+            const protocolo = row['Nº Protocolo'] || row['numero do protocolo'];
+            const produto = row['Produto'] || row['produto'];
+            const cliente = row['Cliente'] || row['nome do cliente'];
+            const telefone = row['Telefone'] || row['telefone'];
+            const numeroPedido = row['Nº Pedido'] || row['numero do pedido'];
+            const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'];
 
-            if (status === 'Emitida' && vendedorRaw) {
-              // Regra: "neura" e "solução" são a mesma coisa
+            // "protocolo gerado" não gera comissão, "Emitida" gera.
+            if (vendedorRaw && statusVenda === 'Emitida') {
               let vendedorNome = vendedorRaw.trim();
-              if (vendedorNome.toLowerCase().includes('neura') || vendedorNome.toLowerCase().includes('solução')) {
-                // Padronizar se necessário ou apenas garantir que bate com a config
-              }
-
-              // Verificar se vendedor está na planilha de vendedores
-              // Priorizar configuração da planilha se houver, senão usar do DB
+              
               const configToUse = Object.keys(vendedoresConfig).length > 0 ? vendedoresConfig : vendedoresDB;
               const basePercentual = configToUse[vendedorNome] || Object.entries(configToUse).find(([k]) => vendedorNome.includes(k))?.[1];
 
@@ -113,11 +116,16 @@ const RelatoriosComissoes = () => {
                   valorVenda,
                   comissao: valorComissao,
                   produto,
-                  cliente
+                  cliente,
+                  telefone,
+                  numeroPedido,
+                  tipoEmissao,
+                  statusVenda
                 });
               }
             }
           });
+
 
           setResults(commissions);
           setLoading(false);
@@ -137,7 +145,7 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const exportPDF = (vendedor: string, data: CommissionData[]) => {
+  const exportPDF = (vendedor: string, data: CommissionData[], type: 'resumido' | 'completo' = 'resumido') => {
     const pdf = new jsPDF();
     const totalComissao = data.reduce((acc, curr) => acc + curr.comissao, 0);
     const totalVendas = data.reduce((acc, curr) => acc + curr.valorVenda, 0);
@@ -179,7 +187,7 @@ const RelatoriosComissoes = () => {
       footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
     });
 
-    pdf.save(`comissao-${vendedor.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+    pdf.save(`comissao-${vendedor.toLowerCase().replace(/\s+/g, '-')}-${type}.pdf`);
   };
 
   const exportAllPDFs = () => {
@@ -272,13 +280,22 @@ const RelatoriosComissoes = () => {
                       {data.length} vendas • Total: R$ {data.reduce((acc, curr) => acc + curr.comissao, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
-                  <button
-                    onClick={() => exportPDF(vendedor, data)}
-                    className="p-2 text-primary hover:bg-primary/10 rounded-full transition"
-                    title="Baixar PDF"
-                  >
-                    <FileDown size={18} />
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => exportPDF(vendedor, data, 'resumido')}
+                      className="p-2 text-primary hover:bg-primary/10 rounded-full transition"
+                      title="Baixar PDF Resumido"
+                    >
+                      <FileDown size={18} />
+                    </button>
+                    <button
+                      onClick={() => exportPDF(vendedor, data, 'completo')}
+                      className="p-2 text-primary hover:bg-primary/10 rounded-full transition"
+                      title="Baixar PDF Completo"
+                    >
+                      <FileText size={18} className="text-secondary" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
