@@ -170,21 +170,37 @@ const RelatoriosComissoes = () => {
     const totalComissao = data.reduce((acc, curr) => acc + curr.comissao, 0);
     const totalVendas = data.reduce((acc, curr) => acc + curr.valorVenda, 0);
 
-    // Header
-    pdf.setFillColor(63, 81, 181); // Primary color (roxa/azulada)
-    pdf.rect(0, 0, 210, 40, 'F');
-    
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(22);
-    pdf.text('Relatório de Comissões', 15, 20);
-    pdf.setFontSize(12);
-    pdf.text('Future Soluções', 15, 30);
-    
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFontSize(14);
-    pdf.text(`Vendedor: ${vendedor}`, 15, 50);
-    pdf.text(`Tipo: ${type === 'resumido' ? 'Resumido' : 'Completo'}`, 15, 58);
-    pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 150, 50);
+    const addHeader = () => {
+      // Header background
+      pdf.setFillColor(63, 81, 181); // Primary color
+      pdf.rect(0, 0, 210, 40, 'F');
+      
+      // Add Logo
+      try {
+        const img = new Image();
+        img.src = '/logo-future.png';
+        // Draw white background for logo area if needed or just place logo
+        pdf.setFillColor(255, 255, 255);
+        pdf.roundedRect(10, 5, 45, 15, 2, 2, 'F');
+        pdf.addImage(img, 'PNG', 12, 7, 40, 10);
+      } catch (e) {
+        console.error('Erro ao carregar logo no PDF:', e);
+      }
+
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(22);
+      pdf.text('Relatório de Comissões', 65, 20);
+      pdf.setFontSize(12);
+      pdf.text('Future Soluções', 65, 30);
+      
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(14);
+      pdf.text(`Vendedor: ${vendedor}`, 15, 50);
+      pdf.text(`Tipo: ${type === 'resumido' ? 'Resumido' : 'Completo'}`, 15, 58);
+      pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 150, 50);
+    };
+
+    addHeader();
 
     const headers = type === 'resumido' 
       ? [['Protocolo', 'Cliente', 'Produto', 'Valor Venda', 'Comissão']]
@@ -219,9 +235,11 @@ const RelatoriosComissoes = () => {
       ]],
       theme: 'striped',
       headStyles: { fillColor: [63, 81, 181] },
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+      didDrawPage: (data) => {
+        // Se houver múltiplas páginas, pode-se repetir o header ou rodapé aqui se necessário
+      }
     });
-
 
     pdf.save(`comissao-${vendedor.toLowerCase().replace(/\s+/g, '-')}-${type}.pdf`);
   };
