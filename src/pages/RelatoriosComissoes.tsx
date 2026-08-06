@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { supabase } from "@/integrations/supabase/client";
 
 interface CommissionData {
   vendedor: string;
