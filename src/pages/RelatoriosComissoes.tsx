@@ -165,21 +165,20 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const exportPDF = (vendedor: string, data: CommissionData[], type: 'resumido' | 'completo' = 'resumido') => {
-    const pdf = new jsPDF();
+  const exportPDF = (vendedor: string, data: CommissionData[], type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
+    const pdf = new jsPDF('l', 'mm', 'a4'); // Paisagem para o relatório avançado
     const totalComissao = data.reduce((acc, curr) => acc + curr.comissao, 0);
     const totalVendas = data.reduce((acc, curr) => acc + curr.valorVenda, 0);
 
     const addHeader = () => {
       // Header background
       pdf.setFillColor(63, 81, 181); // Primary color
-      pdf.rect(0, 0, 210, 40, 'F');
+      pdf.rect(0, 0, 297, 40, 'F');
       
       // Add Logo
       try {
         const img = new Image();
         img.src = '/logo-future.png';
-        // Draw white background for logo area if needed or just place logo
         pdf.setFillColor(255, 255, 255);
         pdf.roundedRect(10, 5, 45, 15, 2, 2, 'F');
         pdf.addImage(img, 'PNG', 12, 7, 40, 10);
@@ -196,31 +195,52 @@ const RelatoriosComissoes = () => {
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(14);
       pdf.text(`Vendedor: ${vendedor}`, 15, 50);
-      pdf.text(`Tipo: ${type === 'resumido' ? 'Resumido' : 'Completo'}`, 15, 58);
-      pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 150, 50);
+      const typeLabel = type === 'resumido' ? 'Resumido' : type === 'completo' ? 'Completo' : 'Avançado';
+      pdf.text(`Tipo: ${typeLabel}`, 15, 58);
+      pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 240, 50);
     };
 
     addHeader();
 
-    const headers = type === 'resumido' 
-      ? [['Protocolo', 'Cliente', 'Produto', 'Valor Venda', 'Comissão']]
-      : [['Protocolo', 'Pedido', 'Cliente', 'Produto', 'Tipo', 'Valor Venda', 'Comissão']];
+    let headers: string[][] = [];
+    let body: any[][] = [];
 
-    const body = data.map(item => type === 'resumido' ? [
-      item.protocolo,
-      item.cliente,
-      item.produto,
-      `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-    ] : [
-      item.protocolo,
-      item.numeroPedido,
-      item.cliente,
-      item.produto,
-      item.tipoEmissao,
-      `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-    ]);
+    if (type === 'resumido') {
+      headers = [['Protocolo', 'Cliente', 'Produto', 'Valor Venda', 'Comissão']];
+      body = data.map(item => [
+        item.protocolo,
+        item.cliente,
+        item.produto,
+        `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]);
+    } else if (type === 'completo') {
+      headers = [['Protocolo', 'Pedido', 'Cliente', 'Produto', 'Tipo', 'Valor Venda', 'Comissão']];
+      body = data.map(item => [
+        item.protocolo,
+        item.numeroPedido,
+        item.cliente,
+        item.produto,
+        item.tipoEmissao,
+        `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]);
+    } else {
+      // Avançado
+      headers = [['Protocolo', 'Pedido', 'Cliente', 'Telefone', 'Produto', 'Emissão', 'Status', 'Vendedor', 'Valor Venda', 'Comissão']];
+      body = data.map(item => [
+        item.protocolo,
+        item.numeroPedido,
+        item.cliente,
+        item.telefone || '-',
+        item.produto,
+        item.tipoEmissao,
+        item.statusVenda,
+        item.vendedor,
+        `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]);
+    }
 
     autoTable(pdf, {
       startY: 65,
@@ -230,25 +250,33 @@ const RelatoriosComissoes = () => {
         'TOTAL',
         '',
         ...(type === 'completo' ? ['', '', ''] : []),
+        ...(type === 'avancado' ? ['', '', '', '', '', ''] : []),
         `R$ ${totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]],
       theme: 'striped',
-      headStyles: { fillColor: [63, 81, 181] },
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
-      didDrawPage: (data) => {
-        // Se houver múltiplas páginas, pode-se repetir o header ou rodapé aqui se necessário
-      }
+      headStyles: { fillColor: [63, 81, 181], fontSize: type === 'avancado' ? 8 : 10 },
+      bodyStyles: { fontSize: type === 'avancado' ? 7 : 9 },
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: type === 'avancado' ? 8 : 10 },
     });
 
     pdf.save(`comissao-${vendedor.toLowerCase().replace(/\s+/g, '-')}-${type}.pdf`);
   };
 
+  const exportGeneralReport = (type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
+    const allData = Object.values(results).flat();
+    if (allData.length === 0) {
+      toast.error('Nenhum dado para exportar.');
+      return;
+    }
+    exportPDF('Geral (Todas as Empresas)', allData, type);
+  };
+
   const exportAllPDFs = () => {
     Object.entries(results).forEach(([vendedor, data]) => {
-      exportPDF(vendedor, data);
+      exportPDF(vendedor, data, 'resumido');
     });
-    toast.success('Todos os PDFs foram gerados.');
+    toast.success('Todos os PDFs individuais (resumidos) foram gerados.');
   };
 
   return (
