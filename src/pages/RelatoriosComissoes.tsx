@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -19,6 +19,24 @@ const RelatoriosComissoes = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [vendedoresConfig, setVendedoresConfig] = useState<Record<string, number>>({});
+  const [vendedoresDB, setVendedoresDB] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const fetchVendedores = async () => {
+      const { data, error } = await supabase
+        .from('vendedores_comissoes')
+        .select('nome, percentual_comissao');
+      
+      if (!error && data) {
+        const config: Record<string, number> = {};
+        data.forEach(v => {
+          config[v.nome.trim()] = Number(v.percentual_comissao);
+        });
+        setVendedoresDB(config);
+      }
+    };
+    fetchVendedores();
+  }, []);
   
   const fileInputVendedores = useRef<HTMLInputElement>(null);
   const fileInputVendas = useRef<HTMLInputElement>(null);
@@ -40,9 +58,8 @@ const RelatoriosComissoes = () => {
       const vendsSheet = vendsWorkbook.Sheets[vendsWorkbook.SheetNames[0]];
       const vendsJson: any[] = XLSX.utils.sheet_to_json(vendsSheet);
       
-      const config: Record<string, number> = {};
+      const config = { ...vendedoresDB };
       vendsJson.forEach(row => {
-        // Coluna A: Base cálculo, Coluna B: Vendedor
         const valor = parseFloat(String(row['Comissão'] || row['Base'] || Object.values(row)[0]).replace(',', '.'));
         const nome = String(row['Vendedor'] || Object.values(row)[1]);
         if (nome && !isNaN(valor)) {
