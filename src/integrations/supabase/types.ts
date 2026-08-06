@@ -594,6 +594,36 @@ export type Database = {
           },
         ]
       }
+      vendedores_comissoes: {
+        Row: {
+          cidade: string | null
+          created_at: string | null
+          id: string
+          nome: string
+          percentual_comissao: number
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          cidade?: string | null
+          created_at?: string | null
+          id?: string
+          nome: string
+          percentual_comissao?: number
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          cidade?: string | null
+          created_at?: string | null
+          id?: string
+          nome?: string
+          percentual_comissao?: number
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_chat_labels: {
         Row: {
           chat_id: string
