@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -394,7 +394,7 @@ const WhatsAppChat = () => {
   };
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
-  const loadMessages = async (chatId: string, silent = false) => {
+  const loadMessages = useCallback(async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
@@ -412,7 +412,7 @@ const WhatsAppChat = () => {
         }
       }, 100);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -467,7 +467,7 @@ const WhatsAppChat = () => {
     // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
     const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
     return () => { window.clearInterval(poll); supabase.removeChannel(ch); };
-  }, [selected?.id]);
+  }, [selected?.id, loadMessages, instanceId]);
 
   const handleSend = async () => {
     if (!text.trim() || !selected || !instanceId) return;
@@ -1039,7 +1039,8 @@ const WhatsAppChat = () => {
 
               {/* Chat Message Canvas */}
               <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth custom-scrollbar relative flex flex-col">
-                <div className="flex flex-col justify-end min-h-full space-y-3 max-w-5xl mx-auto pb-4">
+                <div className="flex flex-col min-h-full space-y-3 max-w-5xl mx-auto pb-4 w-full">
+                  <div className="flex-1" /> {/* Push messages down if few */}
                   {messages.filter(m => m.message_type !== 'reaction').map(m => {
                     const reactions = messages.filter(
                       r => r.message_type === 'reaction' && !!r.reply_to && r.reply_to === m.wa_message_id
@@ -1048,12 +1049,10 @@ const WhatsAppChat = () => {
                       ? new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
                       : '';
 
-                    const isMedia = ['image', 'sticker', 'gif', 'video', 'audio', 'ptt', 'document'].includes(m.message_type || '');
-
                     return (
                       <div key={m.id} className={`flex ${m.from_me ? 'justify-end' : 'justify-start'}`}>
                         <div
-                          className={`max-w-[78%] p-3 shadow-xs rounded-2xl text-xs space-y-1 ${
+                          className={`max-w-[85%] md:max-w-[70%] p-3 shadow-xs rounded-2xl text-xs space-y-1 ${
                             m.from_me
                               ? 'bg-purple-100 text-purple-950 border border-purple-200/60 rounded-tr-xs dark:bg-purple-900/40 dark:text-purple-100 dark:border-purple-800/40'
                               : 'bg-white text-slate-900 border border-slate-200/80 rounded-tl-xs dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-700/60'
@@ -1065,28 +1064,35 @@ const WhatsAppChat = () => {
                             </p>
                           )}
                           {m.media_url && ['image', 'sticker', 'gif'].includes(m.message_type || '') && (
-                            <img
-                              src={m.media_url}
-                              alt={m.message_type === 'sticker' ? 'Figurinha' : 'Imagem'}
-                              loading="lazy"
-                              className={m.message_type === 'sticker'
-                                ? 'w-32 h-32 object-contain'
-                                : 'rounded-lg max-w-full max-h-64 object-cover cursor-pointer hover:opacity-90'}
-                              onClick={() => window.open(m.media_url!, '_blank')}
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.src = 'https://placehold.co/400x300?text=Erro+ao+carregar+imagem';
-                                target.onclick = null;
-                                target.style.cursor = 'default';
-                              }}
-                            />
+                            <div className="relative rounded-lg overflow-hidden border bg-zinc-100 dark:bg-zinc-900 min-h-[100px] flex items-center justify-center">
+                              <img
+                                src={m.media_url}
+                                alt={m.message_type === 'sticker' ? 'Figurinha' : 'Imagem'}
+                                loading="lazy"
+                                className={m.message_type === 'sticker'
+                                  ? 'w-32 h-32 object-contain'
+                                  : 'max-h-80 w-full object-contain cursor-pointer hover:opacity-90'}
+                                onClick={() => window.open(m.media_url!, '_blank')}
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    const errorMsg = document.createElement('div');
+                                    errorMsg.className = 'p-4 text-xs text-muted-foreground flex flex-col items-center gap-2';
+                                    errorMsg.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-20"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>Erro ao carregar imagem</span>`;
+                                    parent.appendChild(errorMsg);
+                                  }
+                                }}
+                              />
+                            </div>
                           )}
                           {m.media_url && m.message_type === 'video' && (
-                            <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-64" preload="metadata" />
+                            <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-80 bg-black" preload="metadata" />
                           )}
                           {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').startsWith('audio')) && (
-                            <div className="flex flex-col gap-1">
-                              <audio controls preload="metadata" className="w-56 max-w-full h-8">
+                            <div className="flex flex-col gap-1 min-w-[200px]">
+                              <audio controls preload="metadata" className="w-full h-8">
                                 <source src={m.media_url} type={m.media_mime || 'audio/ogg; codecs=opus'} />
                                 <source src={m.media_url} type="audio/mpeg" />
                                 <source src={m.media_url} type="audio/mp4" />
@@ -1119,7 +1125,7 @@ const WhatsAppChat = () => {
 
                           <div className="flex items-center justify-end gap-1 pt-0.5 text-[10px] opacity-70">
                             <span>{timeStr}</span>
-                            {m.from_me && <CheckCheck size={13} className="text-purple-700 dark:text-purple-300" />}
+                            {m.from_me && <CheckCheck size={13} className={m.status === 'read' ? "text-blue-500" : "text-purple-700 dark:text-purple-300"} />}
                           </div>
 
                           {reactions.length > 0 && (
@@ -1142,7 +1148,7 @@ const WhatsAppChat = () => {
                     </div>
                   )}
                 </div>
-              <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} className="h-4" />
               </div>
 
               

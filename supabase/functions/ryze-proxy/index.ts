@@ -751,7 +751,7 @@ Deno.serve(async (req) => {
         d.profilePictureUrl || d.avatar_url || r.data?.profilePicUrl || 
         r.data?.data?.profilePicUrl || r.data?.data?.avatarUrl || 
         r.data?.data?.imgUrl || r.data?.data?.picture || d.imageUrl || 
-        r.data?.imageUrl || null;
+        r.data?.imageUrl || d.photo || d.url || null;
       const displayName = d.name || d.pushName || d.verifiedName || d.business_name || null;
 
       if (avatar) {
