@@ -406,9 +406,11 @@ const WhatsAppChat = () => {
       return changed ? merged : prev;
     });
     if (!silent || changed) {
-      requestAnimationFrame(() => { 
-        if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: !silent ? 'auto' : 'smooth' });
-      });
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: !silent ? 'auto' : 'smooth', block: 'end' });
+        }
+      }, 100);
     }
   };
 
