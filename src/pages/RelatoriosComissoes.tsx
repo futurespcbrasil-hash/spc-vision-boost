@@ -160,8 +160,8 @@ const RelatoriosComissoes = () => {
             const numeroPedido = row['Nº Pedido'] || row['numero do pedido'] || row['PEDIDO'] || '';
             const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'] || row['TIPO EMISSAO'] || '';
             
-            // Verificação estrita de "emitida" e presença de vendedor
-            if (vendedorRaw && statusVenda === 'emitida') {
+            // Verificação de status e presença de vendedor
+            if (vendedorRaw) {
               const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
               
               let matchedVendedor = '';
@@ -169,15 +169,10 @@ const RelatoriosComissoes = () => {
               let matchedEmail = '';
 
               // Ajuste no matching: Priorizar match exato ou começar com.
-              // O vendedor "Rigo" não deve aparecer se não houver venda emitida para ele.
-              // Refinado para ser mais flexível se o nome do vendedor na planilha tiver sufixos,
-              // mas ainda evitando matches parciais em outras colunas.
               const match = Object.entries(configToUse).find(([name]) => {
                 const normalizedVendedor = vendedorRaw.toLowerCase().trim();
                 const normalizedName = name.toLowerCase().trim();
                 
-                // Match exato ou se o campo Vendedor começar com o nome do vendedor cadastrado
-                // Ex: "ANDERSON ZANELLA" coincide com "ANDERSON ZANELLA - Alguma Coisa"
                 return normalizedVendedor === normalizedName || 
                        normalizedVendedor.startsWith(normalizedName + " ") ||
                        normalizedVendedor.startsWith(normalizedName + "-");
@@ -189,11 +184,13 @@ const RelatoriosComissoes = () => {
                 matchedEmail = match[1].email || '';
               }
 
+              // Se encontramos o vendedor e ele tem uma regra de comissão
               if (basePercentual > 0) {
                 const reportKey = matchedVendedor || vendedorRaw;
                 if (!commissions[reportKey]) commissions[reportKey] = [];
                 
-                const valorComissao = (valorVenda * basePercentual) / 100;
+                // Cálculo da comissão: APENAS se o status for "emitida"
+                const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
                 
                 commissions[reportKey].push({
                   vendedor: reportKey,
@@ -206,7 +203,7 @@ const RelatoriosComissoes = () => {
                   telefone,
                   numeroPedido,
                   tipoEmissao,
-                  statusVenda,
+                  statusVenda: statusVenda || 'Não informado',
                   regra: basePercentual
                 });
               }

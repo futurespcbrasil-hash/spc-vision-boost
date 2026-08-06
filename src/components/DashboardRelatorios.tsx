@@ -11,9 +11,21 @@ interface CommissionData {
   comissao: number;
   produto: string;
   cliente: string;
+  statusVenda?: string;
 }
 
 const DashboardRelatorios = ({ data }: { data: CommissionData[] }) => {
+  const statusStats = data.reduce((acc, curr) => {
+    const status = curr.statusVenda || 'Não informado';
+    if (!acc[status]) acc[status] = 0;
+    acc[status] += 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const statusChartData = Object.entries(statusStats)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
   const vendedorStats = data.reduce((acc, curr) => {
     if (!acc[curr.vendedor]) acc[curr.vendedor] = { valor: 0, comissao: 0, count: 0 };
     acc[curr.vendedor].valor += curr.valorVenda;
@@ -108,8 +120,35 @@ const DashboardRelatorios = ({ data }: { data: CommissionData[] }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="md:col-span-2">
+          <CardHeader><CardTitle>Status das Vendas</CardTitle></CardHeader>
+          <CardContent className="h-[350px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart layout="vertical" data={statusChartData} margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f5f5f5" />
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  tick={{ fontSize: 11 }}
+                  width={120}
+                />
+                <Tooltip 
+                  cursor={{ fill: 'transparent' }}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                />
+                <Bar dataKey="value" name="Quantidade" radius={[0, 4, 4, 0]}>
+                  {statusChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={`hsl(var(--primary) / ${1 - (index * 0.1)})`} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
         <Card>
-          <CardHeader><CardTitle>Distribuição de Comissões</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Distribuição de Comissões (Emitidas)</CardTitle></CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
