@@ -187,6 +187,42 @@ export type Database = {
         }
         Relationships: []
       }
+      importacoes_comissoes: {
+        Row: {
+          created_at: string
+          dados_processados: Json
+          id: string
+          mes_referencia: string | null
+          nome_importacao: string
+          quantidade_vendas: number | null
+          total_comissao: number | null
+          total_vendas: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          dados_processados: Json
+          id?: string
+          mes_referencia?: string | null
+          nome_importacao: string
+          quantidade_vendas?: number | null
+          total_comissao?: number | null
+          total_vendas?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          dados_processados?: Json
+          id?: string
+          mes_referencia?: string | null
+          nome_importacao?: string
+          quantidade_vendas?: number | null
+          total_comissao?: number | null
+          total_vendas?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       imported_tables: {
         Row: {
           created_at: string

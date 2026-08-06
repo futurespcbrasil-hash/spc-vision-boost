@@ -6,6 +6,9 @@ import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from "@/integrations/supabase/client";
+import { Database, Tables } from "@/integrations/supabase/types";
+
+type ImportacaoComissoes = Database['public']['Tables']['importacoes_comissoes']['Row'];
 import DashboardRelatorios from '@/components/DashboardRelatorios';
 
 
@@ -28,29 +31,68 @@ interface CommissionData {
 const RelatoriosComissoes = () => {
   const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [loading, setLoading] = useState(false);
-  const [showDashboard, setShowDashboard] = useState(false);
-  const [vendedoresConfig, setVendedoresConfig] = useState<Record<string, { percentual: number, email?: string }>>({});
   const [vendedoresDB, setVendedoresDB] = useState<Record<string, { percentual: number, email?: string }>>({});
+  const [savedImports, setSavedImports] = useState<ImportacaoComissoes[]>([]);
+  const [importName, setImportName] = useState("");
+  const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchVendedores = async () => {
-      const { data, error } = await supabase
-        .from('vendedores_comissoes')
-        .select('nome, percentual_comissao, email');
-      
-      if (!error && data) {
-        const config: Record<string, { percentual: number, email?: string }> = {};
-        data.forEach(v => {
-          config[v.nome.trim()] = { 
-            percentual: Number(v.percentual_comissao),
-            email: v.email || undefined
-          };
-        });
-        setVendedoresDB(config);
-      }
-    };
     fetchVendedores();
+    fetchImports();
   }, []);
+
+  const fetchVendedores = async () => {
+    const { data, error } = await supabase
+      .from('vendedores_comissoes')
+      .select('nome, percentual_comissao, email');
+    
+    if (!error && data) {
+      const config: Record<string, { percentual: number, email?: string }> = {};
+      data.forEach(v => {
+        config[v.nome.trim()] = { 
+          percentual: Number(v.percentual_comissao),
+          email: v.email || undefined
+        };
+      });
+      setVendedoresDB(config);
+    }
+  };
+
+  const fetchImports = async () => {
+    const { data, error } = await supabase
+      .from('importacoes_comissoes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (!error && data) {
+      setSavedImports(data);
+    }
+  };
+
+  const deleteImport = async (id: string) => {
+    const { error } = await supabase
+      .from('importacoes_comissoes')
+      .delete()
+      .eq('id', id);
+    
+    if (error) {
+      toast.error('Erro ao excluir importação.');
+    } else {
+      toast.success('Importação excluída.');
+      if (selectedImportId === id) {
+        setResults({});
+        setSelectedImportId(null);
+      }
+      fetchImports();
+    }
+  };
+
+  const loadImport = (imp: any) => {
+    setResults(imp.dados_processados as unknown as Record<string, CommissionData[]>);
+    setSelectedImportId(imp.id);
+    setImportName(imp.nome_importacao);
+    toast.success(`Importação "${imp.nome_importacao}" carregada.`);
+  };
   
   const fileInputVendedores = useRef<HTMLInputElement>(null);
   const fileInputVendas = useRef<HTMLInputElement>(null);
@@ -92,7 +134,8 @@ const RelatoriosComissoes = () => {
           };
         }
       });
-      setVendedoresConfig(config);
+      // Não precisamos mais do setVendedoresConfig local se usarmos o merge direto
+
 
       // 2. Process Vendas CSV
       const salesText = await salesFile.text();
@@ -158,7 +201,12 @@ const RelatoriosComissoes = () => {
             }
           });
 
-          setResults(commissions);
+          const allProcessed = commissions;
+          setResults(allProcessed);
+          
+          // Salvar no banco automaticamente se tiver um nome
+          saveToDatabase(allProcessed);
+
           setLoading(false);
           toast.success('Relatório processado com sucesso!');
         },
@@ -173,6 +221,31 @@ const RelatoriosComissoes = () => {
       console.error(err);
       setLoading(false);
       toast.error('Erro ao processar arquivos.');
+    }
+  };
+
+  const saveToDatabase = async (data: Record<string, CommissionData[]>) => {
+    const allRows = Object.values(data).flat();
+    const totalVendas = allRows.reduce((acc, curr) => acc + curr.valorVenda, 0);
+    const totalComissao = allRows.reduce((acc, curr) => acc + curr.comissao, 0);
+    
+    const finalName = importName || `Importação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
+    const { data: saved, error } = await supabase
+      .from('importacoes_comissoes')
+      .insert({
+        nome_importacao: finalName,
+        dados_processados: data as any,
+        total_vendas: totalVendas,
+        total_comissao: totalComissao,
+        quantidade_vendas: allRows.length
+      })
+      .select()
+      .single();
+
+    if (!error && saved) {
+      fetchImports();
+      setSelectedImportId(saved.id);
     }
   };
 
@@ -349,14 +422,25 @@ const RelatoriosComissoes = () => {
         <DashboardRelatorios data={Object.values(results).flat()} />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm space-y-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Upload size={20} className="text-primary" />
-            Importar Dados
+            Nova Importação
           </h2>
           
           <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Nome do Relatório (Ex: Julho 2024)</label>
+              <input 
+                type="text" 
+                value={importName}
+                onChange={(e) => setImportName(e.target.value)}
+                placeholder="Identificador da importação..."
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm mb-2"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Planilha Vendedores (XLSX)</label>
               <input 
@@ -382,57 +466,110 @@ const RelatoriosComissoes = () => {
               disabled={loading}
               className="w-full mt-4 bg-primary text-white py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'Processar Comissões'}
+              {loading ? <Loader2 className="animate-spin" size={20} /> : 'Processar e Salvar'}
             </button>
           </div>
         </div>
 
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">Resumo do Processamento</h2>
-          {Object.keys(results).length > 0 ? (
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-              {Object.entries(results).map(([vendedor, data]) => (
-                <div key={vendedor} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
-                  <div>
-                    <div className="font-medium text-sm">{vendedor}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {data.length} vendas • Total: R$ {data.reduce((acc, curr) => acc + curr.comissao, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        <div className="bg-card p-6 rounded-xl border border-border shadow-sm col-span-1 md:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Histórico de Importações</h2>
+            <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+              {savedImports.length} relatórios salvos
+            </div>
+          </div>
+
+          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+            {savedImports.length > 0 ? (
+              savedImports.map((imp) => (
+                <div 
+                  key={imp.id} 
+                  className={`group flex items-center justify-between p-3 rounded-lg border transition cursor-pointer ${
+                    selectedImportId === imp.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border bg-muted/30 hover:bg-muted/50'
+                  }`}
+                  onClick={() => loadImport(imp)}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm">{imp.nome_importacao}</span>
+                      {selectedImportId === imp.id && <CheckCircle2 size={14} className="text-primary" />}
+                    </div>
+                    <div className="flex gap-4 mt-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-medium">
+                        {new Date(imp.created_at).toLocaleDateString('pt-BR')}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-medium">
+                        {imp.quantidade_vendas} vendas
+                      </span>
+                      <span className="text-[10px] font-bold text-primary">
+                        R$ {Number(imp.total_vendas).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                     <button
-                      onClick={() => exportPDF(vendedor, data, 'resumido')}
-                      className="p-2 text-primary hover:bg-primary/10 rounded-full transition"
-                      title="Baixar PDF Resumido"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteImport(imp.id);
+                      }}
+                      className="p-2 text-destructive hover:bg-destructive/10 rounded-full transition"
+                      title="Excluir Importação"
                     >
-                      <FileDown size={18} />
-                    </button>
-                    <button
-                      onClick={() => exportPDF(vendedor, data, 'completo')}
-                      className="p-2 text-primary hover:bg-primary/10 rounded-full transition"
-                      title="Baixar PDF Completo"
-                    >
-                      <FileText size={18} className="text-secondary" />
-                    </button>
-                    <button
-                      onClick={() => exportPDF(vendedor, data, 'avancado')}
-                      className="p-2 text-primary hover:bg-primary/10 rounded-full transition"
-                      title="Baixar PDF Avançado"
-                    >
-                      <FileBarChart size={18} className="text-success" />
+                      <AlertCircle size={18} />
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <AlertCircle size={40} className="mb-2 opacity-20" />
-              <p className="text-sm">Nenhum dado processado ainda.</p>
-            </div>
-          )}
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+                <Upload size={40} className="mb-2 opacity-10" />
+                <p className="text-sm">Nenhuma importação salva no banco.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {Object.keys(results).length > 0 && (
+        <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Vendedores Processados</h2>
+            <div className="text-xs text-muted-foreground italic">
+              Clique para baixar os relatórios do período selecionado
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Object.entries(results).map(([vendedor, data]) => (
+              <div key={vendedor} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border hover:border-primary/50 transition group">
+                <div className="overflow-hidden">
+                  <div className="font-bold text-xs truncate">{vendedor}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {data.length} vendas • <span className="text-success font-medium">R$ {data.reduce((acc, curr) => acc + curr.comissao, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+                <div className="flex gap-1 ml-2">
+                  <button
+                    onClick={() => exportPDF(vendedor, data, 'resumido')}
+                    className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition"
+                    title="PDF Resumido"
+                  >
+                    <FileDown size={14} />
+                  </button>
+                  <button
+                    onClick={() => exportPDF(vendedor, data, 'avancado')}
+                    className="p-1.5 text-secondary hover:bg-secondary/10 rounded-lg transition"
+                    title="PDF Avançado"
+                  >
+                    <FileBarChart size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
