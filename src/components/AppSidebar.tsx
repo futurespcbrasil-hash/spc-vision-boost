@@ -24,6 +24,7 @@ const AppSidebar = () => {
     { to: '/metas', icon: Target, label: 'Metas' },
     { to: '/notas', icon: StickyNote, label: 'Notas' },
     { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
+    { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatório de Comissões', role: 'gestor' },
   ];
 
   const WHATSAPP_SUB = [
@@ -71,7 +72,10 @@ const AppSidebar = () => {
       </div>
 
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.map(item => renderNavItem(item, location.pathname === item.to))}
+        {NAV_ITEMS.map(item => {
+          if (item.role === 'gestor' && role !== 'gestor') return null;
+          return renderNavItem(item, location.pathname === item.to);
+        })}
 
         <button
           onClick={() => setWhatsappOpen(!whatsappOpen)}

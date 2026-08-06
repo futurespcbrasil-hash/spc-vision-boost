@@ -36,6 +36,7 @@ const ConsultaSPC = lazy(() => import("@/pages/ConsultaSPC"));
 const WhatsAppChat = lazy(() => import("@/pages/WhatsAppChat"));
 const WhatsAppInstancias = lazy(() => import("@/pages/WhatsAppInstancias"));
 const WhatsAppAjustes = lazy(() => import("@/pages/WhatsAppAjustes"));
+const RelatoriosComissoes = lazy(() => import("@/pages/RelatoriosComissoes"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -89,6 +90,7 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp" element={<AppLayout noPadding><WhatsAppChat /></AppLayout>} />
             <Route path="/whatsapp/instancias" element={<AppLayout noPadding><WhatsAppInstancias /></AppLayout>} />
             <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
+            <Route path="/relatorios-comissoes" element={<AppLayout><RelatoriosComissoes /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
