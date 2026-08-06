@@ -1,0 +1,2 @@
+INSERT INTO public.vendedores_comissoes (nome, cidade, percentual_comissao, email, chave_pix, dados_bancarios)
+VALUES ('Vendedor Teste', 'São Paulo', 10.5, 'teste@vendedor.com', 'teste@pix.com', 'Banco Itaú, Ag: 1234, CC: 56789-0');
