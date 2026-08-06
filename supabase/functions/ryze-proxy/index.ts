@@ -373,6 +373,9 @@ Deno.serve(async (req) => {
 
       if (!r.ok) {
         console.error('[ryze-proxy] Erro ao consultar status da instância', r.data);
+        if (r.status === 404) {
+          return json({ error: 'A Ryze API retornou 404 (Not Found). Verifique se a instância ainda existe no painel da Ryze ou se a URL RYZE_BASE_URL está correta.', details: r.data }, r.status);
+        }
         return json({ error: 'Erro de comunicação com a Ryze API ao verificar status', details: r.data }, r.status);
       }
 
