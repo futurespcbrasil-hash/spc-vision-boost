@@ -31,6 +31,7 @@ const MobileBottomNav = () => {
     { to: '/parceiros-spc/clientes', icon: Building2, label: '— Clientes Indicados' },
     { to: '/parceiros-spc/relatorios', icon: FileBarChart, label: '— Relatórios Parceiros' },
     { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
+    { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatórios Comissões', adminOnly: true },
   ];
 
   const isActive = (to: string) => pathname === to;
@@ -77,7 +78,7 @@ const MobileBottomNav = () => {
               </button>
             </div>
             <div className="py-2">
-              {more.map(item => (
+              {more.filter(m => !m.adminOnly || role === 'gestor').map(item => (
                 <Link
                   key={item.to}
                   to={item.to}
