@@ -26,6 +26,7 @@ interface CommissionData {
 
 
 const RelatoriosComissoes = () => {
+  const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [loading, setLoading] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [vendedoresConfig, setVendedoresConfig] = useState<Record<string, { percentual: number, email?: string }>>({});
@@ -120,8 +121,8 @@ const RelatoriosComissoes = () => {
               
               let matchedVendedor = '';
               let basePercentual = 0;
+              let matchedEmail = '';
 
-              // Lógica de cruzamento: procura o nome do cadastro dentro do nome do vendedor no relatório de vendas
               const match = Object.entries(configToUse).find(([name]) => 
                 vendedorRaw.toLowerCase().includes(name.toLowerCase()) || 
                 name.toLowerCase().includes(vendedorRaw.toLowerCase())
@@ -129,7 +130,8 @@ const RelatoriosComissoes = () => {
 
               if (match) {
                 matchedVendedor = match[0];
-                basePercentual = match[1];
+                basePercentual = match[1].percentual;
+                matchedEmail = match[1].email || '';
               }
 
               if (basePercentual > 0) {
@@ -140,6 +142,7 @@ const RelatoriosComissoes = () => {
                 
                 commissions[reportKey].push({
                   vendedor: reportKey,
+                  email: matchedEmail,
                   protocolo,
                   valorVenda,
                   comissao: valorComissao,
@@ -148,7 +151,8 @@ const RelatoriosComissoes = () => {
                   telefone,
                   numeroPedido,
                   tipoEmissao,
-                  statusVenda
+                  statusVenda,
+                  regra: basePercentual
                 });
               }
             }
