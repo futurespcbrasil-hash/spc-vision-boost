@@ -1,5 +1,5 @@
 // Relatório de Comissões - Ajustado para filtragem dinâmica e persistência de estado.
-// Versão corrigida: Atualiza vendedoresDB imediatamente após importação e flexibiliza matching.
+// Versão corrigida: Implementa regras estritas de correspondência de nomes (Etapa 2 - Normalização e Igualdade).
 import React, { useState, useRef, useEffect } from 'react';
 import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
