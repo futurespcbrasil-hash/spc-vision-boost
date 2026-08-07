@@ -189,8 +189,10 @@ export type Database = {
       }
       importacoes_comissoes: {
         Row: {
+          audit_log: Json | null
           created_at: string
           dados_processados: Json
+          dados_vendedores: Json | null
           id: string
           mes_referencia: string | null
           nome_importacao: string
@@ -200,8 +202,10 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          audit_log?: Json | null
           created_at?: string
           dados_processados: Json
+          dados_vendedores?: Json | null
           id?: string
           mes_referencia?: string | null
           nome_importacao: string
@@ -211,8 +215,10 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          audit_log?: Json | null
           created_at?: string
           dados_processados?: Json
+          dados_vendedores?: Json | null
           id?: string
           mes_referencia?: string | null
           nome_importacao?: string
