@@ -1,5 +1,6 @@
 // Relatório de Comissões - Ajustado para filtragem dinâmica e persistência de estado.
 // Versão corrigida: Implementa regras estritas de correspondência de nomes e restaura colunas solicitadas para relatórios individuais.
+// Correção de cache/botões: Garantindo que o botão individual chame o relatório 'completo' e que o filtro de comissão > 0 não bloqueie o Resumo Geral.
 import React, { useState, useRef, useEffect } from 'react';
 import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -362,8 +363,8 @@ const RelatoriosComissoes = () => {
   };
 
   const exportPDF = (vendedor: string, data: CommissionData[], type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
-    // Regra 8 & 15: Filtrar apenas comissões maiores que zero
-    const validData = data.filter(item => item.comissao > 0);
+    // Para o "Resumo Geral", não filtramos comissão > 0 aqui pois ele processa o array todo
+    const validData = vendedor === 'Resumo Geral' ? data : data.filter(item => item.comissao > 0);
     
     if (validData.length === 0 && vendedor !== 'Resumo Geral') {
       return; 
@@ -808,9 +809,9 @@ const RelatoriosComissoes = () => {
                     <FileDown size={14} />
                   </button>
                   <button
-                    onClick={() => exportPDF(vendedor, data, 'avancado')}
+                    onClick={() => exportPDF(vendedor, data, 'completo')}
                     className="p-1.5 text-secondary hover:bg-secondary/10 rounded-lg transition"
-                    title="PDF Avançado"
+                    title="PDF Individual (Completo)"
                   >
                     <FileBarChart size={14} />
                   </button>
