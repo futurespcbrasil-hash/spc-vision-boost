@@ -384,7 +384,7 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const saveToDatabase = async (data: Record<string, CommissionData[]>) => {
+  const saveToDatabase = async (data: Record<string, CommissionData[]>, audit?: any) => {
     const allRows = Object.values(data).flat();
     const totalVendas = allRows.reduce((acc, curr) => acc + curr.valorVenda, 0);
     const totalComissao = allRows.reduce((acc, curr) => acc + curr.comissao, 0);
@@ -398,14 +398,20 @@ const RelatoriosComissoes = () => {
         dados_processados: data as any,
         total_vendas: totalVendas,
         total_comissao: totalComissao,
-        quantidade_vendas: allRows.length
+        quantidade_vendas: allRows.length,
+        dados_vendedores: audit?.vendedoresDB || vendedoresDB as any,
+        audit_log: audit || auditLog as any
       })
       .select()
       .single();
 
     if (!error && saved) {
+      toast.success('Importação salva com sucesso.');
       fetchImports();
       setSelectedImportId(saved.id);
+    } else if (error) {
+      console.error('Erro ao salvar no banco:', error);
+      toast.error('Erro ao salvar importação no banco de dados.');
     }
   };
 
