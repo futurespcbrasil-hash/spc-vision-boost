@@ -1,7 +1,7 @@
 // Relatório de Comissões - Ajustado para filtrar apenas status 'Emitida' (case-insensitive) para comissões e melhorar precisão do matching de vendedores.
 // Versão estável com suporte a todos os status de venda no dashboard.
 import React, { useState, useRef, useEffect } from 'react';
-import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText } from 'lucide-react';
+import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -37,6 +37,10 @@ const RelatoriosComissoes = () => {
   const [savedImports, setSavedImports] = useState<ImportacaoComissoes[]>([]);
   const [importName, setImportName] = useState("");
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
+  const [filterConfig, setFilterConfig] = useState({
+    onlyVendedoresList: true,
+    statusFilter: 'emitida', // 'all', 'emitida', 'protocolo gerado', 'revogado', etc.
+  });
 
   useEffect(() => {
     fetchVendedores();
@@ -379,20 +383,50 @@ const RelatoriosComissoes = () => {
   };
 
   const exportGeneralReport = (type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
-    const allData = Object.values(results).flat();
+    const allData = Object.values(filteredResults).flat();
     if (allData.length === 0) {
       toast.error('Nenhum dado para exportar.');
       return;
     }
-    exportPDF('Geral (Todas as Empresas)', allData, type);
+    exportPDF('Geral (Filtro Aplicado)', allData, type);
   };
 
   const exportAllPDFs = () => {
-    Object.entries(results).forEach(([vendedor, data]) => {
+    Object.entries(filteredResults).forEach(([vendedor, data]) => {
       exportPDF(vendedor, data, 'resumido');
     });
     toast.success('Todos os PDFs individuais (resumidos) foram gerados.');
   };
+
+  const filteredResults = React.useMemo(() => {
+    const newResults: Record<string, CommissionData[]> = {};
+    
+    Object.entries(results).forEach(([vendedor, data]) => {
+      // Filtro 1: Apenas vendedores da lista
+      if (filterConfig.onlyVendedoresList) {
+        const isRegistered = Object.keys(vendedoresDB).some(name => {
+          const normalizedVendedor = vendedor.toLowerCase().trim();
+          const normalizedName = name.toLowerCase().trim();
+          return normalizedVendedor === normalizedName || 
+                 normalizedVendedor.startsWith(normalizedName + " ") ||
+                 normalizedVendedor.startsWith(normalizedName + "-");
+        });
+        if (!isRegistered) return;
+      }
+
+      // Filtro 2: Status
+      const filteredData = data.filter(item => {
+        if (filterConfig.statusFilter === 'all') return true;
+        return item.statusVenda?.toLowerCase().trim() === filterConfig.statusFilter.toLowerCase().trim();
+      });
+
+      if (filteredData.length > 0) {
+        newResults[vendedor] = filteredData;
+      }
+    });
+
+    return newResults;
+  }, [results, filterConfig, vendedoresDB]);
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
@@ -403,34 +437,68 @@ const RelatoriosComissoes = () => {
         </div>
         
         {Object.keys(results).length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => exportGeneralReport('resumido')}
-              className="flex items-center gap-2 bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition text-sm"
-            >
-              <FileDown size={18} />
-              Geral Resumido
-            </button>
-            <button
-              onClick={() => exportGeneralReport('avancado')}
-              className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition text-sm"
-            >
-              <FileText size={18} />
-              Geral Avançado
-            </button>
-            <button
-              onClick={exportAllPDFs}
-              className="flex items-center gap-2 bg-success text-white px-4 py-2 rounded-lg hover:opacity-90 transition text-sm"
-            >
-              <FileDown size={18} />
-              Exportar Todos Individuais
-            </button>
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex items-center gap-2 bg-card border border-border p-1 rounded-lg">
+              <select 
+                value={filterConfig.statusFilter}
+                onChange={(e) => setFilterConfig({...filterConfig, statusFilter: e.target.value})}
+                className="bg-transparent text-xs border-none outline-none px-2 py-1"
+              >
+                <option value="all">Todos Status</option>
+                <option value="emitida">Somente Emitidos</option>
+                <option value="protocolo gerado">Protocolo Gerado</option>
+                <option value="revogado">Revogado</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+              <div className="w-[1px] h-4 bg-border" />
+              <label className="flex items-center gap-2 px-2 py-1 cursor-pointer">
+                <input 
+                  type="checkbox"
+                  checked={filterConfig.onlyVendedoresList}
+                  onChange={(e) => setFilterConfig({...filterConfig, onlyVendedoresList: e.target.checked})}
+                  className="rounded border-border text-primary focus:ring-primary"
+                />
+                <span className="text-[10px] font-medium text-muted-foreground uppercase">Apenas Vendedores Cadastrados</span>
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => exportGeneralReport('resumido')}
+                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:opacity-90 transition text-sm font-medium"
+              >
+                <FileDown size={18} />
+                Exportar Resumido
+              </button>
+              
+              <div className="relative group">
+                <button className="flex items-center gap-2 bg-secondary text-secondary-foreground px-3 py-2 rounded-lg hover:opacity-90 transition text-sm">
+                  <MoreHorizontal size={18} />
+                </button>
+                <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border rounded-xl shadow-xl hidden group-hover:block z-50 p-1">
+                  <button
+                    onClick={() => exportGeneralReport('avancado')}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition"
+                  >
+                    <FileText size={14} />
+                    Exportar Geral Avançado
+                  </button>
+                  <button
+                    onClick={exportAllPDFs}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-success"
+                  >
+                    <FileDown size={14} />
+                    Exportar Todos Individuais
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {Object.keys(results).length > 0 && (
-        <DashboardRelatorios data={Object.values(results).flat()} />
+      {Object.keys(filteredResults).length > 0 && (
+        <DashboardRelatorios data={Object.values(filteredResults).flat()} />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
