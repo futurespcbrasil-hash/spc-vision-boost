@@ -134,21 +134,38 @@ const RelatoriosComissoes = () => {
     
     const vVendaNorm = normalize(vendedorVenda);
     
-    // Regra 4: Tabela de aliases
+    // Etapa 6: Aliases
     const aliases: Record<string, string> = {
       "neura": "solucao",
-      // Adicione mais aliases aqui conforme necessário
     };
 
+    let targetNorm = vVendaNorm;
     if (aliases[vVendaNorm]) {
-      const target = aliases[vVendaNorm];
-      const match = Object.keys(vendedoresDB).find(name => normalize(name) === target);
-      if (match) return match;
+      targetNorm = normalize(aliases[vVendaNorm]);
     }
 
-    // Regra 1, 2 e 3: Comparação utilizando igualdade do nome normalizado
-    const strictMatch = Object.keys(vendedoresDB).find(name => normalize(name) === vVendaNorm);
-    if (strictMatch) return strictMatch;
+    const normVends = Object.keys(vendedoresDB).reduce((acc, key) => {
+      acc[normalize(key)] = key;
+      return acc;
+    }, {} as Record<string, string>);
+
+    // 1. Igualdade direta após normalização
+    if (normVends[targetNorm]) return normVends[targetNorm];
+
+    // 2. Divisão por hífens e igualdade em partes (comum em vendas CSV)
+    const parts = vendedorVenda.split(' - ').map(p => normalize(p));
+    for (const p of parts) {
+      if (normVends[p]) return normVends[p];
+    }
+
+    // 3. Busca por palavra inteira (Word Boundary) para casos complexos (ex: Ceccon)
+    // Isso evita Rigo casar com Rodrigo (Etapa 2 e 5)
+    for (const nv in normVends) {
+      const regex = new RegExp(`\\b${nv}\\b`, 'i');
+      if (regex.test(targetNorm)) {
+        return normVends[nv];
+      }
+    }
 
     // Regra 5: Se houver qualquer dúvida, NÃO associar automaticamente
     return null;
