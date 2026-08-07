@@ -361,7 +361,7 @@ const RelatoriosComissoes = () => {
 
           setAuditLog(audit);
           setResults(commissions);
-          saveToDatabase(commissions, audit);
+          saveToDatabase(commissions, { ...audit, vendedoresDB: config });
           setLoading(false);
           setShowAuditModal(true);
           toast.success('Processamento concluído com auditoria!');
