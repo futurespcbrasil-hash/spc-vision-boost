@@ -67,20 +67,7 @@ const RelatoriosComissoes = () => {
   }, []);
 
   const fetchVendedores = async () => {
-    const { data, error } = await supabase
-      .from('vendedores_comissoes')
-      .select('nome, percentual_comissao, email');
-    
-    if (!error && data) {
-      const config: Record<string, { percentual: number, email?: string }> = {};
-      data.forEach(v => {
-        config[v.nome.trim()] = { 
-          percentual: Number(v.percentual_comissao),
-          email: v.email || undefined
-        };
-      });
-      setVendedoresDB(config);
-    }
+    await fetchVendedoresComissoes();
   };
 
   const fetchImports = async () => {
