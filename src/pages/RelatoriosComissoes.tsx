@@ -132,7 +132,7 @@ const RelatoriosComissoes = () => {
           percentual = comissaoRaw < 1 ? comissaoRaw * 100 : comissaoRaw;
         }
 
-        const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || '').trim();
+        const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || row['Nome'] || '').trim();
         const email = String(row['ENVIO'] || row['Envio'] || row['E-MAIL'] || row['Email'] || row['email'] || '').trim();
         if (nome && !isNaN(percentual)) {
           config[nome] = { 
@@ -141,7 +141,9 @@ const RelatoriosComissoes = () => {
           };
         }
       });
-      // Não precisamos mais do setVendedoresConfig local se usarmos o merge direto
+      
+      // Update state immediately so filteredResults can use it
+      setVendedoresDB(config);
 
 
       // 2. Process Vendas CSV
