@@ -94,6 +94,22 @@ const RelatoriosComissoes = () => {
     }
   };
 
+  const fetchVendedoresComissoes = async () => {
+    const { data, error } = await supabase
+      .from('vendedores_comissoes')
+      .select('*');
+    if (!error && data) {
+      const config: Record<string, { percentual: number, email?: string }> = {};
+      data.forEach(v => {
+        config[v.nome.trim()] = { 
+          percentual: Number(v.percentual_comissao),
+          email: v.email || undefined
+        };
+      });
+      setVendedoresDB(config);
+    }
+  };
+
   const deleteImport = async (id: string) => {
     const { error } = await supabase
       .from('importacoes_comissoes')
