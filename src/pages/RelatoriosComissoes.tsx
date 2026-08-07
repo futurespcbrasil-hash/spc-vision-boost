@@ -630,6 +630,15 @@ const RelatoriosComissoes = () => {
     return newResults;
   }, [results, filterConfig, vendedoresDB]);
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Loader2 className="animate-spin text-primary" size={48} />
+        <p className="text-muted-foreground animate-pulse">Processando dados...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in p-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
