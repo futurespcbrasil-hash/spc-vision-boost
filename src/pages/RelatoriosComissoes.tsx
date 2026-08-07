@@ -373,7 +373,8 @@ const RelatoriosComissoes = () => {
     const totalVendas = validData.reduce((acc, curr) => acc + curr.valorVenda, 0);
 
     const addHeader = () => {
-      pdf.setFillColor(63, 81, 181);
+      // Cores: Roxo (#6B21A8) e Verde (#22C55E)
+      pdf.setFillColor(107, 33, 168); // Roxo (purple-800 aproximado)
       pdf.rect(0, 0, 297, 40, 'F');
       
       try {
@@ -457,14 +458,16 @@ const RelatoriosComissoes = () => {
         `R$ ${info.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
     } else {
-      // Regras 6 & 14: Colunas obrigatórias
-      headers = [['Nº Protocolo', 'Cliente', 'Produto', 'Data Venda', 'Valor Venda', 'Valor Comissão']];
+      // Regras solicitadas: protocolo - cliente - produto - data - vendedor - valor de venda - porcentagem da comissao e valor da comissao
+      headers = [['PROTOCOL', 'CLIENTE', 'PRODUTO', 'DATA', 'VENDEDOR NO SISTEMA', 'VALOR', 'COMISSÃ', 'VALOR A']];
       body = validData.map(item => [
         item.protocolo,
         item.cliente,
         item.produto,
         item.dataVenda || '-',
+        item.vendedor,
         `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `${item.regra}%`,
         `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
     }
@@ -492,11 +495,13 @@ const RelatoriosComissoes = () => {
         ]];
       } else {
         return [[
-          'TOTAL GERAL',
+          'TOTAL',
+          '',
           '',
           '',
           '',
           formattedTotalVendas,
+          '',
           formattedTotalComissao
         ]];
       }
@@ -507,9 +512,10 @@ const RelatoriosComissoes = () => {
       head: headers,
       body: body,
       foot: getFooter(),
-      theme: 'striped',
-      headStyles: { fillColor: [63, 81, 181] },
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+      theme: 'grid',
+      headStyles: { fillColor: [107, 33, 168], textColor: [255, 255, 255] }, // Roxo no cabeçalho
+      footStyles: { fillColor: [34, 197, 94], textColor: [0, 0, 0], fontStyle: 'bold' }, // Verde no rodapé (TOTAL)
+      styles: { fontSize: 8 }
     });
 
     pdf.save(`${vendedor.toLowerCase().replace(/\s+/g, '-')}-relatorio.pdf`);
