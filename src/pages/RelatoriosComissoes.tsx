@@ -136,7 +136,8 @@ const RelatoriosComissoes = () => {
     
     // Etapa 6: Aliases
     const aliases: Record<string, string> = {
-      "neura": "solucao",
+      "neura": "solucao - neura",
+      "solucao": "solucao - neura",
     };
 
     let targetNorm = vVendaNorm;
