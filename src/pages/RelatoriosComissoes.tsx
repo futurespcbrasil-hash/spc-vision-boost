@@ -130,31 +130,28 @@ const RelatoriosComissoes = () => {
   };
 
   const smartMatch = (vendedorVenda: string, vendedoresDB: Record<string, any>) => {
+    if (!vendedorVenda) return null;
+    
     const vVendaNorm = normalize(vendedorVenda);
     
-    // Regra 13: "Neura" e "Solução"
-    if (vVendaNorm === "neura" || vVendaNorm === "solucao") {
-      const match = Object.keys(vendedoresDB).find(name => normalize(name) === "solucao");
+    // Regra 4: Tabela de aliases
+    const aliases: Record<string, string> = {
+      "neura": "solucao",
+      // Adicione mais aliases aqui conforme necessário
+    };
+
+    if (aliases[vVendaNorm]) {
+      const target = aliases[vVendaNorm];
+      const match = Object.keys(vendedoresDB).find(name => normalize(name) === target);
       if (match) return match;
     }
 
-    // Aliases e correspondência inteligente
-    const matches = Object.entries(vendedoresDB).find(([name]) => {
-      const vCadNorm = normalize(name);
-      
-      // Igualdade total
-      if (vVendaNorm === vCadNorm) return true;
-      
-      // Venda contém nome cadastrado (ex: "FAZCON INTELIGENCIA..." contém "FAZCON")
-      if (vVendaNorm.includes(vCadNorm) && vCadNorm.length > 3) return true;
-      
-      // Nome cadastrado contém venda (ex: "Alisson Padoan" contém "Alisson")
-      if (vCadNorm.includes(vVendaNorm) && vVendaNorm.length > 3) return true;
+    // Regra 1, 2 e 3: Comparação utilizando igualdade do nome normalizado
+    const strictMatch = Object.keys(vendedoresDB).find(name => normalize(name) === vVendaNorm);
+    if (strictMatch) return strictMatch;
 
-      return false;
-    });
-
-    return matches ? matches[0] : null;
+    // Regra 5: Se houver qualquer dúvida, NÃO associar automaticamente
+    return null;
   };
 
   const processFiles = async () => {
