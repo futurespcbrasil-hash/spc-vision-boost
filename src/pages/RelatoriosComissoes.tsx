@@ -670,10 +670,10 @@ const RelatoriosComissoes = () => {
                         exportAllPDFs();
                         setIsExportMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-success"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-success font-semibold"
                     >
-                      <FileDown size={14} />
-                      Exportar Todos Individuais
+                      <Archive size={14} />
+                      Exportar Todos (ZIP)
                     </button>
                     <button
                       onClick={() => {
