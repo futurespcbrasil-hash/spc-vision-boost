@@ -1,5 +1,5 @@
 // Relatório de Comissões - Ajustado para filtragem dinâmica e persistência de estado.
-// Versão corrigida: Atualiza vendedoresDB imediatamente após importação e flexibiliza matching.
+// Versão corrigida: Implementa regras estritas de correspondência de nomes (Etapa 2 - Normalização e Igualdade).
 import React, { useState, useRef, useEffect } from 'react';
 import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -130,31 +130,28 @@ const RelatoriosComissoes = () => {
   };
 
   const smartMatch = (vendedorVenda: string, vendedoresDB: Record<string, any>) => {
+    if (!vendedorVenda) return null;
+    
     const vVendaNorm = normalize(vendedorVenda);
     
-    // Regra 13: "Neura" e "Solução"
-    if (vVendaNorm === "neura" || vVendaNorm === "solucao") {
-      const match = Object.keys(vendedoresDB).find(name => normalize(name) === "solucao");
+    // Regra 4: Tabela de aliases
+    const aliases: Record<string, string> = {
+      "neura": "solucao",
+      // Adicione mais aliases aqui conforme necessário
+    };
+
+    if (aliases[vVendaNorm]) {
+      const target = aliases[vVendaNorm];
+      const match = Object.keys(vendedoresDB).find(name => normalize(name) === target);
       if (match) return match;
     }
 
-    // Aliases e correspondência inteligente
-    const matches = Object.entries(vendedoresDB).find(([name]) => {
-      const vCadNorm = normalize(name);
-      
-      // Igualdade total
-      if (vVendaNorm === vCadNorm) return true;
-      
-      // Venda contém nome cadastrado (ex: "FAZCON INTELIGENCIA..." contém "FAZCON")
-      if (vVendaNorm.includes(vCadNorm) && vCadNorm.length > 3) return true;
-      
-      // Nome cadastrado contém venda (ex: "Alisson Padoan" contém "Alisson")
-      if (vCadNorm.includes(vVendaNorm) && vVendaNorm.length > 3) return true;
+    // Regra 1, 2 e 3: Comparação utilizando igualdade do nome normalizado
+    const strictMatch = Object.keys(vendedoresDB).find(name => normalize(name) === vVendaNorm);
+    if (strictMatch) return strictMatch;
 
-      return false;
-    });
-
-    return matches ? matches[0] : null;
+    // Regra 5: Se houver qualquer dúvida, NÃO associar automaticamente
+    return null;
   };
 
   const processFiles = async () => {
@@ -254,7 +251,11 @@ const RelatoriosComissoes = () => {
                 totalVendidoAudit += valorVenda;
                 totalComissaoAudit += valorComissao;
               } else {
-                vendasNaoRelacionadasList.push(row);
+                // Regra 5: Adicionar à lista de vendas não relacionadas para conferência manual
+                vendasNaoRelacionadasList.push({
+                  ...row,
+                  vendedorOriginal: vendedorRaw
+                });
               }
             }
           });
@@ -803,10 +804,10 @@ const RelatoriosComissoes = () => {
                       <tbody>
                         {auditLog.vendasNaoRelacionadas.map((v, i) => (
                           <tr key={i} className="border-t border-destructive/10">
-                            <td className="px-2 py-2 font-medium">{v['Vendedor'] || v['vendedor']}</td>
-                            <td className="px-2 py-2">{v['Nº Protocolo'] || v['PROTOCOLO']}</td>
-                            <td className="px-2 py-2">{v['Cliente'] || v['CLIENTE']}</td>
-                            <td className="px-2 py-2">R$ {v['Valor Venda'] || v['VALOR']}</td>
+                            <td className="px-2 py-2 font-medium">{v.vendedorOriginal || v['Vendedor'] || v['vendedor']}</td>
+                            <td className="px-2 py-2">{v['Nº Protocolo'] || v['numero do protocolo'] || v['PROTOCOLO']}</td>
+                            <td className="px-2 py-2">{v['Cliente'] || v['nome do cliente'] || v['CLIENTE']}</td>
+                            <td className="px-2 py-2">R$ {v['Valor Venda'] || v['valor da venda'] || v['VALOR']}</td>
                           </tr>
                         ))}
                       </tbody>
