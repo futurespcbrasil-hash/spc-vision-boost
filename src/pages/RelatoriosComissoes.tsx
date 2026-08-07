@@ -810,7 +810,7 @@ const RelatoriosComissoes = () => {
                   <button
                     onClick={() => exportPDF(vendedor, data, 'completo')}
                     className="p-1.5 text-secondary hover:bg-secondary/10 rounded-lg transition"
-                    title="PDF Avançado"
+                    title="PDF Individual (Completo)"
                   >
                     <FileBarChart size={14} />
                   </button>
