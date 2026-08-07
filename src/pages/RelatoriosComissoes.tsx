@@ -186,29 +186,29 @@ const RelatoriosComissoes = () => {
                 matchedEmail = match[1].email || '';
               }
 
-              // Se encontramos o vendedor e ele tem uma regra de comissão
-              if (basePercentual > 0) {
-                const reportKey = matchedVendedor || vendedorRaw;
-                if (!commissions[reportKey]) commissions[reportKey] = [];
-                
-                // Cálculo da comissão: APENAS se o status for "emitida"
-                const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
-                
-                commissions[reportKey].push({
-                  vendedor: reportKey,
-                  email: matchedEmail,
-                  protocolo,
-                  valorVenda,
-                  comissao: valorComissao,
-                  produto,
-                  cliente,
-                  telefone,
-                  numeroPedido,
-                  tipoEmissao,
-                  statusVenda: statusVendaRaw || 'Não informado',
-                  regra: basePercentual
-                });
-              }
+              // O usuário quer que use como principal a tabela de vendas.
+              // Então, mesmo que não encontre o vendedor na planilha de vendedores, 
+              // devemos incluir no relatório se for "Emitida".
+              const reportKey = matchedVendedor || vendedorRaw;
+              if (!commissions[reportKey]) commissions[reportKey] = [];
+              
+              // Cálculo da comissão: APENAS se o status for "emitida"
+              const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
+              
+              commissions[reportKey].push({
+                vendedor: reportKey,
+                email: matchedEmail,
+                protocolo,
+                valorVenda,
+                comissao: valorComissao,
+                produto,
+                cliente,
+                telefone,
+                numeroPedido,
+                tipoEmissao,
+                statusVenda: statusVendaRaw || 'Não informado',
+                regra: basePercentual
+              });
             }
           });
 
