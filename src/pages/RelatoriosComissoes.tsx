@@ -441,10 +441,13 @@ const RelatoriosComissoes = () => {
           const normalizedName = name.toLowerCase().trim();
           return normalizedVendedor === normalizedName || 
                  normalizedVendedor.startsWith(normalizedName + " ") ||
-                 normalizedVendedor.startsWith(normalizedName + "-");
+                 normalizedVendedor.startsWith(normalizedName + "-") ||
+                 normalizedName.startsWith(normalizedVendedor + " ");
         });
         
-        if (!isRegistered) return;
+        if (!isRegistered) {
+          return;
+        }
       }
 
       // Filtro 2: Status e Regra de Comissão > 0
