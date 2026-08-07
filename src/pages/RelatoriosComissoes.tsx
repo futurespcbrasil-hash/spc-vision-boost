@@ -13,7 +13,10 @@ import JSZip from 'jszip';
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Tables } from "@/integrations/supabase/types";
 
-type ImportacaoComissoes = Database['public']['Tables']['importacoes_comissoes']['Row'];
+type ImportacaoComissoes = Database['public']['Tables']['importacoes_comissoes']['Row'] & {
+  dados_vendedores?: any;
+  audit_log?: any;
+};
 import DashboardRelatorios from '@/components/DashboardRelatorios';
 
 
@@ -119,7 +122,12 @@ const RelatoriosComissoes = () => {
     setLoading(true);
     try {
       // Garantir que temos a tabela de vendedores atualizada
-      await fetchVendedoresComissoes();
+      // Priorizar os vendedores que estavam salvos na importação para manter consistência histórica
+      if (imp.dados_vendedores) {
+        setVendedoresDB(imp.dados_vendedores as Record<string, { percentual: number, email?: string }>);
+      } else {
+        await fetchVendedoresComissoes();
+      }
       
       const processedData = imp.dados_processados as Record<string, CommissionData[]>;
       
@@ -132,10 +140,11 @@ const RelatoriosComissoes = () => {
         setSelectedImportId(imp.id);
         setImportName(imp.nome_importacao);
         
-        // Se houver dados de auditoria salvos ou se pudermos reconstruir
-        // Para simplificar, vamos disparar o modal se houver resultados
-        if (Object.keys(processedData).length > 0) {
-          // Reconstruindo um log básico de auditoria para visualização se necessário
+        // Restaurar log de auditoria se existir no banco
+        if (imp.audit_log) {
+          setAuditLog(imp.audit_log as any);
+        } else if (Object.keys(processedData).length > 0) {
+          // Fallback para reconstrução básica
           const allVendas = Object.values(processedData).flat();
           const totalVendido = allVendas.reduce((acc, curr) => acc + curr.valorVenda, 0);
           const totalComissao = allVendas.reduce((acc, curr) => acc + curr.comissao, 0);
@@ -355,7 +364,7 @@ const RelatoriosComissoes = () => {
 
           setAuditLog(audit);
           setResults(commissions);
-          saveToDatabase(commissions);
+          saveToDatabase(commissions, { ...audit, vendedoresDB: config });
           setLoading(false);
           setShowAuditModal(true);
           toast.success('Processamento concluído com auditoria!');
@@ -384,7 +393,7 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const saveToDatabase = async (data: Record<string, CommissionData[]>) => {
+  const saveToDatabase = async (data: Record<string, CommissionData[]>, audit?: any) => {
     const allRows = Object.values(data).flat();
     const totalVendas = allRows.reduce((acc, curr) => acc + curr.valorVenda, 0);
     const totalComissao = allRows.reduce((acc, curr) => acc + curr.comissao, 0);
@@ -398,14 +407,20 @@ const RelatoriosComissoes = () => {
         dados_processados: data as any,
         total_vendas: totalVendas,
         total_comissao: totalComissao,
-        quantidade_vendas: allRows.length
+        quantidade_vendas: allRows.length,
+        dados_vendedores: audit?.vendedoresDB || vendedoresDB as any,
+        audit_log: audit || auditLog as any
       })
       .select()
       .single();
 
     if (!error && saved) {
+      toast.success('Importação salva com sucesso.');
       fetchImports();
       setSelectedImportId(saved.id);
+    } else if (error) {
+      console.error('Erro ao salvar no banco:', error);
+      toast.error('Erro ao salvar importação no banco de dados.');
     }
   };
 
