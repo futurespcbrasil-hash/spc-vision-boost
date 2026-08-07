@@ -154,7 +154,6 @@ const RelatoriosComissoes = () => {
           const commissions: Record<string, CommissionData[]> = {};
 
           rows.forEach(row => {
-            // Log de depuração para verificar as colunas disponíveis na primeira linha
             const statusVendaRaw = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim();
             const statusVenda = statusVendaRaw.toLowerCase();
             const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
@@ -166,7 +165,6 @@ const RelatoriosComissoes = () => {
             const numeroPedido = row['Nº Pedido'] || row['numero do pedido'] || row['PEDIDO'] || '';
             const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'] || row['TIPO EMISSAO'] || '';
             
-            // Verificação de status e presença de vendedor
             if (vendedorRaw) {
               const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
               
@@ -174,7 +172,6 @@ const RelatoriosComissoes = () => {
               let basePercentual = 0;
               let matchedEmail = '';
 
-              // Ajuste no matching: Priorizar match exato ou começar com.
               const match = Object.entries(configToUse).find(([name]) => {
                 const normalizedVendedor = vendedorRaw.toLowerCase().trim();
                 const normalizedName = name.toLowerCase().trim();
@@ -190,13 +187,9 @@ const RelatoriosComissoes = () => {
                 matchedEmail = match[1].email || '';
               }
 
-              // O usuário quer que use como principal a tabela de vendas.
-              // Então, mesmo que não encontre o vendedor na planilha de vendedores, 
-              // devemos incluir no relatório se for "Emitida".
               const reportKey = matchedVendedor || vendedorRaw;
               if (!commissions[reportKey]) commissions[reportKey] = [];
               
-              // Cálculo da comissão: APENAS se o status for "emitida"
               const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
               
               commissions[reportKey].push({
