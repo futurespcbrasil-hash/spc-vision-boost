@@ -521,6 +521,9 @@ const RelatoriosComissoes = () => {
       styles: { fontSize: 8 }
     });
 
+    if (returnBlob) {
+      return pdf.output('blob');
+    }
     pdf.save(`${vendedor.toLowerCase().replace(/\s+/g, '-')}-relatorio.pdf`);
   };
 
