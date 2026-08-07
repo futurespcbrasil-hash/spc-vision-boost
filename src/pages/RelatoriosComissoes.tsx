@@ -644,7 +644,7 @@ const RelatoriosComissoes = () => {
         </div>
       </div>
 
-      {Object.keys(results).length > 0 && (
+      {Object.keys(filteredResults).length > 0 && (
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Vendedores Processados</h2>
@@ -653,7 +653,7 @@ const RelatoriosComissoes = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Object.entries(results).map(([vendedor, data]) => (
+            {Object.entries(filteredResults).map(([vendedor, data]) => (
               <div key={vendedor} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border hover:border-primary/50 transition group">
                 <div className="overflow-hidden">
                   <div className="font-bold text-xs truncate">{vendedor}</div>
