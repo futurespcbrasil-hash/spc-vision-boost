@@ -1001,6 +1001,7 @@ const RelatoriosComissoes = () => {
           </div>
         </div>
       </div>
+    </div>
 
 
       {Object.keys(filteredResults).length > 0 && (
