@@ -176,25 +176,29 @@ const RelatoriosComissoes = () => {
             const dataVenda = row['Data Venda'] || row['data da venda'] || row['DATA'] || '';
             
             if (vendedorRaw) {
-              const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
+              const configToUse = config; // Use the freshly processed config
               
               let matchedVendedor = '';
               let basePercentual = 0;
               let matchedEmail = '';
 
+              const normalizedVendedor = vendedorRaw.toLowerCase().trim();
+
               const match = Object.entries(configToUse).find(([name]) => {
-                const normalizedVendedor = vendedorRaw.toLowerCase().trim();
                 const normalizedName = name.toLowerCase().trim();
                 
                 return normalizedVendedor === normalizedName || 
                        normalizedVendedor.startsWith(normalizedName + " ") ||
-                       normalizedVendedor.startsWith(normalizedName + "-");
+                       normalizedVendedor.startsWith(normalizedName + "-") ||
+                       normalizedName.startsWith(normalizedVendedor + " ");
               });
 
               if (match) {
                 matchedVendedor = match[0];
                 basePercentual = match[1].percentual;
                 matchedEmail = match[1].email || '';
+              } else {
+                console.log(`No match for vendedor: "${vendedorRaw}"`);
               }
 
               const reportKey = matchedVendedor || vendedorRaw;
