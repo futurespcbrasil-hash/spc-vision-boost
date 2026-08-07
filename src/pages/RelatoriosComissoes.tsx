@@ -27,6 +27,7 @@ interface CommissionData {
   tipoEmissao?: string;
   statusVenda?: string;
   regra?: number;
+  dataVenda?: string;
 }
 
 
@@ -156,7 +157,13 @@ const RelatoriosComissoes = () => {
           rows.forEach(row => {
             const statusVendaRaw = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim();
             const statusVenda = statusVendaRaw.toLowerCase();
-            const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
+            let vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
+            
+            // Regra 13: "Neura" e "Solução" devem ser considerados o mesmo vendedor ("Solução")
+            if (vendedorRaw.toLowerCase() === 'neura') {
+              vendedorRaw = 'Solução';
+            }
+
             const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || row['VALOR'] || '0').replace(',', '.'));
             const protocolo = row['Nº Protocolo'] || row['numero do protocolo'] || row['PROTOCOLO'] || '';
             const produto = row['Produto'] || row['produto'] || row['PRODUTO'] || '';
@@ -164,6 +171,7 @@ const RelatoriosComissoes = () => {
             const telefone = row['Telefone'] || row['telefone'] || row['TELEFONE'] || '';
             const numeroPedido = row['Nº Pedido'] || row['numero do pedido'] || row['PEDIDO'] || '';
             const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'] || row['TIPO EMISSAO'] || '';
+            const dataVenda = row['Data Venda'] || row['data da venda'] || row['DATA'] || '';
             
             if (vendedorRaw) {
               const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
@@ -188,9 +196,11 @@ const RelatoriosComissoes = () => {
               }
 
               const reportKey = matchedVendedor || vendedorRaw;
-              if (!commissions[reportKey]) commissions[reportKey] = [];
               
+              // Regra 2 & 3: Considerar somente status "Emitida". Ignorar qualquer outro para comissão.
               const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
+              
+              if (!commissions[reportKey]) commissions[reportKey] = [];
               
               commissions[reportKey].push({
                 vendedor: reportKey,
@@ -204,7 +214,8 @@ const RelatoriosComissoes = () => {
                 numeroPedido,
                 tipoEmissao,
                 statusVenda: statusVendaRaw || 'Não informado',
-                regra: basePercentual
+                regra: basePercentual,
+                dataVenda: dataVenda 
               });
             }
           });
@@ -258,16 +269,21 @@ const RelatoriosComissoes = () => {
   };
 
   const exportPDF = (vendedor: string, data: CommissionData[], type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
-    const pdf = new jsPDF('l', 'mm', 'a4'); // Paisagem para o relatório avançado
-    const totalComissao = data.reduce((acc, curr) => acc + curr.comissao, 0);
-    const totalVendas = data.reduce((acc, curr) => acc + curr.valorVenda, 0);
+    // Regra 8 & 15: Filtrar apenas comissões maiores que zero
+    const validData = data.filter(item => item.comissao > 0);
+    
+    if (validData.length === 0 && vendedor !== 'Resumo Geral') {
+      return; 
+    }
+
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    const totalComissao = validData.reduce((acc, curr) => acc + curr.comissao, 0);
+    const totalVendas = validData.reduce((acc, curr) => acc + curr.valorVenda, 0);
 
     const addHeader = () => {
-      // Header background
-      pdf.setFillColor(63, 81, 181); // Primary color
+      pdf.setFillColor(63, 81, 181);
       pdf.rect(0, 0, 297, 40, 'F');
       
-      // Add Logo
       try {
         const img = new Image();
         img.src = '/logo-future.png';
@@ -280,14 +296,14 @@ const RelatoriosComissoes = () => {
 
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(22);
-      pdf.text('Relatório de Comissões', 65, 20);
+      pdf.text(vendedor === 'Resumo Geral' ? 'Resumo Geral de Vendas' : 'Relatório de Comissões', 65, 20);
       pdf.setFontSize(12);
       pdf.text('Future Soluções', 65, 30);
       
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(14);
       pdf.text(`Vendedor: ${vendedor}`, 15, 50);
-      const typeLabel = type === 'resumido' ? 'Resumido' : type === 'completo' ? 'Completo' : 'Avançado';
+      const typeLabel = type === 'resumido' ? 'Resumido' : type === 'completo' ? 'Individual' : 'Avançado';
       pdf.text(`Tipo: ${typeLabel}`, 15, 58);
       pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 240, 50);
     };
@@ -297,13 +313,35 @@ const RelatoriosComissoes = () => {
     let headers: string[][] = [];
     let body: any[][] = [];
 
-    if (type === 'resumido') {
+    if (vendedor === 'Resumo Geral') {
+      // Regra 11: Aba "Resumo Geral"
+      headers = [['Vendedor', 'Qtd Vendas Emitidas', 'Total Vendido', 'Perc. Comissão', 'Total Comissão']];
+      
+      const summary: Record<string, { count: number, totalVendas: number, perc: string, totalComissao: number }> = {};
+      data.forEach(item => {
+        if (item.comissao > 0) {
+          if (!summary[item.vendedor]) {
+            summary[item.vendedor] = { count: 0, totalVendas: 0, perc: `${item.regra}%`, totalComissao: 0 };
+          }
+          summary[item.vendedor].count += 1;
+          summary[item.vendedor].totalVendas += item.valorVenda;
+          summary[item.vendedor].totalComissao += item.comissao;
+        }
+      });
+
+      body = Object.entries(summary).map(([vend, info]) => [
+        vend,
+        info.count,
+        `R$ ${info.totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        info.perc,
+        `R$ ${info.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      ]);
+    } else if (type === 'resumido') {
       headers = [['Vendedor', 'E-mail', 'Regra', 'Protocolos', 'Total Vendas', 'Total a Pagar']];
       
-      // No resumido, agrupamos os dados por vendedor para mostrar o total como na planilha
       const groupedByVendedor: Record<string, { email: string, regra: string, protocolos: number, totalVendas: number, totalComissao: number }> = {};
       
-      data.forEach(item => {
+      validData.forEach(item => {
         if (!groupedByVendedor[item.vendedor]) {
           groupedByVendedor[item.vendedor] = {
             email: item.email || '-',
@@ -326,29 +364,14 @@ const RelatoriosComissoes = () => {
         `R$ ${info.totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${info.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
-    } else if (type === 'completo') {
-      headers = [['Protocolo', 'Pedido', 'Cliente', 'Produto', 'Tipo', 'Valor Venda', 'Comissão']];
-      body = data.map(item => [
-        item.protocolo,
-        item.numeroPedido,
-        item.cliente,
-        item.produto,
-        item.tipoEmissao,
-        `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      ]);
     } else {
-      // Avançado
-      headers = [['Protocolo', 'Pedido', 'Cliente', 'Telefone', 'Produto', 'Emissão', 'Status', 'Vendedor', 'Valor Venda', 'Comissão']];
-      body = data.map(item => [
+      // Regras 6 & 14: Colunas obrigatórias
+      headers = [['Nº Protocolo', 'Cliente', 'Produto', 'Data Venda', 'Valor Venda', 'Valor Comissão']];
+      body = validData.map(item => [
         item.protocolo,
-        item.numeroPedido,
         item.cliente,
-        item.telefone || '-',
         item.produto,
-        item.tipoEmissao,
-        item.statusVenda,
-        item.vendedor,
+        item.dataVenda || '-',
         `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
@@ -362,21 +385,19 @@ const RelatoriosComissoes = () => {
         'TOTAL GERAL',
         '',
         '',
-        data.length,
+        vendedor === 'Resumo Geral' ? '' : validData.length,
         `R$ ${totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]],
       theme: 'striped',
-      headStyles: { fillColor: [63, 81, 181], fontSize: type === 'avancado' ? 8 : 10 },
-      bodyStyles: { fontSize: type === 'avancado' ? 7 : 9 },
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: type === 'avancado' ? 8 : 10 },
+      headStyles: { fillColor: [63, 81, 181] },
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
     });
 
-    pdf.save(`comissao-${vendedor.toLowerCase().replace(/\s+/g, '-')}-${type}.pdf`);
+    pdf.save(`${vendedor.toLowerCase().replace(/\s+/g, '-')}-relatorio.pdf`);
   };
 
   const exportGeneralReport = (type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
-    // Pegamos todos os dados filtrados (incluindo todos os status se selecionado)
     const allData = Object.values(filteredResults).flat();
     
     if (allData.length === 0) {
@@ -384,16 +405,22 @@ const RelatoriosComissoes = () => {
       return;
     }
     
-    // O nome do relatório no PDF deve refletir o filtro se possível
-    const filterLabel = filterConfig.statusFilter === 'all' ? 'Todos Status' : filterConfig.statusFilter;
-    exportPDF(`Geral (${filterLabel})`, allData, type);
+    if (type === 'resumido') {
+      exportPDF('Resumo Geral', allData, 'resumido');
+    } else {
+      const filterLabel = filterConfig.statusFilter === 'all' ? 'Todos Status' : filterConfig.statusFilter;
+      exportPDF(`Geral (${filterLabel})`, allData, type);
+    }
   };
 
   const exportAllPDFs = () => {
     Object.entries(filteredResults).forEach(([vendedor, data]) => {
-      exportPDF(vendedor, data, 'resumido');
+      const hasCommission = data.some(item => item.comissao > 0);
+      if (hasCommission) {
+        exportPDF(vendedor, data, 'completo');
+      }
     });
-    toast.success('Todos os PDFs individuais (resumidos) foram gerados.');
+    toast.success('Todos os PDFs individuais foram gerados (apenas comissões > 0).');
   };
 
   const filteredResults = React.useMemo(() => {
