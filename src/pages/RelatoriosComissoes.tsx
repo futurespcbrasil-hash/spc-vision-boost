@@ -469,18 +469,44 @@ const RelatoriosComissoes = () => {
       ]);
     }
 
+    const getFooter = () => {
+      const formattedTotalVendas = `R$ ${totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+      const formattedTotalComissao = `R$ ${totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+      if (vendedor === 'Resumo Geral') {
+        return [[
+          'TOTAL GERAL',
+          '',
+          '',
+          '', // Perc. Comissão column
+          formattedTotalComissao
+        ]];
+      } else if (type === 'resumido') {
+        return [[
+          'TOTAL GERAL',
+          '',
+          '',
+          '', // Protocolos column
+          formattedTotalVendas,
+          formattedTotalComissao
+        ]];
+      } else {
+        return [[
+          'TOTAL GERAL',
+          '',
+          '',
+          '',
+          formattedTotalVendas,
+          formattedTotalComissao
+        ]];
+      }
+    };
+
     autoTable(pdf, {
       startY: 65,
       head: headers,
       body: body,
-      foot: [[
-        'TOTAL GERAL',
-        '',
-        '',
-        vendedor === 'Resumo Geral' ? '' : validData.length,
-        `R$ ${totalVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `R$ ${totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-      ]],
+      foot: getFooter(),
       theme: 'striped',
       headStyles: { fillColor: [63, 81, 181] },
       footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
