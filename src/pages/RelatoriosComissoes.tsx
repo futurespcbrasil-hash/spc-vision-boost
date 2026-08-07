@@ -13,7 +13,10 @@ import JSZip from 'jszip';
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Tables } from "@/integrations/supabase/types";
 
-type ImportacaoComissoes = Database['public']['Tables']['importacoes_comissoes']['Row'];
+type ImportacaoComissoes = Database['public']['Tables']['importacoes_comissoes']['Row'] & {
+  dados_vendedores?: any;
+  audit_log?: any;
+};
 import DashboardRelatorios from '@/components/DashboardRelatorios';
 
 
