@@ -2,13 +2,14 @@
 // Versão corrigida: Implementa regras estritas de correspondência de nomes e restaura colunas solicitadas para relatórios individuais.
 // Correção de cache/botões: Garantindo que o botão individual chame o relatório 'completo' e que o filtro de comissão > 0 não bloqueie o Resumo Geral.
 import React, { useState, useRef, useEffect } from 'react';
-import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck } from 'lucide-react';
+import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck, Archive } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import JSZip from 'jszip';
 import { supabase } from "@/integrations/supabase/client";
 import { Database, Tables } from "@/integrations/supabase/types";
 
@@ -362,7 +363,7 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const exportPDF = (vendedor: string, data: CommissionData[], type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
+  const exportPDF = (vendedor: string, data: CommissionData[], type: 'resumido' | 'completo' | 'avancado' = 'resumido', returnBlob = false) => {
     // Para o "Resumo Geral", não filtramos comissão > 0 aqui pois ele processa o array todo
     const validData = vendedor === 'Resumo Geral' ? data : data.filter(item => item.comissao > 0);
     
@@ -520,6 +521,9 @@ const RelatoriosComissoes = () => {
       styles: { fontSize: 8 }
     });
 
+    if (returnBlob) {
+      return pdf.output('blob');
+    }
     pdf.save(`${vendedor.toLowerCase().replace(/\s+/g, '-')}-relatorio.pdf`);
   };
 
@@ -539,14 +543,33 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const exportAllPDFs = () => {
-    Object.entries(filteredResults).forEach(([vendedor, data]) => {
+  const exportAllPDFs = async () => {
+    const zip = new JSZip();
+    let hasFiles = false;
+
+    const entries = Object.entries(filteredResults);
+    for (const [vendedor, data] of entries) {
       const hasCommission = data.some(item => item.comissao > 0);
       if (hasCommission) {
-        exportPDF(vendedor, data, 'completo');
+        const blob = exportPDF(vendedor, data, 'completo', true) as unknown as Blob;
+        if (blob) {
+          const fileName = `${vendedor.toLowerCase().replace(/\s+/g, '-')}-relatorio.pdf`;
+          zip.file(fileName, blob);
+          hasFiles = true;
+        }
       }
-    });
-    toast.success('Todos os PDFs individuais foram gerados (apenas comissões > 0).');
+    }
+
+    if (hasFiles) {
+      const content = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = `relatorios-comissoes-${new Date().toISOString().split('T')[0]}.zip`;
+      link.click();
+      toast.success('Pacote ZIP com todos os PDFs individuais gerado com sucesso!');
+    } else {
+      toast.error('Nenhum relatório individual com comissão > 0 encontrado.');
+    }
   };
 
   const filteredResults = React.useMemo(() => {
@@ -647,10 +670,10 @@ const RelatoriosComissoes = () => {
                         exportAllPDFs();
                         setIsExportMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-success"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-success font-semibold"
                     >
-                      <FileDown size={14} />
-                      Exportar Todos Individuais
+                      <Archive size={14} />
+                      Exportar Todos (ZIP)
                     </button>
                     <button
                       onClick={() => {
