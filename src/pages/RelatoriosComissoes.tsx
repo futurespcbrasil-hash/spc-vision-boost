@@ -808,7 +808,7 @@ const RelatoriosComissoes = () => {
                     <FileDown size={14} />
                   </button>
                   <button
-                    onClick={() => exportPDF(vendedor, data, 'avancado')}
+                    onClick={() => exportPDF(vendedor, data, 'completo')}
                     className="p-1.5 text-secondary hover:bg-secondary/10 rounded-lg transition"
                     title="PDF Avançado"
                   >
