@@ -1144,7 +1144,6 @@ const RelatoriosComissoes = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
   );
 };
 
