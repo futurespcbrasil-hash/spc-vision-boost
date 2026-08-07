@@ -119,7 +119,12 @@ const RelatoriosComissoes = () => {
     setLoading(true);
     try {
       // Garantir que temos a tabela de vendedores atualizada
-      await fetchVendedoresComissoes();
+      // Priorizar os vendedores que estavam salvos na importação para manter consistência histórica
+      if (imp.dados_vendedores) {
+        setVendedoresDB(imp.dados_vendedores as Record<string, { percentual: number, email?: string }>);
+      } else {
+        await fetchVendedoresComissoes();
+      }
       
       const processedData = imp.dados_processados as Record<string, CommissionData[]>;
       
@@ -132,10 +137,11 @@ const RelatoriosComissoes = () => {
         setSelectedImportId(imp.id);
         setImportName(imp.nome_importacao);
         
-        // Se houver dados de auditoria salvos ou se pudermos reconstruir
-        // Para simplificar, vamos disparar o modal se houver resultados
-        if (Object.keys(processedData).length > 0) {
-          // Reconstruindo um log básico de auditoria para visualização se necessário
+        // Restaurar log de auditoria se existir no banco
+        if (imp.audit_log) {
+          setAuditLog(imp.audit_log as any);
+        } else if (Object.keys(processedData).length > 0) {
+          // Fallback para reconstrução básica
           const allVendas = Object.values(processedData).flat();
           const totalVendido = allVendas.reduce((acc, curr) => acc + curr.valorVenda, 0);
           const totalComissao = allVendas.reduce((acc, curr) => acc + curr.comissao, 0);
