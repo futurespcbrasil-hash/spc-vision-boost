@@ -748,6 +748,108 @@ const RelatoriosComissoes = () => {
         </div>
       )}
 
+      <Dialog open={showAuditModal} onOpenChange={setShowAuditModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="text-primary" />
+              Relatório de Auditoria e Validação
+            </DialogTitle>
+          </DialogHeader>
+          
+          {auditLog && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-muted/50 rounded-xl border border-border">
+                  <div className="text-xs text-muted-foreground uppercase font-semibold mb-1">Vendedores Cadastrados</div>
+                  <div className="text-2xl font-bold">{auditLog.cadastrados}</div>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-xl border border-border">
+                  <div className="text-xs text-muted-foreground uppercase font-semibold mb-1">Vendas Totais</div>
+                  <div className="text-2xl font-bold">{auditLog.totalVendas}</div>
+                </div>
+                <div className="p-4 bg-primary/10 rounded-xl border border-primary/20">
+                  <div className="text-xs text-primary uppercase font-semibold mb-1">Vendas Emitidas</div>
+                  <div className="text-2xl font-bold text-primary">{auditLog.vendasEmitidas}</div>
+                </div>
+                <div className="p-4 bg-success/10 rounded-xl border border-success/20">
+                  <div className="text-xs text-success uppercase font-semibold mb-1">Vendedores com Vendas</div>
+                  <div className="text-2xl font-bold text-success">{auditLog.vendedoresComVendas}</div>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-xl border border-border">
+                  <div className="text-xs text-muted-foreground uppercase font-semibold mb-1">Vendedores sem Vendas</div>
+                  <div className="text-2xl font-bold">{auditLog.vendedoresSemVendas}</div>
+                </div>
+                <div className="p-4 bg-success/10 rounded-xl border border-success/20">
+                  <div className="text-xs text-success uppercase font-semibold mb-1">Vinculadas com Sucesso</div>
+                  <div className="text-2xl font-bold text-success">{auditLog.vendasVinculadas}</div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-destructive/10 rounded-xl border border-destructive/20">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-bold text-destructive flex items-center gap-2">
+                    <AlertCircle size={18} />
+                    Vendas sem Vendedor Correspondente: {auditLog.vendasNaoRelacionadas.length}
+                  </div>
+                </div>
+                {auditLog.vendasNaoRelacionadas.length > 0 ? (
+                  <div className="max-h-60 overflow-y-auto border border-destructive/20 rounded-lg">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-destructive/5 sticky top-0">
+                        <tr>
+                          <th className="px-2 py-2">Vendedor na Planilha</th>
+                          <th className="px-2 py-2">Protocolo</th>
+                          <th className="px-2 py-2">Cliente</th>
+                          <th className="px-2 py-2">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {auditLog.vendasNaoRelacionadas.map((v, i) => (
+                          <tr key={i} className="border-t border-destructive/10">
+                            <td className="px-2 py-2 font-medium">{v['Vendedor'] || v['vendedor']}</td>
+                            <td className="px-2 py-2">{v['Nº Protocolo'] || v['PROTOCOLO']}</td>
+                            <td className="px-2 py-2">{v['Cliente'] || v['CLIENTE']}</td>
+                            <td className="px-2 py-2">R$ {v['Valor Venda'] || v['VALOR']}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-success-foreground">Parabéns! Todas as vendas emitidas foram vinculadas corretamente.</p>
+                )}
+              </div>
+
+              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10">
+                <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
+                  <ShieldCheck size={18} className="text-primary" />
+                  Validação Final dos Totais
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Total Vendido (Auditado)</span>
+                    <span className="text-lg font-bold">R$ {auditLog.totalVendizado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Total Comissão (Auditado)</span>
+                    <span className="text-lg font-bold text-primary">R$ {auditLog.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button 
+                  onClick={() => setShowAuditModal(false)}
+                  className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:opacity-90 transition"
+                >
+                  Confirmar e Ver Relatórios
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
