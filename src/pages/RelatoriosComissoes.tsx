@@ -362,8 +362,8 @@ const RelatoriosComissoes = () => {
   };
 
   const exportPDF = (vendedor: string, data: CommissionData[], type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
-    // Regra 8 & 15: Filtrar apenas comissões maiores que zero
-    const validData = data.filter(item => item.comissao > 0);
+    // Para o "Resumo Geral", não filtramos comissão > 0 aqui pois ele processa o array todo
+    const validData = vendedor === 'Resumo Geral' ? data : data.filter(item => item.comissao > 0);
     
     if (validData.length === 0 && vendedor !== 'Resumo Geral') {
       return; 
