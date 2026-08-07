@@ -154,7 +154,6 @@ const RelatoriosComissoes = () => {
           const commissions: Record<string, CommissionData[]> = {};
 
           rows.forEach(row => {
-            // Log de depuração para verificar as colunas disponíveis na primeira linha
             const statusVendaRaw = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim();
             const statusVenda = statusVendaRaw.toLowerCase();
             const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
@@ -166,7 +165,6 @@ const RelatoriosComissoes = () => {
             const numeroPedido = row['Nº Pedido'] || row['numero do pedido'] || row['PEDIDO'] || '';
             const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'] || row['TIPO EMISSAO'] || '';
             
-            // Verificação de status e presença de vendedor
             if (vendedorRaw) {
               const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
               
@@ -174,7 +172,6 @@ const RelatoriosComissoes = () => {
               let basePercentual = 0;
               let matchedEmail = '';
 
-              // Ajuste no matching: Priorizar match exato ou começar com.
               const match = Object.entries(configToUse).find(([name]) => {
                 const normalizedVendedor = vendedorRaw.toLowerCase().trim();
                 const normalizedName = name.toLowerCase().trim();
@@ -190,13 +187,9 @@ const RelatoriosComissoes = () => {
                 matchedEmail = match[1].email || '';
               }
 
-              // O usuário quer que use como principal a tabela de vendas.
-              // Então, mesmo que não encontre o vendedor na planilha de vendedores, 
-              // devemos incluir no relatório se for "Emitida".
               const reportKey = matchedVendedor || vendedorRaw;
               if (!commissions[reportKey]) commissions[reportKey] = [];
               
-              // Cálculo da comissão: APENAS se o status for "emitida"
               const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
               
               commissions[reportKey].push({
@@ -383,12 +376,17 @@ const RelatoriosComissoes = () => {
   };
 
   const exportGeneralReport = (type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
+    // Pegamos todos os dados filtrados (incluindo todos os status se selecionado)
     const allData = Object.values(filteredResults).flat();
+    
     if (allData.length === 0) {
-      toast.error('Nenhum dado para exportar.');
+      toast.error('Nenhum dado para exportar com os filtros atuais.');
       return;
     }
-    exportPDF('Geral (Filtro Aplicado)', allData, type);
+    
+    // O nome do relatório no PDF deve refletir o filtro se possível
+    const filterLabel = filterConfig.statusFilter === 'all' ? 'Todos Status' : filterConfig.statusFilter;
+    exportPDF(`Geral (${filterLabel})`, allData, type);
   };
 
   const exportAllPDFs = () => {
@@ -400,24 +398,34 @@ const RelatoriosComissoes = () => {
 
   const filteredResults = React.useMemo(() => {
     const newResults: Record<string, CommissionData[]> = {};
+    const registeredNamesSet = new Set(Object.keys(vendedoresDB).map(n => n.toLowerCase().trim()));
     
     Object.entries(results).forEach(([vendedor, data]) => {
+      const normalizedVendedor = vendedor.toLowerCase().trim();
+
       // Filtro 1: Apenas vendedores da lista
       if (filterConfig.onlyVendedoresList) {
+        // Verifica se o vendedor da planilha de vendas está na nossa lista de cadastrados
+        // Usamos a mesma lógica de matching da importação
         const isRegistered = Object.keys(vendedoresDB).some(name => {
-          const normalizedVendedor = vendedor.toLowerCase().trim();
           const normalizedName = name.toLowerCase().trim();
           return normalizedVendedor === normalizedName || 
                  normalizedVendedor.startsWith(normalizedName + " ") ||
                  normalizedVendedor.startsWith(normalizedName + "-");
         });
+        
         if (!isRegistered) return;
       }
 
       // Filtro 2: Status
       const filteredData = data.filter(item => {
         if (filterConfig.statusFilter === 'all') return true;
-        return item.statusVenda?.toLowerCase().trim() === filterConfig.statusFilter.toLowerCase().trim();
+        
+        const itemStatus = (item.statusVenda || '').toLowerCase().trim();
+        const targetStatus = filterConfig.statusFilter.toLowerCase().trim();
+        
+        // Match exato para o status
+        return itemStatus === targetStatus;
       });
 
       if (filteredData.length > 0) {
