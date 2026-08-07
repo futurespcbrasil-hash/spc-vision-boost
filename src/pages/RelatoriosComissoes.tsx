@@ -138,8 +138,10 @@ const RelatoriosComissoes = () => {
     const aliases: Record<string, string> = {
       "neura": "solucao - neura",
       "solucao": "solucao - neura",
-      "ccdm": "solucao - neura", // CCDM SOLUCOES -> Solução - Neura
+      "ccdm": "solucao - neura",
       "rottin": "rottini",
+      "spc sarandi": "vieira",
+      "aktz": "aktz - andreia",
     };
 
     let targetNorm = vVendaNorm;
