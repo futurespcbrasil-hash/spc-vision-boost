@@ -128,11 +128,22 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const loadImport = (imp: any) => {
-    setResults(imp.dados_processados as unknown as Record<string, CommissionData[]>);
-    setSelectedImportId(imp.id);
-    setImportName(imp.nome_importacao);
-    toast.success(`Importação "${imp.nome_importacao}" carregada.`);
+  const loadImport = async (imp: any) => {
+    setLoading(true);
+    try {
+      // Garantir que temos a tabela de vendedores atualizada para o smartMatch no filterConfig
+      await fetchVendedoresComissoes();
+      
+      setResults(imp.dados_processados as unknown as Record<string, CommissionData[]>);
+      setSelectedImportId(imp.id);
+      setImportName(imp.nome_importacao);
+      toast.success(`Importação "${imp.nome_importacao}" carregada.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar dados da importação.');
+    } finally {
+      setLoading(false);
+    }
   };
   
   const fileInputVendedores = useRef<HTMLInputElement>(null);
