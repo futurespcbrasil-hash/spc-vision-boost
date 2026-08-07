@@ -400,7 +400,6 @@ const RelatoriosComissoes = () => {
       pdf.text(`Tipo: ${typeLabel}`, 15, 58);
       pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 240, 50);
     };
-    };
 
     addHeader();
 
