@@ -373,7 +373,8 @@ const RelatoriosComissoes = () => {
     const totalVendas = validData.reduce((acc, curr) => acc + curr.valorVenda, 0);
 
     const addHeader = () => {
-      pdf.setFillColor(63, 81, 181);
+      // Cores: Roxo (#6B21A8) e Verde (#22C55E)
+      pdf.setFillColor(107, 33, 168); // Roxo (purple-800 aproximado)
       pdf.rect(0, 0, 297, 40, 'F');
       
       try {
@@ -398,6 +399,7 @@ const RelatoriosComissoes = () => {
       const typeLabel = type === 'resumido' ? 'Resumido' : type === 'completo' ? 'Individual' : 'Avançado';
       pdf.text(`Tipo: ${typeLabel}`, 15, 58);
       pdf.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 240, 50);
+    };
     };
 
     addHeader();
