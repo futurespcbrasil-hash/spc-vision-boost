@@ -1,7 +1,8 @@
 // Relatório de Comissões - Ajustado para filtragem dinâmica e persistência de estado.
 // Versão corrigida: Atualiza vendedoresDB imediatamente após importação e flexibiliza matching.
 import React, { useState, useRef, useEffect } from 'react';
-import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal } from 'lucide-react';
+import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -42,6 +43,20 @@ const RelatoriosComissoes = () => {
     onlyVendedoresList: true,
     statusFilter: 'emitida', // 'all', 'emitida', 'protocolo gerado', 'revogado', etc.
   });
+  const [auditLog, setAuditLog] = useState<{
+    cadastrados: number;
+    totalVendas: number;
+    vendasEmitidas: number;
+    vendedoresComVendas: number;
+    vendedoresSemVendas: number;
+    vendasNaoRelacionadas: any[];
+    vendasVinculadas: number;
+    totalVendizado: number;
+    totalComissao: number;
+    vendedoresEncontrados: string[];
+    vendedoresNaoEncontrados: string[];
+  } | null>(null);
+  const [showAuditModal, setShowAuditModal] = useState(false);
 
   useEffect(() => {
     fetchVendedores();
@@ -104,6 +119,44 @@ const RelatoriosComissoes = () => {
   const fileInputVendedores = useRef<HTMLInputElement>(null);
   const fileInputVendas = useRef<HTMLInputElement>(null);
 
+  const normalize = (text: string) => {
+    if (!text) return "";
+    return text
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .replace(/\s+/g, " "); // Remove espaços duplicados
+  };
+
+  const smartMatch = (vendedorVenda: string, vendedoresDB: Record<string, any>) => {
+    const vVendaNorm = normalize(vendedorVenda);
+    
+    // Regra 13: "Neura" e "Solução"
+    if (vVendaNorm === "neura" || vVendaNorm === "solucao") {
+      const match = Object.keys(vendedoresDB).find(name => normalize(name) === "solucao");
+      if (match) return match;
+    }
+
+    // Aliases e correspondência inteligente
+    const matches = Object.entries(vendedoresDB).find(([name]) => {
+      const vCadNorm = normalize(name);
+      
+      // Igualdade total
+      if (vVendaNorm === vCadNorm) return true;
+      
+      // Venda contém nome cadastrado (ex: "FAZCON INTELIGENCIA..." contém "FAZCON")
+      if (vVendaNorm.includes(vCadNorm) && vCadNorm.length > 3) return true;
+      
+      // Nome cadastrado contém venda (ex: "Alisson Padoan" contém "Alisson")
+      if (vCadNorm.includes(vVendaNorm) && vVendaNorm.length > 3) return true;
+
+      return false;
+    });
+
+    return matches ? matches[0] : null;
+  };
+
   const processFiles = async () => {
     const vendsFile = fileInputVendedores.current?.files?.[0];
     const salesFile = fileInputVendas.current?.files?.[0];
@@ -142,9 +195,7 @@ const RelatoriosComissoes = () => {
         }
       });
       
-      // Update state immediately so filteredResults can use it
       setVendedoresDB(config);
-
 
       // 2. Process Vendas CSV
       const salesText = await salesFile.text();
@@ -152,93 +203,98 @@ const RelatoriosComissoes = () => {
         header: true,
         delimiter: ";",
         skipEmptyLines: true,
-        complete: (results) => {
-          const rows = results.data as any[];
+        complete: (resultsCSV) => {
+          const rows = resultsCSV.data as any[];
           const commissions: Record<string, CommissionData[]> = {};
+          
+          // Auditoria stats
+          let totalVendasCount = rows.length;
+          let vendasEmitidasCount = 0;
+          let vendasVinculadasCount = 0;
+          let vendasNaoRelacionadasList: any[] = [];
+          let vendedoresEncontradosSet = new Set<string>();
+          let totalVendidoAudit = 0;
+          let totalComissaoAudit = 0;
 
           rows.forEach(row => {
             const statusVendaRaw = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim();
             const statusVenda = statusVendaRaw.toLowerCase();
-            let vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
+            const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
             
-            // Regra 13: "Neura" e "Solução" devem ser considerados o mesmo vendedor ("Solução")
-            if (vendedorRaw.toLowerCase() === 'neura') {
-              vendedorRaw = 'Solução';
-            }
-
             const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || row['VALOR'] || '0').replace(',', '.'));
             const protocolo = row['Nº Protocolo'] || row['numero do protocolo'] || row['PROTOCOLO'] || '';
             const produto = row['Produto'] || row['produto'] || row['PRODUTO'] || '';
             const cliente = row['Cliente'] || row['nome do cliente'] || row['CLIENTE'] || '';
-            const telefone = row['Telefone'] || row['telefone'] || row['TELEFONE'] || '';
-            const numeroPedido = row['Nº Pedido'] || row['numero do pedido'] || row['PEDIDO'] || '';
-            const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'] || row['TIPO EMISSAO'] || '';
             const dataVenda = row['Data Venda'] || row['data da venda'] || row['DATA'] || '';
-            
-            if (vendedorRaw) {
-              const configToUse = config; // Use the freshly processed config
+
+            if (statusVenda === 'emitida') {
+              vendasEmitidasCount++;
+              const match = smartMatch(vendedorRaw, config);
               
-              let matchedVendedor = '';
-              let basePercentual = 0;
-              let matchedEmail = '';
-
-              const normalizedVendedor = vendedorRaw.toLowerCase().trim();
-
-              const match = Object.entries(configToUse).find(([name]) => {
-                const normalizedName = name.toLowerCase().trim();
-                
-                return normalizedVendedor === normalizedName || 
-                       normalizedVendedor.startsWith(normalizedName + " ") ||
-                       normalizedVendedor.startsWith(normalizedName + "-") ||
-                       normalizedName.startsWith(normalizedVendedor + " ");
-              });
-
               if (match) {
-                matchedVendedor = match[0];
-                basePercentual = match[1].percentual;
-                matchedEmail = match[1].email || '';
+                vendasVinculadasCount++;
+                vendedoresEncontradosSet.add(match);
+                const basePercentual = config[match].percentual;
+                const valorComissao = (valorVenda * basePercentual) / 100;
+                
+                if (!commissions[match]) commissions[match] = [];
+                commissions[match].push({
+                  vendedor: match,
+                  email: config[match].email || '',
+                  protocolo,
+                  valorVenda,
+                  comissao: valorComissao,
+                  produto,
+                  cliente,
+                  statusVenda: statusVendaRaw,
+                  regra: basePercentual,
+                  dataVenda: dataVenda 
+                });
+                
+                totalVendidoAudit += valorVenda;
+                totalComissaoAudit += valorComissao;
               } else {
-                console.log(`No match for vendedor: "${vendedorRaw}"`);
+                vendasNaoRelacionadasList.push(row);
               }
-
-              const reportKey = matchedVendedor || vendedorRaw;
-              
-              // Regra 2 & 3: Considerar somente status "Emitida" para comissão.
-              const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
-              
-              if (!commissions[reportKey]) commissions[reportKey] = [];
-              
-              commissions[reportKey].push({
-                vendedor: reportKey,
-                email: matchedEmail,
-                protocolo,
-                valorVenda,
-                comissao: valorComissao,
-                produto,
-                cliente,
-                telefone,
-                numeroPedido,
-                tipoEmissao,
-                statusVenda: statusVendaRaw || 'Não informado',
-                regra: basePercentual,
-                dataVenda: dataVenda 
-              });
             }
           });
 
-          const allProcessed = commissions;
-          setResults(allProcessed);
-          
-          // Salvar no banco automaticamente se tiver um nome
-          saveToDatabase(allProcessed);
+          // ETAPA 1 e 4 - Relatório de Auditoria
+          const audit = {
+            cadastrados: Object.keys(config).length,
+            totalVendas: totalVendasCount,
+            vendasEmitidas: vendasEmitidasCount,
+            vendedoresComVendas: vendedoresEncontradosSet.size,
+            vendedoresSemVendas: Object.keys(config).length - vendedoresEncontradosSet.size,
+            vendasNaoRelacionadas: vendasNaoRelacionadasList,
+            vendasVinculadas: vendasVinculadasCount,
+            totalVendizado: totalVendidoAudit,
+            totalComissao: totalComissaoAudit,
+            vendedoresEncontrados: Array.from(vendedoresEncontradosSet),
+            vendedoresNaoEncontrados: Object.keys(config).filter(v => !vendedoresEncontradosSet.has(v))
+          };
 
+          setAuditLog(audit);
+          setResults(commissions);
+          saveToDatabase(commissions);
           setLoading(false);
-          toast.success('Relatório processado com sucesso!');
+          setShowAuditModal(true);
+          toast.success('Processamento concluído com auditoria!');
+          
+          console.log('--- LOG DE PROCESSAMENTO ---');
+          console.log('✓ vendedores importados:', audit.cadastrados);
+          console.log('✓ vendas importadas:', audit.totalVendas);
+          console.log('✓ vendas emitidas:', audit.vendasEmitidas);
+          console.log('✓ vendedores encontrados:', audit.vendedoresComVendas);
+          console.log('✓ vendedores não encontrados:', audit.vendedoresSemVendas);
+          console.log('✓ vendas não relacionadas:', audit.vendasNaoRelacionadas.length);
+          console.log('✓ total vendido:', audit.totalVendizado);
+          console.log('✓ total comissão:', audit.totalComissao);
         },
         error: (err) => {
           console.error(err);
           setLoading(false);
-          toast.error('Erro ao processar CSV de vendas.');
+          toast.error('Erro ao processar CSV.');
         }
       });
 
@@ -433,21 +489,10 @@ const RelatoriosComissoes = () => {
     const newResults: Record<string, CommissionData[]> = {};
     
     Object.entries(results).forEach(([vendedor, data]) => {
-      const normalizedVendedor = vendedor.toLowerCase().trim();
-
       // Filtro 1: Apenas vendedores da lista (Planilha Vendedores)
       if (filterConfig.onlyVendedoresList) {
-        const isRegistered = Object.keys(vendedoresDB).some(name => {
-          const normalizedName = name.toLowerCase().trim();
-          return normalizedVendedor === normalizedName || 
-                 normalizedVendedor.startsWith(normalizedName + " ") ||
-                 normalizedVendedor.startsWith(normalizedName + "-") ||
-                 normalizedName.startsWith(normalizedVendedor + " ");
-        });
-        
-        if (!isRegistered) {
-          return;
-        }
+        const match = smartMatch(vendedor, vendedoresDB);
+        if (!match) return;
       }
 
       // Filtro 2: Status e Regra de Comissão > 0
@@ -532,6 +577,13 @@ const RelatoriosComissoes = () => {
                   >
                     <FileDown size={14} />
                     Exportar Todos Individuais
+                  </button>
+                  <button
+                    onClick={() => setShowAuditModal(true)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-primary"
+                  >
+                    <ClipboardCheck size={14} />
+                    Ver Auditoria
                   </button>
                 </div>
               </div>
@@ -692,6 +744,108 @@ const RelatoriosComissoes = () => {
         </div>
       )}
 
+      <Dialog open={showAuditModal} onOpenChange={setShowAuditModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="text-primary" />
+              Relatório de Auditoria e Validação
+            </DialogTitle>
+          </DialogHeader>
+          
+          {auditLog && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-muted/50 rounded-xl border border-border">
+                  <div className="text-xs text-muted-foreground uppercase font-semibold mb-1">Vendedores Cadastrados</div>
+                  <div className="text-2xl font-bold">{auditLog.cadastrados}</div>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-xl border border-border">
+                  <div className="text-xs text-muted-foreground uppercase font-semibold mb-1">Vendas Totais</div>
+                  <div className="text-2xl font-bold">{auditLog.totalVendas}</div>
+                </div>
+                <div className="p-4 bg-primary/10 rounded-xl border border-primary/20">
+                  <div className="text-xs text-primary uppercase font-semibold mb-1">Vendas Emitidas</div>
+                  <div className="text-2xl font-bold text-primary">{auditLog.vendasEmitidas}</div>
+                </div>
+                <div className="p-4 bg-success/10 rounded-xl border border-success/20">
+                  <div className="text-xs text-success uppercase font-semibold mb-1">Vendedores com Vendas</div>
+                  <div className="text-2xl font-bold text-success">{auditLog.vendedoresComVendas}</div>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-xl border border-border">
+                  <div className="text-xs text-muted-foreground uppercase font-semibold mb-1">Vendedores sem Vendas</div>
+                  <div className="text-2xl font-bold">{auditLog.vendedoresSemVendas}</div>
+                </div>
+                <div className="p-4 bg-success/10 rounded-xl border border-success/20">
+                  <div className="text-xs text-success uppercase font-semibold mb-1">Vinculadas com Sucesso</div>
+                  <div className="text-2xl font-bold text-success">{auditLog.vendasVinculadas}</div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-destructive/10 rounded-xl border border-destructive/20">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-bold text-destructive flex items-center gap-2">
+                    <AlertCircle size={18} />
+                    Vendas sem Vendedor Correspondente: {auditLog.vendasNaoRelacionadas.length}
+                  </div>
+                </div>
+                {auditLog.vendasNaoRelacionadas.length > 0 ? (
+                  <div className="max-h-60 overflow-y-auto border border-destructive/20 rounded-lg">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-destructive/5 sticky top-0">
+                        <tr>
+                          <th className="px-2 py-2">Vendedor na Planilha</th>
+                          <th className="px-2 py-2">Protocolo</th>
+                          <th className="px-2 py-2">Cliente</th>
+                          <th className="px-2 py-2">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {auditLog.vendasNaoRelacionadas.map((v, i) => (
+                          <tr key={i} className="border-t border-destructive/10">
+                            <td className="px-2 py-2 font-medium">{v['Vendedor'] || v['vendedor']}</td>
+                            <td className="px-2 py-2">{v['Nº Protocolo'] || v['PROTOCOLO']}</td>
+                            <td className="px-2 py-2">{v['Cliente'] || v['CLIENTE']}</td>
+                            <td className="px-2 py-2">R$ {v['Valor Venda'] || v['VALOR']}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-success-foreground">Parabéns! Todas as vendas emitidas foram vinculadas corretamente.</p>
+                )}
+              </div>
+
+              <div className="bg-primary/5 p-4 rounded-xl border border-primary/10">
+                <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
+                  <ShieldCheck size={18} className="text-primary" />
+                  Validação Final dos Totais
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Total Vendido (Auditado)</span>
+                    <span className="text-lg font-bold">R$ {auditLog.totalVendizado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Total Comissão (Auditado)</span>
+                    <span className="text-lg font-bold text-primary">R$ {auditLog.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button 
+                  onClick={() => setShowAuditModal(false)}
+                  className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:opacity-90 transition"
+                >
+                  Confirmar e Ver Relatórios
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
