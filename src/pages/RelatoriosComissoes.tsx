@@ -119,6 +119,44 @@ const RelatoriosComissoes = () => {
   const fileInputVendedores = useRef<HTMLInputElement>(null);
   const fileInputVendas = useRef<HTMLInputElement>(null);
 
+  const normalize = (text: string) => {
+    if (!text) return "";
+    return text
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .replace(/\s+/g, " "); // Remove espaços duplicados
+  };
+
+  const smartMatch = (vendedorVenda: string, vendedoresDB: Record<string, any>) => {
+    const vVendaNorm = normalize(vendedorVenda);
+    
+    // Regra 13: "Neura" e "Solução"
+    if (vVendaNorm === "neura" || vVendaNorm === "solucao") {
+      const match = Object.keys(vendedoresDB).find(name => normalize(name) === "solucao");
+      if (match) return match;
+    }
+
+    // Aliases e correspondência inteligente
+    const matches = Object.entries(vendedoresDB).find(([name]) => {
+      const vCadNorm = normalize(name);
+      
+      // Igualdade total
+      if (vVendaNorm === vCadNorm) return true;
+      
+      // Venda contém nome cadastrado (ex: "FAZCON INTELIGENCIA..." contém "FAZCON")
+      if (vVendaNorm.includes(vCadNorm) && vCadNorm.length > 3) return true;
+      
+      // Nome cadastrado contém venda (ex: "Alisson Padoan" contém "Alisson")
+      if (vCadNorm.includes(vVendaNorm) && vVendaNorm.length > 3) return true;
+
+      return false;
+    });
+
+    return matches ? matches[0] : null;
+  };
+
   const processFiles = async () => {
     const vendsFile = fileInputVendedores.current?.files?.[0];
     const salesFile = fileInputVendas.current?.files?.[0];
@@ -157,9 +195,7 @@ const RelatoriosComissoes = () => {
         }
       });
       
-      // Update state immediately so filteredResults can use it
       setVendedoresDB(config);
-
 
       // 2. Process Vendas CSV
       const salesText = await salesFile.text();
@@ -167,93 +203,98 @@ const RelatoriosComissoes = () => {
         header: true,
         delimiter: ";",
         skipEmptyLines: true,
-        complete: (results) => {
-          const rows = results.data as any[];
+        complete: (resultsCSV) => {
+          const rows = resultsCSV.data as any[];
           const commissions: Record<string, CommissionData[]> = {};
+          
+          // Auditoria stats
+          let totalVendasCount = rows.length;
+          let vendasEmitidasCount = 0;
+          let vendasVinculadasCount = 0;
+          let vendasNaoRelacionadasList: any[] = [];
+          let vendedoresEncontradosSet = new Set<string>();
+          let totalVendidoAudit = 0;
+          let totalComissaoAudit = 0;
 
           rows.forEach(row => {
             const statusVendaRaw = (row['Status Venda'] || row['status da venda'] || row['STATUS'] || row['Status'] || '').trim();
             const statusVenda = statusVendaRaw.toLowerCase();
-            let vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
+            const vendedorRaw = (row['Vendedor'] || row['vendedor'] || row['VENDEDOR'] || '').trim();
             
-            // Regra 13: "Neura" e "Solução" devem ser considerados o mesmo vendedor ("Solução")
-            if (vendedorRaw.toLowerCase() === 'neura') {
-              vendedorRaw = 'Solução';
-            }
-
             const valorVenda = parseFloat(String(row['Valor Venda'] || row['valor da venda'] || row['VALOR'] || '0').replace(',', '.'));
             const protocolo = row['Nº Protocolo'] || row['numero do protocolo'] || row['PROTOCOLO'] || '';
             const produto = row['Produto'] || row['produto'] || row['PRODUTO'] || '';
             const cliente = row['Cliente'] || row['nome do cliente'] || row['CLIENTE'] || '';
-            const telefone = row['Telefone'] || row['telefone'] || row['TELEFONE'] || '';
-            const numeroPedido = row['Nº Pedido'] || row['numero do pedido'] || row['PEDIDO'] || '';
-            const tipoEmissao = row['Tipo Emissão'] || row['tipo de emissao'] || row['TIPO EMISSAO'] || '';
             const dataVenda = row['Data Venda'] || row['data da venda'] || row['DATA'] || '';
-            
-            if (vendedorRaw) {
-              const configToUse = config; // Use the freshly processed config
+
+            if (statusVenda === 'emitida') {
+              vendasEmitidasCount++;
+              const match = smartMatch(vendedorRaw, config);
               
-              let matchedVendedor = '';
-              let basePercentual = 0;
-              let matchedEmail = '';
-
-              const normalizedVendedor = vendedorRaw.toLowerCase().trim();
-
-              const match = Object.entries(configToUse).find(([name]) => {
-                const normalizedName = name.toLowerCase().trim();
-                
-                return normalizedVendedor === normalizedName || 
-                       normalizedVendedor.startsWith(normalizedName + " ") ||
-                       normalizedVendedor.startsWith(normalizedName + "-") ||
-                       normalizedName.startsWith(normalizedVendedor + " ");
-              });
-
               if (match) {
-                matchedVendedor = match[0];
-                basePercentual = match[1].percentual;
-                matchedEmail = match[1].email || '';
+                vendasVinculadasCount++;
+                vendedoresEncontradosSet.add(match);
+                const basePercentual = config[match].percentual;
+                const valorComissao = (valorVenda * basePercentual) / 100;
+                
+                if (!commissions[match]) commissions[match] = [];
+                commissions[match].push({
+                  vendedor: match,
+                  email: config[match].email || '',
+                  protocolo,
+                  valorVenda,
+                  comissao: valorComissao,
+                  produto,
+                  cliente,
+                  statusVenda: statusVendaRaw,
+                  regra: basePercentual,
+                  dataVenda: dataVenda 
+                });
+                
+                totalVendidoAudit += valorVenda;
+                totalComissaoAudit += valorComissao;
               } else {
-                console.log(`No match for vendedor: "${vendedorRaw}"`);
+                vendasNaoRelacionadasList.push(row);
               }
-
-              const reportKey = matchedVendedor || vendedorRaw;
-              
-              // Regra 2 & 3: Considerar somente status "Emitida" para comissão.
-              const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
-              
-              if (!commissions[reportKey]) commissions[reportKey] = [];
-              
-              commissions[reportKey].push({
-                vendedor: reportKey,
-                email: matchedEmail,
-                protocolo,
-                valorVenda,
-                comissao: valorComissao,
-                produto,
-                cliente,
-                telefone,
-                numeroPedido,
-                tipoEmissao,
-                statusVenda: statusVendaRaw || 'Não informado',
-                regra: basePercentual,
-                dataVenda: dataVenda 
-              });
             }
           });
 
-          const allProcessed = commissions;
-          setResults(allProcessed);
-          
-          // Salvar no banco automaticamente se tiver um nome
-          saveToDatabase(allProcessed);
+          // ETAPA 1 e 4 - Relatório de Auditoria
+          const audit = {
+            cadastrados: Object.keys(config).length,
+            totalVendas: totalVendasCount,
+            vendasEmitidas: vendasEmitidasCount,
+            vendedoresComVendas: vendedoresEncontradosSet.size,
+            vendedoresSemVendas: Object.keys(config).length - vendedoresEncontradosSet.size,
+            vendasNaoRelacionadas: vendasNaoRelacionadasList,
+            vendasVinculadas: vendasVinculadasCount,
+            totalVendizado: totalVendidoAudit,
+            totalComissao: totalComissaoAudit,
+            vendedoresEncontrados: Array.from(vendedoresEncontradosSet),
+            vendedoresNaoEncontrados: Object.keys(config).filter(v => !vendedoresEncontradosSet.has(v))
+          };
 
+          setAuditLog(audit);
+          setResults(commissions);
+          saveToDatabase(commissions);
           setLoading(false);
-          toast.success('Relatório processado com sucesso!');
+          setShowAuditModal(true);
+          toast.success('Processamento concluído com auditoria!');
+          
+          console.log('--- LOG DE PROCESSAMENTO ---');
+          console.log('✓ vendedores importados:', audit.cadastrados);
+          console.log('✓ vendas importadas:', audit.totalVendas);
+          console.log('✓ vendas emitidas:', audit.vendasEmitidas);
+          console.log('✓ vendedores encontrados:', audit.vendedoresComVendas);
+          console.log('✓ vendedores não encontrados:', audit.vendedoresSemVendas);
+          console.log('✓ vendas não relacionadas:', audit.vendasNaoRelacionadas.length);
+          console.log('✓ total vendido:', audit.totalVendizado);
+          console.log('✓ total comissão:', audit.totalComissao);
         },
         error: (err) => {
           console.error(err);
           setLoading(false);
-          toast.error('Erro ao processar CSV de vendas.');
+          toast.error('Erro ao processar CSV.');
         }
       });
 
