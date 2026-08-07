@@ -251,7 +251,11 @@ const RelatoriosComissoes = () => {
                 totalVendidoAudit += valorVenda;
                 totalComissaoAudit += valorComissao;
               } else {
-                vendasNaoRelacionadasList.push(row);
+                // Regra 5: Adicionar à lista de vendas não relacionadas para conferência manual
+                vendasNaoRelacionadasList.push({
+                  ...row,
+                  vendedorOriginal: vendedorRaw
+                });
               }
             }
           });
