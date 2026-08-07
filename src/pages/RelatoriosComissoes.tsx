@@ -425,15 +425,12 @@ const RelatoriosComissoes = () => {
 
   const filteredResults = React.useMemo(() => {
     const newResults: Record<string, CommissionData[]> = {};
-    const registeredNamesSet = new Set(Object.keys(vendedoresDB).map(n => n.toLowerCase().trim()));
     
     Object.entries(results).forEach(([vendedor, data]) => {
       const normalizedVendedor = vendedor.toLowerCase().trim();
 
-      // Filtro 1: Apenas vendedores da lista
+      // Filtro 1: Apenas vendedores da lista (Planilha Vendedores)
       if (filterConfig.onlyVendedoresList) {
-        // Verifica se o vendedor da planilha de vendas está na nossa lista de cadastrados
-        // Usamos a mesma lógica de matching da importação
         const isRegistered = Object.keys(vendedoresDB).some(name => {
           const normalizedName = name.toLowerCase().trim();
           return normalizedVendedor === normalizedName || 
@@ -444,14 +441,16 @@ const RelatoriosComissoes = () => {
         if (!isRegistered) return;
       }
 
-      // Filtro 2: Status
+      // Filtro 2: Status e Regra de Comissão > 0
       const filteredData = data.filter(item => {
+        // Regra do prompt: Só puxar os que geram comissão (não puxar comissão zero)
+        if (item.comissao <= 0) return false;
+
         if (filterConfig.statusFilter === 'all') return true;
         
         const itemStatus = (item.statusVenda || '').toLowerCase().trim();
         const targetStatus = filterConfig.statusFilter.toLowerCase().trim();
         
-        // Match exato para o status
         return itemStatus === targetStatus;
       });
 
