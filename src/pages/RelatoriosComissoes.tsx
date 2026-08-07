@@ -1,8 +1,10 @@
 // Relatório de Comissões - Ajustado para filtragem dinâmica e persistência de estado.
 // Versão corrigida: Implementa regras estritas de correspondência de nomes e restaura colunas solicitadas para relatórios individuais.
 // Correção de cache/botões: Garantindo que o botão individual chame o relatório 'completo' e que o filtro de comissão > 0 não bloqueie o Resumo Geral.
-import React, { useState, useRef, useEffect } from 'react';
-import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck, Archive } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck, Archive, ArrowLeft, TrendingUp, DollarSign } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -38,6 +40,7 @@ interface CommissionData {
 
 
 const RelatoriosComissoes = () => {
+  const navigate = useNavigate();
   const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [loading, setLoading] = useState(false);
   const [vendedoresDB, setVendedoresDB] = useState<Record<string, { percentual: number, email?: string }>>({});
@@ -45,6 +48,7 @@ const RelatoriosComissoes = () => {
   const [importName, setImportName] = useState("");
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
   const [filterConfig, setFilterConfig] = useState({
     onlyVendedoresList: true,
     statusFilter: 'emitida', // 'all', 'emitida', 'protocolo gerado', 'revogado', etc.
@@ -685,6 +689,13 @@ const RelatoriosComissoes = () => {
     <div className="space-y-6 animate-fade-in p-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => navigate(-1)}
+            className="p-2 hover:bg-muted rounded-full transition"
+            title="Voltar"
+          >
+            <ArrowLeft size={20} />
+          </button>
           <FileBarChart className="text-primary" size={24} />
           <h1 className="text-2xl font-bold text-foreground">Relatório de Comissões</h1>
         </div>
@@ -777,10 +788,21 @@ const RelatoriosComissoes = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Upload size={20} className="text-primary" />
-            Nova Importação
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Upload size={20} className="text-primary" />
+              Nova Importação
+            </h2>
+            {savedImports.length > 1 && (
+              <button
+                onClick={() => setShowComparison(!showComparison)}
+                className={`p-2 rounded-lg border transition-all ${showComparison ? 'bg-primary text-white border-primary' : 'bg-background text-muted-foreground border-border hover:border-primary/50'}`}
+                title="Comparar Importações"
+              >
+                <TrendingUp size={18} />
+              </button>
+            )}
+          </div>
           
           <div className="space-y-3">
             <div>
@@ -824,13 +846,109 @@ const RelatoriosComissoes = () => {
           </div>
         </div>
 
-        <div className="bg-card p-6 rounded-xl border border-border shadow-sm col-span-1 md:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Histórico de Importações</h2>
-            <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-              {savedImports.length} relatórios salvos
+        <div className={`col-span-1 md:col-span-2 space-y-6 ${showComparison ? 'block' : 'block'}`}>
+          {showComparison ? (
+            <div className="bg-card p-6 rounded-xl border border-border shadow-sm animate-in slide-in-from-top duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <TrendingUp size={20} className="text-primary" />
+                  Comparativo de Meses
+                </h2>
+                <button 
+                  onClick={() => setShowComparison(false)}
+                  className="text-xs text-muted-foreground hover:text-primary transition"
+                >
+                  Fechar Comparação
+                </button>
+              </div>
+
+              {savedImports.length > 0 ? (
+                <div className="space-y-8">
+                  <div className="h-[300px] w-full">
+                    <h3 className="text-sm font-medium mb-4 text-muted-foreground text-center">Evolução do Faturamento Bruto</h3>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[...savedImports].reverse().map(imp => ({
+                        name: imp.nome_importacao.split(' ').slice(0, 2).join(' '),
+                        valor: imp.total_vendas
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} />
+                        <YAxis axisLine={false} tickLine={false} fontSize={12} tickFormatter={(value) => `R$ ${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`} />
+                        <RechartsTooltip 
+                          formatter={(value: any) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Faturamento']}
+                          contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
+                        />
+                        <Bar dataKey="valor" fill="#6B21A8" radius={[4, 4, 0, 0]} barSize={40} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-muted/30 rounded-lg border border-border">
+                      <div className="flex items-center gap-2 mb-4 text-success font-medium uppercase text-[10px] tracking-wider">
+                        <DollarSign size={14} />
+                        Médias Globais
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Faturamento Médio</span>
+                          <span className="text-sm font-bold">R$ {(savedImports.reduce((acc, curr) => acc + (Number(curr.total_vendas) || 0), 0) / savedImports.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Comissão Média</span>
+                          <span className="text-sm font-bold text-primary">R$ {(savedImports.reduce((acc, curr) => acc + (Number(curr.total_comissao) || 0), 0) / savedImports.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Vendas Médias/Mês</span>
+                          <span className="text-sm font-bold">{(savedImports.reduce((acc, curr) => acc + (Number(curr.quantidade_vendas) || 0), 0) / savedImports.length).toFixed(0)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-muted/30 rounded-lg border border-border">
+                      <div className="flex items-center gap-2 mb-4 text-primary font-medium uppercase text-[10px] tracking-wider">
+                        <TrendingUp size={14} />
+                        Métrica de Eficiência
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">% Médio Comissão</span>
+                          <span className="text-sm font-bold">
+                            {((savedImports.reduce((acc, curr) => acc + (Number(curr.total_comissao) || 0), 0) / savedImports.reduce((acc, curr) => acc + (Number(curr.total_vendas) || 1), 0)) * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Melhor Mês (Faturamento)</span>
+                          <span className="text-sm font-bold text-success">
+                            {Math.max(...savedImports.map(i => Number(i.total_vendas) || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Meses Analisados</span>
+                          <span className="text-sm font-bold">{savedImports.length}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <Archive size={40} className="mb-4 opacity-20" />
+                  <p>Importe pelo menos dois meses para gerar o comparativo.</p>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="bg-card p-6 rounded-xl border border-border shadow-sm space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Archive size={20} className="text-primary" />
+                  Histórico de Importações
+                </h2>
+                <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                  {savedImports.length} relatórios salvos
+                </div>
+              </div>
 
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
             {savedImports.length > 0 ? (
@@ -883,6 +1001,7 @@ const RelatoriosComissoes = () => {
           </div>
         </div>
       </div>
+
 
       {Object.keys(filteredResults).length > 0 && (
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
