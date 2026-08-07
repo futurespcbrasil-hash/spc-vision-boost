@@ -578,6 +578,13 @@ const RelatoriosComissoes = () => {
                     <FileDown size={14} />
                     Exportar Todos Individuais
                   </button>
+                  <button
+                    onClick={() => setShowAuditModal(true)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-primary"
+                  >
+                    <ClipboardCheck size={14} />
+                    Ver Auditoria
+                  </button>
                 </div>
               </div>
             </div>
