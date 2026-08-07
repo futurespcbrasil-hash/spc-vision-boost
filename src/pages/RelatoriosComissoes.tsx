@@ -43,6 +43,20 @@ const RelatoriosComissoes = () => {
     onlyVendedoresList: true,
     statusFilter: 'emitida', // 'all', 'emitida', 'protocolo gerado', 'revogado', etc.
   });
+  const [auditLog, setAuditLog] = useState<{
+    cadastrados: number;
+    totalVendas: number;
+    vendasEmitidas: number;
+    vendedoresComVendas: number;
+    vendedoresSemVendas: number;
+    vendasNaoRelacionadas: any[];
+    vendasVinculadas: number;
+    totalVendizado: number;
+    totalComissao: number;
+    vendedoresEncontrados: string[];
+    vendedoresNaoEncontrados: string[];
+  } | null>(null);
+  const [showAuditModal, setShowAuditModal] = useState(false);
 
   useEffect(() => {
     fetchVendedores();
