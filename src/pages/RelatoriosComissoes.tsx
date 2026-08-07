@@ -602,6 +602,8 @@ const RelatoriosComissoes = () => {
   const filteredResults = React.useMemo(() => {
     const newResults: Record<string, CommissionData[]> = {};
     
+    if (!results || Object.keys(results).length === 0) return newResults;
+
     Object.entries(results).forEach(([vendedor, data]) => {
       // Filtro 1: Apenas vendedores da lista (Planilha Vendedores)
       if (filterConfig.onlyVendedoresList) {
