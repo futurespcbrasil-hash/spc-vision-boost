@@ -118,13 +118,45 @@ const RelatoriosComissoes = () => {
   const loadImport = async (imp: any) => {
     setLoading(true);
     try {
-      // Garantir que temos a tabela de vendedores atualizada para o smartMatch no filterConfig
+      // Garantir que temos a tabela de vendedores atualizada
       await fetchVendedoresComissoes();
       
-      setResults(imp.dados_processados as unknown as Record<string, CommissionData[]>);
-      setSelectedImportId(imp.id);
-      setImportName(imp.nome_importacao);
-      toast.success(`Importação "${imp.nome_importacao}" carregada.`);
+      const processedData = imp.dados_processados as Record<string, CommissionData[]>;
+      
+      // Limpar resultados atuais antes de carregar para forçar re-renderização do memo
+      setResults({});
+      
+      // Pequeno delay para garantir que o estado seja limpo e memo disparado
+      setTimeout(() => {
+        setResults(processedData);
+        setSelectedImportId(imp.id);
+        setImportName(imp.nome_importacao);
+        
+        // Se houver dados de auditoria salvos ou se pudermos reconstruir
+        // Para simplificar, vamos disparar o modal se houver resultados
+        if (Object.keys(processedData).length > 0) {
+          // Reconstruindo um log básico de auditoria para visualização se necessário
+          const allVendas = Object.values(processedData).flat();
+          const totalVendido = allVendas.reduce((acc, curr) => acc + curr.valorVenda, 0);
+          const totalComissao = allVendas.reduce((acc, curr) => acc + curr.comissao, 0);
+          
+          setAuditLog({
+            cadastrados: Object.keys(vendedoresDB).length,
+            totalVendas: allVendas.length,
+            vendasEmitidas: allVendas.length,
+            vendedoresComVendas: Object.keys(processedData).length,
+            vendedoresSemVendas: Object.keys(vendedoresDB).length - Object.keys(processedData).length,
+            vendasNaoRelacionadas: [],
+            vendasVinculadas: allVendas.length,
+            totalVendizado: totalVendido,
+            totalComissao: totalComissao,
+            vendedoresEncontrados: Object.keys(processedData),
+            vendedoresNaoEncontrados: []
+          });
+        }
+        
+        toast.success(`Importação "${imp.nome_importacao}" carregada.`);
+      }, 50);
     } catch (err) {
       console.error(err);
       toast.error('Erro ao carregar dados da importação.');
@@ -594,8 +626,14 @@ const RelatoriosComissoes = () => {
     Object.entries(results).forEach(([vendedor, data]) => {
       // Filtro 1: Apenas vendedores da lista (Planilha Vendedores)
       if (filterConfig.onlyVendedoresList) {
-        const match = smartMatch(vendedor, vendedoresDB);
-        if (!match) return;
+        // Se a chave já existe no vendedoresDB, é um match direto
+        const isRegistered = !!vendedoresDB[vendedor];
+        
+        // Se não está direto, tenta o smartMatch
+        if (!isRegistered) {
+          const match = smartMatch(vendedor, vendedoresDB);
+          if (!match) return;
+        }
       }
 
       // Filtro 2: Status e Regra de Comissão > 0
