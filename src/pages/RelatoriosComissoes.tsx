@@ -197,7 +197,7 @@ const RelatoriosComissoes = () => {
 
               const reportKey = matchedVendedor || vendedorRaw;
               
-              // Regra 2 & 3: Considerar somente status "Emitida". Ignorar qualquer outro para comissão.
+              // Regra 2 & 3: Considerar somente status "Emitida" para comissão.
               const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
               
               if (!commissions[reportKey]) commissions[reportKey] = [];
