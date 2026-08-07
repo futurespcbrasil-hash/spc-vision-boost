@@ -161,10 +161,17 @@ const RelatoriosComissoes = () => {
     const parts = vendedorVenda.split(' - ').map(p => normalize(p));
     for (const p of parts) {
       if (normVends[p]) return normVends[p];
+      
+      // Busca por palavra dentro da parte
+      for (const nv in normVends) {
+        const regex = new RegExp(`\\b${nv}\\b`, 'i');
+        if (regex.test(p)) {
+          return normVends[nv];
+        }
+      }
     }
 
-    // 3. Busca por palavra inteira (Word Boundary) para casos complexos (ex: Ceccon)
-    // Isso evita Rigo casar com Rodrigo (Etapa 2 e 5)
+    // 3. Busca por palavra inteira na string completa (Word Boundary)
     for (const nv in normVends) {
       const regex = new RegExp(`\\b${nv}\\b`, 'i');
       if (regex.test(targetNorm)) {
