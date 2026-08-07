@@ -459,14 +459,16 @@ const RelatoriosComissoes = () => {
         `R$ ${info.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
     } else {
-      // Regras 6 & 14: Colunas obrigatórias
-      headers = [['Nº Protocolo', 'Cliente', 'Produto', 'Data Venda', 'Valor Venda', 'Valor Comissão']];
+      // Regras solicitadas: protocolo - cliente - produto - data - vendedor - valor de venda - porcentagem da comissao e valor da comissao
+      headers = [['PROTOCOL', 'CLIENTE', 'PRODUTO', 'DATA', 'VENDEDOR NO SISTEMA', 'VALOR', 'COMISSÃ', 'VALOR A']];
       body = validData.map(item => [
         item.protocolo,
         item.cliente,
         item.produto,
         item.dataVenda || '-',
+        item.vendedor,
         `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `${item.regra}%`,
         `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
     }
