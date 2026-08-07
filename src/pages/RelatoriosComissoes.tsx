@@ -622,33 +622,47 @@ const RelatoriosComissoes = () => {
                 Exportar Resumido
               </button>
               
-              <div className="relative group">
-                <button className="flex items-center gap-2 bg-secondary text-secondary-foreground px-3 py-2 rounded-lg hover:opacity-90 transition text-sm">
+              <div className="relative">
+                <button 
+                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                  className="flex items-center gap-2 bg-secondary text-secondary-foreground px-3 py-2 rounded-lg hover:opacity-90 transition text-sm"
+                >
                   <MoreHorizontal size={18} />
                 </button>
-                <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border rounded-xl shadow-xl hidden group-hover:block z-50 p-1">
-                  <button
-                    onClick={() => exportGeneralReport('avancado')}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition"
-                  >
-                    <FileText size={14} />
-                    Exportar Geral Avançado
-                  </button>
-                  <button
-                    onClick={exportAllPDFs}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-success"
-                  >
-                    <FileDown size={14} />
-                    Exportar Todos Individuais
-                  </button>
-                  <button
-                    onClick={() => setShowAuditModal(true)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-primary"
-                  >
-                    <ClipboardCheck size={14} />
-                    Ver Auditoria
-                  </button>
-                </div>
+                {isExportMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border rounded-xl shadow-xl z-50 p-1">
+                    <button
+                      onClick={() => {
+                        exportGeneralReport('avancado');
+                        setIsExportMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition"
+                    >
+                      <FileText size={14} />
+                      Exportar Geral Avançado
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportAllPDFs();
+                        setIsExportMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-success"
+                    >
+                      <FileDown size={14} />
+                      Exportar Todos Individuais
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAuditModal(true);
+                        setIsExportMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted rounded-lg transition text-primary"
+                    >
+                      <ClipboardCheck size={14} />
+                      Ver Auditoria
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
