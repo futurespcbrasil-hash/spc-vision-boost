@@ -602,8 +602,14 @@ const RelatoriosComissoes = () => {
     Object.entries(results).forEach(([vendedor, data]) => {
       // Filtro 1: Apenas vendedores da lista (Planilha Vendedores)
       if (filterConfig.onlyVendedoresList) {
-        const match = smartMatch(vendedor, vendedoresDB);
-        if (!match) return;
+        // Se a chave já existe no vendedoresDB, é um match direto
+        const isRegistered = !!vendedoresDB[vendedor];
+        
+        // Se não está direto, tenta o smartMatch
+        if (!isRegistered) {
+          const match = smartMatch(vendedor, vendedoresDB);
+          if (!match) return;
+        }
       }
 
       // Filtro 2: Status e Regra de Comissão > 0
