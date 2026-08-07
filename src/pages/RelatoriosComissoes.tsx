@@ -543,14 +543,33 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const exportAllPDFs = () => {
-    Object.entries(filteredResults).forEach(([vendedor, data]) => {
+  const exportAllPDFs = async () => {
+    const zip = new JSZip();
+    let hasFiles = false;
+
+    const entries = Object.entries(filteredResults);
+    for (const [vendedor, data] of entries) {
       const hasCommission = data.some(item => item.comissao > 0);
       if (hasCommission) {
-        exportPDF(vendedor, data, 'completo');
+        const blob = exportPDF(vendedor, data, 'completo', true) as unknown as Blob;
+        if (blob) {
+          const fileName = `${vendedor.toLowerCase().replace(/\s+/g, '-')}-relatorio.pdf`;
+          zip.file(fileName, blob);
+          hasFiles = true;
+        }
       }
-    });
-    toast.success('Todos os PDFs individuais foram gerados (apenas comissões > 0).');
+    }
+
+    if (hasFiles) {
+      const content = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = `relatorios-comissoes-${new Date().toISOString().split('T')[0]}.zip`;
+      link.click();
+      toast.success('Pacote ZIP com todos os PDFs individuais gerado com sucesso!');
+    } else {
+      toast.error('Nenhum relatório individual com comissão > 0 encontrado.');
+    }
   };
 
   const filteredResults = React.useMemo(() => {
