@@ -383,12 +383,17 @@ const RelatoriosComissoes = () => {
   };
 
   const exportGeneralReport = (type: 'resumido' | 'completo' | 'avancado' = 'resumido') => {
+    // Pegamos todos os dados filtrados (incluindo todos os status se selecionado)
     const allData = Object.values(filteredResults).flat();
+    
     if (allData.length === 0) {
-      toast.error('Nenhum dado para exportar.');
+      toast.error('Nenhum dado para exportar com os filtros atuais.');
       return;
     }
-    exportPDF('Geral (Filtro Aplicado)', allData, type);
+    
+    // O nome do relatório no PDF deve refletir o filtro se possível
+    const filterLabel = filterConfig.statusFilter === 'all' ? 'Todos Status' : filterConfig.statusFilter;
+    exportPDF(`Geral (${filterLabel})`, allData, type);
   };
 
   const exportAllPDFs = () => {
