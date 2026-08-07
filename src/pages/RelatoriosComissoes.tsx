@@ -67,20 +67,7 @@ const RelatoriosComissoes = () => {
   }, []);
 
   const fetchVendedores = async () => {
-    const { data, error } = await supabase
-      .from('vendedores_comissoes')
-      .select('nome, percentual_comissao, email');
-    
-    if (!error && data) {
-      const config: Record<string, { percentual: number, email?: string }> = {};
-      data.forEach(v => {
-        config[v.nome.trim()] = { 
-          percentual: Number(v.percentual_comissao),
-          email: v.email || undefined
-        };
-      });
-      setVendedoresDB(config);
-    }
+    await fetchVendedoresComissoes();
   };
 
   const fetchImports = async () => {
@@ -91,6 +78,22 @@ const RelatoriosComissoes = () => {
     
     if (!error && data) {
       setSavedImports(data);
+    }
+  };
+
+  const fetchVendedoresComissoes = async () => {
+    const { data, error } = await supabase
+      .from('vendedores_comissoes')
+      .select('*');
+    if (!error && data) {
+      const config: Record<string, { percentual: number, email?: string }> = {};
+      data.forEach(v => {
+        config[v.nome.trim()] = { 
+          percentual: Number(v.percentual_comissao),
+          email: v.email || undefined
+        };
+      });
+      setVendedoresDB(config);
     }
   };
 
@@ -112,11 +115,22 @@ const RelatoriosComissoes = () => {
     }
   };
 
-  const loadImport = (imp: any) => {
-    setResults(imp.dados_processados as unknown as Record<string, CommissionData[]>);
-    setSelectedImportId(imp.id);
-    setImportName(imp.nome_importacao);
-    toast.success(`Importação "${imp.nome_importacao}" carregada.`);
+  const loadImport = async (imp: any) => {
+    setLoading(true);
+    try {
+      // Garantir que temos a tabela de vendedores atualizada para o smartMatch no filterConfig
+      await fetchVendedoresComissoes();
+      
+      setResults(imp.dados_processados as unknown as Record<string, CommissionData[]>);
+      setSelectedImportId(imp.id);
+      setImportName(imp.nome_importacao);
+      toast.success(`Importação "${imp.nome_importacao}" carregada.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar dados da importação.');
+    } finally {
+      setLoading(false);
+    }
   };
   
   const fileInputVendedores = useRef<HTMLInputElement>(null);
@@ -575,6 +589,8 @@ const RelatoriosComissoes = () => {
   const filteredResults = React.useMemo(() => {
     const newResults: Record<string, CommissionData[]> = {};
     
+    if (!results || Object.keys(results).length === 0) return newResults;
+
     Object.entries(results).forEach(([vendedor, data]) => {
       // Filtro 1: Apenas vendedores da lista (Planilha Vendedores)
       if (filterConfig.onlyVendedoresList) {
@@ -602,6 +618,15 @@ const RelatoriosComissoes = () => {
 
     return newResults;
   }, [results, filterConfig, vendedoresDB]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Loader2 className="animate-spin text-primary" size={48} />
+        <p className="text-muted-foreground animate-pulse">Processando dados...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
