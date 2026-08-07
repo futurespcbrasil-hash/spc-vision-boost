@@ -197,7 +197,7 @@ const RelatoriosComissoes = () => {
 
               const reportKey = matchedVendedor || vendedorRaw;
               
-              // Regra 2 & 3: Considerar somente status "Emitida". Ignorar qualquer outro para comissão.
+              // Regra 2 & 3: Considerar somente status "Emitida" para comissão.
               const valorComissao = statusVenda === 'emitida' ? (valorVenda * basePercentual) / 100 : 0;
               
               if (!commissions[reportKey]) commissions[reportKey] = [];
@@ -425,15 +425,12 @@ const RelatoriosComissoes = () => {
 
   const filteredResults = React.useMemo(() => {
     const newResults: Record<string, CommissionData[]> = {};
-    const registeredNamesSet = new Set(Object.keys(vendedoresDB).map(n => n.toLowerCase().trim()));
     
     Object.entries(results).forEach(([vendedor, data]) => {
       const normalizedVendedor = vendedor.toLowerCase().trim();
 
-      // Filtro 1: Apenas vendedores da lista
+      // Filtro 1: Apenas vendedores da lista (Planilha Vendedores)
       if (filterConfig.onlyVendedoresList) {
-        // Verifica se o vendedor da planilha de vendas está na nossa lista de cadastrados
-        // Usamos a mesma lógica de matching da importação
         const isRegistered = Object.keys(vendedoresDB).some(name => {
           const normalizedName = name.toLowerCase().trim();
           return normalizedVendedor === normalizedName || 
@@ -444,14 +441,16 @@ const RelatoriosComissoes = () => {
         if (!isRegistered) return;
       }
 
-      // Filtro 2: Status
+      // Filtro 2: Status e Regra de Comissão > 0
       const filteredData = data.filter(item => {
+        // Regra do prompt: Só puxar os que geram comissão (não puxar comissão zero)
+        if (item.comissao <= 0) return false;
+
         if (filterConfig.statusFilter === 'all') return true;
         
         const itemStatus = (item.statusVenda || '').toLowerCase().trim();
         const targetStatus = filterConfig.statusFilter.toLowerCase().trim();
         
-        // Match exato para o status
         return itemStatus === targetStatus;
       });
 
@@ -645,7 +644,7 @@ const RelatoriosComissoes = () => {
         </div>
       </div>
 
-      {Object.keys(results).length > 0 && (
+      {Object.keys(filteredResults).length > 0 && (
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Vendedores Processados</h2>
@@ -654,7 +653,7 @@ const RelatoriosComissoes = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Object.entries(results).map(([vendedor, data]) => (
+            {Object.entries(filteredResults).map(([vendedor, data]) => (
               <div key={vendedor} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border hover:border-primary/50 transition group">
                 <div className="overflow-hidden">
                   <div className="font-bold text-xs truncate">{vendedor}</div>
