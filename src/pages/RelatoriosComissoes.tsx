@@ -496,11 +496,13 @@ const RelatoriosComissoes = () => {
         ]];
       } else {
         return [[
-          'TOTAL GERAL',
+          'TOTAL',
+          '',
           '',
           '',
           '',
           formattedTotalVendas,
+          '',
           formattedTotalComissao
         ]];
       }
@@ -511,9 +513,10 @@ const RelatoriosComissoes = () => {
       head: headers,
       body: body,
       foot: getFooter(),
-      theme: 'striped',
-      headStyles: { fillColor: [63, 81, 181] },
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+      theme: 'grid',
+      headStyles: { fillColor: [107, 33, 168], textColor: [255, 255, 255] }, // Roxo no cabeçalho
+      footStyles: { fillColor: [34, 197, 94], textColor: [0, 0, 0], fontStyle: 'bold' }, // Verde no rodapé (TOTAL)
+      styles: { fontSize: 8 }
     });
 
     pdf.save(`${vendedor.toLowerCase().replace(/\s+/g, '-')}-relatorio.pdf`);
