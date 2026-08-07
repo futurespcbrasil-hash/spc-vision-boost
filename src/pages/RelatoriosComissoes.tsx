@@ -804,10 +804,10 @@ const RelatoriosComissoes = () => {
                       <tbody>
                         {auditLog.vendasNaoRelacionadas.map((v, i) => (
                           <tr key={i} className="border-t border-destructive/10">
-                            <td className="px-2 py-2 font-medium">{v['Vendedor'] || v['vendedor']}</td>
-                            <td className="px-2 py-2">{v['Nº Protocolo'] || v['PROTOCOLO']}</td>
-                            <td className="px-2 py-2">{v['Cliente'] || v['CLIENTE']}</td>
-                            <td className="px-2 py-2">R$ {v['Valor Venda'] || v['VALOR']}</td>
+                            <td className="px-2 py-2 font-medium">{v.vendedorOriginal || v['Vendedor'] || v['vendedor']}</td>
+                            <td className="px-2 py-2">{v['Nº Protocolo'] || v['numero do protocolo'] || v['PROTOCOLO']}</td>
+                            <td className="px-2 py-2">{v['Cliente'] || v['nome do cliente'] || v['CLIENTE']}</td>
+                            <td className="px-2 py-2">R$ {v['Valor Venda'] || v['valor da venda'] || v['VALOR']}</td>
                           </tr>
                         ))}
                       </tbody>
