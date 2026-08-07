@@ -1,5 +1,5 @@
-// Relatório de Comissões - Ajustado para filtrar apenas status 'Emitida' (case-insensitive) para comissões e melhorar precisão do matching de vendedores.
-// Versão estável com suporte a todos os status de venda no dashboard.
+// Relatório de Comissões - Ajustado para filtragem dinâmica e persistência de estado.
+// Versão corrigida: Atualiza vendedoresDB imediatamente após importação e flexibiliza matching.
 import React, { useState, useRef, useEffect } from 'react';
 import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
@@ -132,7 +132,7 @@ const RelatoriosComissoes = () => {
           percentual = comissaoRaw < 1 ? comissaoRaw * 100 : comissaoRaw;
         }
 
-        const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || '').trim();
+        const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || row['Nome'] || '').trim();
         const email = String(row['ENVIO'] || row['Envio'] || row['E-MAIL'] || row['Email'] || row['email'] || '').trim();
         if (nome && !isNaN(percentual)) {
           config[nome] = { 
@@ -141,7 +141,9 @@ const RelatoriosComissoes = () => {
           };
         }
       });
-      // Não precisamos mais do setVendedoresConfig local se usarmos o merge direto
+      
+      // Update state immediately so filteredResults can use it
+      setVendedoresDB(config);
 
 
       // 2. Process Vendas CSV
@@ -174,25 +176,29 @@ const RelatoriosComissoes = () => {
             const dataVenda = row['Data Venda'] || row['data da venda'] || row['DATA'] || '';
             
             if (vendedorRaw) {
-              const configToUse = Object.keys(config).length > 0 ? config : vendedoresDB;
+              const configToUse = config; // Use the freshly processed config
               
               let matchedVendedor = '';
               let basePercentual = 0;
               let matchedEmail = '';
 
+              const normalizedVendedor = vendedorRaw.toLowerCase().trim();
+
               const match = Object.entries(configToUse).find(([name]) => {
-                const normalizedVendedor = vendedorRaw.toLowerCase().trim();
                 const normalizedName = name.toLowerCase().trim();
                 
                 return normalizedVendedor === normalizedName || 
                        normalizedVendedor.startsWith(normalizedName + " ") ||
-                       normalizedVendedor.startsWith(normalizedName + "-");
+                       normalizedVendedor.startsWith(normalizedName + "-") ||
+                       normalizedName.startsWith(normalizedVendedor + " ");
               });
 
               if (match) {
                 matchedVendedor = match[0];
                 basePercentual = match[1].percentual;
                 matchedEmail = match[1].email || '';
+              } else {
+                console.log(`No match for vendedor: "${vendedorRaw}"`);
               }
 
               const reportKey = matchedVendedor || vendedorRaw;
@@ -435,10 +441,13 @@ const RelatoriosComissoes = () => {
           const normalizedName = name.toLowerCase().trim();
           return normalizedVendedor === normalizedName || 
                  normalizedVendedor.startsWith(normalizedName + " ") ||
-                 normalizedVendedor.startsWith(normalizedName + "-");
+                 normalizedVendedor.startsWith(normalizedName + "-") ||
+                 normalizedName.startsWith(normalizedVendedor + " ");
         });
         
-        if (!isRegistered) return;
+        if (!isRegistered) {
+          return;
+        }
       }
 
       // Filtro 2: Status e Regra de Comissão > 0
