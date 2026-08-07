@@ -489,21 +489,10 @@ const RelatoriosComissoes = () => {
     const newResults: Record<string, CommissionData[]> = {};
     
     Object.entries(results).forEach(([vendedor, data]) => {
-      const normalizedVendedor = vendedor.toLowerCase().trim();
-
       // Filtro 1: Apenas vendedores da lista (Planilha Vendedores)
       if (filterConfig.onlyVendedoresList) {
-        const isRegistered = Object.keys(vendedoresDB).some(name => {
-          const normalizedName = name.toLowerCase().trim();
-          return normalizedVendedor === normalizedName || 
-                 normalizedVendedor.startsWith(normalizedName + " ") ||
-                 normalizedVendedor.startsWith(normalizedName + "-") ||
-                 normalizedName.startsWith(normalizedVendedor + " ");
-        });
-        
-        if (!isRegistered) {
-          return;
-        }
+        const match = smartMatch(vendedor, vendedoresDB);
+        if (!match) return;
       }
 
       // Filtro 2: Status e Regra de Comissão > 0
