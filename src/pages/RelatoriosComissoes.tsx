@@ -39,6 +39,7 @@ const RelatoriosComissoes = () => {
   const [savedImports, setSavedImports] = useState<ImportacaoComissoes[]>([]);
   const [importName, setImportName] = useState("");
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [filterConfig, setFilterConfig] = useState({
     onlyVendedoresList: true,
     statusFilter: 'emitida', // 'all', 'emitida', 'protocolo gerado', 'revogado', etc.
