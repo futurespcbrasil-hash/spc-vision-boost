@@ -999,7 +999,6 @@ const RelatoriosComissoes = () => {
               </div>
             )}
           </div>
-          </div>
         </div>
       </div>
 
