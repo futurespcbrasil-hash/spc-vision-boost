@@ -805,6 +805,12 @@ const RelatoriosComissoes = () => {
             )}
           </div>
           
+          <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 mb-4 animate-pulse">
+            <p className="text-[10px] text-primary font-bold uppercase leading-tight">
+              Dica: Suba várias planilhas para comparar o desempenho mensal e ver o ranking dos vendedores!
+            </p>
+          </div>
+
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Nome do Relatório (Ex: Julho 2024)</label>
