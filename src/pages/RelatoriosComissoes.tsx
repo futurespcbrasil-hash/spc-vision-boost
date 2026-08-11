@@ -2,7 +2,8 @@
 // Versão corrigida: Implementa regras estritas de correspondência de nomes e restaura colunas solicitadas para relatórios individuais.
 // Correção de cache/botões: Garantindo que o botão individual chame o relatório 'completo' e que o filtro de comissão > 0 não bloqueie o Resumo Geral.
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck, Archive, ArrowLeft, TrendingUp, DollarSign } from 'lucide-react';
+import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck, Archive, ArrowLeft, TrendingUp, DollarSign, Trophy } from 'lucide-react';
+import { Progress } from "@/components/ui/progress";
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
