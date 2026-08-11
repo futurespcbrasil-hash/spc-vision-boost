@@ -2,7 +2,8 @@
 // Versão corrigida: Implementa regras estritas de correspondência de nomes e restaura colunas solicitadas para relatórios individuais.
 // Correção de cache/botões: Garantindo que o botão individual chame o relatório 'completo' e que o filtro de comissão > 0 não bloqueie o Resumo Geral.
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck, Archive, ArrowLeft, TrendingUp, DollarSign } from 'lucide-react';
+import { FileBarChart, Upload, FileDown, Loader2, CheckCircle2, AlertCircle, BarChart3, FileText, Filter, MoreHorizontal, ClipboardCheck, ShieldCheck, Archive, ArrowLeft, TrendingUp, DollarSign, Trophy } from 'lucide-react';
+import { Progress } from "@/components/ui/progress";
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -782,7 +783,7 @@ const RelatoriosComissoes = () => {
         )}
       </div>
 
-      {Object.keys(filteredResults).length > 0 && (
+      {Object.keys(filteredResults).length > 0 && !showComparison && (
         <DashboardRelatorios data={Object.values(filteredResults).flat()} />
       )}
 
@@ -804,6 +805,12 @@ const RelatoriosComissoes = () => {
             )}
           </div>
           
+          <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 mb-4 animate-pulse">
+            <p className="text-[10px] text-primary font-bold uppercase leading-tight">
+              Dica: Suba várias planilhas para comparar o desempenho mensal e ver o ranking dos vendedores!
+            </p>
+          </div>
+
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1 uppercase">Nome do Relatório (Ex: Julho 2024)</label>
@@ -864,43 +871,89 @@ const RelatoriosComissoes = () => {
 
               {savedImports.length > 0 ? (
                 <div className="space-y-8">
-                  <div className="h-[300px] w-full">
-                    <h3 className="text-sm font-medium mb-4 text-muted-foreground text-center">Evolução do Faturamento Bruto</h3>
+                  <div className="h-[400px] w-full">
+                    <h3 className="text-sm font-medium mb-4 text-muted-foreground text-center">Evolução Mensal: Faturamento vs Comissão</h3>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={[...savedImports].reverse().map(imp => ({
                         name: imp.nome_importacao.split(' ').slice(0, 2).join(' '),
-                        valor: imp.total_vendas
+                        faturamento: Number(imp.total_vendas),
+                        comissao: Number(imp.total_comissao)
                       }))}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} />
-                        <YAxis axisLine={false} tickLine={false} fontSize={12} tickFormatter={(value) => `R$ ${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} />
+                        <YAxis axisLine={false} tickLine={false} fontSize={10} tickFormatter={(value) => `R$ ${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`} />
                         <RechartsTooltip 
-                          formatter={(value: any) => [`R$ ${value.toLocaleString('pt-BR')}`, 'Faturamento']}
+                          formatter={(value: any, name: string) => [`R$ ${value.toLocaleString('pt-BR')}`, name === 'faturamento' ? 'Faturamento' : 'Comissão']}
                           contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
                         />
-                        <Bar dataKey="valor" fill="#6B21A8" radius={[4, 4, 0, 0]} barSize={40} />
+                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                        <Bar dataKey="faturamento" name="Faturamento" fill="#6B21A8" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="comissao" name="Comissão" fill="#22C55E" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Ranking Global de Vendedores (Comparativo entre todos os meses) */}
+                  <div className="bg-muted/10 p-4 rounded-xl border border-border">
+                    <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                      <Trophy className="text-yellow-500" size={16} />
+                      Ranking Geral Histórico (Top 5)
+                    </h3>
+                    <div className="space-y-4">
+                      {(() => {
+                        const globalStats: Record<string, { total: number, comissao: number, count: number }> = {};
+                        savedImports.forEach(imp => {
+                          const procData = imp.dados_processados as unknown as Record<string, CommissionData[]>;
+                          if (procData) {
+                            Object.entries(procData).forEach(([vend, sales]) => {
+                              if (!globalStats[vend]) globalStats[vend] = { total: 0, comissao: 0, count: 0 };
+                              sales.forEach(s => {
+                                globalStats[vend].total += s.valorVenda;
+                                globalStats[vend].comissao += s.comissao;
+                                globalStats[vend].count += 1;
+                              });
+                            });
+                          }
+                        });
+                        
+                        const ranking = Object.entries(globalStats)
+                          .map(([name, stats]) => ({ name, ...stats }))
+                          .sort((a, b) => b.total - a.total)
+                          .slice(0, 5);
+                          
+                        const maxVal = ranking[0]?.total || 1;
+                        
+                        return ranking.map((vend, idx) => (
+                          <div key={vend.name} className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="font-medium">{idx + 1}º {vend.name}</span>
+                              <span className="font-bold text-primary">R$ {vend.total.toLocaleString('pt-BR')}</span>
+                            </div>
+                            <Progress value={(vend.total / maxVal) * 100} className="h-1.5" />
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-muted/30 rounded-lg border border-border">
                       <div className="flex items-center gap-2 mb-4 text-success font-medium uppercase text-[10px] tracking-wider">
                         <DollarSign size={14} />
-                        Médias Globais
+                        Médias de Performance
                       </div>
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">Faturamento Médio</span>
+                          <span className="text-xs text-muted-foreground">Faturamento Médio Mensal</span>
                           <span className="text-sm font-bold">R$ {(savedImports.reduce((acc, curr) => acc + (Number(curr.total_vendas) || 0), 0) / savedImports.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">Comissão Média</span>
+                          <span className="text-xs text-muted-foreground">Comissão Média Mensal</span>
                           <span className="text-sm font-bold text-primary">R$ {(savedImports.reduce((acc, curr) => acc + (Number(curr.total_comissao) || 0), 0) / savedImports.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">Vendas Médias/Mês</span>
-                          <span className="text-sm font-bold">{(savedImports.reduce((acc, curr) => acc + (Number(curr.quantidade_vendas) || 0), 0) / savedImports.length).toFixed(0)}</span>
+                          <span className="text-xs text-muted-foreground">Volume Médio Mensal</span>
+                          <span className="text-sm font-bold">{(savedImports.reduce((acc, curr) => acc + (Number(curr.quantidade_vendas) || 0), 0) / savedImports.length).toFixed(0)} vendas</span>
                         </div>
                       </div>
                     </div>
@@ -908,24 +961,26 @@ const RelatoriosComissoes = () => {
                     <div className="p-4 bg-muted/30 rounded-lg border border-border">
                       <div className="flex items-center gap-2 mb-4 text-primary font-medium uppercase text-[10px] tracking-wider">
                         <TrendingUp size={14} />
-                        Métrica de Eficiência
+                        Destaques e Recordes
                       </div>
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">% Médio Comissão</span>
+                          <span className="text-xs text-muted-foreground">Margem Média de Comissões</span>
                           <span className="text-sm font-bold">
                             {((savedImports.reduce((acc, curr) => acc + (Number(curr.total_comissao) || 0), 0) / savedImports.reduce((acc, curr) => acc + (Number(curr.total_vendas) || 1), 0)) * 100).toFixed(2)}%
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">Melhor Mês (Faturamento)</span>
+                          <span className="text-xs text-muted-foreground">Melhor Mês Histórico</span>
                           <span className="text-sm font-bold text-success">
                             {Math.max(...savedImports.map(i => Number(i.total_vendas) || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">Meses Analisados</span>
-                          <span className="text-sm font-bold">{savedImports.length}</span>
+                          <span className="text-xs text-muted-foreground">Total Acumulado (Período)</span>
+                          <span className="text-sm font-bold">
+                            {savedImports.reduce((acc, curr) => acc + (Number(curr.total_vendas) || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
                         </div>
                       </div>
                     </div>
