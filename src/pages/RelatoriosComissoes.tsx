@@ -897,7 +897,7 @@ const RelatoriosComissoes = () => {
                       {(() => {
                         const globalStats: Record<string, { total: number, comissao: number, count: number }> = {};
                         savedImports.forEach(imp => {
-                          const procData = imp.dados_processados as Record<string, CommissionData[]>;
+                          const procData = imp.dados_processados as unknown as Record<string, CommissionData[]>;
                           if (procData) {
                             Object.entries(procData).forEach(([vend, sales]) => {
                               if (!globalStats[vend]) globalStats[vend] = { total: 0, comissao: 0, count: 0 };
