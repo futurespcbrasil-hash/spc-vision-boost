@@ -782,7 +782,7 @@ const RelatoriosComissoes = () => {
         )}
       </div>
 
-      {Object.keys(filteredResults).length > 0 && (
+      {Object.keys(filteredResults).length > 0 && !showComparison && (
         <DashboardRelatorios data={Object.values(filteredResults).flat()} />
       )}
 
