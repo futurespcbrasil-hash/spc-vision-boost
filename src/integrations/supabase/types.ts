@@ -112,6 +112,137 @@ export type Database = {
           },
         ]
       }
+      cnpj_consultas: {
+        Row: {
+          bairro: string | null
+          cep: string | null
+          cidade: string | null
+          cnpj: string
+          complemento: string | null
+          created_at: string
+          data_consulta: string
+          email: string | null
+          erro: string | null
+          id: string
+          logradouro: string | null
+          lote_id: string | null
+          nome_fantasia: string | null
+          numero: string | null
+          razao_social: string | null
+          situacao: string | null
+          socios: Json
+          status: string
+          telefone: string | null
+          telefone_2: string | null
+          uf: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          cnpj: string
+          complemento?: string | null
+          created_at?: string
+          data_consulta?: string
+          email?: string | null
+          erro?: string | null
+          id?: string
+          logradouro?: string | null
+          lote_id?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          razao_social?: string | null
+          situacao?: string | null
+          socios?: Json
+          status?: string
+          telefone?: string | null
+          telefone_2?: string | null
+          uf?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          cnpj?: string
+          complemento?: string | null
+          created_at?: string
+          data_consulta?: string
+          email?: string | null
+          erro?: string | null
+          id?: string
+          logradouro?: string | null
+          lote_id?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          razao_social?: string | null
+          situacao?: string | null
+          socios?: Json
+          status?: string
+          telefone?: string | null
+          telefone_2?: string | null
+          uf?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cnpj_consultas_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "cnpj_lotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cnpj_lotes: {
+        Row: {
+          ativos: number
+          com_telefone: number
+          completed_at: string | null
+          created_at: string
+          encontrados: number
+          id: string
+          nome_arquivo: string
+          processados: number
+          status: string
+          total: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativos?: number
+          com_telefone?: number
+          completed_at?: string | null
+          created_at?: string
+          encontrados?: number
+          id?: string
+          nome_arquivo: string
+          processados?: number
+          status?: string
+          total?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ativos?: number
+          com_telefone?: number
+          completed_at?: string | null
+          created_at?: string
+          encontrados?: number
+          id?: string
+          nome_arquivo?: string
+          processados?: number
+          status?: string
+          total?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           client_email: string | null
