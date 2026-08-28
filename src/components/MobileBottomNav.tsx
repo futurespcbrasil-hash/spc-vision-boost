@@ -22,6 +22,8 @@ const MobileBottomNav = () => {
     { to: '/whatsapp', icon: MessageSquare, label: 'WhatsApp' },
     { to: '/whatsapp/instancias', icon: MessageSquare, label: '— Instâncias WA' },
     { to: '/consultas', icon: Search, label: 'Consultas SPC' },
+    { to: '/consultas/cnpj', icon: Building2, label: '— Consulta CNPJ' },
+    { to: '/consultas/cnpj-lote', icon: Building2, label: '— Consulta CNPJ em Lote' },
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
     { to: '/metas', icon: Target, label: 'Metas' },
