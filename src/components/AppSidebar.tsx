@@ -13,7 +13,14 @@ const AppSidebar = () => {
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
+  const [consultasOpen, setConsultasOpen] = useState(location.pathname.startsWith('/consultas'));
   const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
+
+  const CONSULTAS_SUB = [
+    { to: '/consultas', icon: Search, label: 'Consulta SPC' },
+    { to: '/consultas/cnpj', icon: Building2, label: 'Consulta CNPJ' },
+    { to: '/consultas/cnpj-lote', icon: Layers, label: 'Consulta CNPJ em Lote' },
+  ];
 
   const NAV_ITEMS = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
