@@ -33,6 +33,8 @@ const Parceiros = lazy(() => import("@/pages/parceiros-spc/Parceiros"));
 const ClientesIndicados = lazy(() => import("@/pages/parceiros-spc/ClientesIndicados"));
 const ParceirosRelatorios = lazy(() => import("@/pages/parceiros-spc/Relatorios"));
 const ConsultaSPC = lazy(() => import("@/pages/ConsultaSPC"));
+const ConsultaCNPJ = lazy(() => import("@/pages/cnpj/ConsultaCNPJ"));
+const ConsultaCNPJLote = lazy(() => import("@/pages/cnpj/ConsultaCNPJLote"));
 const WhatsAppChat = lazy(() => import("@/pages/WhatsAppChat"));
 const WhatsAppInstancias = lazy(() => import("@/pages/WhatsAppInstancias"));
 const WhatsAppAjustes = lazy(() => import("@/pages/WhatsAppAjustes"));
@@ -88,6 +90,8 @@ const ProtectedRoutes = () => {
             <Route path="/parceiros-spc/clientes" element={<AppLayout><ClientesIndicados /></AppLayout>} />
             <Route path="/parceiros-spc/relatorios" element={<AppLayout><ParceirosRelatorios /></AppLayout>} />
             <Route path="/consultas" element={<AppLayout><ConsultaSPC /></AppLayout>} />
+            <Route path="/consultas/cnpj" element={<AppLayout><ConsultaCNPJ /></AppLayout>} />
+            <Route path="/consultas/cnpj-lote" element={<AppLayout><ConsultaCNPJLote /></AppLayout>} />
             <Route path="/whatsapp" element={<AppLayout noPadding><WhatsAppChat /></AppLayout>} />
             <Route path="/whatsapp/instancias" element={<AppLayout noPadding><WhatsAppInstancias /></AppLayout>} />
             <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
