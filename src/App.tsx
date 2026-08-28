@@ -33,6 +33,8 @@ const Parceiros = lazy(() => import("@/pages/parceiros-spc/Parceiros"));
 const ClientesIndicados = lazy(() => import("@/pages/parceiros-spc/ClientesIndicados"));
 const ParceirosRelatorios = lazy(() => import("@/pages/parceiros-spc/Relatorios"));
 const ConsultaSPC = lazy(() => import("@/pages/ConsultaSPC"));
+const ConsultaCNPJ = lazy(() => import("@/pages/cnpj/ConsultaCNPJ"));
+const ConsultaCNPJLote = lazy(() => import("@/pages/cnpj/ConsultaCNPJLote"));
 const WhatsAppChat = lazy(() => import("@/pages/WhatsAppChat"));
 const WhatsAppInstancias = lazy(() => import("@/pages/WhatsAppInstancias"));
 const WhatsAppAjustes = lazy(() => import("@/pages/WhatsAppAjustes"));
