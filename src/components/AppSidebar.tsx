@@ -19,7 +19,7 @@ const AppSidebar = () => {
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/crm', icon: GitBranch, label: 'Funil' },
     { to: '/leads', icon: Users, label: 'Leads' },
-    { to: '/consultas', icon: Search, label: 'Consultas' },
+    
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
     { to: '/metas', icon: Target, label: 'Metas' },
