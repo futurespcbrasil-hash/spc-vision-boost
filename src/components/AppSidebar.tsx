@@ -89,6 +89,38 @@ const AppSidebar = () => {
         })}
 
         <button
+          onClick={() => setConsultasOpen(!consultasOpen)}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+            ${location.pathname.startsWith('/consultas')
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+          title={collapsed ? 'Consultas' : undefined}
+        >
+          <Search size={18} />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left">Consultas</span>
+              <ChevronDown size={14} className={`transition-transform ${consultasOpen ? 'rotate-180' : ''}`} />
+            </>
+          )}
+        </button>
+        {!collapsed && consultasOpen && (
+          <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
+            {CONSULTAS_SUB.map(sub => (
+              <Link key={sub.to} to={sub.to}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
+                  ${location.pathname === sub.to
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                <sub.icon size={14} />
+                <span>{sub.label}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
+
+        <button
           onClick={() => setWhatsappOpen(!whatsappOpen)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/whatsapp')
