@@ -79,7 +79,8 @@ const Metas = () => {
     setSaving(true);
     const dirty = rows.filter(r => r.dirty);
     const payload = dirty.map(r => ({
-      id: r.id, user_id: user.id, ordem: r.ordem, referencia: r.referencia,
+      ...(r.id ? { id: r.id } : {}),
+      user_id: user.id, ordem: r.ordem, referencia: r.referencia,
       ponto_zero: PONTO_ZERO, faturamento: r.faturamento, salario: r.salario,
     }));
     const { error } = await supabase.from('metas_faturamento').upsert(payload, { onConflict: 'user_id,ordem' });
