@@ -121,6 +121,12 @@ const ConsultaSintegra = () => {
         </Card>
       )}
 
+      {aviso && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardContent className="py-4 text-sm text-yellow-700">{aviso}</CardContent>
+        </Card>
+      )}
+
       {result && (
         <div className="space-y-4">
           <Card className="border-primary/40 bg-primary/5">
