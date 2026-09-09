@@ -28,6 +28,7 @@ const ConsultaSintegra = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const consultar = async () => {
     const doc = onlyDigits(cnpj);
@@ -38,14 +39,16 @@ const ConsultaSintegra = () => {
     setLoading(true);
     setResult(null);
     setErro(null);
+    setAviso(null);
     try {
       const { data, error } = await supabase.functions.invoke('consulta-sintegra', { body: { cnpj: doc } });
       if (error) throw error;
 
       if (!data?.ok) {
-        setErro(data?.error || 'Não foi possível concluir a consulta no Sintegra.');
+        setErro(data?.error || 'Não foi possível concluir a consulta dos dados fiscais.');
       } else {
         setResult(data.data);
+        if (data.aviso) setAviso(data.aviso);
       }
 
       const { data: userData } = await supabase.auth.getUser();
@@ -105,7 +108,7 @@ const ConsultaSintegra = () => {
             </div>
             <Button onClick={consultar} disabled={loading} className="sm:w-56">
               {loading
-                ? <><Loader2 className="animate-spin mr-2" size={16} /> Consultando dados no Sintegra...</>
+                ? <><Loader2 className="animate-spin mr-2" size={16} /> Consultando dados fiscais...</>
                 : <><Search size={16} className="mr-2" /> Consultar Sintegra</>}
             </Button>
           </div>
@@ -115,6 +118,12 @@ const ConsultaSintegra = () => {
       {erro && (
         <Card className="border-destructive/40">
           <CardContent className="py-6 text-sm text-destructive">{erro}</CardContent>
+        </Card>
+      )}
+
+      {aviso && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardContent className="py-4 text-sm text-yellow-700">{aviso}</CardContent>
         </Card>
       )}
 
