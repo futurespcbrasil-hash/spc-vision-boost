@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  MoreHorizontal, UserCog, LogOut, MessageCircle, MessageSquare, X, Target, Handshake, Building2, StickyNote, Search
+  MoreHorizontal, UserCog, LogOut, MessageCircle, MessageSquare, X, Target, Handshake, Building2, StickyNote, Search, FileText
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +22,8 @@ const MobileBottomNav = () => {
     { to: '/whatsapp', icon: MessageSquare, label: 'WhatsApp' },
     { to: '/whatsapp/instancias', icon: MessageSquare, label: '— Instâncias WA' },
     { to: '/consultas', icon: Search, label: 'Consultas SPC' },
-    { to: '/consultas/cnpj', icon: Building2, label: '— Consulta CNPJ' },
+    { to: '/consultas/cnpj', icon: Building2, label: '— Consulta Receita' },
+    { to: '/consultas/sintegra', icon: FileText, label: '— Consulta Sintegra' },
     { to: '/consultas/cnpj-lote', icon: Building2, label: '— Consulta CNPJ em Lote' },
     { to: '/agenda', icon: Calendar, label: 'Agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
