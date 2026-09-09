@@ -108,7 +108,7 @@ const ConsultaSintegra = () => {
             </div>
             <Button onClick={consultar} disabled={loading} className="sm:w-56">
               {loading
-                ? <><Loader2 className="animate-spin mr-2" size={16} /> Consultando dados no Sintegra...</>
+                ? <><Loader2 className="animate-spin mr-2" size={16} /> Consultando dados fiscais...</>
                 : <><Search size={16} className="mr-2" /> Consultar Sintegra</>}
             </Button>
           </div>
