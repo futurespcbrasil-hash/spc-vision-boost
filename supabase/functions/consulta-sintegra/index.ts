@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
       nome_empresarial: d?.company?.name ?? null,
       nome_fantasia: d?.alias ?? null,
       uf,
-      municipio: d?.address?.municipality ?? null,
+      municipio: d?.address?.city ?? (d?.address?.municipality != null ? String(d.address.municipality) : null),
       cep: d?.address?.zip ?? null,
       logradouro: d?.address?.street ?? null,
       numero: d?.address?.number ?? null,
