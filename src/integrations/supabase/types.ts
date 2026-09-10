@@ -633,6 +633,272 @@ export type Database = {
         }
         Relationships: []
       }
+      remote_clients: {
+        Row: {
+          created_at: string
+          documento: string | null
+          email: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          telefone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          documento?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          documento?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      remote_devices: {
+        Row: {
+          agent_id: string
+          client_id: string | null
+          cpu_model: string | null
+          created_at: string
+          description: string | null
+          hostname: string
+          id: string
+          last_seen: string | null
+          last_synced_at: string | null
+          local_ips: string | null
+          mesh_node_id: string | null
+          operating_system: string | null
+          public_ip: string | null
+          raw: Json | null
+          status: string
+          total_ram: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id: string
+          client_id?: string | null
+          cpu_model?: string | null
+          created_at?: string
+          description?: string | null
+          hostname: string
+          id?: string
+          last_seen?: string | null
+          last_synced_at?: string | null
+          local_ips?: string | null
+          mesh_node_id?: string | null
+          operating_system?: string | null
+          public_ip?: string | null
+          raw?: Json | null
+          status?: string
+          total_ram?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string
+          client_id?: string | null
+          cpu_model?: string | null
+          created_at?: string
+          description?: string | null
+          hostname?: string
+          id?: string
+          last_seen?: string | null
+          last_synced_at?: string | null
+          local_ips?: string | null
+          mesh_node_id?: string | null
+          operating_system?: string | null
+          public_ip?: string | null
+          raw?: Json | null
+          status?: string
+          total_ram?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_devices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "remote_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remote_sessions: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          device_hostname: string | null
+          device_id: string | null
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          notes: string | null
+          operator_name: string | null
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          device_hostname?: string | null
+          device_id?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          operator_name?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          device_hostname?: string | null
+          device_id?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          operator_name?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_sessions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "remote_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remote_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "remote_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remote_settings: {
+        Row: {
+          api_key_configured: boolean
+          auto_sync: boolean
+          created_at: string
+          id: string
+          last_connection_checked_at: string | null
+          last_connection_status: string | null
+          last_sync_at: string | null
+          mesh_url: string | null
+          rmm_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_configured?: boolean
+          auto_sync?: boolean
+          created_at?: string
+          id?: string
+          last_connection_checked_at?: string | null
+          last_connection_status?: string | null
+          last_sync_at?: string | null
+          mesh_url?: string | null
+          rmm_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_configured?: boolean
+          auto_sync?: boolean
+          created_at?: string
+          id?: string
+          last_connection_checked_at?: string | null
+          last_connection_status?: string | null
+          last_sync_at?: string | null
+          mesh_url?: string | null
+          rmm_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      remote_users_permissions: {
+        Row: {
+          can_connect: boolean
+          can_manage: boolean
+          can_view: boolean
+          client_id: string | null
+          created_at: string
+          device_id: string | null
+          id: string
+          owner_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          can_connect?: boolean
+          can_manage?: boolean
+          can_view?: boolean
+          client_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          owner_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          can_connect?: boolean
+          can_manage?: boolean
+          can_view?: boolean
+          client_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          owner_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_users_permissions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "remote_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remote_users_permissions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "remote_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schedule_events: {
         Row: {
           created_at: string
