@@ -288,6 +288,204 @@ export type Database = {
         }
         Relationships: []
       }
+      future_remote_devices: {
+        Row: {
+          client_company: string | null
+          client_name: string | null
+          created_at: string
+          device_name: string
+          id: string
+          last_seen: string | null
+          mesh_device_id: string
+          operating_system: string | null
+          raw: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_company?: string | null
+          client_name?: string | null
+          created_at?: string
+          device_name: string
+          id?: string
+          last_seen?: string | null
+          mesh_device_id: string
+          operating_system?: string | null
+          raw?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_company?: string | null
+          client_name?: string | null
+          created_at?: string
+          device_name?: string
+          id?: string
+          last_seen?: string | null
+          mesh_device_id?: string
+          operating_system?: string | null
+          raw?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      future_remote_requests: {
+        Row: {
+          attended_by: string | null
+          attended_by_name: string | null
+          client_company: string | null
+          client_name: string
+          client_phone: string | null
+          code: string
+          computer_name: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          finished_at: string | null
+          id: string
+          mesh_device_id: string | null
+          notes: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+          validated_at: string | null
+        }
+        Insert: {
+          attended_by?: string | null
+          attended_by_name?: string | null
+          client_company?: string | null
+          client_name: string
+          client_phone?: string | null
+          code: string
+          computer_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          finished_at?: string | null
+          id?: string
+          mesh_device_id?: string | null
+          notes?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          validated_at?: string | null
+        }
+        Update: {
+          attended_by?: string | null
+          attended_by_name?: string | null
+          client_company?: string | null
+          client_name?: string
+          client_phone?: string | null
+          code?: string
+          computer_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          finished_at?: string | null
+          id?: string
+          mesh_device_id?: string | null
+          notes?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          validated_at?: string | null
+        }
+        Relationships: []
+      }
+      future_remote_sessions: {
+        Row: {
+          attended_by: string | null
+          attended_by_name: string | null
+          created_at: string
+          device_id: string | null
+          duration_seconds: number | null
+          finished_at: string | null
+          id: string
+          notes: string | null
+          request_id: string | null
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attended_by?: string | null
+          attended_by_name?: string | null
+          created_at?: string
+          device_id?: string | null
+          duration_seconds?: number | null
+          finished_at?: string | null
+          id?: string
+          notes?: string | null
+          request_id?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attended_by?: string | null
+          attended_by_name?: string | null
+          created_at?: string
+          device_id?: string | null
+          duration_seconds?: number | null
+          finished_at?: string | null
+          id?: string
+          notes?: string | null
+          request_id?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "future_remote_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "future_remote_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "future_remote_sessions_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "future_remote_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      future_remote_settings: {
+        Row: {
+          code_ttl_minutes: number
+          created_at: string
+          id: string
+          mesh_group: string
+          mesh_server_configured: boolean
+          public_support_url: string | null
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          code_ttl_minutes?: number
+          created_at?: string
+          id?: string
+          mesh_group?: string
+          mesh_server_configured?: boolean
+          public_support_url?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          code_ttl_minutes?: number
+          created_at?: string
+          id?: string
+          mesh_group?: string
+          mesh_server_configured?: boolean
+          public_support_url?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       google_calendar_tokens: {
         Row: {
           access_token: string
