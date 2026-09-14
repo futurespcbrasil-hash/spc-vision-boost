@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText
+  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText,
+  Monitor, LifeBuoy, History, Cog
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,6 +16,15 @@ const AppSidebar = () => {
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
   const [consultasOpen, setConsultasOpen] = useState(location.pathname.startsWith('/consultas'));
   const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
+  const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));
+
+  const REMOTE_SUB = [
+    { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/future-remote/solicitacoes', icon: LifeBuoy, label: 'Solicitações' },
+    { to: '/future-remote/computadores', icon: Monitor, label: 'Computadores' },
+    { to: '/future-remote/historico', icon: History, label: 'Histórico' },
+    { to: '/future-remote/configuracoes', icon: Cog, label: 'Configurações' },
+  ];
 
   const CONSULTAS_SUB = [
     { to: '/consultas', icon: Search, label: 'Consulta SPC' },
