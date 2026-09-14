@@ -41,6 +41,12 @@ const WhatsAppInstancias = lazy(() => import("@/pages/WhatsAppInstancias"));
 const WhatsAppAjustes = lazy(() => import("@/pages/WhatsAppAjustes"));
 const RelatoriosComissoes = lazy(() => import("@/pages/RelatoriosComissoes"));
 const CadastroVendedores = lazy(() => import("@/pages/CadastroVendedores"));
+const Suporte = lazy(() => import("@/pages/Suporte"));
+const FutureRemoteDashboard = lazy(() => import("@/pages/remote/FutureRemoteDashboard"));
+const RemoteSolicitacoes = lazy(() => import("@/pages/remote/Solicitacoes"));
+const RemoteComputadores = lazy(() => import("@/pages/remote/Computadores"));
+const RemoteHistorico = lazy(() => import("@/pages/remote/Historico"));
+const RemoteConfiguracoes = lazy(() => import("@/pages/remote/Configuracoes"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -99,6 +105,11 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
             <Route path="/relatorios-comissoes" element={<AppLayout><RelatoriosComissoes /></AppLayout>} />
             <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />
+            <Route path="/future-remote" element={<AppLayout><FutureRemoteDashboard /></AppLayout>} />
+            <Route path="/future-remote/solicitacoes" element={<AppLayout><RemoteSolicitacoes /></AppLayout>} />
+            <Route path="/future-remote/computadores" element={<AppLayout><RemoteComputadores /></AppLayout>} />
+            <Route path="/future-remote/historico" element={<AppLayout><RemoteHistorico /></AppLayout>} />
+            <Route path="/future-remote/configuracoes" element={<AppLayout><RemoteConfiguracoes /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
@@ -120,6 +131,7 @@ const App = () => (
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/comparacao/:id" element={<PublicComparison />} />
+              <Route path="/suporte" element={<Suporte />} />
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
           </Suspense>
