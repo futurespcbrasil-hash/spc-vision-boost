@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText
+  UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText,
+  Monitor, LifeBuoy, History, Cog
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,6 +16,15 @@ const AppSidebar = () => {
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
   const [consultasOpen, setConsultasOpen] = useState(location.pathname.startsWith('/consultas'));
   const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
+  const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));
+
+  const REMOTE_SUB = [
+    { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/future-remote/solicitacoes', icon: LifeBuoy, label: 'Solicitações' },
+    { to: '/future-remote/computadores', icon: Monitor, label: 'Computadores' },
+    { to: '/future-remote/historico', icon: History, label: 'Histórico' },
+    { to: '/future-remote/configuracoes', icon: Cog, label: 'Configurações' },
+  ];
 
   const CONSULTAS_SUB = [
     { to: '/consultas', icon: Search, label: 'Consulta SPC' },
@@ -140,6 +150,37 @@ const AppSidebar = () => {
         {!collapsed && whatsappOpen && (
           <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
             {WHATSAPP_SUB.map(sub => (
+              <Link key={sub.to} to={sub.to}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
+                  ${location.pathname === sub.to
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                <sub.icon size={14} />
+                <span>{sub.label}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={() => setRemoteOpen(!remoteOpen)}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+            ${location.pathname.startsWith('/future-remote')
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+          title={collapsed ? 'Future Remote' : undefined}
+        >
+          <Monitor size={18} />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left">Future Remote</span>
+              <ChevronDown size={14} className={`transition-transform ${remoteOpen ? 'rotate-180' : ''}`} />
+            </>
+          )}
+        </button>
+        {!collapsed && remoteOpen && (
+          <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
+            {REMOTE_SUB.map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
