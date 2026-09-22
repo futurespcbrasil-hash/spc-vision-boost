@@ -3,12 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
 type AppRole = 'vendedor' | 'gestor';
+type AccountType = 'dono_app' | 'revenda' | 'parceiro' | 'usuario_final' | null;
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: { display_name: string; email: string } | null;
   role: AppRole;
+  accountType: AccountType;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, displayName: string, role: AppRole) => Promise<{ error: any }>;
@@ -28,6 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<{ display_name: string; email: string } | null>(null);
   const [role, setRole] = useState<AppRole>('vendedor');
+  const [accountType, setAccountType] = useState<AccountType>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
@@ -47,7 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const { data: membership } = await supabase
         .from('account_members')
-        .select('role')
+        .select('role, account_id')
         .eq('user_id', userId)
         .eq('active', true)
         .order('created_at', { ascending: true })
@@ -56,6 +59,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (membership) {
         setRole(membership.role === 'administrador' || membership.role === 'gestor' ? 'gestor' : 'vendedor');
+        const { data: account } = await supabase
+          .from('accounts')
+          .select('account_type')
+          .eq('id', membership.account_id)
+          .maybeSingle();
+        setAccountType((account?.account_type as AccountType) || null);
+      } else {
+        setAccountType(null);
       }
     } catch (e) {
       console.error('fetchProfile error', e);
@@ -71,6 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setProfile(null);
         setRole('vendedor');
+        setAccountType(null);
       }
       setLoading(false);
     });
@@ -104,7 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, role, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, role, accountType, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
