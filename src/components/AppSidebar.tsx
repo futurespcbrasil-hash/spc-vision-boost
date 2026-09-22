@@ -9,14 +9,14 @@ import { useAuth } from '@/hooks/useAuth';
 
 const AppSidebar = () => {
   const location = useLocation();
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, accountType, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
   const [consultasOpen, setConsultasOpen] = useState(location.pathname.startsWith('/consultas'));
   const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
-  const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));
+  const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));\n  const isDonoApp = accountType === 'dono_app';
 
   const REMOTE_SUB = [
     { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard' },
@@ -99,6 +99,20 @@ const AppSidebar = () => {
           return renderNavItem(item, location.pathname === item.to);
         })}
 
+
+        {isDonoApp && (
+          <Link
+            to="/revendas"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+              ${location.pathname.startsWith('/revendas')
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+            title={collapsed ? 'Revendas' : undefined}
+          >
+            <Building2 size={18} />
+            {!collapsed && <span>Revendas</span>}
+          </Link>
+        )}
         <button
           onClick={() => setConsultasOpen(!consultasOpen)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
