@@ -32,11 +32,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data: p } = await supabase.from('profiles').select('display_name, email').eq('user_id', userId).maybeSingle();
-      if (p) setProfile(p);
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .maybeSingle();
 
-      const { data: r } = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
-      if (r) setRole(r.role as AppRole);
+      if (p) {
+        setProfile({
+          display_name: p.full_name || '',
+          email: (await supabase.auth.getUser()).data.user?.email || '',
+        });
+      }
+
+      const { data: membership } = await supabase
+        .from('account_members')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('active', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (membership) {
+        setRole(membership.role === 'administrador' || membership.role === 'gestor' ? 'gestor' : 'vendedor');
+      }
     } catch (e) {
       console.error('fetchProfile error', e);
     }
