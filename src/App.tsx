@@ -40,7 +40,7 @@ const WhatsAppChat = lazy(() => import("@/pages/WhatsAppChat"));
 const WhatsAppInstancias = lazy(() => import("@/pages/WhatsAppInstancias"));
 const WhatsAppAjustes = lazy(() => import("@/pages/WhatsAppAjustes"));
 const RelatoriosComissoes = lazy(() => import("@/pages/RelatoriosComissoes"));
-const CadastroVendedores = lazy(() => import("@/pages/CadastroVendedores"));
+const CadastroVendedores = lazy(() => import("@/pages/CadastroVendedores"));\nconst Revendas = lazy(() => import("@/pages/Revendas"));
 const Suporte = lazy(() => import("@/pages/Suporte"));
 const FutureRemoteDashboard = lazy(() => import("@/pages/remote/FutureRemoteDashboard"));
 const RemoteSolicitacoes = lazy(() => import("@/pages/remote/Solicitacoes"));
@@ -104,7 +104,7 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp/instancias" element={<AppLayout noPadding><WhatsAppInstancias /></AppLayout>} />
             <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
             <Route path="/relatorios-comissoes" element={<AppLayout><RelatoriosComissoes /></AppLayout>} />
-            <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />
+            <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />\n            <Route path="/revendas" element={<AppLayout><Revendas /></AppLayout>} />
             <Route path="/future-remote" element={<AppLayout><FutureRemoteDashboard /></AppLayout>} />
             <Route path="/future-remote/solicitacoes" element={<AppLayout><RemoteSolicitacoes /></AppLayout>} />
             <Route path="/future-remote/computadores" element={<AppLayout><RemoteComputadores /></AppLayout>} />
