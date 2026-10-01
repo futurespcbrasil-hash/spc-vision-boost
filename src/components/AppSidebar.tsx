@@ -16,7 +16,8 @@ const AppSidebar = () => {
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
   const [consultasOpen, setConsultasOpen] = useState(location.pathname.startsWith('/consultas'));
   const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
-  const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));\n  const isDonoApp = accountType === 'dono_app';
+  const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));
+  const isDonoApp = accountType === 'dono_app';
 
   const REMOTE_SUB = [
     { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard' },

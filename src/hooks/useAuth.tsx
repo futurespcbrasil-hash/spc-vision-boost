@@ -35,7 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data: p } = await supabase
+      const { data: p } = await (supabase as any)
         .from('profiles')
         .select('full_name')
         .eq('id', userId)
@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       }
 
-      const { data: membership } = await supabase
+      const { data: membership } = await (supabase as any)
         .from('account_members')
         .select('role, account_id')
         .eq('user_id', userId)
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (membership) {
         setRole(membership.role === 'administrador' || membership.role === 'gestor' ? 'gestor' : 'vendedor');
-        const { data: account } = await supabase
+        const { data: account } = await (supabase as any)
           .from('accounts')
           .select('account_type')
           .eq('id', membership.account_id)
