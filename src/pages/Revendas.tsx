@@ -15,7 +15,7 @@ const Revendas = () => {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('accounts').select('id, name, document, email, phone, status').eq('account_type', 'revenda').order('name');
+    const { data, error } = await (supabase as any).from('accounts').select('id, name, document, email, phone, status').eq('account_type', 'revenda').order('name');
     if (error) toast.error(error.message);
     setRevendas((data as Revenda[]) || []);
     setLoading(false);

@@ -87,7 +87,7 @@ const Solicitacoes = () => {
     const now = new Date().toISOString();
     const { error } = await supabase.from('future_remote_requests').update({ mesh_device_id: device.mesh_device_id, computer_name: device.device_name, linked_at: now }).eq('id', linking.id).is('mesh_device_id', null);
     if (error) { toast.error(error.message); return; }
-    await supabase.from('future_remote_devices').update({ request_id: linking.id, linked_at: now }).eq('id', device.id);
+    await (supabase as any).from('future_remote_devices').update({ request_id: linking.id, linked_at: now }).eq('id', device.id);
     setLinking(null); setSelectedDevice(''); toast.success(`Computador "${device.device_name}" vinculado ao atendimento`); await Promise.all([reload(), loadDevices()]);
   };
 
