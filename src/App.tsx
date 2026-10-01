@@ -105,7 +105,8 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp/instancias" element={<AppLayout noPadding><WhatsAppInstancias /></AppLayout>} />
             <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
             <Route path="/relatorios-comissoes" element={<AppLayout><RelatoriosComissoes /></AppLayout>} />
-            <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />\n            <Route path="/revendas" element={<AppLayout><Revendas /></AppLayout>} />
+            <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />
+            <Route path="/revendas" element={<AppLayout><Revendas /></AppLayout>} />
             <Route path="/future-remote" element={<AppLayout><FutureRemoteDashboard /></AppLayout>} />
             <Route path="/future-remote/solicitacoes" element={<AppLayout><RemoteSolicitacoes /></AppLayout>} />
             <Route path="/future-remote/computadores" element={<AppLayout><RemoteComputadores /></AppLayout>} />
