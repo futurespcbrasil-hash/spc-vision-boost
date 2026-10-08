@@ -14,6 +14,211 @@ export type Database = {
   }
   public: {
     Tables: {
+      boleto_clientes: {
+        Row: {
+          cpf_cnpj: string | null
+          created_at: string
+          email: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          razao_social: string | null
+          updated_at: string
+          user_id: string
+          whatsapp: string | null
+        }
+        Insert: {
+          cpf_cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          razao_social?: string | null
+          updated_at?: string
+          user_id?: string
+          whatsapp?: string | null
+        }
+        Update: {
+          cpf_cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          razao_social?: string | null
+          updated_at?: string
+          user_id?: string
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      boleto_envio_logs: {
+        Row: {
+          boleto_id: string
+          created_at: string
+          id: string
+          resposta: string | null
+          status: string
+          user_id: string
+          whatsapp: string | null
+        }
+        Insert: {
+          boleto_id: string
+          created_at?: string
+          id?: string
+          resposta?: string | null
+          status: string
+          user_id?: string
+          whatsapp?: string | null
+        }
+        Update: {
+          boleto_id?: string
+          created_at?: string
+          id?: string
+          resposta?: string | null
+          status?: string
+          user_id?: string
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boleto_envio_logs_boleto_id_fkey"
+            columns: ["boleto_id"]
+            isOneToOne: false
+            referencedRelation: "boleto_envios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      boleto_envios: {
+        Row: {
+          api_message_id: string | null
+          api_resposta: string | null
+          arquivo_hash: string
+          arquivo_nome: string
+          arquivo_path: string
+          banco: string | null
+          client_id: string | null
+          codigo_barras: string | null
+          cpf_cnpj_extraido: string | null
+          created_at: string
+          data_emissao: string | null
+          enviado_em: string | null
+          erro: string | null
+          id: string
+          linha_digitavel: string | null
+          match_info: string | null
+          mensagem: string | null
+          nome_extraido: string | null
+          nosso_numero: string | null
+          numero_documento: string | null
+          status: string
+          tentativas: number
+          updated_at: string
+          user_id: string
+          valor: number | null
+          vencimento: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          api_message_id?: string | null
+          api_resposta?: string | null
+          arquivo_hash: string
+          arquivo_nome: string
+          arquivo_path: string
+          banco?: string | null
+          client_id?: string | null
+          codigo_barras?: string | null
+          cpf_cnpj_extraido?: string | null
+          created_at?: string
+          data_emissao?: string | null
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          linha_digitavel?: string | null
+          match_info?: string | null
+          mensagem?: string | null
+          nome_extraido?: string | null
+          nosso_numero?: string | null
+          numero_documento?: string | null
+          status?: string
+          tentativas?: number
+          updated_at?: string
+          user_id?: string
+          valor?: number | null
+          vencimento?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          api_message_id?: string | null
+          api_resposta?: string | null
+          arquivo_hash?: string
+          arquivo_nome?: string
+          arquivo_path?: string
+          banco?: string | null
+          client_id?: string | null
+          codigo_barras?: string | null
+          cpf_cnpj_extraido?: string | null
+          created_at?: string
+          data_emissao?: string | null
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          linha_digitavel?: string | null
+          match_info?: string | null
+          mensagem?: string | null
+          nome_extraido?: string | null
+          nosso_numero?: string | null
+          numero_documento?: string | null
+          status?: string
+          tentativas?: number
+          updated_at?: string
+          user_id?: string
+          valor?: number | null
+          vencimento?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boleto_envios_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "boleto_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      boleto_mensagem_templates: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          mensagem: string
+          nome: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          mensagem: string
+          nome: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          mensagem?: string
+          nome?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           content: string
