@@ -1,3 +1,4 @@
+import BoletosWhatsApp from "@/pages/BoletosWhatsApp";
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -107,6 +108,7 @@ const ProtectedRoutes = () => {
             <Route path="/relatorios-comissoes" element={<AppLayout><RelatoriosComissoes /></AppLayout>} />
             <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />
             <Route path="/revendas" element={<AppLayout><Revendas /></AppLayout>} />
+            <Route path="/financeiro/boletos" element={<AppLayout><BoletosWhatsApp /></AppLayout>} />
             <Route path="/future-remote" element={<AppLayout><FutureRemoteDashboard /></AppLayout>} />
             <Route path="/future-remote/solicitacoes" element={<AppLayout><RemoteSolicitacoes /></AppLayout>} />
             <Route path="/future-remote/computadores" element={<AppLayout><RemoteComputadores /></AppLayout>} />
