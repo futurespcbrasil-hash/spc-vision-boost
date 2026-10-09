@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText,
-  Monitor, LifeBuoy, History, Cog
+  Monitor, LifeBuoy, History, Cog, Wallet
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,6 +17,7 @@ const AppSidebar = () => {
   const [consultasOpen, setConsultasOpen] = useState(location.pathname.startsWith('/consultas'));
   const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
   const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));
+  const [finOpen, setFinOpen] = useState(location.pathname.startsWith('/financeiro'));
   const isDonoApp = accountType === 'dono_app';
 
   const REMOTE_SUB = [
@@ -205,6 +206,35 @@ const AppSidebar = () => {
                 <span>{sub.label}</span>
               </Link>
             ))}
+          </div>
+        )}
+
+        <button
+          onClick={() => setFinOpen(!finOpen)}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+            ${location.pathname.startsWith('/financeiro')
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+          title={collapsed ? 'Financeiro' : undefined}
+        >
+          <Wallet size={18} />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left">Financeiro</span>
+              <ChevronDown size={14} className={`transition-transform ${finOpen ? 'rotate-180' : ''}`} />
+            </>
+          )}
+        </button>
+        {!collapsed && finOpen && (
+          <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
+            <Link to="/financeiro/boletos"
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
+                ${location.pathname === '/financeiro/boletos'
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+              <FileText size={14} />
+              <span>Boletos WhatsApp</span>
+            </Link>
           </div>
         )}
 
