@@ -235,6 +235,14 @@ const AppSidebar = () => {
               <FileText size={14} />
               <span>Boletos WhatsApp</span>
             </Link>
+            <Link to="/financeiro/clientes"
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
+                ${location.pathname === '/financeiro/clientes'
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+              <Users size={14} />
+              <span>Clientes</span>
+            </Link>
           </div>
         )}
 

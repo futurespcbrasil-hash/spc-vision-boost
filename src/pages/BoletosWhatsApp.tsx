@@ -90,7 +90,7 @@ const FILTROS = [
   { key: 'sem_cliente', label: 'Sem cliente' }, { key: 'sem_whatsapp', label: 'Sem WhatsApp' }, { key: 'erro', label: 'Erro' }, { key: 'enviado', label: 'Já enviados' },
 ];
 
-export default function BoletosWhatsApp() {
+export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initialTab?: string }) {
   const { user } = useAuth();
   const [boletos, setBoletos] = useState<Boleto[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -304,9 +304,10 @@ export default function BoletosWhatsApp() {
       cpf_cnpj: digits(clienteEdit.cpf_cnpj) || null, whatsapp: digits(clienteEdit.whatsapp) || null,
       email: clienteEdit.email?.trim() || null, observacoes: clienteEdit.observacoes?.trim() || null,
     };
-    const q = clienteEdit.id ? supabase.from('boleto_clientes').update(payload).eq('id', clienteEdit.id) : supabase.from('boleto_clientes').insert(payload);
+    const q = clienteEdit.id ? supabase.from('boleto_clientes').update(payload).eq('id', clienteEdit.id) : supabase.from('boleto_clientes').insert({ ...payload, user_id: user!.id });
     const { error } = await q;
     if (error) return toast.error(error.message);
+    toast.success('Cliente salvo');
     setClienteEdit(null); load();
   };
 
@@ -366,7 +367,7 @@ export default function BoletosWhatsApp() {
         </div>
       )}
 
-      <Tabs defaultValue="conferencia">
+      <Tabs key={initialTab} defaultValue={initialTab}>
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="importar">Importar</TabsTrigger>
           <TabsTrigger value="conferencia">Conferência</TabsTrigger>

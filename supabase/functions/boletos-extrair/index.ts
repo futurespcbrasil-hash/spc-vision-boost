@@ -100,9 +100,14 @@ Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). 
     };
     if (!match && !info) byName('nome do pagador', nome);
     if (!match && !info) byName('nome do arquivo', b.arquivo_nome);
+    if (!match && !info && nome) {
+      // Cadastro automático de cliente novo a partir do boleto
+      const { data: novo } = await sb.from('boleto_clientes').insert({ user_id: u.user.id, nome: nome.slice(0, 200), cpf_cnpj: cpfCnpj }).select('id,nome,razao_social,cpf_cnpj,whatsapp').single();
+      if (novo) { match = novo; info = cpfCnpj ? 'Identificado pelo CPF/CNPJ' : 'Cliente cadastrado automaticamente'; if (cpfCnpj) info = 'Cliente novo cadastrado automaticamente'; }
+    }
     if (!match && !info) info = 'Nenhum cliente encontrado no cadastro';
 
-    const strong = match && info === 'Identificado pelo CPF/CNPJ';
+    const strong = match && (info === 'Identificado pelo CPF/CNPJ' || info === 'Cliente novo cadastrado automaticamente');
     const whatsapp = match?.whatsapp ? digits(match.whatsapp) : null;
     const pendencias: string[] = [];
     if (!valor) pendencias.push('valor não identificado');
