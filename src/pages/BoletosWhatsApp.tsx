@@ -283,6 +283,78 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
     load();
   };
 
+  const [expDe, setExpDe] = useState('');
+  const [expAte, setExpAte] = useState('');
+
+  const limparHistorico = async () => {
+    if (!window.confirm(`Apagar TODOS os ${boletos.length} boletos, PDFs e o histórico de envios? Esta ação não pode ser desfeita.`)) return;
+    const ids = boletos.map((b) => b.id);
+    const paths = boletos.map((b) => b.arquivo_path).filter(Boolean);
+    for (let i = 0; i < paths.length; i += 100) await supabase.storage.from('boletos').remove(paths.slice(i, i + 100));
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      await supabase.from('boleto_envio_logs').delete().in('boleto_id', chunk);
+      const { error } = await supabase.from('boleto_envios').delete().in('id', chunk);
+      if (error) { toast.error('Erro ao limpar: ' + error.message); break; }
+    }
+    toast.success('Histórico limpo');
+    load();
+  };
+
+  const exportarEnviadosPDF = async () => {
+    const lista = boletos.filter((b) => b.status === 'enviado' && b.enviado_em).filter((b) => {
+      const d = new Date(b.enviado_em!).toLocaleDateString('sv-SE');
+      return (!expDe || d >= expDe) && (!expAte || d <= expAte);
+    }).sort((a, b) => a.enviado_em!.localeCompare(b.enviado_em!));
+    if (!lista.length) return toast.error('Nenhum boleto enviado no período');
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    const W = pdf.internal.pageSize.getWidth();
+    const H = pdf.internal.pageSize.getHeight();
+    const now = new Date();
+    pdf.setFillColor(107, 33, 168); pdf.rect(0, 0, W, 28, 'F');
+    pdf.setTextColor(255, 255, 255); pdf.setFontSize(18); pdf.setFont('helvetica', 'bold');
+    pdf.text('Relatório de Boletos Enviados', 14, 13);
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'normal');
+    const periodo = `Período: ${expDe ? dateBR(expDe) : 'início'} a ${expAte ? dateBR(expAte) : 'hoje'}`;
+    pdf.text(`Future Soluções  •  ${periodo}`, 14, 21);
+    pdf.text(`Gerado em ${now.toLocaleString('pt-BR')}`, W - 14, 21, { align: 'right' });
+    const total = lista.reduce((s, b) => s + (b.valor || 0), 0);
+    const clientesUnicos = new Set(lista.map((b) => b.client_id || b.nome_extraido)).size;
+    const cards = [['Boletos enviados', String(lista.length)], ['Clientes', String(clientesUnicos)], ['Valor total', brl(total)]];
+    const cw = (W - 28 - 16) / 3;
+    cards.forEach(([l, v], i) => {
+      const x = 14 + i * (cw + 8);
+      pdf.setFillColor(245, 240, 252); pdf.roundedRect(x, 34, cw, 18, 2, 2, 'F');
+      pdf.setTextColor(107, 33, 168); pdf.setFontSize(9); pdf.text(l, x + 5, 41);
+      pdf.setTextColor(30, 30, 30); pdf.setFontSize(13); pdf.setFont('helvetica', 'bold'); pdf.text(v, x + 5, 48); pdf.setFont('helvetica', 'normal');
+    });
+    autoTable(pdf, {
+      startY: 58,
+      head: [['Enviado em', 'Cliente', 'CPF/CNPJ', 'WhatsApp', 'Nº Doc.', 'Vencimento', 'Valor']],
+      body: lista.map((b) => {
+        const c = b.client_id ? clientes.find((x) => x.id === b.client_id) : null;
+        return [dtBR(b.enviado_em), c?.nome || b.nome_extraido || '—', fmtDoc(c?.cpf_cnpj || b.cpf_cnpj_extraido), fmtPhone(b.whatsapp), b.numero_documento || b.nosso_numero || '—', dateBR(b.vencimento), brl(b.valor)];
+      }),
+      foot: [['', '', '', '', '', 'TOTAL', brl(total)]],
+      theme: 'striped',
+      headStyles: { fillColor: [107, 33, 168], textColor: 255, fontStyle: 'bold' },
+      footStyles: { fillColor: [34, 197, 94], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 245, 252] },
+      styles: { fontSize: 9, cellPadding: 2.5 },
+      columnStyles: { 6: { halign: 'right' } },
+      margin: { left: 14, right: 14 },
+    });
+    const pages = pdf.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(140);
+      pdf.text(`Future Soluções © ${now.getFullYear()}`, 14, H - 8);
+      pdf.text(`Página ${i}/${pages}`, W - 14, H - 8, { align: 'right' });
+    }
+    pdf.save(`boletos-enviados-${now.toLocaleDateString('sv-SE')}.pdf`);
+  };
+
   // ---------- Revisão ----------
   const salvarRevisao = async () => {
     if (!review) return;
@@ -411,6 +483,16 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
               <Button key={f.key} size="sm" variant={filtro === f.key ? 'default' : 'outline'} onClick={() => setFiltro(f.key)}>{f.label}</Button>
             ))}
             <Input placeholder="Buscar..." value={busca} onChange={(e) => setBusca(e.target.value)} className="max-w-xs ml-auto" />
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            {filtro === 'todos' && (
+              <Button size="sm" variant="destructive" onClick={limparHistorico} disabled={!boletos.length}><Trash2 size={14} className="mr-1" />Limpar histórico</Button>
+            )}
+            {filtro === 'enviado' && (<>
+              <div><Label className="text-xs">Enviado de</Label><Input type="date" value={expDe} onChange={(e) => setExpDe(e.target.value)} className="h-9" /></div>
+              <div><Label className="text-xs">até</Label><Input type="date" value={expAte} onChange={(e) => setExpAte(e.target.value)} className="h-9" /></div>
+              <Button size="sm" onClick={exportarEnviadosPDF}><FileText size={14} className="mr-1" />Exportar PDF</Button>
+            </>)}
           </div>
           <div className="rounded-xl border bg-card overflow-x-auto">
             <Table>
