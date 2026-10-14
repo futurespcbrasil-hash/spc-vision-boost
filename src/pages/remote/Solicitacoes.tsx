@@ -70,6 +70,34 @@ const Solicitacoes = () => {
     setOpen(false); setForm(emptyForm); setCreated(data); reload();
   };
 
+  const gerarNovoCodigo = async (r: any) => {
+    if (!user) {
+      toast.error('Faça login para gerar um novo código');
+      return;
+    }
+
+    const code = generateCode();
+    const { data, error } = await supabase.from('future_remote_requests').insert({
+      code,
+      client_name: r.client_name,
+      client_company: r.client_company || null,
+      client_phone: r.client_phone || null,
+      notes: r.notes || null,
+      status: 'aguardando',
+      created_by: user.id,
+      expires_at: new Date(Date.now() + ttl * 60_000).toISOString(),
+    }).select().maybeSingle();
+
+    if (error) {
+      toast.error('Não foi possível gerar um novo código. ' + error.message);
+      return;
+    }
+
+    toast.success('Novo código gerado; o atendimento expirado foi mantido no histórico.');
+    setCreated(data);
+    await reload();
+  };
+
   const atender = async (r: any) => {
     if (!user) return;
     const nome = profile?.display_name || profile?.email || 'Funcionário';
@@ -135,6 +163,7 @@ const Solicitacoes = () => {
             <StatusBadge status={r.status} />
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(formatCode(r.code)); toast.success('Código copiado'); }}><Copy size={14} className="mr-1" />Código</Button>
+              {(r.status === 'expirado' || (r.expires_at && new Date(r.expires_at).getTime() <= tick)) && r.status !== 'finalizado' && r.status !== 'cancelado' && <Button size="sm" variant="outline" onClick={() => gerarNovoCodigo(r)}><Plus size={14} className="mr-1" />Gerar novo código</Button>}
               {r.status !== 'finalizado' && r.status !== 'em_atendimento' && <Button size="sm" onClick={() => atender(r)}><PlayCircle size={14} className="mr-1" />Atender</Button>}
               {!r.mesh_device_id && r.status !== 'finalizado' && <Button size="sm" variant="outline" onClick={() => { setLinking(r); setSelectedDevice(''); loadDevices(); }}><Link2 size={14} className="mr-1" />Vincular PC</Button>}
               <Button size="sm" variant="outline" onClick={() => acessar(r)}><Monitor size={14} className="mr-1" />Acessar computador</Button>
@@ -152,11 +181,29 @@ const Solicitacoes = () => {
         <p className="text-xs text-muted-foreground">O código gerado vale {ttl} minutos.</p>
       </div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={save}>Gerar código</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={!!linking} onOpenChange={() => { setLinking(null); setSelectedDevice(''); }}><DialogContent><DialogHeader><DialogTitle>Vincular computador</DialogTitle></DialogHeader><div className="space-y-3">
-        <p className="text-sm text-muted-foreground">Selecione o computador que apareceu no MeshCentral após o cliente instalar o agente.</p>
+      <Dialog open={!!linking} onOpenChange={() => { setLinking(null); setSelectedDevice(''); }}><DialogContent><DialogHeader><DialogTitle>Vincular computador ao atendimento</DialogTitle></DialogHeader><div className="space-y-4">
+        <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+          <p className="font-semibold text-foreground">Atendimento selecionado</p>
+          <p className="mt-1 text-foreground">{linking?.client_name || 'Cliente não informado'}</p>
+          <p className="text-muted-foreground">{linking?.client_company || 'Empresa não informada'}</p>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">Código: {formatCode(linking?.code)}</p>
+        </div>
+        <p className="text-sm text-muted-foreground">Confirme com o cliente qual computador ele acabou de preparar para o suporte. O código de atendimento não identifica sozinho um agente específico no MeshCentral; por isso, confira o dispositivo antes de vincular.</p>
         <div><Label>Computador MeshCentral</Label><select className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={selectedDevice} onChange={(e) => setSelectedDevice(e.target.value)}><option value="">Selecione...</option>{devices.map((d) => <option key={d.id} value={d.id}>{d.device_name} — {d.operating_system || 'SO não informado'} — {d.status}</option>)}</select></div>
-        <p className="text-xs text-muted-foreground">Confira o nome do computador antes de vincular para evitar acessar o PC errado.</p>
-      </div><DialogFooter><Button variant="outline" onClick={() => { setLinking(null); setSelectedDevice(''); }}>Cancelar</Button><Button onClick={vincular} disabled={!selectedDevice}>Vincular computador</Button></DialogFooter></DialogContent></Dialog>
+        {selectedDevice && (() => {
+          const device = devices.find((d) => d.id === selectedDevice);
+          if (!device) return null;
+          return <div className="rounded-lg border border-primary/30 p-3 text-sm">
+            <p className="font-semibold text-foreground">Confira antes de confirmar</p>
+            <p className="mt-1"><span className="text-muted-foreground">Nome:</span> {device.device_name}</p>
+            <p><span className="text-muted-foreground">Sistema:</span> {device.operating_system || 'Não informado'}</p>
+            <p><span className="text-muted-foreground">Status:</span> {device.status}</p>
+            <p className="break-all font-mono text-xs"><span className="font-sans text-muted-foreground">Mesh Device ID:</span> {device.mesh_device_id}</p>
+            {(device.client_name || device.client_company) && <p className="mt-2 text-amber-700">Atenção: este dispositivo já apresenta uma identificação de cliente ({[device.client_name, device.client_company].filter(Boolean).join(' — ')}). Verifique se corresponde ao atendimento selecionado.</p>}
+          </div>;
+        })()}
+        <p className="text-xs text-muted-foreground">O vínculo será registrado para este atendimento e o sistema impedirá reutilizar o mesmo computador em outro atendimento ativo.</p>
+      </div><DialogFooter><Button variant="outline" onClick={() => { setLinking(null); setSelectedDevice(''); }}>Cancelar</Button><Button onClick={vincular} disabled={!selectedDevice}>Confirmar vínculo</Button></DialogFooter></DialogContent></Dialog>
 
       <Dialog open={!!created} onOpenChange={() => setCreated(null)}><DialogContent><DialogHeader><DialogTitle>Código de atendimento</DialogTitle></DialogHeader><div className="space-y-3 text-center">
         <div className="font-mono text-3xl font-bold tracking-widest text-primary">{formatCode(created?.code)}</div><p className="text-sm text-muted-foreground">Envie ao cliente:</p><p className="rounded-lg bg-muted p-3 text-left text-sm">Para iniciar o suporte remoto, acesse:<br />{publicUrl}<br />e informe o código: {formatCode(created?.code)}</p>

