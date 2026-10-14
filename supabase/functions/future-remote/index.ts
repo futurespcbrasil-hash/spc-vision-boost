@@ -287,9 +287,44 @@ Deno.serve(async (req) => {
             'nodes',
           )
 
-          const devices = flattenNodes(res?.nodes)
+          const syncedDevices = flattenNodes(res?.nodes)
+          let devices = syncedDevices
 
-          if (devices.length) {
+          if (syncedDevices.length) {
+            const ids = syncedDevices.map((device) => device.mesh_device_id)
+            const [{ data: existingRows, error: existingError }, { data: linkedRequests, error: requestsError }] = await Promise.all([
+              admin.from('future_remote_devices')
+                .select('mesh_device_id, client_name, client_company')
+                .in('mesh_device_id', ids),
+              admin.from('future_remote_requests')
+                .select('mesh_device_id, client_name, client_company, computer_name, created_at')
+                .in('mesh_device_id', ids)
+                .order('created_at', { ascending: false }),
+            ])
+
+            if (existingError || requestsError) {
+              return json({ error: 'db_error', detail: (existingError ?? requestsError)?.message }, 500)
+            }
+
+            const existingById = new Map((existingRows ?? []).map((row) => [row.mesh_device_id, row]))
+            const requestById = new Map<string, any>()
+            for (const request of linkedRequests ?? []) {
+              if (request.mesh_device_id && !requestById.has(request.mesh_device_id)) {
+                requestById.set(request.mesh_device_id, request)
+              }
+            }
+
+            devices = syncedDevices.map((device) => {
+              const existing = existingById.get(device.mesh_device_id)
+              const request = requestById.get(device.mesh_device_id)
+              return {
+                ...device,
+                client_name: request?.client_name ?? existing?.client_name ?? null,
+                client_company: request?.client_company ?? existing?.client_company ?? null,
+                device_name: request?.computer_name || device.device_name,
+              }
+            })
+
             const { error } = await admin
               .from('future_remote_devices')
               .upsert(
