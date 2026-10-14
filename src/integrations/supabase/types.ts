@@ -1802,6 +1802,13 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      },
+      link_future_remote_device: {
+        Args: {
+          p_request_id: string
+          p_device_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
