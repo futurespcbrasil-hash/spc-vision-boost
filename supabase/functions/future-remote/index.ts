@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
         }
 
         return json({
-          url: `${MESH_URL}/?viewmode=11&gotonode=${encodeURIComponent(nodeId)}`,
+          url: `${MESH_URL}/?viewmode=11&gotonode=${nodeId}`,
         })
       }
 
