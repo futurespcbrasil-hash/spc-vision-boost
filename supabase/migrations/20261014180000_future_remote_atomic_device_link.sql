@@ -2,6 +2,18 @@ alter table public.future_remote_devices
   add column if not exists request_id uuid references public.future_remote_requests(id) on delete set null,
   add column if not exists linked_at timestamptz;
 
+update public.future_remote_devices d
+set request_id = r.id,
+    linked_at = coalesce(d.linked_at, r.updated_at, now()),
+    client_name = r.client_name,
+    client_company = r.client_company,
+    updated_at = now()
+from public.future_remote_requests r
+where r.mesh_device_id = d.mesh_device_id
+  and (d.request_id is distinct from r.id
+       or d.client_name is distinct from r.client_name
+       or d.client_company is distinct from r.client_company);
+
 create index if not exists future_remote_devices_request_id_idx
   on public.future_remote_devices(request_id);
 
