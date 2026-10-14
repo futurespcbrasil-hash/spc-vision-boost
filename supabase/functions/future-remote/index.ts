@@ -366,7 +366,12 @@ Deno.serve(async (req) => {
           }, 400)
         }
 
-        const nodeId = String(body?.mesh_device_id ?? '')
+        const rawNodeId = String(body?.mesh_device_id ?? '').trim()
+        // MeshCentral API IDs may be prefixed with "node//"; the browser gotonode
+        // parameter expects the underlying base64 node identifier only.
+        const nodeId = rawNodeId.startsWith('node//')
+          ? rawNodeId.slice('node//'.length)
+          : rawNodeId
 
         if (!nodeId) {
           return json({ error: 'mesh_device_id_required' }, 400)
