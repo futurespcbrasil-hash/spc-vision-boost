@@ -84,11 +84,26 @@ const Solicitacoes = () => {
     if (!linking || !selectedDevice) return;
     const device = devices.find((d) => d.id === selectedDevice);
     if (!device) return;
-    const now = new Date().toISOString();
-    const { error } = await supabase.from('future_remote_requests').update({ mesh_device_id: device.mesh_device_id, computer_name: device.device_name, linked_at: now }).eq('id', linking.id).is('mesh_device_id', null);
-    if (error) { toast.error(error.message); return; }
-    await (supabase as any).from('future_remote_devices').update({ request_id: linking.id, linked_at: now }).eq('id', device.id);
-    setLinking(null); setSelectedDevice(''); toast.success(`Computador "${device.device_name}" vinculado ao atendimento`); await Promise.all([reload(), loadDevices()]);
+    const { error } = await supabase.rpc('link_future_remote_device', {
+      p_request_id: linking.id,
+      p_device_id: device.id,
+    });
+    if (error) {
+      const messages: Record<string, string> = {
+        device_already_linked: 'Este computador já está vinculado a outro atendimento.',
+        request_already_linked: 'Este atendimento já possui outro computador vinculado.',
+        request_not_available: 'Este atendimento foi encerrado ou não está mais disponível.',
+        device_not_found: 'O computador não foi encontrado. Sincronize e tente novamente.',
+        forbidden: 'Seu usuário não tem permissão para vincular computadores.',
+      };
+      const key = Object.keys(messages).find((code) => error.message.includes(code));
+      toast.error(key ? messages[key] : 'Não foi possível vincular o computador. ' + error.message);
+      return;
+    }
+    setLinking(null);
+    setSelectedDevice('');
+    toast.success(`Computador "${device.device_name}" vinculado ao atendimento`);
+    await Promise.all([reload(), loadDevices()]);
   };
 
   const acessar = async (r: any) => {
