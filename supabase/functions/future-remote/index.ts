@@ -141,6 +141,18 @@ Deno.serve(async (req) => {
     const { data: userData } = await userClient.auth.getUser()
     if (!userData?.user) return json({ error: 'unauthorized' }, 401)
 
+    // Somente o usuário proprietário e os gestores podem operar o módulo.
+    const isOwner = (userData.user.email ?? '').toLowerCase() === 'dalprapf1@gmail.com'
+    const { data: roleRows, error: roleError } = await admin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userData.user.id)
+    const isGestor = !roleError && (roleRows ?? []).some((row) => row.role === 'gestor')
+
+    if (!isOwner && !isGestor) {
+      return json({ error: 'forbidden', message: 'Acesso restrito ao proprietário e gestores.' }, 403)
+    }
+
     switch (action) {
       case 'mesh_status': {
         if (!meshConfigured()) {
