@@ -287,9 +287,11 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
   const [expAte, setExpAte] = useState('');
 
   const limparHistorico = async () => {
-    if (!window.confirm(`Apagar TODOS os ${boletos.length} boletos, PDFs e o histórico de envios? Esta ação não pode ser desfeita.`)) return;
-    const ids = boletos.map((b) => b.id);
-    const paths = boletos.map((b) => b.arquivo_path).filter(Boolean);
+    const pendentes = boletos.filter((b) => b.status !== 'enviado');
+    if (!pendentes.length) { toast.info('Não há boletos pendentes para limpar. Os enviados são mantidos.'); return; }
+    if (!window.confirm(`Apagar os ${pendentes.length} boletos NÃO enviados (e seus PDFs)?\n\nOs boletos já enviados, seus arquivos e o histórico de envios serão mantidos. Esta ação não pode ser desfeita.`)) return;
+    const ids = pendentes.map((b) => b.id);
+    const paths = pendentes.map((b) => b.arquivo_path).filter(Boolean);
     for (let i = 0; i < paths.length; i += 100) await supabase.storage.from('boletos').remove(paths.slice(i, i + 100));
     for (let i = 0; i < ids.length; i += 100) {
       const chunk = ids.slice(i, i + 100);
@@ -297,7 +299,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
       const { error } = await supabase.from('boleto_envios').delete().in('id', chunk);
       if (error) { toast.error('Erro ao limpar: ' + error.message); break; }
     }
-    toast.success('Histórico limpo');
+    toast.success('Boletos pendentes apagados. Enviados mantidos.');
     load();
   };
 
