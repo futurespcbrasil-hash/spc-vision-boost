@@ -70,6 +70,34 @@ const Solicitacoes = () => {
     setOpen(false); setForm(emptyForm); setCreated(data); reload();
   };
 
+  const gerarNovoCodigo = async (r: any) => {
+    if (!user) {
+      toast.error('Faça login para gerar um novo código');
+      return;
+    }
+
+    const code = generateCode();
+    const { data, error } = await supabase.from('future_remote_requests').insert({
+      code,
+      client_name: r.client_name,
+      client_company: r.client_company || null,
+      client_phone: r.client_phone || null,
+      notes: r.notes || null,
+      status: 'aguardando',
+      created_by: user.id,
+      expires_at: new Date(Date.now() + ttl * 60_000).toISOString(),
+    }).select().maybeSingle();
+
+    if (error) {
+      toast.error('Não foi possível gerar um novo código. ' + error.message);
+      return;
+    }
+
+    toast.success('Novo código gerado; o atendimento expirado foi mantido no histórico.');
+    setCreated(data);
+    await reload();
+  };
+
   const atender = async (r: any) => {
     if (!user) return;
     const nome = profile?.display_name || profile?.email || 'Funcionário';
@@ -135,6 +163,7 @@ const Solicitacoes = () => {
             <StatusBadge status={r.status} />
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(formatCode(r.code)); toast.success('Código copiado'); }}><Copy size={14} className="mr-1" />Código</Button>
+              {(r.status === 'expirado' || (r.expires_at && new Date(r.expires_at).getTime() <= tick)) && r.status !== 'finalizado' && r.status !== 'cancelado' && <Button size="sm" variant="outline" onClick={() => gerarNovoCodigo(r)}><Plus size={14} className="mr-1" />Gerar novo código</Button>}
               {r.status !== 'finalizado' && r.status !== 'em_atendimento' && <Button size="sm" onClick={() => atender(r)}><PlayCircle size={14} className="mr-1" />Atender</Button>}
               {!r.mesh_device_id && r.status !== 'finalizado' && <Button size="sm" variant="outline" onClick={() => { setLinking(r); setSelectedDevice(''); loadDevices(); }}><Link2 size={14} className="mr-1" />Vincular PC</Button>}
               <Button size="sm" variant="outline" onClick={() => acessar(r)}><Monitor size={14} className="mr-1" />Acessar computador</Button>
