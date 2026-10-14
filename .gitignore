@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files: keep secrets and local configuration out of Git
+.env*
+!.env.example
