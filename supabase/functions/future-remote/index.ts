@@ -287,18 +287,59 @@ Deno.serve(async (req) => {
             'nodes',
           )
 
-          const devices = flattenNodes(res?.nodes)
+          const syncedDevices = flattenNodes(res?.nodes)
+          const deviceIds = syncedDevices.map((device) => device.mesh_device_id).filter(Boolean)
+
+          // Preserve customer labels when MeshCentral sync returns only technical device data.
+          const [{ data: existingDevices, error: existingError }, { data: linkedRequests, error: requestsError }] = await Promise.all([
+            deviceIds.length
+              ? admin
+                  .from('future_remote_devices')
+                  .select('mesh_device_id, client_name, client_company')
+                  .in('mesh_device_id', deviceIds)
+              : Promise.resolve({ data: [], error: null } as any),
+            deviceIds.length
+              ? admin
+                  .from('future_remote_requests')
+                  .select('mesh_device_id, client_name, client_company, created_at')
+                  .in('mesh_device_id', deviceIds)
+                  .not('mesh_device_id', 'is', null)
+                  .order('created_at', { ascending: false })
+              : Promise.resolve({ data: [], error: null } as any),
+          ])
+
+          if (existingError || requestsError) {
+            return json({
+              error: 'db_error',
+              detail: existingError?.message ?? requestsError?.message,
+            }, 500)
+          }
+
+          const existingById = new Map(
+            (existingDevices ?? []).map((device: any) => [device.mesh_device_id, device]),
+          )
+          const latestRequestById = new Map<string, any>()
+          for (const request of linkedRequests ?? []) {
+            if (request.mesh_device_id && !latestRequestById.has(request.mesh_device_id)) {
+              latestRequestById.set(request.mesh_device_id, request)
+            }
+          }
+
+          const devices = syncedDevices.map((device) => {
+            const existing = existingById.get(device.mesh_device_id) as any
+            const request = latestRequestById.get(device.mesh_device_id)
+            return {
+              ...device,
+              client_name: request?.client_name ?? existing?.client_name ?? null,
+              client_company: request?.client_company ?? existing?.client_company ?? null,
+              updated_at: new Date().toISOString(),
+            }
+          })
 
           if (devices.length) {
             const { error } = await admin
               .from('future_remote_devices')
-              .upsert(
-                devices.map((device) => ({
-                  ...device,
-                  updated_at: new Date().toISOString(),
-                })),
-                { onConflict: 'mesh_device_id' },
-              )
+              .upsert(devices, { onConflict: 'mesh_device_id' })
 
             if (error) {
               return json({
