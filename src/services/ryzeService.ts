@@ -1,50 +1,31 @@
 import { supabase } from '@/integrations/supabase/client';
 
 async function invoke(action: string, payload: Record<string, unknown> = {}) {
-  console.log(`[ryzeService] Invocando ação '${action}'`, payload);
-  const { data, error } = await supabase.functions.invoke('ryze-proxy', {
+  const { data, error } = await supabase.functions.invoke('waha-proxy', {
     body: { action, ...payload },
   });
 
   if (error) {
-    console.error(`[ryzeService] Erro retornado pela Edge Function para '${action}':`, error);
-    let errorMessage = error.message || 'Erro de comunicação com a API do WhatsApp';
+    let errorMessage = error.message || 'Erro de comunicação com o WhatsApp';
     try {
       if ('context' in error && (error as any).context) {
         const ctx = await (error as any).context.json();
-        if (ctx?.error) {
-          errorMessage = typeof ctx.error === 'string' ? ctx.error : JSON.stringify(ctx.error);
-        }
-        if (ctx?.details?.message) {
-          errorMessage += `: ${ctx.details.message}`;
-        } else if (ctx?.details?.error) {
-          errorMessage += `: ${typeof ctx.details.error === 'string' ? ctx.details.error : JSON.stringify(ctx.details.error)}`;
-        }
+        if (ctx?.error) errorMessage = typeof ctx.error === 'string' ? ctx.error : JSON.stringify(ctx.error);
+        if (ctx?.details?.message) errorMessage += `: ${ctx.details.message}`;
       }
-    } catch {
-      // fallback
-    }
-    if (errorMessage.includes('non-2xx status code')) {
-      errorMessage = 'Falha na Ryze API: Verifique se a chave RYZE_TOKEN_ACCOUNT está configurada nos Secrets do Supabase.';
-    }
+    } catch { /* mantém a mensagem original */ }
     throw new Error(errorMessage);
   }
 
   if (data?.error) {
-    console.error(`[ryzeService] Resposta da Ryze API com erro para '${action}':`, data);
-    let errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-    if (data?.details?.message) {
-      errorMessage += `: ${data.details.message}`;
-    } else if (data?.details?.error) {
-      errorMessage += `: ${typeof data.details.error === 'string' ? data.details.error : JSON.stringify(data.details.error)}`;
-    }
-    throw new Error(errorMessage);
+    const message = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+    throw new Error(message);
   }
-
-  console.log(`[ryzeService] Sucesso na ação '${action}':`, data);
   return data;
 }
 
+// Mantém a interface utilizada pelas telas atuais para reduzir mudanças arriscadas.
+// O transporte agora é WAHA; nenhuma chamada do navegador acessa a chave da API.
 export const ryze = {
   syncInstances: () => invoke('sync_instances'),
   createInstance: (name: string) => invoke('create_instance', { name }),
@@ -65,7 +46,6 @@ export const ryze = {
     invoke('get_profile_pic', { instance_id, wa_chat_id }),
 };
 
-// Convenience helpers
 export async function sendWhatsappMessage(instanceId: string, number: string, text: string) {
   return ryze.sendText(instanceId, number, text);
 }

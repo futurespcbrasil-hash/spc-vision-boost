@@ -533,10 +533,8 @@ const WhatsAppAjustes = () => {
             {qrOpen?.qr_code ? (
               <>
                 <img src={qrOpen.qr_code} alt="QR Code" className="w-64 h-64 rounded-lg border bg-white p-2 object-contain"
-                  onError={e => {
-                    const img = e.currentTarget;
-                    if (qrOpen?.qr_code && !img.src.includes('qrserver.com'))
-                      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrOpen.qr_code)}`;
+                  onError={() => {
+                    toast({ title: 'QR Code indisponível', description: 'Atualize o status da instância e tente conectar novamente.', variant: 'destructive' });
                   }}
                 />
                 <p className="text-xs font-medium text-green-600 animate-pulse">Aguardando leitura do QR Code...</p>
@@ -544,7 +542,7 @@ const WhatsAppAjustes = () => {
             ) : (
               <div className="w-64 h-64 flex flex-col items-center justify-center bg-muted rounded-lg gap-2">
                 <QrCode size={64} className="text-muted-foreground/30 animate-pulse"/>
-                <p className="text-xs text-muted-foreground">Gerando QR Code pela API Ryze...</p>
+                <p className="text-xs text-muted-foreground">Gerando QR Code pela WAHA...</p>
               </div>
             )}
             <p className="text-xs text-muted-foreground">WhatsApp → Dispositivos conectados → Vincular dispositivo</p>
