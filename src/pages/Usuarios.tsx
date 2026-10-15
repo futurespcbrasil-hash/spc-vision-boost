@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Plus, RefreshCw, Save, ShieldCheck, Users, X } from 'lucide-react';
+import { Loader2, Pencil, Plus, RefreshCw, Save, ShieldCheck, Trash2, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,6 +28,11 @@ const UsersPage = () => {
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [accountEditing, setAccountEditing] = useState<ManagedUser | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState<UserRole>('vendedor');
+  const [editPassword, setEditPassword] = useState('');
   const [selectedModules, setSelectedModules] = useState<UserModuleKey[]>([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -79,6 +84,23 @@ const UsersPage = () => {
     setNewRole('vendedor');
     setShowForm(false);
     await loadUsers();
+  };
+
+  const startEditAccount = (u: ManagedUser) => { setAccountEditing(u); setEditName(u.name || ''); setEditEmail(u.email || ''); setEditRole(u.role); setEditPassword(''); setEditingUser(null); setShowForm(false); };
+
+  const saveAccount = async (event: React.FormEvent) => {
+    event.preventDefault(); if (!accountEditing) return; setSaving(true);
+    const { data, error } = await supabase.functions.invoke('user-admin', { body: { action: 'update', user_id: accountEditing.id, name: editName.trim(), email: editEmail.trim().toLowerCase(), role: editRole, password: editPassword } });
+    setSaving(false); if (error || data?.error) { toast.error(data?.error || error?.message || 'Falha ao atualizar usuário.'); return; }
+    toast.success('Usuário atualizado.'); setAccountEditing(null); await loadUsers();
+  };
+
+  const deleteUser = async (u: ManagedUser) => {
+    if (u.id === user?.id) { toast.error('Não é possível excluir a própria conta.'); return; }
+    if (!window.confirm('Excluir o usuário ' + (u.name || u.email) + '? Esta ação não pode ser desfeita.')) return;
+    setSaving(true); const { data, error } = await supabase.functions.invoke('user-admin', { body: { action: 'delete', user_id: u.id } }); setSaving(false);
+    if (error || data?.error) { toast.error(data?.error || error?.message || 'Falha ao excluir usuário.'); return; }
+    toast.success('Usuário excluído.'); if (editingUser?.id === u.id) setEditingUser(null); await loadUsers();
   };
 
   const savePermissions = async () => {
