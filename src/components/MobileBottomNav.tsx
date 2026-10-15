@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
-  MoreHorizontal, UserCog, LogOut, MessageCircle, MessageSquare, X, Target, Handshake, Building2, StickyNote, Search, FileText
+  MoreHorizontal, UserCog, LogOut, MessageCircle, MessageSquare, X, Target, Handshake, Building2, StickyNote, Search, FileText,
+  Package, Layers, Link2, Monitor, History, Cog, Wallet
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -25,6 +26,16 @@ const MobileBottomNav = () => {
     { to: '/consultas/cnpj', icon: Building2, label: '— Consulta Receita', moduleKey: 'consulta_cnpj' },
     { to: '/consultas/sintegra', icon: FileText, label: '— Consulta Sintegra', moduleKey: 'consulta_sintegra' },
     { to: '/consultas/cnpj-lote', icon: Building2, label: '— Consulta CNPJ em Lote', moduleKey: 'consulta_cnpj_lote' },
+    { to: '/produtos', icon: Package, label: 'Produtos', moduleKey: 'produtos' },
+    { to: '/comparador', icon: Layers, label: 'Comparador', moduleKey: 'comparador' },
+    { to: '/gerar-link', icon: Link2, label: 'Gerar Link', moduleKey: 'gerar_link' },
+    { to: '/future-remote', icon: Monitor, label: 'Future Remote', moduleKey: 'future_remote' },
+    { to: '/future-remote/computadores', icon: Monitor, label: '— Computadores', moduleKey: 'future_remote' },
+    { to: '/future-remote/historico', icon: History, label: '— Histórico Remote', moduleKey: 'future_remote' },
+    { to: '/future-remote/configuracoes', icon: Cog, label: '— Configurações Remote', moduleKey: 'future_remote' },
+    { to: '/financeiro/boletos', icon: Wallet, label: 'Financeiro — Boletos', moduleKey: 'financeiro' },
+    { to: '/financeiro/clientes', icon: Wallet, label: '— Clientes Financeiro', moduleKey: 'financeiro' },
+    { to: '/revendas', icon: Building2, label: 'Revendas', moduleKey: 'revendas' },
     { to: '/agenda', icon: Calendar, label: 'Agenda', moduleKey: 'agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios', moduleKey: 'relatorios' },
     { to: '/metas', icon: Target, label: 'Metas', moduleKey: 'metas' },
