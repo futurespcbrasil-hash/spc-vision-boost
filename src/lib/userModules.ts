@@ -15,6 +15,7 @@ export const USER_MODULES = [
   { key: 'future_remote', label: 'Future Remote', description: 'Computadores, histórico e suporte' },
   { key: 'comissoes', label: 'Comissões', description: 'Relatórios e cadastro de vendedores' },
   { key: 'parceiros', label: 'Parceiros SPC', description: 'Parceiros, indicações e relatórios' },
+  { key: 'indicacoes_atendimento', label: 'Indicações (Atendimento)', description: 'Cadastro de clientes indicados pelo Atendimento' },
   { key: 'financeiro', label: 'Financeiro', description: 'Boletos e clientes financeiros' },
   { key: 'produtos', label: 'Produtos', description: 'Catálogo de produtos' },
   { key: 'comparador', label: 'Comparador', description: 'Comparações comerciais' },
@@ -32,5 +33,5 @@ export const DEFAULT_MODULES_BY_ROLE: Record<'vendedor' | 'gestor' | 'atendiment
     'consultas_spc', 'consulta_cnpj', 'consulta_sintegra', 'comparador', 'gerar_link', 'perfil',
   ],
   gestor: USER_MODULES.map((module) => module.key) as UserModuleKey[],
-  atendimento: ['dashboard', 'leads', 'agenda', 'chat', 'whatsapp', 'financeiro', 'perfil'],
+  atendimento: ['dashboard', 'leads', 'agenda', 'chat', 'whatsapp', 'financeiro', 'perfil', 'indicacoes_atendimento'],
 };
