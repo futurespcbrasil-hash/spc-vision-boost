@@ -113,6 +113,8 @@ const AppSidebar = () => {
             {!collapsed && <span>Revendas</span>}
           </Link>
         )}
+        {['consultas_spc', 'consulta_cnpj', 'consulta_sintegra', 'consulta_cnpj_lote'].some(key => canAccessModule(key)) && (
+          <>
         <button
           onClick={() => setConsultasOpen(!consultasOpen)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
@@ -145,6 +147,11 @@ const AppSidebar = () => {
         )}
 
 
+          </>
+        )}
+
+        {canAccessModule('whatsapp') && (
+          <>
         <button
           onClick={() => setWhatsappOpen(!whatsappOpen)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
@@ -176,6 +183,11 @@ const AppSidebar = () => {
           </div>
         )}
 
+          </>
+        )}
+
+        {canAccessModule('future_remote') && (
+          <>
         <button
           onClick={() => setRemoteOpen(!remoteOpen)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
@@ -207,6 +219,11 @@ const AppSidebar = () => {
           </div>
         )}
 
+          </>
+        )}
+
+        {canAccessModule('financeiro') && (
+          <>
         <button
           onClick={() => setFinOpen(!finOpen)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
@@ -242,6 +259,9 @@ const AppSidebar = () => {
               <span>Clientes</span>
             </Link>
           </div>
+        )}
+
+          </>
         )}
 
         {role === 'gestor' && (
@@ -282,6 +302,8 @@ const AppSidebar = () => {
           </>
         )}
 
+        {canAccessModule('parceiros') && (
+          <>
         <button
           onClick={() => setParceirosOpen(!parceirosOpen)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
@@ -315,6 +337,9 @@ const AppSidebar = () => {
             ))}
           </div>
         )}
+          </>
+        )}
+
       </nav>
 
 
