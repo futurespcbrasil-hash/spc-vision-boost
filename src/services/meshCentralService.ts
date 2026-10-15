@@ -26,7 +26,11 @@ export const syncDevices = () =>
 export const getRemoteUrl = (meshDeviceId: string) =>
   invoke<{ url?: string; error?: string; message?: string }>('remote_url', { mesh_device_id: meshDeviceId });
 
-/** Validação pública do código de atendimento (usada na página /suporte). */
+/** Obtém a mesma URL de download do agente, sem exigir código de atendimento. */
+export const getAgentDownloadUrl = () =>
+  invoke<{ agent_download_url?: string | null }>('agent_download_url');
+
+/** Validação pública do código de atendimento (mantida para compatibilidade com registros antigos). */
 export const validateCode = (code: string) =>
   invoke<{
     valid: boolean;
