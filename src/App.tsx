@@ -45,7 +45,6 @@ const CadastroVendedores = lazy(() => import("@/pages/CadastroVendedores"));
 const Revendas = lazy(() => import("@/pages/Revendas"));
 const Suporte = lazy(() => import("@/pages/Suporte"));
 const FutureRemoteDashboard = lazy(() => import("@/pages/remote/FutureRemoteDashboard"));
-const RemoteSolicitacoes = lazy(() => import("@/pages/remote/Solicitacoes"));
 const RemoteComputadores = lazy(() => import("@/pages/remote/Computadores"));
 const RemoteHistorico = lazy(() => import("@/pages/remote/Historico"));
 const RemoteConfiguracoes = lazy(() => import("@/pages/remote/Configuracoes"));
@@ -111,7 +110,7 @@ const ProtectedRoutes = () => {
             <Route path="/financeiro/clientes" element={<AppLayout><BoletosWhatsApp initialTab="clientes" /></AppLayout>} />
             <Route path="/financeiro/boletos" element={<AppLayout><BoletosWhatsApp /></AppLayout>} />
             <Route path="/future-remote" element={<AppLayout><FutureRemoteDashboard /></AppLayout>} />
-            <Route path="/future-remote/solicitacoes" element={<AppLayout><RemoteSolicitacoes /></AppLayout>} />
+            <Route path="/future-remote/solicitacoes" element={<Navigate to="/future-remote/computadores" replace />} />
             <Route path="/future-remote/computadores" element={<AppLayout><RemoteComputadores /></AppLayout>} />
             <Route path="/future-remote/historico" element={<AppLayout><RemoteHistorico /></AppLayout>} />
             <Route path="/future-remote/configuracoes" element={<AppLayout><RemoteConfiguracoes /></AppLayout>} />

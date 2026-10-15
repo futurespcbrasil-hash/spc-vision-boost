@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText,
-  Monitor, LifeBuoy, History, Cog, Wallet
+  Monitor, History, Cog, Wallet
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +22,6 @@ const AppSidebar = () => {
 
   const REMOTE_SUB = [
     { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/future-remote/solicitacoes', icon: LifeBuoy, label: 'Solicitações' },
     { to: '/future-remote/computadores', icon: Monitor, label: 'Computadores' },
     { to: '/future-remote/historico', icon: History, label: 'Histórico' },
     { to: '/future-remote/configuracoes', icon: Cog, label: 'Configurações' },
