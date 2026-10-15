@@ -105,7 +105,7 @@ const ClientesIndicadosAtendimento = () => {
   };
 
   const remove = async (row: Indicacao) => {
-    if (!window.confirm(\`Deseja excluir a indicação de "\${row.nome}"? Esta ação não pode ser desfeita.\`)) return;
+    if (!window.confirm(`Deseja excluir a indicação de "${row.nome}"? Esta ação não pode ser desfeita.`)) return;
     const { error } = await (supabase as any).from('atendimento_indicacoes').delete().eq('id', row.id);
     if (error) { toast.error('Não foi possível excluir: ' + error.message); return; }
     toast.success('Indicação excluída.');
@@ -154,17 +154,30 @@ const ClientesIndicadosAtendimento = () => {
           email: record.email || null, cidade: record.cidade || null, observacoes: record.observacoes || null,
         });
       }
-      if (!toInsert.length) { toast.warning(\`Nenhum registro novo para importar. Ignorados: \${skipped}; inválidos: \${invalid}.\`); return; }
+      if (!toInsert.length) { toast.warning(`Nenhum registro novo para importar. Ignorados: ${skipped}; inválidos: ${invalid}.`); return; }
       let inserted = 0;
+      let duplicateSkipped = 0;
       const errors: string[] = [];
       for (let i = 0; i < toInsert.length; i += 100) {
         const batch = toInsert.slice(i, i + 100);
         const { error } = await (supabase as any).from('atendimento_indicacoes').insert(batch);
-        if (error) errors.push(error.message); else inserted += batch.length;
+        if (!error) {
+          inserted += batch.length;
+          continue;
+        }
+        // A duplicate CNPJ under another Atendimento user must not discard valid rows.
+        if (error.code === '23505') {
+          for (const item of batch) {
+            const { error: rowError } = await (supabase as any).from('atendimento_indicacoes').insert(item);
+            if (!rowError) inserted++;
+            else if (rowError.code === '23505') duplicateSkipped++;
+            else errors.push(rowError.message);
+          }
+        } else errors.push(error.message);
       }
       await load();
-      if (errors.length) toast.error(\`Importação parcial: \${inserted} inseridos. Erro: \${errors[0]}\`);
-      else toast.success(\`Importação concluída: \${inserted} inseridos, \${skipped} duplicados ignorados e \${invalid} linhas inválidas.\`);
+      if (errors.length) toast.error(`Importação parcial: ${inserted} inseridos, ${skipped + duplicateSkipped} duplicados ignorados. Erro: ${errors[0]}`);
+      else toast.success(`Importação concluída: ${inserted} inseridos, ${skipped + duplicateSkipped} duplicados ignorados e ${invalid} linhas inválidas.`);
     } catch {
       toast.error('Falha ao ler a planilha. Use um arquivo Excel (.xlsx/.xls) válido.');
     } finally {
