@@ -107,8 +107,23 @@ Deno.serve(async (req: Request) => {
           await callWaha(`/api/sessions/${session}/start`, "POST", {});
           status = await callWaha(`/api/sessions/${session}`).catch(() => status);
         }
-        const qr = await callWaha(`/api/${session}/auth/qr?format=raw`).catch(() => null);
-        const qrValue = typeof qr === "string" ? qr : qr?.data || qr?.value || qr?.qr || null;
+        // Busca a imagem diretamente da WAHA para não enviar o código de pareamento a serviços de terceiros.
+        const qrResponse = await fetch(`${wahaUrl}/api/${session}/auth/qr?format=image`, {
+          headers: { "X-Api-Key": wahaKey },
+        }).catch(() => null);
+        let qrValue: string | null = null;
+        if (qrResponse?.ok) {
+          const contentType = qrResponse.headers.get("content-type") || "";
+          if (contentType.startsWith("image/")) {
+            const bytes = new Uint8Array(await qrResponse.arrayBuffer());
+            let binary = "";
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            qrValue = `data:${contentType};base64,${btoa(binary)}`;
+          } else {
+            const qrData = await qrResponse.json().catch(() => null);
+            qrValue = qrData?.data || qrData?.value || qrData?.qr || null;
+          }
+        }
         const normalized = normalizeStatus(String(status?.status || "STARTING"));
         await db.from("whatsapp_instances").update({ status: normalized, qr_code: qrValue }).eq("id", inst.id).eq("owner_id", user.id);
         return json({ status: normalized, qr: qrValue, raw: status, already_connected: normalized === "connected", instance: inst });
