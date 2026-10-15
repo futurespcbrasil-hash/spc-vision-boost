@@ -22,7 +22,6 @@ const AppSidebar = () => {
 
   const REMOTE_SUB = [
     { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/future-remote/solicitacoes', icon: LifeBuoy, label: 'Solicitações' },
     { to: '/future-remote/computadores', icon: Monitor, label: 'Computadores' },
     { to: '/future-remote/historico', icon: History, label: 'Histórico' },
     { to: '/future-remote/configuracoes', icon: Cog, label: 'Configurações' },
