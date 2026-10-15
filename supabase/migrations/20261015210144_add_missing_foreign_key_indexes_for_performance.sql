@@ -1,0 +1,25 @@
+-- Performance indexes for foreign-key columns flagged by Supabase advisors.
+create index if not exists idx_boleto_envio_logs_boleto_id on public.boleto_envio_logs (boleto_id);
+create index if not exists idx_boleto_envios_client_id on public.boleto_envios (client_id);
+create index if not exists idx_future_remote_requests_attended_by on public.future_remote_requests (attended_by);
+create index if not exists idx_future_remote_requests_created_by on public.future_remote_requests (created_by);
+create index if not exists idx_future_remote_sessions_attended_by on public.future_remote_sessions (attended_by);
+create index if not exists idx_future_remote_sessions_device_id on public.future_remote_sessions (device_id);
+create index if not exists idx_importacoes_comissoes_user_id on public.importacoes_comissoes (user_id);
+create index if not exists idx_imported_tables_user_id on public.imported_tables (user_id);
+create index if not exists idx_leads_user_id on public.leads (user_id);
+create index if not exists idx_remote_clients_user_id on public.remote_clients (user_id);
+create index if not exists idx_remote_sessions_client_id on public.remote_sessions (client_id);
+create index if not exists idx_remote_sessions_user_id on public.remote_sessions (user_id);
+create index if not exists idx_remote_users_permissions_client_id on public.remote_users_permissions (client_id);
+create index if not exists idx_remote_users_permissions_device_id on public.remote_users_permissions (device_id);
+create index if not exists idx_remote_users_permissions_owner_id on public.remote_users_permissions (owner_id);
+create index if not exists idx_remote_users_permissions_user_id on public.remote_users_permissions (user_id);
+create index if not exists idx_schedule_events_user_id on public.schedule_events (user_id);
+create index if not exists idx_user_module_permissions_updated_by on public.user_module_permissions (updated_by);
+create index if not exists idx_vendas_indicadas_cliente_indicado_id on public.vendas_indicadas (cliente_indicado_id);
+create index if not exists idx_vendedores_comissoes_user_id on public.vendedores_comissoes (user_id);
+create index if not exists idx_whatsapp_chat_labels_label_id on public.whatsapp_chat_labels (label_id);
+create index if not exists idx_whatsapp_labels_user_id on public.whatsapp_labels (user_id);
+create index if not exists idx_whatsapp_messages_sent_by on public.whatsapp_messages (sent_by);
+create index if not exists idx_whatsapp_quick_replies_user_id on public.whatsapp_quick_replies (user_id);
