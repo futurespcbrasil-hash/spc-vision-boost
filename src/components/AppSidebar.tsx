@@ -264,7 +264,7 @@ const AppSidebar = () => {
           </>
         )}
 
-        {role === 'gestor' && (
+        {(role === 'gestor' || canManageUsers) && canAccessModule('comissoes') && (
           <>
             <button
               onClick={() => setComissoesOpen(!comissoesOpen)}
