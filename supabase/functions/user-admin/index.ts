@@ -139,6 +139,7 @@ Deno.serve(async (req: Request) => {
       const role = String(body.role || "");
       const password = String(body.password || "");
       if (!targetUserId || !name || !email) return json({ error: "Informe nome e e-mail." }, 400);
+      if (targetUserId === user.id) return json({ error: "Edite seus próprios dados pela página Perfil." }, 403);
       if (!["vendedor", "gestor", "atendimento"].includes(role)) return json({ error: "Tipo de usuário inválido." }, 400);
       if (password && password.length < 6) return json({ error: "A nova senha deve ter pelo menos 6 caracteres." }, 400);
 
@@ -174,7 +175,7 @@ Deno.serve(async (req: Request) => {
       }
 
       if (role === "vendedor") {
-        const { data: salesperson } = await admin.from("vendedores_comissoes").select("id").eq("user_id", targetUserId).maybeSingle();
+        const { data: salesperson } = await admin.from("vendedores_comissoes").select("user_id").eq("user_id", targetUserId).maybeSingle();
         if (!salesperson) {
           const { error: salespersonError } = await admin.from("vendedores_comissoes").insert({ nome: name, user_id: targetUserId, email });
           if (salespersonError) throw salespersonError;
