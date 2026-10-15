@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Plus, RefreshCw, Save, ShieldCheck, Users, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Loader2, Plus, RefreshCw, Save, ShieldCheck, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +22,7 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 const UsersPage = () => {
-  const { user, role, canManageUsers } = useAuth();
+  const { user, canManageUsers } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,7 +57,7 @@ const UsersPage = () => {
   const startPermissions = (managedUser: ManagedUser) => {
     setEditingUser(managedUser);
     const saved = managedUser.permissions.filter((item) => item.can_access).map((item) => item.module_key as UserModuleKey);
-    setSelectedModules(saved.length ? saved : DEFAULT_MODULES_BY_ROLE[managedUser.role]);
+    setSelectedModules(managedUser.permissions.length ? saved : DEFAULT_MODULES_BY_ROLE[managedUser.role]);
   };
 
   const createUser = async (event: React.FormEvent) => {
@@ -97,7 +97,6 @@ const UsersPage = () => {
     await loadUsers();
   };
 
-  const allSelected = useMemo(() => selectedModules.length === USER_MODULES.length, [selectedModules]);
 
   if (!canManageUsers) {
     return <div className="p-8 text-center"><ShieldCheck className="mx-auto mb-3" /><h1 className="text-xl font-semibold">Acesso restrito</h1><p className="text-muted-foreground mt-2">Somente o responsável principal ou um gestor pode administrar usuários.</p></div>;
