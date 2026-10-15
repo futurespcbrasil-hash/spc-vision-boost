@@ -12,7 +12,7 @@ import { meshStatus } from '@/services/meshCentralService';
 const Configuracoes = () => {
   const { role } = useAuth();
   const isGestor = role === 'gestor';
-  const [settings, setSettings] = useState<any>({ mesh_group: 'Future Remote', code_ttl_minutes: 10, public_support_url: '' });
+  const [settings, setSettings] = useState<any>({ mesh_group: 'Future Remote', public_support_url: '' });
   const [testando, setTestando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -28,7 +28,6 @@ const Configuracoes = () => {
   const salvar = async () => {
     const payload = {
       mesh_group: settings.mesh_group,
-      code_ttl_minutes: Number(settings.code_ttl_minutes) || 10,
       public_support_url: settings.public_support_url || publicUrl,
       singleton: true,
     };
@@ -82,9 +81,6 @@ const Configuracoes = () => {
           <div><Label>Grupo MeshCentral</Label>
             <Input value={settings.mesh_group ?? ''} disabled={!isGestor}
               onChange={(e) => setSettings({ ...settings, mesh_group: e.target.value })} /></div>
-          <div><Label>Tempo padrão do código (minutos)</Label>
-            <Input type="number" min={1} value={settings.code_ttl_minutes ?? 10} disabled={!isGestor}
-              onChange={(e) => setSettings({ ...settings, code_ttl_minutes: e.target.value })} /></div>
           <div><Label>Link público de suporte</Label>
             <Input value={settings.public_support_url || publicUrl} disabled={!isGestor}
               onChange={(e) => setSettings({ ...settings, public_support_url: e.target.value })} /></div>
