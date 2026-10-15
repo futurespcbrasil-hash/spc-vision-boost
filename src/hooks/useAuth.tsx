@@ -35,41 +35,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data: p } = await (supabase as any)
-        .from('profiles')
-        .select('full_name')
-        .eq('id', userId)
-        .maybeSingle();
+      const [{ data: p, error: profileError }, { data: roles, error: rolesError }] = await Promise.all([
+        (supabase as any)
+          .from('profiles')
+          .select('display_name, email')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        (supabase as any)
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId),
+      ]);
 
-      if (p) {
-        setProfile({
-          display_name: p.full_name || '',
-          email: (await supabase.auth.getUser()).data.user?.email || '',
-        });
-      }
+      if (profileError) throw profileError;
+      if (rolesError) throw rolesError;
 
-      const { data: membership } = await (supabase as any)
-        .from('account_members')
-        .select('role, account_id')
-        .eq('user_id', userId)
-        .eq('active', true)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      const authUser = (await supabase.auth.getUser()).data.user;
+      setProfile(p ? {
+        display_name: p.display_name || '',
+        email: p.email || authUser?.email || '',
+      } : {
+        display_name: String(authUser?.user_metadata?.display_name || ''),
+        email: authUser?.email || '',
+      });
 
-      if (membership) {
-        setRole(membership.role === 'administrador' || membership.role === 'gestor' ? 'gestor' : 'vendedor');
-        const { data: account } = await (supabase as any)
-          .from('accounts')
-          .select('account_type')
-          .eq('id', membership.account_id)
-          .maybeSingle();
-        setAccountType((account?.account_type as AccountType) || null);
-      } else {
-        setAccountType(null);
-      }
+      // Gestor tem prioridade se houver mais de um registro de papel.
+      setRole(roles?.some((item: { role: string }) => item.role === 'gestor') ? 'gestor' : 'vendedor');
+      setAccountType(null);
     } catch (e) {
       console.error('fetchProfile error', e);
+      // Não bloquear o login por falha ao carregar perfil.
+      setProfile(null);
+      setRole('vendedor');
+      setAccountType(null);
     }
   };
 
