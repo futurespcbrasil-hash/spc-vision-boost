@@ -53,6 +53,7 @@ const Notas = lazyWithRetry(() => import("@/pages/Notas"));
 const ParceirosDashboard = lazyWithRetry(() => import("@/pages/parceiros-spc/ParceirosDashboard"));
 const Parceiros = lazyWithRetry(() => import("@/pages/parceiros-spc/Parceiros"));
 const ClientesIndicados = lazyWithRetry(() => import("@/pages/parceiros-spc/ClientesIndicados"));
+const ClientesIndicadosAtendimento = lazyWithRetry(() => import("@/pages/indicacoes/ClientesIndicadosAtendimento"));
 const ParceirosRelatorios = lazyWithRetry(() => import("@/pages/parceiros-spc/Relatorios"));
 const ConsultaSPC = lazyWithRetry(() => import("@/pages/ConsultaSPC"));
 const ConsultaCNPJ = lazyWithRetry(() => import("@/pages/cnpj/ConsultaCNPJ"));
@@ -119,6 +120,7 @@ const ProtectedRoutes = () => {
             <Route path="/parceiros-spc" element={<AppLayout><ParceirosDashboard /></AppLayout>} />
             <Route path="/parceiros-spc/parceiros" element={<AppLayout><Parceiros /></AppLayout>} />
             <Route path="/parceiros-spc/clientes" element={<AppLayout><ClientesIndicados /></AppLayout>} />
+            <Route path="/indicacoes/clientes" element={<AppLayout><ClientesIndicadosAtendimento /></AppLayout>} />
             <Route path="/parceiros-spc/relatorios" element={<AppLayout><ParceirosRelatorios /></AppLayout>} />
             <Route path="/consultas" element={<AppLayout><ConsultaSPC /></AppLayout>} />
             <Route path="/consultas/cnpj" element={<AppLayout><ConsultaCNPJ /></AppLayout>} />
