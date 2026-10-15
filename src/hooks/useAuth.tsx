@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
-type AppRole = 'vendedor' | 'gestor';
+export type AppRole = 'vendedor' | 'gestor' | 'atendimento';
 type AccountType = 'dono_app' | 'revenda' | 'parceiro' | 'usuario_final' | null;
 
 interface AuthContextType {
@@ -12,6 +12,9 @@ interface AuthContextType {
   role: AppRole;
   accountType: AccountType;
   loading: boolean;
+  canManageUsers: boolean;
+  modulePermissions: Record<string, boolean> | null;
+  canAccessModule: (moduleKey: string) => boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, displayName: string, role: AppRole) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -25,30 +28,28 @@ export const useAuth = () => {
   return ctx;
 };
 
+const OWNER_EMAIL = 'dalprapf1@gmail.com';
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<{ display_name: string; email: string } | null>(null);
   const [role, setRole] = useState<AppRole>('vendedor');
   const [accountType, setAccountType] = useState<AccountType>(null);
+  const [modulePermissions, setModulePermissions] = useState<Record<string, boolean> | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
     try {
-      const [{ data: p, error: profileError }, { data: roles, error: rolesError }] = await Promise.all([
-        (supabase as any)
-          .from('profiles')
-          .select('display_name, email')
-          .eq('user_id', userId)
-          .maybeSingle(),
-        (supabase as any)
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', userId),
+      const [{ data: p, error: profileError }, { data: roles, error: rolesError }, { data: permissions, error: permissionsError }] = await Promise.all([
+        (supabase as any).from('profiles').select('display_name, email').eq('user_id', userId).maybeSingle(),
+        (supabase as any).from('user_roles').select('role').eq('user_id', userId),
+        (supabase as any).from('user_module_permissions').select('module_key, can_access').eq('user_id', userId),
       ]);
 
       if (profileError) throw profileError;
       if (rolesError) throw rolesError;
+      if (permissionsError) throw permissionsError;
 
       const authUser = (await supabase.auth.getUser()).data.user;
       setProfile(p ? {
@@ -59,14 +60,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         email: authUser?.email || '',
       });
 
-      // Gestor tem prioridade se houver mais de um registro de papel.
-      setRole(roles?.some((item: { role: string }) => item.role === 'gestor') ? 'gestor' : 'vendedor');
+      const roleRows = roles || [];
+      setRole(roleRows.some((item: { role: string }) => item.role === 'gestor')
+        ? 'gestor'
+        : roleRows.some((item: { role: string }) => item.role === 'atendimento')
+          ? 'atendimento'
+          : 'vendedor');
+
+      const permissionRows = permissions || [];
+      setModulePermissions(permissionRows.length
+        ? Object.fromEntries(permissionRows.map((item: { module_key: string; can_access: boolean }) => [item.module_key, item.can_access]))
+        : null);
       setAccountType(null);
     } catch (e) {
       console.error('fetchProfile error', e);
-      // Não bloquear o login por falha ao carregar perfil.
       setProfile(null);
       setRole('vendedor');
+      setModulePermissions({});
       setAccountType(null);
     }
   };
@@ -80,6 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setProfile(null);
         setRole('vendedor');
+        setModulePermissions(null);
         setAccountType(null);
       }
       setLoading(false);
@@ -89,6 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) fetchProfile(s.user.id);
+      else setModulePermissions(null);
       setLoading(false);
     });
 
@@ -116,8 +128,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
   };
 
+  const canManageUsers = Boolean(
+    user?.email?.toLowerCase() === OWNER_EMAIL || role === 'gestor'
+  );
+
+  const canAccessModule = (moduleKey: string) => {
+    if (user?.email?.toLowerCase() === OWNER_EMAIL) return true;
+    if (role === 'gestor' && moduleKey === 'usuarios') return true;
+    if (modulePermissions === null) return true;
+    return modulePermissions[moduleKey] === true;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, role, accountType, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{
+      user, session, profile, role, accountType, loading, canManageUsers,
+      modulePermissions, canAccessModule, signIn, signUp, signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );
