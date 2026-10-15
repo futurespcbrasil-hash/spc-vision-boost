@@ -150,7 +150,16 @@ Deno.serve(async (req) => {
 
     if (!action) return json({ error: 'action_required' }, 400)
 
-    // Validação pública do código de suporte
+    // URL pública de download do agente. Mantém exatamente o mesmo destino usado pelo fluxo antigo.
+    if (action === 'agent_download_url') {
+      return json({
+        agent_download_url: MESH_URL
+          ? `${MESH_URL}/agentinvite`
+          : null,
+      })
+    }
+
+    // Validação pública do código de suporte (mantida para compatibilidade com registros antigos).
     if (action === 'validate_code') {
       const raw = String(body?.code ?? '').replace(/\D/g, '')
 
