@@ -77,11 +77,11 @@ const Auth = () => {
             <input
               className={inputClass}
               type="password"
+              autoComplete={isLogin ? "current-password" : "new-password"}
               placeholder="Senha"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              minLength={6}
             />
           </div>
 
