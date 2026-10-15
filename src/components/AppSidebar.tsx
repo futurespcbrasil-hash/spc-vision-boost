@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText,
-  Monitor, History, Cog, Wallet
+  Monitor, History, Cog, Wallet, Package, Link2
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,7 +37,9 @@ const AppSidebar = () => {
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'dashboard' },
     { to: '/crm', icon: GitBranch, label: 'Funil', moduleKey: 'crm' },
     { to: '/leads', icon: Users, label: 'Leads', moduleKey: 'leads' },
-    
+    { to: '/produtos', icon: Package, label: 'Produtos', moduleKey: 'produtos' },
+    { to: '/comparador', icon: Layers, label: 'Comparador', moduleKey: 'comparador' },
+    { to: '/gerar-link', icon: Link2, label: 'Gerar Link', moduleKey: 'gerar_link' },
     { to: '/agenda', icon: Calendar, label: 'Agenda', moduleKey: 'agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios', moduleKey: 'relatorios' },
     { to: '/metas', icon: Target, label: 'Metas', moduleKey: 'metas' },
