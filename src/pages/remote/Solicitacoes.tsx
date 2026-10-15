@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { generateCode, formatCode, getRemoteUrl } from '@/services/meshCentralService';
 import { StatusBadge, fmtDateTime, countdown } from './statusUtils';
 
+const CRM_PUBLIC_URL = 'https://crm.futuresolucoes.com.br';
 const PUBLIC_PATH = '/suporte';
 
 export const useRequests = () => {
@@ -55,7 +56,7 @@ const Solicitacoes = () => {
     loadDevices();
   }, []);
 
-  const publicUrl = useMemo(() => `${window.location.origin}${PUBLIC_PATH}`, []);
+  const publicUrl = `${CRM_PUBLIC_URL}${PUBLIC_PATH}`;
 
   const save = async () => {
     if (!form.client_name.trim()) { toast.error('Informe o nome do cliente'); return; }
