@@ -104,7 +104,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName, role: selectedRole } },
+      options: {
+        data: { display_name: displayName, role: selectedRole },
+        emailRedirectTo: window.location.origin,
+      },
     });
     return { error };
   };
