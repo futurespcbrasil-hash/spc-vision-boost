@@ -132,6 +132,81 @@ Deno.serve(async (req: Request) => {
       return json({ success: true });
     }
 
+    if (action === "update") {
+      const targetUserId = String(body.user_id || "");
+      const name = String(body.name || "").trim();
+      const email = String(body.email || "").trim().toLowerCase();
+      const role = String(body.role || "");
+      const password = String(body.password || "");
+      if (!targetUserId || !name || !email) return json({ error: "Informe nome e e-mail." }, 400);
+      if (!["vendedor", "gestor", "atendimento"].includes(role)) return json({ error: "Tipo de usuário inválido." }, 400);
+      if (password && password.length < 6) return json({ error: "A nova senha deve ter pelo menos 6 caracteres." }, 400);
+
+      const { data: targetAuth, error: targetAuthError } = await admin.auth.admin.getUserById(targetUserId);
+      if (targetAuthError || !targetAuth.user) return json({ error: "Usuário não encontrado." }, 404);
+      const targetEmail = (targetAuth.user.email || "").toLowerCase();
+      if (targetEmail === "dalprapf1@gmail.com" && !isOwner) return json({ error: "Somente o responsável principal pode editar esta conta." }, 403);
+      const { data: targetRoles } = await admin.from("user_roles").select("role").eq("user_id", targetUserId);
+      const targetIsGestor = targetRoles?.some((r) => r.role === "gestor") ?? false;
+      if (!isOwner && targetIsGestor) return json({ error: "Somente o responsável principal pode editar outro gestor." }, 403);
+      if (!isOwner && role === "gestor") return json({ error: "Somente o responsável principal pode conceder o perfil Gestor." }, 403);
+
+      const authUpdate: { email: string; email_confirm: boolean; user_metadata: { display_name: string }; password?: string } = {
+        email,
+        email_confirm: true,
+        user_metadata: { ...(targetAuth.user.user_metadata || {}), display_name: name },
+      };
+      if (password) authUpdate.password = password;
+      const { error: authUpdateError } = await admin.auth.admin.updateUserById(targetUserId, authUpdate);
+      if (authUpdateError) return json({ error: authUpdateError.message }, 400);
+
+      const { error: profileError } = await admin.from("profiles").upsert(
+        { user_id: targetUserId, display_name: name, email },
+        { onConflict: "user_id" },
+      );
+      if (profileError) throw profileError;
+
+      if (!targetRoles?.some((r) => r.role === role)) {
+        const { error: roleDeleteError } = await admin.from("user_roles").delete().eq("user_id", targetUserId);
+        if (roleDeleteError) throw roleDeleteError;
+        const { error: roleInsertError } = await admin.from("user_roles").insert({ user_id: targetUserId, role });
+        if (roleInsertError) throw roleInsertError;
+      }
+
+      if (role === "vendedor") {
+        const { data: salesperson } = await admin.from("vendedores_comissoes").select("id").eq("user_id", targetUserId).maybeSingle();
+        if (!salesperson) {
+          const { error: salespersonError } = await admin.from("vendedores_comissoes").insert({ nome: name, user_id: targetUserId, email });
+          if (salespersonError) throw salespersonError;
+        } else {
+          await admin.from("vendedores_comissoes").update({ nome: name, email }).eq("user_id", targetUserId);
+        }
+      } else {
+        await admin.from("vendedores_comissoes").delete().eq("user_id", targetUserId);
+      }
+      return json({ success: true });
+    }
+
+    if (action === "delete") {
+      const targetUserId = String(body.user_id || "");
+      if (!targetUserId) return json({ error: "Usuário não informado." }, 400);
+      if (targetUserId === user.id) return json({ error: "Não é possível excluir a própria conta." }, 400);
+      const { data: targetAuth, error: targetAuthError } = await admin.auth.admin.getUserById(targetUserId);
+      if (targetAuthError || !targetAuth.user) return json({ error: "Usuário não encontrado." }, 404);
+      if ((targetAuth.user.email || "").toLowerCase() === "dalprapf1@gmail.com") return json({ error: "A conta do responsável principal não pode ser excluída." }, 403);
+      const { data: targetRoles } = await admin.from("user_roles").select("role").eq("user_id", targetUserId);
+      if (!isOwner && targetRoles?.some((r) => r.role === "gestor")) {
+        return json({ error: "Somente o responsável principal pode excluir outro gestor." }, 403);
+      }
+      await admin.from("vendedores_comissoes").delete().eq("user_id", targetUserId);
+      await admin.from("user_module_permissions").delete().eq("user_id", targetUserId);
+      await admin.from("user_roles").delete().eq("user_id", targetUserId);
+      await admin.from("profiles").delete().eq("user_id", targetUserId);
+      const { error: deleteError } = await admin.auth.admin.deleteUser(targetUserId);
+      if (deleteError) throw deleteError;
+      return json({ success: true });
+    }
+
     if (action === "change_role") {
       const targetUserId = String(body.user_id || "");
       const role = String(body.role || "");
