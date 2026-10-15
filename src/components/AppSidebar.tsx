@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const AppSidebar = () => {
   const location = useLocation();
-  const { profile, role, accountType, signOut, canManageUsers, canAccessModule } = useAuth();
+  const { profile, role, signOut, canManageUsers, canAccessModule } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
@@ -18,7 +18,6 @@ const AppSidebar = () => {
   const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
   const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));
   const [finOpen, setFinOpen] = useState(location.pathname.startsWith('/financeiro'));
-  const isDonoApp = accountType === 'dono_app';
 
   const REMOTE_SUB = [
     { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'future_remote' },
