@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertTriangle, Apple, CheckCircle2, Download, Loader2, Monitor, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, Loader2, Monitor, ShieldCheck } from 'lucide-react';
 import { getAgentDownloadUrl } from '@/services/meshCentralService';
 
 const Suporte = () => {
