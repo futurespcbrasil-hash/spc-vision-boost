@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const AppSidebar = () => {
   const location = useLocation();
-  const { profile, role, accountType, signOut } = useAuth();
+  const { profile, role, accountType, signOut, canManageUsers, canAccessModule } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
@@ -21,46 +21,46 @@ const AppSidebar = () => {
   const isDonoApp = accountType === 'dono_app';
 
   const REMOTE_SUB = [
-    { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/future-remote/computadores', icon: Monitor, label: 'Computadores' },
-    { to: '/future-remote/historico', icon: History, label: 'Histórico' },
-    { to: '/future-remote/configuracoes', icon: Cog, label: 'Configurações' },
+    { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'future_remote' },
+    { to: '/future-remote/computadores', icon: Monitor, label: 'Computadores', moduleKey: 'future_remote' },
+    { to: '/future-remote/historico', icon: History, label: 'Histórico', moduleKey: 'future_remote' },
+    { to: '/future-remote/configuracoes', icon: Cog, label: 'Configurações', moduleKey: 'future_remote' },
   ];
 
   const CONSULTAS_SUB = [
-    { to: '/consultas', icon: Search, label: 'Consulta SPC' },
-    { to: '/consultas/cnpj', icon: Building2, label: 'Consulta Receita' },
-    { to: '/consultas/sintegra', icon: FileText, label: 'Consulta Sintegra' },
-    { to: '/consultas/cnpj-lote', icon: Layers, label: 'Consulta CNPJ em Lote' },
+    { to: '/consultas', icon: Search, label: 'Consulta SPC', moduleKey: 'consultas_spc' },
+    { to: '/consultas/cnpj', icon: Building2, label: 'Consulta Receita', moduleKey: 'consulta_cnpj' },
+    { to: '/consultas/sintegra', icon: FileText, label: 'Consulta Sintegra', moduleKey: 'consulta_sintegra' },
+    { to: '/consultas/cnpj-lote', icon: Layers, label: 'Consulta CNPJ em Lote', moduleKey: 'consulta_cnpj_lote' },
   ];
 
   const NAV_ITEMS = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/crm', icon: GitBranch, label: 'Funil' },
-    { to: '/leads', icon: Users, label: 'Leads' },
+    { to: '/', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'dashboard' },
+    { to: '/crm', icon: GitBranch, label: 'Funil', moduleKey: 'crm' },
+    { to: '/leads', icon: Users, label: 'Leads', moduleKey: 'leads' },
     
-    { to: '/agenda', icon: Calendar, label: 'Agenda' },
-    { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
-    { to: '/metas', icon: Target, label: 'Metas' },
-    { to: '/notas', icon: StickyNote, label: 'Notas' },
-    { to: '/chat', icon: MessageCircle, label: 'Chat Interno' },
+    { to: '/agenda', icon: Calendar, label: 'Agenda', moduleKey: 'agenda' },
+    { to: '/relatorios', icon: FileBarChart, label: 'Relatórios', moduleKey: 'relatorios' },
+    { to: '/metas', icon: Target, label: 'Metas', moduleKey: 'metas' },
+    { to: '/notas', icon: StickyNote, label: 'Notas', moduleKey: 'notas' },
+    { to: '/chat', icon: MessageCircle, label: 'Chat Interno', moduleKey: 'chat' },
   ];
 
   const COMISSOES_SUB = [
-    { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatórios' },
-    { to: '/cadastro-vendedores', icon: UserPlus, label: 'Cadastro Vendedores' },
+    { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatórios', moduleKey: 'comissoes' },
+    { to: '/cadastro-vendedores', icon: UserPlus, label: 'Cadastro Vendedores', moduleKey: 'comissoes' },
   ];
 
   const WHATSAPP_SUB = [
-    { to: '/whatsapp', icon: MessageSquare, label: 'Conversas' },
-    { to: '/whatsapp/ajustes', icon: Settings2, label: 'Ajustes' },
+    { to: '/whatsapp', icon: MessageSquare, label: 'Conversas', moduleKey: 'whatsapp' },
+    { to: '/whatsapp/ajustes', icon: Settings2, label: 'Ajustes', moduleKey: 'whatsapp' },
   ];
 
   const PARCEIROS_SUB = [
-    { to: '/parceiros-spc', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/parceiros-spc/parceiros', icon: Handshake, label: 'Parceiros' },
-    { to: '/parceiros-spc/clientes', icon: Building2, label: 'Clientes Indicados' },
-    { to: '/parceiros-spc/relatorios', icon: FileBarChart, label: 'Relatórios' },
+    { to: '/parceiros-spc', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'parceiros' },
+    { to: '/parceiros-spc/parceiros', icon: Handshake, label: 'Parceiros', moduleKey: 'parceiros' },
+    { to: '/parceiros-spc/clientes', icon: Building2, label: 'Clientes Indicados', moduleKey: 'parceiros' },
+    { to: '/parceiros-spc/relatorios', icon: FileBarChart, label: 'Relatórios', moduleKey: 'parceiros' },
   ];
 
   const renderNavItem = (item: typeof NAV_ITEMS[0], isActive: boolean) => (
@@ -96,12 +96,12 @@ const AppSidebar = () => {
       </div>
 
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.map(item => {
+        {NAV_ITEMS.filter(item => canAccessModule(item.moduleKey)).map(item => {
           return renderNavItem(item, location.pathname === item.to);
         })}
 
 
-        {isDonoApp && (
+        {canAccessModule('revendas') && (
           <Link
             to="/revendas"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
@@ -132,7 +132,7 @@ const AppSidebar = () => {
         </button>
         {!collapsed && consultasOpen && (
           <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
-            {CONSULTAS_SUB.map(sub => (
+            {CONSULTAS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
@@ -164,7 +164,7 @@ const AppSidebar = () => {
         </button>
         {!collapsed && whatsappOpen && (
           <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
-            {WHATSAPP_SUB.map(sub => (
+            {WHATSAPP_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
@@ -195,7 +195,7 @@ const AppSidebar = () => {
         </button>
         {!collapsed && remoteOpen && (
           <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
-            {REMOTE_SUB.map(sub => (
+            {REMOTE_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
@@ -265,7 +265,7 @@ const AppSidebar = () => {
             </button>
             {!collapsed && comissoesOpen && (
               <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
-                {COMISSOES_SUB.map(sub => (
+                {COMISSOES_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
                   <Link
                     key={sub.to}
                     to={sub.to}
@@ -301,7 +301,7 @@ const AppSidebar = () => {
         </button>
         {!collapsed && parceirosOpen && (
           <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
-            {PARCEIROS_SUB.map(sub => (
+            {PARCEIROS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link
                 key={sub.to}
                 to={sub.to}
@@ -325,6 +325,16 @@ const AppSidebar = () => {
             <div className="font-medium truncate">{profile.display_name || profile.email}</div>
             <div className="text-sidebar-foreground/50 capitalize">{role}</div>
           </div>
+        )}
+        {canManageUsers && (
+          <Link
+            to="/usuarios"
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition text-sm w-full ${collapsed ? 'justify-center' : ''} ${location.pathname === '/usuarios' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
+            title="Usuários"
+          >
+            <Users size={16} />
+            {!collapsed && <span>Usuários</span>}
+          </Link>
         )}
         <Link
           to="/perfil"
