@@ -70,7 +70,18 @@ Deno.serve(async (req: Request) => {
       const email = String(body.email || "").trim().toLowerCase();
       const password = String(body.password || "");
       const role = String(body.role || "");
-      const modules = Array.isArray(body.modules) ? body.modules.filter((m: unknown) => typeof m === "string" && MODULE_KEYS.includes(m)) : [];
+      const requestedModules = Array.isArray(body.modules) ? body.modules.filter((m: unknown) => typeof m === "string" && MODULE_KEYS.includes(m)) : [];
+      // Initial access is decided by the server, not by a client-supplied module list.
+      // Gestors start with every registered module; other roles receive their standard defaults.
+      const DEFAULT_MODULES_BY_ROLE: Record<string, string[]> = {
+        vendedor: [
+          "dashboard", "crm", "leads", "agenda", "relatorios", "metas", "notas", "chat",
+          "consultas_spc", "consulta_cnpj", "consulta_sintegra", "comparador", "gerar_link", "perfil",
+        ],
+        gestor: [...MODULE_KEYS],
+        atendimento: ["dashboard", "leads", "agenda", "chat", "whatsapp", "financeiro", "perfil"],
+      };
+      const modules = role in DEFAULT_MODULES_BY_ROLE ? DEFAULT_MODULES_BY_ROLE[role] : requestedModules;
       if (!name || !email || !password) return json({ error: "Informe nome, e-mail e senha." }, 400);
       if (password.length < 6) return json({ error: "A senha deve ter pelo menos 6 caracteres." }, 400);
       if (!["vendedor", "gestor", "atendimento"].includes(role)) return json({ error: "Tipo de usuário inválido." }, 400);
