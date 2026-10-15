@@ -140,8 +140,11 @@ Deno.serve(async (req: Request) => {
       case "register_webhook": {
         const inst = await getOwnedInstance();
         const hookUrl = Deno.env.get("WAHA_WEBHOOK_URL");
-        if (!hookUrl) return json({ error: "Defina WAHA_WEBHOOK_URL com a URL pública do webhook para ativar sincronização de mensagens." }, 503);
-        await callWaha(`/api/sessions/${encodeURIComponent(inst.provider_instance_name)}`, "PUT", { config: { webhooks: [{ url: hookUrl, events: ["message", "message.ack", "state.change", "session.status"] }] } });
+        const hookSecret = Deno.env.get("WAHA_WEBHOOK_SECRET");
+        if (!hookUrl || !hookSecret) return json({ error: "Defina WAHA_WEBHOOK_URL e WAHA_WEBHOOK_SECRET nos secrets do Supabase." }, 503);
+        const target = new URL(hookUrl);
+        target.searchParams.set("token", hookSecret);
+        await callWaha(`/api/sessions/${encodeURIComponent(inst.provider_instance_name)}`, "PUT", { config: { webhooks: [{ url: target.toString(), events: ["message", "message.any", "message.ack", "state.change", "session.status"] }] } });
         return json({ success: true });
       }
       case "send_text": {
