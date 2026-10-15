@@ -42,6 +42,7 @@ const WhatsAppInstancias = lazy(() => import("@/pages/WhatsAppInstancias"));
 const WhatsAppAjustes = lazy(() => import("@/pages/WhatsAppAjustes"));
 const RelatoriosComissoes = lazy(() => import("@/pages/RelatoriosComissoes"));
 const CadastroVendedores = lazy(() => import("@/pages/CadastroVendedores"));
+const Usuarios = lazy(() => import("@/pages/Usuarios"));
 const Revendas = lazy(() => import("@/pages/Revendas"));
 const Suporte = lazy(() => import("@/pages/Suporte"));
 const FutureRemoteDashboard = lazy(() => import("@/pages/remote/FutureRemoteDashboard"));
@@ -106,6 +107,7 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
             <Route path="/relatorios-comissoes" element={<AppLayout><RelatoriosComissoes /></AppLayout>} />
             <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />
+            <Route path="/usuarios" element={<AppLayout><Usuarios /></AppLayout>} />
             <Route path="/revendas" element={<AppLayout><Revendas /></AppLayout>} />
             <Route path="/financeiro/clientes" element={<AppLayout><BoletosWhatsApp initialTab="clientes" /></AppLayout>} />
             <Route path="/financeiro/boletos" element={<AppLayout><BoletosWhatsApp /></AppLayout>} />
