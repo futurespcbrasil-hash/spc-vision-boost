@@ -81,6 +81,7 @@ Deno.serve(async (req: Request) => {
         password,
         email_confirm: true,
         user_metadata: { display_name: name },
+        app_metadata: { provisioned_by_admin: true },
       });
       if (createError) return json({ error: createError.message }, 400);
       const newUserId = created.user.id;
