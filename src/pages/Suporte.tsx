@@ -1,32 +1,11 @@
-import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertTriangle, CheckCircle2, Download, Loader2, Monitor, ShieldCheck } from 'lucide-react';
-import { getAgentDownloadUrl } from '@/services/meshCentralService';
+import { CheckCircle2, Download, Monitor, ShieldCheck } from 'lucide-react';
+
+// Link público direto do MeshCentral, sem depender de consulta à Edge Function.
+const AGENT_DOWNLOAD_URL = 'https://future-remote.duckdns.org/agentinvite';
 
 const Suporte = () => {
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-
-    getAgentDownloadUrl()
-      .then((res) => {
-        if (active) setDownloadUrl(res?.agent_download_url ?? null);
-      })
-      .catch(() => {
-        if (active) setDownloadUrl(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
   return (
     <main className="min-h-screen gradient-spc flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl">
@@ -81,24 +60,12 @@ const Suporte = () => {
             </div>
           </div>
 
-          {downloadUrl ? (
-            <Button asChild className="w-full h-12 text-base">
-              <a href={downloadUrl} target="_blank" rel="noopener noreferrer">
-                <Download size={18} className="mr-2" />
-                Baixar aplicativo de suporte
-              </a>
-            </Button>
-          ) : loading ? (
-            <Button className="w-full h-12 text-base" disabled>
-              <Loader2 size={18} className="mr-2 animate-spin" />
-              Preparando link de download...
-            </Button>
-          ) : (
-            <div className="flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-900">
-              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-              <p>Não foi possível carregar a página de downloads. Tente atualizar esta página ou entre em contato com o suporte da Future Soluções.</p>
-            </div>
-          )}
+          <Button asChild className="w-full h-12 text-base">
+            <a href={AGENT_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
+              <Download size={18} className="mr-2" />
+              Baixar aplicativo de suporte
+            </a>
+          </Button>
 
           <div className="flex items-start justify-center gap-2 text-xs text-muted-foreground">
             <ShieldCheck size={16} className="mt-0.5 shrink-0" />
