@@ -74,7 +74,19 @@ const UsersPage = () => {
     });
     setSaving(false);
     if (error || data?.error) {
-      toast.error(data?.error || error?.message || 'Não foi possível criar o usuário.');
+      let message = data?.error as string | undefined;
+      if (!message && error) {
+        try {
+          const context = (error as { context?: Response }).context;
+          if (context) {
+            const details = await context.clone().json();
+            message = details?.error || details?.message;
+          }
+        } catch {
+          // Mantém a mensagem padrão caso a resposta não seja JSON.
+        }
+      }
+      toast.error(message || error?.message || 'Não foi possível criar o usuário.');
       return;
     }
     toast.success('Usuário criado. Ele já pode entrar com e-mail e senha.');
