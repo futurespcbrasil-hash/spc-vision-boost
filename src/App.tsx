@@ -1,4 +1,3 @@
-import BoletosWhatsApp from "@/pages/BoletosWhatsApp";
 import { lazy, Suspense, type ComponentType } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -72,6 +71,7 @@ const RemoteComputadores = lazyWithRetry(() => import("@/pages/remote/Computador
 const RemoteHistorico = lazyWithRetry(() => import("@/pages/remote/Historico"));
 const RemoteConfiguracoes = lazyWithRetry(() => import("@/pages/remote/Configuracoes"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
+const BoletosWhatsApp = lazyWithRetry(() => import("@/pages/BoletosWhatsApp"));
 
 const queryClient = new QueryClient();
 
