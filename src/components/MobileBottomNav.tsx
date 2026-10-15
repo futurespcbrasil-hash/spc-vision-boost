@@ -8,33 +8,33 @@ import { useAuth } from '@/hooks/useAuth';
 
 const MobileBottomNav = () => {
   const { pathname } = useLocation();
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, signOut, canManageUsers, canAccessModule } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const primary = [
-    { to: '/', icon: LayoutDashboard, label: 'Início' },
-    { to: '/crm', icon: GitBranch, label: 'Funil' },
-    { to: '/leads', icon: Users, label: 'Leads' },
-    { to: '/chat', icon: MessageCircle, label: 'Chat' },
+    { to: '/', icon: LayoutDashboard, label: 'Início', moduleKey: 'dashboard' },
+    { to: '/crm', icon: GitBranch, label: 'Funil', moduleKey: 'crm' },
+    { to: '/leads', icon: Users, label: 'Leads', moduleKey: 'leads' },
+    { to: '/chat', icon: MessageCircle, label: 'Chat', moduleKey: 'chat' },
   ];
 
   const more = [
-    { to: '/whatsapp', icon: MessageSquare, label: 'WhatsApp' },
-    { to: '/whatsapp/instancias', icon: MessageSquare, label: '— Instâncias WA' },
-    { to: '/consultas', icon: Search, label: 'Consultas SPC' },
-    { to: '/consultas/cnpj', icon: Building2, label: '— Consulta Receita' },
-    { to: '/consultas/sintegra', icon: FileText, label: '— Consulta Sintegra' },
-    { to: '/consultas/cnpj-lote', icon: Building2, label: '— Consulta CNPJ em Lote' },
-    { to: '/agenda', icon: Calendar, label: 'Agenda' },
-    { to: '/relatorios', icon: FileBarChart, label: 'Relatórios' },
-    { to: '/metas', icon: Target, label: 'Metas' },
-    { to: '/notas', icon: StickyNote, label: 'Notas / Post-its' },
-    { to: '/parceiros-spc', icon: Handshake, label: 'Parceiros' },
-    { to: '/parceiros-spc/parceiros', icon: Handshake, label: '— Parceiros' },
-    { to: '/parceiros-spc/clientes', icon: Building2, label: '— Clientes Indicados' },
-    { to: '/parceiros-spc/relatorios', icon: FileBarChart, label: '— Relatórios Parceiros' },
-    { to: '/perfil', icon: UserCog, label: 'Meu Perfil' },
-    { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatórios Comissões', adminOnly: true },
+    { to: '/whatsapp', icon: MessageSquare, label: 'WhatsApp', moduleKey: 'whatsapp' },
+    { to: '/whatsapp/instancias', icon: MessageSquare, label: '— Instâncias WA', moduleKey: 'whatsapp' },
+    { to: '/consultas', icon: Search, label: 'Consultas SPC', moduleKey: 'consultas_spc' },
+    { to: '/consultas/cnpj', icon: Building2, label: '— Consulta Receita', moduleKey: 'consulta_cnpj' },
+    { to: '/consultas/sintegra', icon: FileText, label: '— Consulta Sintegra', moduleKey: 'consulta_sintegra' },
+    { to: '/consultas/cnpj-lote', icon: Building2, label: '— Consulta CNPJ em Lote', moduleKey: 'consulta_cnpj_lote' },
+    { to: '/agenda', icon: Calendar, label: 'Agenda', moduleKey: 'agenda' },
+    { to: '/relatorios', icon: FileBarChart, label: 'Relatórios', moduleKey: 'relatorios' },
+    { to: '/metas', icon: Target, label: 'Metas', moduleKey: 'metas' },
+    { to: '/notas', icon: StickyNote, label: 'Notas / Post-its', moduleKey: 'notas' },
+    { to: '/parceiros-spc', icon: Handshake, label: 'Parceiros', moduleKey: 'parceiros' },
+    { to: '/parceiros-spc/parceiros', icon: Handshake, label: '— Parceiros', moduleKey: 'parceiros' },
+    { to: '/parceiros-spc/clientes', icon: Building2, label: '— Clientes Indicados', moduleKey: 'parceiros' },
+    { to: '/parceiros-spc/relatorios', icon: FileBarChart, label: '— Relatórios Parceiros', moduleKey: 'parceiros' },
+    { to: '/perfil', icon: UserCog, label: 'Meu Perfil', moduleKey: 'perfil' },
+    { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatórios Comissões', adminOnly: true, moduleKey: 'comissoes' },
   ];
 
   const isActive = (to: string) => pathname === to;
@@ -42,7 +42,7 @@ const MobileBottomNav = () => {
   return (
     <>
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-sidebar border-t border-sidebar-border flex items-stretch h-16 pb-[env(safe-area-inset-bottom)]">
-        {primary.map(item => (
+        {primary.filter(item => canAccessModule(item.moduleKey)).map(item => (
           <Link
             key={item.to}
             to={item.to}
@@ -81,7 +81,7 @@ const MobileBottomNav = () => {
               </button>
             </div>
             <div className="py-2">
-              {more.filter(m => !m.adminOnly || role === 'gestor').map(item => (
+              {[...more.filter(m => (!m.adminOnly || role === 'gestor') && canAccessModule(m.moduleKey)), ...(canManageUsers ? [{ to: '/usuarios', icon: Users, label: 'Usuários', moduleKey: 'usuarios' }] : [])].map(item => (
                 <Link
                   key={item.to}
                   to={item.to}
