@@ -54,8 +54,21 @@ Deno.serve(async (req: Request) => {
     const { data, error } = await db.from("whatsapp_instances").select("*").eq("id", instanceId).eq("owner_id", user.id).maybeSingle();
     if (error) throw error;
     if (!data) throw new Error("Instância não encontrada ou sem permissão.");
-    if (data.provider !== "waha" || !data.provider_instance_name) throw new Error("Esta instância ainda não está migrada para WAHA.");
-    return data;
+    if (data.provider === "waha" && data.provider_instance_name) return data;
+
+    // Migração sob demanda: cria uma sessão WAHA nova e preserva o ID antigo da Ryze
+    // para auditoria/rollback. Não apaga nem modifica a sessão antiga no provedor anterior.
+    const safeName = String(data.name || "whatsapp").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "whatsapp";
+    const newSession = `u${user.id.replaceAll("-", "").slice(0, 8)}-${safeName}-${crypto.randomUUID().slice(0, 6)}`;
+    await callWaha("/api/sessions", "POST", { name: newSession, start: false, config: { webhooks: [] } });
+    const { data: migrated, error: migrationError } = await db.from("whatsapp_instances")
+      .update({ provider: "waha", provider_instance_name: newSession, status: "created", qr_code: null })
+      .eq("id", data.id).eq("owner_id", user.id).select("*").single();
+    if (migrationError) {
+      await callWaha(`/api/sessions/${encodeURIComponent(newSession)}`, "DELETE").catch(() => null);
+      throw migrationError;
+    }
+    return migrated;
   };
   const normalizeStatus = (status: string) => {
     if (["WORKING", "SCAN_QR_CODE", "STARTING", "STOPPED", "FAILED"].includes(status)) {
