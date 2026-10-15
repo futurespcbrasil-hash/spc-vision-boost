@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import { USER_MODULES, DEFAULT_MODULES_BY_ROLE } from '@/lib/userModules';
@@ -39,26 +39,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [accountType, setAccountType] = useState<AccountType>(null);
   const [modulePermissions, setModulePermissions] = useState<Record<string, boolean> | null>(null);
   const [loading, setLoading] = useState(true);
+  const profileRequestId = useRef(0);
 
-  const fetchProfile = async (userId: string) => {
+  // Use the User already delivered by Supabase Auth. Calling auth.getUser() here
+  // would add another network request to the critical path after the profile queries.
+  const fetchProfile = async (authUser: User, requestId: number) => {
     try {
+      const userId = authUser.id;
       const [{ data: p, error: profileError }, { data: roles, error: rolesError }, { data: permissions, error: permissionsError }] = await Promise.all([
         (supabase as any).from('profiles').select('display_name, email').eq('user_id', userId).maybeSingle(),
         (supabase as any).from('user_roles').select('role').eq('user_id', userId),
         (supabase as any).from('user_module_permissions').select('module_key, can_access').eq('user_id', userId),
       ]);
 
+      // Ignore responses from an older login if the user signed out or switched accounts.
+      if (requestId !== profileRequestId.current) return;
       if (profileError) throw profileError;
       if (rolesError) throw rolesError;
       if (permissionsError) throw permissionsError;
 
-      const authUser = (await supabase.auth.getUser()).data.user;
       setProfile(p ? {
         display_name: p.display_name || '',
-        email: p.email || authUser?.email || '',
+        email: p.email || authUser.email || '',
       } : {
-        display_name: String(authUser?.user_metadata?.display_name || ''),
-        email: authUser?.email || '',
+        display_name: String(authUser.user_metadata?.display_name || ''),
+        email: authUser.email || '',
       });
 
       const roleRows = roles || [];
@@ -84,45 +89,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setModulePermissions(completedPermissions);
       setAccountType(null);
     } catch (e) {
+      if (requestId !== profileRequestId.current) return;
       console.error('fetchProfile error', e);
       setProfile(null);
       setRole('vendedor');
       setModulePermissions({});
       setAccountType(null);
     } finally {
-      setLoading(false);
+      if (requestId === profileRequestId.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
+    // INITIAL_SESSION supplies the persisted session, so a second getSession() call
+    // is unnecessary and can trigger duplicate profile/permission queries on startup.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
       setUser(sess?.user ?? null);
-      if (sess?.user) {
-        setLoading(true);
-        setTimeout(() => fetchProfile(sess.user.id), 0);
-      } else {
+
+      if (!sess?.user) {
+        profileRequestId.current += 1;
         setProfile(null);
         setRole('vendedor');
         setModulePermissions(null);
         setAccountType(null);
         setLoading(false);
+        return;
       }
-    });
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
+      // A token refresh does not change roles or module permissions. Reload profile
+      // data only when the session is initialized or the authenticated user changes.
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        const requestId = ++profileRequestId.current;
         setLoading(true);
-        void fetchProfile(s.user.id);
-      } else {
-        setModulePermissions(null);
-        setLoading(false);
+        setTimeout(() => void fetchProfile(sess.user, requestId), 0);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      profileRequestId.current += 1;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
