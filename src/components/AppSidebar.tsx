@@ -58,38 +58,6 @@ const AppSidebar = () => {
     { to: '/whatsapp/ajustes', icon: Settings2, label: 'Ajustes', moduleKey: 'whatsapp' },
   ];
 
-        {role === 'atendimento' && canAccessModule('indicacoes_atendimento') && (
-          <>
-            <button
-              onClick={() => setIndicacoesOpen(!indicacoesOpen)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
-                ${location.pathname.startsWith('/indicacoes')
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-              title={collapsed ? 'Indicações' : undefined}
-            >
-              <FileSpreadsheet size={18} />
-              {!collapsed && (
-                <>
-                  <span className="flex-1 text-left">Indicações</span>
-                  <ChevronDown size={14} className={`transition-transform ${indicacoesOpen ? 'rotate-180' : ''}`} />
-                </>
-              )}
-            </button>
-            {!collapsed && indicacoesOpen && (
-              <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
-                <Link to="/indicacoes/clientes"
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
-                    ${location.pathname === '/indicacoes/clientes'
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
-                  <Building2 size={14} />
-                  <span>Clientes Indicados</span>
-                </Link>
-              </div>
-            )}
-          </>
-        )}
 
   const PARCEIROS_SUB = [
     { to: '/parceiros-spc', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'parceiros' },
@@ -333,6 +301,39 @@ const AppSidebar = () => {
                     <span>{sub.label}</span>
                   </Link>
                 ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {role === 'atendimento' && canAccessModule('indicacoes_atendimento') && (
+          <>
+            <button
+              onClick={() => setIndicacoesOpen(!indicacoesOpen)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+                ${location.pathname.startsWith('/indicacoes')
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+              title={collapsed ? 'Indicações' : undefined}
+            >
+              <FileSpreadsheet size={18} />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">Indicações</span>
+                  <ChevronDown size={14} className={`transition-transform ${indicacoesOpen ? 'rotate-180' : ''}`} />
+                </>
+              )}
+            </button>
+            {!collapsed && indicacoesOpen && (
+              <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
+                <Link to="/indicacoes/clientes"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
+                    ${location.pathname === '/indicacoes/clientes'
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                      : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                  <Building2 size={14} />
+                  <span>Clientes Indicados</span>
+                </Link>
               </div>
             )}
           </>
