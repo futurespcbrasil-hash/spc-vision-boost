@@ -37,7 +37,8 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
   const location = useLocation();
   const { canAccessModule } = useAuth();
   const moduleKey = moduleForPath(location.pathname);
-  const allowed = !moduleKey || canAccessModule(moduleKey);
+  // Deny routes that have not been explicitly mapped to a module.
+  const allowed = moduleKey !== null && canAccessModule(moduleKey);
 
   return (
     <div className="flex min-h-screen bg-background">
