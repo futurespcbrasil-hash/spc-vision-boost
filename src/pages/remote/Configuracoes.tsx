@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,8 @@ import { Plug, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { meshStatus } from '@/services/meshCentralService';
 
+const CRM_PUBLIC_URL = 'https://crm.futuresolucoes.com.br';
+
 const Configuracoes = () => {
   const { role } = useAuth();
   const isGestor = role === 'gestor';
@@ -16,7 +18,7 @@ const Configuracoes = () => {
   const [testando, setTestando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const publicUrl = useMemo(() => `${window.location.origin}/suporte`, []);
+  const publicUrl = `${CRM_PUBLIC_URL}/suporte`;
 
   useEffect(() => {
     (async () => {
@@ -28,7 +30,7 @@ const Configuracoes = () => {
   const salvar = async () => {
     const payload = {
       mesh_group: settings.mesh_group,
-      public_support_url: settings.public_support_url || publicUrl,
+      public_support_url: publicUrl,
       singleton: true,
     };
     const { error } = settings.id
@@ -82,7 +84,7 @@ const Configuracoes = () => {
             <Input value={settings.mesh_group ?? ''} disabled={!isGestor}
               onChange={(e) => setSettings({ ...settings, mesh_group: e.target.value })} /></div>
           <div><Label>Link público de suporte</Label>
-            <Input value={settings.public_support_url || publicUrl} disabled={!isGestor}
+            <Input value={publicUrl} disabled
               onChange={(e) => setSettings({ ...settings, public_support_url: e.target.value })} /></div>
           {isGestor ? (
             <Button onClick={salvar}><Save size={16} className="mr-2" />Salvar</Button>
