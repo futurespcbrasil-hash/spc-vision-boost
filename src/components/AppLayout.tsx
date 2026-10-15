@@ -10,6 +10,7 @@ const moduleForPath = (pathname: string): string | null => {
   if (pathname.startsWith('/crm')) return 'crm';
   if (pathname.startsWith('/leads')) return 'leads';
   if (pathname.startsWith('/agenda')) return 'agenda';
+  if (pathname.startsWith('/argumentos')) return 'crm';
   if (pathname.startsWith('/relatorios-comissoes') || pathname.startsWith('/cadastro-vendedores')) return 'comissoes';
   if (pathname.startsWith('/relatorios')) return 'relatorios';
   if (pathname.startsWith('/metas')) return 'metas';
