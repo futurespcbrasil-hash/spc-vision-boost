@@ -1,5 +1,5 @@
 import BoletosWhatsApp from "@/pages/BoletosWhatsApp";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,43 +13,65 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import Auth from "@/pages/Auth";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
+// Recarrega automaticamente uma única vez quando um deploy deixa um chunk antigo em cache.
+const lazyWithRetry = (importer: () => Promise<{ default: ComponentType<any> }>) =>
+  lazy(async () => {
+    try {
+      const module = await importer();
+      try { sessionStorage.removeItem("spc-chunk-load-retry"); } catch { /* storage indisponível */ }
+      return module;
+    } catch (error) {
+      let alreadyRetried = false;
+      try {
+        alreadyRetried = sessionStorage.getItem("spc-chunk-load-retry") === "1";
+        if (alreadyRetried) sessionStorage.removeItem("spc-chunk-load-retry");
+        else sessionStorage.setItem("spc-chunk-load-retry", "1");
+      } catch { /* storage indisponível */ }
+      if (!alreadyRetried) {
+        window.location.reload();
+        return new Promise<{ default: ComponentType<any> }>(() => {});
+      }
+      throw error;
+    }
+  });
+
 // Rotas carregadas sob demanda (app mais leve e inicialização mais rápida)
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const GestorDashboard = lazy(() => import("@/pages/GestorDashboard"));
-const CRMKanban = lazy(() => import("@/pages/CRMKanban"));
-const LeadsPage = lazy(() => import("@/pages/LeadsPage"));
-const Comparador = lazy(() => import("@/pages/Comparador"));
-const GerarLink = lazy(() => import("@/pages/GerarLink"));
-const PublicComparison = lazy(() => import("@/pages/PublicComparison"));
-const Agenda = lazy(() => import("@/pages/Agenda"));
-const Argumentos = lazy(() => import("@/pages/Argumentos"));
-const Produtos = lazy(() => import("@/pages/Produtos"));
-const Relatorios = lazy(() => import("@/pages/Relatorios"));
-const Chat = lazy(() => import("@/pages/Chat"));
-const Perfil = lazy(() => import("@/pages/Perfil"));
-const Metas = lazy(() => import("@/pages/Metas"));
-const Notas = lazy(() => import("@/pages/Notas"));
-const ParceirosDashboard = lazy(() => import("@/pages/parceiros-spc/ParceirosDashboard"));
-const Parceiros = lazy(() => import("@/pages/parceiros-spc/Parceiros"));
-const ClientesIndicados = lazy(() => import("@/pages/parceiros-spc/ClientesIndicados"));
-const ParceirosRelatorios = lazy(() => import("@/pages/parceiros-spc/Relatorios"));
-const ConsultaSPC = lazy(() => import("@/pages/ConsultaSPC"));
-const ConsultaCNPJ = lazy(() => import("@/pages/cnpj/ConsultaCNPJ"));
-const ConsultaSintegra = lazy(() => import("@/pages/cnpj/ConsultaSintegra"));
-const ConsultaCNPJLote = lazy(() => import("@/pages/cnpj/ConsultaCNPJLote"));
-const WhatsAppChat = lazy(() => import("@/pages/WhatsAppChat"));
-const WhatsAppInstancias = lazy(() => import("@/pages/WhatsAppInstancias"));
-const WhatsAppAjustes = lazy(() => import("@/pages/WhatsAppAjustes"));
-const RelatoriosComissoes = lazy(() => import("@/pages/RelatoriosComissoes"));
-const CadastroVendedores = lazy(() => import("@/pages/CadastroVendedores"));
-const Usuarios = lazy(() => import("@/pages/Usuarios"));
-const Revendas = lazy(() => import("@/pages/Revendas"));
-const Suporte = lazy(() => import("@/pages/Suporte"));
-const FutureRemoteDashboard = lazy(() => import("@/pages/remote/FutureRemoteDashboard"));
-const RemoteComputadores = lazy(() => import("@/pages/remote/Computadores"));
-const RemoteHistorico = lazy(() => import("@/pages/remote/Historico"));
-const RemoteConfiguracoes = lazy(() => import("@/pages/remote/Configuracoes"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
+const GestorDashboard = lazyWithRetry(() => import("@/pages/GestorDashboard"));
+const CRMKanban = lazyWithRetry(() => import("@/pages/CRMKanban"));
+const LeadsPage = lazyWithRetry(() => import("@/pages/LeadsPage"));
+const Comparador = lazyWithRetry(() => import("@/pages/Comparador"));
+const GerarLink = lazyWithRetry(() => import("@/pages/GerarLink"));
+const PublicComparison = lazyWithRetry(() => import("@/pages/PublicComparison"));
+const Agenda = lazyWithRetry(() => import("@/pages/Agenda"));
+const Argumentos = lazyWithRetry(() => import("@/pages/Argumentos"));
+const Produtos = lazyWithRetry(() => import("@/pages/Produtos"));
+const Relatorios = lazyWithRetry(() => import("@/pages/Relatorios"));
+const Chat = lazyWithRetry(() => import("@/pages/Chat"));
+const Perfil = lazyWithRetry(() => import("@/pages/Perfil"));
+const Metas = lazyWithRetry(() => import("@/pages/Metas"));
+const Notas = lazyWithRetry(() => import("@/pages/Notas"));
+const ParceirosDashboard = lazyWithRetry(() => import("@/pages/parceiros-spc/ParceirosDashboard"));
+const Parceiros = lazyWithRetry(() => import("@/pages/parceiros-spc/Parceiros"));
+const ClientesIndicados = lazyWithRetry(() => import("@/pages/parceiros-spc/ClientesIndicados"));
+const ParceirosRelatorios = lazyWithRetry(() => import("@/pages/parceiros-spc/Relatorios"));
+const ConsultaSPC = lazyWithRetry(() => import("@/pages/ConsultaSPC"));
+const ConsultaCNPJ = lazyWithRetry(() => import("@/pages/cnpj/ConsultaCNPJ"));
+const ConsultaSintegra = lazyWithRetry(() => import("@/pages/cnpj/ConsultaSintegra"));
+const ConsultaCNPJLote = lazyWithRetry(() => import("@/pages/cnpj/ConsultaCNPJLote"));
+const WhatsAppChat = lazyWithRetry(() => import("@/pages/WhatsAppChat"));
+const WhatsAppInstancias = lazyWithRetry(() => import("@/pages/WhatsAppInstancias"));
+const WhatsAppAjustes = lazyWithRetry(() => import("@/pages/WhatsAppAjustes"));
+const RelatoriosComissoes = lazyWithRetry(() => import("@/pages/RelatoriosComissoes"));
+const CadastroVendedores = lazyWithRetry(() => import("@/pages/CadastroVendedores"));
+const Usuarios = lazyWithRetry(() => import("@/pages/Usuarios"));
+const Revendas = lazyWithRetry(() => import("@/pages/Revendas"));
+const Suporte = lazyWithRetry(() => import("@/pages/Suporte"));
+const FutureRemoteDashboard = lazyWithRetry(() => import("@/pages/remote/FutureRemoteDashboard"));
+const RemoteComputadores = lazyWithRetry(() => import("@/pages/remote/Computadores"));
+const RemoteHistorico = lazyWithRetry(() => import("@/pages/remote/Historico"));
+const RemoteConfiguracoes = lazyWithRetry(() => import("@/pages/remote/Configuracoes"));
+const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
