@@ -153,6 +153,18 @@ const UsersPage = () => {
         </form>
       )}
 
+      {accountEditing && (
+        <form onSubmit={saveAccount} className="rounded-xl border bg-card p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold text-lg">Editar usuário</h2><p className="text-sm text-muted-foreground">{accountEditing.email}</p></div><button type="button" onClick={() => setAccountEditing(null)} className="rounded-lg p-2 hover:bg-muted" aria-label="Fechar"><X size={18} /></button></div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1 text-sm"><span>Nome</span><input className="w-full rounded-lg border bg-background px-3 py-2.5" value={editName} onChange={(e) => setEditName(e.target.value)} required /></label>
+            <label className="space-y-1 text-sm"><span>E-mail</span><input className="w-full rounded-lg border bg-background px-3 py-2.5" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} required /></label>
+            <label className="space-y-1 text-sm"><span>Tipo de usuário</span><select className="w-full rounded-lg border bg-background px-3 py-2.5" value={editRole} onChange={(e) => setEditRole(e.target.value as UserRole)}><option value="vendedor">Vendedor</option>{user?.email?.toLowerCase() === 'dalprapf1@gmail.com' && <option value="gestor">Gestor</option>}<option value="atendimento">Atendimento</option></select></label>
+            <label className="space-y-1 text-sm"><span>Nova senha (opcional)</span><input className="w-full rounded-lg border bg-background px-3 py-2.5" type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} autoComplete="new-password" minLength={6} placeholder="Deixe em branco para manter a atual" /><span className="text-xs text-muted-foreground">Preencha apenas se quiser trocar a senha.</span></label>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setAccountEditing(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button><button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Salvar alterações</button></div>
+        </form>
+      )}
       {editingUser && (
         <section className="rounded-xl border bg-card p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
