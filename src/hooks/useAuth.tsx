@@ -68,9 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           : 'vendedor');
 
       const permissionRows = permissions || [];
-      setModulePermissions(permissionRows.length
-        ? Object.fromEntries(permissionRows.map((item: { module_key: string; can_access: boolean }) => [item.module_key, item.can_access]))
-        : null);
+      setModulePermissions(Object.fromEntries(permissionRows.map((item: { module_key: string; can_access: boolean }) => [item.module_key, item.can_access])));
       setAccountType(null);
     } catch (e) {
       console.error('fetchProfile error', e);
