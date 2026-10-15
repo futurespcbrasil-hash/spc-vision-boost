@@ -89,6 +89,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setRole('vendedor');
       setModulePermissions({});
       setAccountType(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -97,22 +99,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(sess);
       setUser(sess?.user ?? null);
       if (sess?.user) {
+        setLoading(true);
         setTimeout(() => fetchProfile(sess.user.id), 0);
       } else {
         setProfile(null);
         setRole('vendedor');
         setModulePermissions(null);
         setAccountType(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
-      if (s?.user) fetchProfile(s.user.id);
-      else setModulePermissions(null);
-      setLoading(false);
+      if (s?.user) {
+        setLoading(true);
+        void fetchProfile(s.user.id);
+      } else {
+        setModulePermissions(null);
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
