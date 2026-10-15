@@ -339,8 +339,9 @@ Deno.serve(async (req) => {
             const request = latestRequestById.get(device.mesh_device_id)
             return {
               ...device,
-              client_name: request?.client_name ?? existing?.client_name ?? null,
-              client_company: request?.client_company ?? existing?.client_company ?? null,
+              // Keep manual computer-catalog edits as the source of truth after the first association.
+              client_name: existing?.client_name ?? request?.client_name ?? null,
+              client_company: existing?.client_company ?? request?.client_company ?? null,
               updated_at: new Date().toISOString(),
             }
           })
