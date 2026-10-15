@@ -152,7 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const canAccessModule = (moduleKey: string) => {
     if (user?.email?.toLowerCase() === OWNER_EMAIL) return true;
-    if (role === 'gestor' && moduleKey === 'usuarios') return true;
+    if (role === 'gestor') return true;
     if (modulePermissions === null) return false;
     return modulePermissions[moduleKey] === true;
   };
