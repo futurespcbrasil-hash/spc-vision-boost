@@ -11,22 +11,38 @@ const Auth = () => {
   const [name, setName] = useState('');
   const [role, setRole] = useState<'vendedor' | 'gestor'>('vendedor');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
-    if (isLogin) {
-      const { error: err } = await signIn(email, password);
-      if (err) setError(err.message);
-    } else {
-      if (!name.trim()) { setError('Preencha o nome'); setLoading(false); return; }
-      const { error: err } = await signUp(email, password, name, role);
-      if (err) setError(err.message);
+    try {
+      if (isLogin) {
+        const { error: err } = await signIn(email.trim(), password);
+        if (err) setError(err.message);
+      } else {
+        if (!name.trim()) {
+          setError('Preencha o nome completo.');
+          return;
+        }
+        const { error: err } = await signUp(email.trim(), password, name.trim(), role);
+        if (err) {
+          setError(err.message);
+        } else {
+          setSuccess('Cadastro recebido com sucesso. Se a confirmação de email estiver ativada, confira sua caixa de entrada para confirmar a conta antes de entrar.');
+          setIsLogin(true);
+          setPassword('');
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível concluir a operação. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const inputClass = "w-full px-4 py-3 pl-11 rounded-lg border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30";
@@ -104,6 +120,12 @@ const Auth = () => {
           {error && (
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center">
               {error}
+            </div>
+          )}
+
+          {success && (
+            <div role="status" className="p-3 rounded-lg bg-primary/10 text-foreground text-sm text-center">
+              {success}
             </div>
           )}
 
