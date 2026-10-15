@@ -154,7 +154,7 @@ const WhatsAppInstancias = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">WhatsApp — Instâncias</h1>
-        <p className="text-muted-foreground text-sm">Conecte números via Ryze API. Preparado para múltiplas instâncias.</p>
+        <p className="text-muted-foreground text-sm">Conecte números via WAHA. Preparado para múltiplas instâncias.</p>
       </div>
 
       <Card>
@@ -234,7 +234,7 @@ const WhatsAppInstancias = () => {
               <div className="w-64 h-64 flex flex-col items-center justify-center bg-muted rounded-lg p-4 gap-2">
                 <QrCode size={64} className="text-muted-foreground/40 animate-pulse" />
                 <p className="text-xs text-muted-foreground">
-                  Aguardando geração do QR Code pela API Ryze...
+                  Gerando QR Code pela WAHA...
                 </p>
               </div>
             )}
