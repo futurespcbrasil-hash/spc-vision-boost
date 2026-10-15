@@ -116,18 +116,18 @@ const Computadores = () => {
             <h2 className="font-semibold text-foreground">Link público para enviar aos clientes</h2>
             <p className="mt-1 text-sm text-muted-foreground">Envie este endereço para o cliente baixar o agente e seguir as instruções de acesso remoto.</p>
             <a
-              href="https://spc-vision-crm.vercel.app/suporte"
+              href="https://crm.futuresolucoes.com.br/suporte"
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2 block break-all text-sm font-medium text-primary underline underline-offset-4"
             >
-              https://spc-vision-crm.vercel.app/suporte
+              https://crm.futuresolucoes.com.br/suporte
             </a>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button variant="outline" onClick={async () => {
               try {
-                await navigator.clipboard.writeText('https://spc-vision-crm.vercel.app/suporte');
+                await navigator.clipboard.writeText('https://crm.futuresolucoes.com.br/suporte');
                 toast.success('Link público copiado');
               } catch {
                 toast.error('Não foi possível copiar automaticamente. Selecione e copie o link exibido.');
@@ -135,7 +135,7 @@ const Computadores = () => {
             }}>
               <Copy size={16} className="mr-2" />Copiar link
             </Button>
-            <Button onClick={() => window.open('https://spc-vision-crm.vercel.app/suporte', '_blank', 'noopener')}>
+            <Button onClick={() => window.open('https://crm.futuresolucoes.com.br/suporte', '_blank', 'noopener')}>
               <ExternalLink size={16} className="mr-2" />Abrir página
             </Button>
           </div>
