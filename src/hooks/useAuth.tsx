@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
+import { USER_MODULES, DEFAULT_MODULES_BY_ROLE } from '@/lib/userModules';
 
 export type AppRole = 'vendedor' | 'gestor' | 'atendimento';
 type AccountType = 'dono_app' | 'revenda' | 'parceiro' | 'usuario_final' | null;
@@ -61,14 +62,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       const roleRows = roles || [];
-      setRole(roleRows.some((item: { role: string }) => item.role === 'gestor')
+      const resolvedRole: AppRole = roleRows.some((item: { role: string }) => item.role === 'gestor')
         ? 'gestor'
         : roleRows.some((item: { role: string }) => item.role === 'atendimento')
           ? 'atendimento'
-          : 'vendedor');
+          : 'vendedor';
+      setRole(resolvedRole);
 
+      // Complete older/incomplete permission sets with role defaults. Explicit saved
+      // false values remain false, while missing Gestor modules receive their defaults.
       const permissionRows = permissions || [];
-      setModulePermissions(Object.fromEntries(permissionRows.map((item: { module_key: string; can_access: boolean }) => [item.module_key, item.can_access])));
+      const savedPermissions = Object.fromEntries(
+        permissionRows.map((item: { module_key: string; can_access: boolean }) => [item.module_key, item.can_access])
+      ) as Record<string, boolean>;
+      const completedPermissions = Object.fromEntries(
+        USER_MODULES.map(({ key }) => [
+          key,
+          savedPermissions[key] ?? DEFAULT_MODULES_BY_ROLE[resolvedRole].includes(key),
+        ])
+      );
+      setModulePermissions(completedPermissions);
       setAccountType(null);
     } catch (e) {
       console.error('fetchProfile error', e);
@@ -133,7 +146,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const canAccessModule = (moduleKey: string) => {
     if (user?.email?.toLowerCase() === OWNER_EMAIL) return true;
     if (role === 'gestor' && moduleKey === 'usuarios') return true;
-    if (modulePermissions === null) return true;
+    if (modulePermissions === null) return false;
     return modulePermissions[moduleKey] === true;
   };
 
