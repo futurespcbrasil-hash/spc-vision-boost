@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Users, Handshake, CheckCircle2, TrendingUp, AlertTriangle, DollarSign, Activity, Lightbulb } from 'lucide-react';
+import { Users, Handshake, CheckCircle2, TrendingUp, AlertTriangle, DollarSign, Activity, Lightbulb, Calendar as CalendarIcon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const PIE_COLORS = ['hsl(262,70%,50%)', 'hsl(152,60%,40%)', 'hsl(38,92%,50%)', 'hsl(280,50%,55%)', 'hsl(199,80%,45%)'];
@@ -67,6 +67,11 @@ const GestorDashboard = () => {
     ...v,
     taxa: v.total > 0 ? ((v.vendas / v.total) * 100).toFixed(1) : '0',
   }));
+
+  const upcomingEvents = allEvents
+    .filter(event => !event.done)
+    .sort((a, b) => `${a.date || ''}${a.time || ''}`.localeCompare(`${b.date || ''}${b.time || ''}`))
+    .slice(0, 6);
 
   // Funnel data
   const funnelData = [
@@ -179,13 +184,13 @@ const GestorDashboard = () => {
 
         {/* Revenue Forecast */}
         <div className="stat-card flex flex-col">
-          <h3 className="font-semibold text-foreground mb-1">💰 Previsão de faturamento</h3>
-          <p className="text-xs text-muted-foreground mb-4">Baseado nos leads em negociação</p>
+          <h3 className="font-semibold text-foreground mb-1">💰 Potencial estimado de faturamento</h3>
+          <p className="text-xs text-muted-foreground mb-4">Estimativa provisória de R$ 500 por lead em negociação ou fechamento</p>
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <DollarSign size={40} className="text-success mx-auto mb-2" />
               <div className="text-3xl font-bold text-foreground">R$ {potentialRevenue.toLocaleString('pt-BR')}</div>
-              <p className="text-sm text-muted-foreground mt-1">Potencial de fechamento atual</p>
+              <p className="text-sm text-muted-foreground mt-1">Valor ilustrativo, não é faturamento real</p>
             </div>
           </div>
         </div>
@@ -219,6 +224,30 @@ const GestorDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Team Schedule */}
+      <div className="stat-card">
+        <h3 className="font-semibold text-foreground mb-1">📅 Próximos compromissos da equipe</h3>
+        <p className="text-xs text-muted-foreground mb-3">Compromissos pendentes de todos os vendedores</p>
+        <div className="space-y-2">
+          {upcomingEvents.map(event => {
+            const p = profiles.find(pr => pr.user_id === event.user_id);
+            return (
+              <div key={event.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
+                <CalendarIcon className="text-primary shrink-0 mt-0.5" size={16} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground">{event.lead_name || 'Compromisso'}</div>
+                  <div className="text-xs text-muted-foreground">{p?.display_name || 'Vendedor'} · {event.date || 'Sem data'} {event.time || ''}</div>
+                  {event.note && <div className="text-xs text-muted-foreground mt-1">{event.note}</div>}
+                </div>
+              </div>
+            );
+          })}
+          {upcomingEvents.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum compromisso pendente</p>
+          )}
+        </div>
+      </div>
 
       {/* Activity Log */}
       <div className="stat-card">
