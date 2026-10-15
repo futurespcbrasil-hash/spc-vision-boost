@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle2, Download, Monitor, ShieldCheck } from 'lucide-react';
 
 // Link público direto do MeshCentral, sem depender de consulta à Edge Function.
-const AGENT_DOWNLOAD_URL = 'https://future-remote.duckdns.org/agentinvite';
+const AGENT_DOWNLOAD_URL = 'https://future-remote.duckdns.org/agentinvite?c=xQjX82Y$4LSrmWsJs8FzYPKaatOVMl2RhmfsbGpOVq3TwBBc45C@sGMW$vA8J$r8L5FITL6JK8AByIqsitWRKjx0xYn2h8JfMFAXUP6ssJgz$Y$MXvVk@8qB7QocwyjvMgMUMsnSBTJACWFlasYtTarQwQoIkHAzmZrvd1VbdDtENWcLjk$E77DYjPbUZjQ7oiPVg7o=';
 
 const Suporte = () => {
   return (
