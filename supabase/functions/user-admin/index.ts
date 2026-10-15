@@ -76,6 +76,16 @@ Deno.serve(async (req: Request) => {
       if (!["vendedor", "gestor", "atendimento"].includes(role)) return json({ error: "Tipo de usuário inválido." }, 400);
       if (!isOwner && role === "gestor") return json({ error: "Somente o responsável principal pode criar outro gestor." }, 403);
 
+      // A protected one-time marker allows the database trigger to distinguish
+      // this server-authorized provisioning request from public sign-up attempts.
+      const { error: provisioningError } = await admin
+        .from("admin_user_provisioning")
+        .upsert({ email }, { onConflict: "email" });
+      if (provisioningError) {
+        console.error("Could not authorize user provisioning", provisioningError);
+        return json({ error: "Não foi possível preparar a criação da conta. Verifique a configuração do banco." }, 500);
+      }
+
       const { data: created, error: createError } = await admin.auth.admin.createUser({
         email,
         password,
@@ -83,7 +93,13 @@ Deno.serve(async (req: Request) => {
         user_metadata: { display_name: name },
         app_metadata: { provisioned_by_admin: true },
       });
-      if (createError) return json({ error: createError.message }, 400);
+      if (createError) {
+        await admin.from("admin_user_provisioning").delete().eq("email", email);
+        return json({ error: createError.message }, 400);
+      }
+      // The trigger consumes the marker atomically when the auth user is inserted.
+      // Cleanup here also handles any marker left behind by unusual Auth failures.
+      await admin.from("admin_user_provisioning").delete().eq("email", email);
       const newUserId = created.user.id;
 
       const { error: roleDeleteError } = await admin.from("user_roles").delete().eq("user_id", newUserId);
