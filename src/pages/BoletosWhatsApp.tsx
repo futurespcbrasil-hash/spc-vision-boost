@@ -265,7 +265,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
       const { data: lock } = await supabase.from('boleto_envios').update({ status: 'enviando', mensagem: msg, tentativas: (b.tentativas || 0) + 1 }).eq('id', b.id).eq('status', 'pronto_envio').select('id');
       if (!lock?.length) { setSending((s) => s && { ...s, done: s.done + 1 }); continue; }
       try {
-        const { data: signed, error: se } = await supabase.storage.from('boletos').createSignedUrl(b.arquivo_path, 60 * 60 * 24 * 3);
+        const { data: signed, error: se } = await supabase.storage.from('boletos').createSignedUrl(b.arquivo_path, 15 * 60);
         if (se || !signed) throw new Error('Não foi possível gerar o link do PDF');
         const r: any = await waha.sendMedia(instanceId, numero, signed.signedUrl, 'document', msg, 'application/pdf', b.arquivo_nome || 'boleto.pdf');
         const apiId = r?.wa_message_id || r?.messageId || r?.id?._serialized || r?.id || r?.data?.messageId || r?.data?.id || null;
