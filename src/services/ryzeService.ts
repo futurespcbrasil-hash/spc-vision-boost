@@ -1,51 +1,30 @@
 import { supabase } from '@/integrations/supabase/client';
 
 async function invoke(action: string, payload: Record<string, unknown> = {}) {
-  console.log(`[ryzeService] Invocando ação '${action}'`, payload);
-  const { data, error } = await supabase.functions.invoke('ryze-proxy', {
+  const { data, error } = await supabase.functions.invoke('waha-proxy', {
     body: { action, ...payload },
   });
 
   if (error) {
-    console.error(`[ryzeService] Erro retornado pela Edge Function para '${action}':`, error);
-    let errorMessage = error.message || 'Erro de comunicação com a API do WhatsApp';
+    let message = error.message || 'Erro de comunicação com a WAHA';
     try {
-      if ('context' in error && (error as any).context) {
-        const ctx = await (error as any).context.json();
-        if (ctx?.error) {
-          errorMessage = typeof ctx.error === 'string' ? ctx.error : JSON.stringify(ctx.error);
-        }
-        if (ctx?.details?.message) {
-          errorMessage += `: ${ctx.details.message}`;
-        } else if (ctx?.details?.error) {
-          errorMessage += `: ${typeof ctx.details.error === 'string' ? ctx.details.error : JSON.stringify(ctx.details.error)}`;
-        }
+      const context = (error as any).context;
+      if (context) {
+        const body = await context.clone().json();
+        if (body?.error) message = typeof body.error === 'string' ? body.error : JSON.stringify(body.error);
       }
-    } catch {
-      // fallback
+    } catch { /* usa a mensagem original */ }
+    if (message.includes('non-2xx status code')) {
+      message = 'Falha ao conectar com a WAHA. Confira os secrets WAHA_API_URL e WAHA_API_KEY no Supabase.';
     }
-    if (errorMessage.includes('non-2xx status code')) {
-      errorMessage = 'Falha na Ryze API: Verifique se a chave RYZE_TOKEN_ACCOUNT está configurada nos Secrets do Supabase.';
-    }
-    throw new Error(errorMessage);
+    throw new Error(message);
   }
 
-  if (data?.error) {
-    console.error(`[ryzeService] Resposta da Ryze API com erro para '${action}':`, data);
-    let errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
-    if (data?.details?.message) {
-      errorMessage += `: ${data.details.message}`;
-    } else if (data?.details?.error) {
-      errorMessage += `: ${typeof data.details.error === 'string' ? data.details.error : JSON.stringify(data.details.error)}`;
-    }
-    throw new Error(errorMessage);
-  }
-
-  console.log(`[ryzeService] Sucesso na ação '${action}':`, data);
+  if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
   return data;
 }
 
-export const ryze = {
+export const waha = {
   syncInstances: () => invoke('sync_instances'),
   createInstance: (name: string) => invoke('create_instance', { name }),
   connect: (instance_id: string) => invoke('connect', { instance_id }),
@@ -65,13 +44,12 @@ export const ryze = {
     invoke('get_profile_pic', { instance_id, wa_chat_id }),
 };
 
-// Convenience helpers
 export async function sendWhatsappMessage(instanceId: string, number: string, text: string) {
-  return ryze.sendText(instanceId, number, text);
+  return waha.sendText(instanceId, number, text);
 }
-export async function getChats(instanceId: string) { return ryze.getChats(instanceId); }
-export async function getMessages(instanceId: string, chatId: string) { return ryze.getMessages(instanceId, chatId); }
-export async function getContacts(instanceId: string) { return ryze.getContacts(instanceId); }
+export async function getChats(instanceId: string) { return waha.getChats(instanceId); }
+export async function getMessages(instanceId: string, chatId: string) { return waha.getMessages(instanceId, chatId); }
+export async function getContacts(instanceId: string) { return waha.getContacts(instanceId); }
 export async function sendMedia(instanceId: string, number: string, url: string, type: string, caption?: string) {
-  return ryze.sendMedia(instanceId, number, url, type, caption);
+  return waha.sendMedia(instanceId, number, url, type, caption);
 }
