@@ -87,7 +87,7 @@ const MobileBottomNav = () => {
               </button>
             </div>
             <div className="py-2">
-              {[...more.filter(m => (!m.adminOnly || role === 'gestor' || canManageUsers) && canAccessModule(m.moduleKey)), ...(canManageUsers ? [{ to: '/usuarios', icon: Users, label: 'Usuários', moduleKey: 'usuarios' }] : [])].map(item => (
+              {[...more.filter(m => (!m.adminOnly || canManageUsers) && canAccessModule(m.moduleKey)), ...(canManageUsers ? [{ to: '/usuarios', icon: Users, label: 'Usuários', moduleKey: 'usuarios' }] : [])].map(item => (
                 <Link
                   key={item.to}
                   to={item.to}
