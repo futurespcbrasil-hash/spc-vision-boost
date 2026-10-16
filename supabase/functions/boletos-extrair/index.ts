@@ -87,7 +87,12 @@ Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). 
     const nome = typeof ex.pagador_nome === 'string' && ex.pagador_nome.trim() ? ex.pagador_nome.trim() : null;
 
     // Identificação do cliente
-    const { data: clientes } = await sb.from('boleto_clientes').select('id,nome,razao_social,cpf_cnpj,whatsapp').eq('user_id', u.user.id);
+    const { data: clientes, error: clientesError } = await sb.from('boleto_clientes').select('id,nome,razao_social,cpf_cnpj,whatsapp').eq('user_id', u.user.id);
+    if (clientesError) {
+      console.error('Falha ao consultar clientes de boletos', clientesError);
+      await sb.from('boleto_envios').update({ status: 'erro', erro: 'Não foi possível consultar os clientes cadastrados' }).eq('id', b.id);
+      return json({ error: 'Não foi possível consultar os clientes cadastrados' }, 500);
+    }
     const list = clientes || [];
     let match: any = null; let info = '';
     if (cpfCnpj) {
@@ -106,8 +111,13 @@ Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). 
     if (!match && !info) byName('nome do arquivo', b.arquivo_nome);
     if (!match && !info && nome) {
       // Cadastro automático de cliente novo a partir do boleto
-      const { data: novo } = await sb.from('boleto_clientes').insert({ user_id: u.user.id, nome: nome.slice(0, 200), cpf_cnpj: cpfCnpj }).select('id,nome,razao_social,cpf_cnpj,whatsapp').single();
-      if (novo) { match = novo; info = cpfCnpj ? 'Identificado pelo CPF/CNPJ' : 'Cliente cadastrado automaticamente'; if (cpfCnpj) info = 'Cliente novo cadastrado automaticamente'; }
+      const { data: novo, error: novoError } = await sb.from('boleto_clientes').insert({ user_id: u.user.id, nome: nome.slice(0, 200), cpf_cnpj: cpfCnpj }).select('id,nome,razao_social,cpf_cnpj,whatsapp').single();
+      if (novoError) {
+        console.error('Falha ao cadastrar cliente extraído do boleto', novoError);
+        await sb.from('boleto_envios').update({ status: 'erro', erro: 'Não foi possível cadastrar o cliente automaticamente. Confira o submenu Clientes.' }).eq('id', b.id);
+        return json({ error: 'Não foi possível cadastrar o cliente automaticamente. Confira o submenu Clientes.' }, 500);
+      }
+      if (novo) { match = novo; info = 'Cliente novo cadastrado automaticamente'; }
     }
     if (!match && !info) info = 'Nenhum cliente encontrado no cadastro';
 
@@ -122,7 +132,7 @@ Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). 
     if (ex.legivel === false) pendencias.push('documento pouco legível');
 
     const status = pendencias.length === 0 ? 'pronto_envio' : 'aguardando_revisao';
-    await sb.from('boleto_envios').update({
+    const { error: updateError } = await sb.from('boleto_envios').update({
       nome_extraido: nome, cpf_cnpj_extraido: cpfCnpj, valor, vencimento: venc,
       nosso_numero: ex.nosso_numero || null, linha_digitavel: ex.linha_digitavel || null,
       codigo_barras: ex.codigo_barras || null, numero_documento: ex.numero_documento || null,
@@ -131,6 +141,10 @@ Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). 
       match_info: [info, ...pendencias.filter((p) => p !== 'confirmar cliente')].join(' · '),
       status, erro: null,
     }).eq('id', b.id);
+    if (updateError) {
+      console.error('Falha ao salvar dados extraídos do boleto', updateError);
+      return json({ error: 'Os dados foram lidos, mas não foi possível salvar o resultado. Tente novamente.' }, 500);
+    }
 
     return json({ ok: true, status });
   } catch (e) {
