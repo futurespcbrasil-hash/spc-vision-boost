@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
 
   const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any, recipient: string) => {
     const now = new Date().toISOString();
-    const digits = String(recipient || chatId).split("@")[0].replace(/\D/g, "");
+    let digits = String(recipient || chatId).split("@")[0].replace(/\D/g, "");
     let { data: existing } = await db.from("whatsapp_chats")
       .select("id,unread_count,contact_name,contact_number,wa_chat_id")
       .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
@@ -114,6 +114,9 @@ Deno.serve(async (req: Request) => {
         .select("id,unread_count,contact_name,contact_number,wa_chat_id")
         .eq("instance_id", inst.id).eq("contact_number", digits).eq("is_group", false).limit(1).maybeSingle();
       existing = lookup.data;
+    }
+    if ((String(recipient || "").endsWith("@lid") || String(chatId || "").endsWith("@lid")) && existing?.contact_number) {
+      digits = String(existing.contact_number).replace(/\D/g, "");
     }
     let chatIdDb = existing?.id as string | undefined;
     const previousName = String(existing?.contact_name || "").trim();
