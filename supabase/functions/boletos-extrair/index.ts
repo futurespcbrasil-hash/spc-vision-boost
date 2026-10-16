@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { getDocument } from 'https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js?target=deno';
+import { getDocument } from 'https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js?target=deno&external=canvas';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
