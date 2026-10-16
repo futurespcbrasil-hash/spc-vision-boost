@@ -319,23 +319,45 @@ const WhatsAppChat = () => {
 
   // Load chats
   const loadChats = async () => {
-    if (!instanceId) return;
-    // Only real conversations (that have at least one message), most recent first.
-    const { data } = await supabase.from('whatsapp_chats').select('*')
+    if (!instanceId) { setChats([]); setSelected(null); setMessages([]); return; }
+    const { data, error } = await supabase.from('whatsapp_chats').select('*')
       .eq('instance_id', instanceId)
+      .eq('archived', false)
       .not('last_message_at', 'is', null)
       .order('is_pinned', { ascending: false })
       .order('last_message_at', { ascending: false })
-      .limit(80);
-    const list = (data as Chat[]) || [];
+      .limit(200);
+    if (error) {
+      console.error('[WhatsApp] Falha ao carregar conversas:', error);
+      toast({ title: 'Não foi possível carregar as conversas', description: error.message, variant: 'destructive' });
+      return;
+    }
+    // Proteção contra JID @c.us e LID do mesmo telefone aparecendo duas vezes.
+    const unique = new Map<string, Chat>();
+    for (const row of (data || []) as Chat[]) {
+      if (!row.wa_chat_id || row.wa_chat_id === 'status@broadcast') continue;
+      const phone = onlyDigits(row.contact_number || '');
+      const key = !row.is_group && phone.length >= 10 ? phone : row.wa_chat_id;
+      const previous = unique.get(key);
+      if (!previous) { unique.set(key, row); continue; }
+      const rowTime = new Date(row.last_message_at || 0).getTime();
+      const previousTime = new Date(previous.last_message_at || 0).getTime();
+      if (rowTime > previousTime) unique.set(key, row);
+    }
+    const list = [...unique.values()].sort((a, b) => {
+      if (!!a.is_pinned !== !!b.is_pinned) return a.is_pinned ? -1 : 1;
+      return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+    });
     setChats(list);
-    // NUNCA troca a conversa aberta sozinho — apenas atualiza os dados dela.
+    // Ao trocar de instância, nunca manter a conversa da instância anterior aberta.
     const cur = selectedRef.current;
-    if (cur) {
+    if (cur && cur.instance_id === instanceId) {
       const fresh = list.find(c => c.id === cur.id);
-      if (fresh) {
-        setSelected(prev => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev));
-      }
+      if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev);
+      else setSelected(list[0] || null);
+    } else {
+      setSelected(list[0] || null);
+      setMessages([]);
     }
   };
 
