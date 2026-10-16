@@ -559,11 +559,11 @@ const Agenda = () => {
     }
   };
 
-  const filteredAppEvents = (selectedDateStr ? appEvents.filter(e => e.start_datetime.startsWith(selectedDateStr)) : appEvents)
+  const filteredAppEvents = (selectedDateStr && !searchTerm ? appEvents.filter(e => e.start_datetime.startsWith(selectedDateStr)) : appEvents)
     .filter(e => !searchTerm || [e.title, e.description, e.client_email].some(value => (value || '').toLocaleLowerCase('pt-BR').includes(searchTerm)));
-  const filteredGcalEvents = (selectedDateStr ? gcalEvents.filter(e => e.start.startsWith(selectedDateStr)) : gcalEvents)
+  const filteredGcalEvents = (selectedDateStr && !searchTerm ? gcalEvents.filter(e => e.start.startsWith(selectedDateStr)) : gcalEvents)
     .filter(e => !searchTerm || [e.summary, e.location, e.description, e.calendar_name, ...(e.attendees || []).map(a => a.displayName || a.email || '')].some(value => (value || '').toLocaleLowerCase('pt-BR').includes(searchTerm)));
-  const filteredSchedule = schedule.filter(e => !selectedDateStr || e.date === selectedDateStr)
+  const filteredSchedule = schedule.filter(e => !selectedDateStr || !!searchTerm || e.date === selectedDateStr)
     .filter(e => !searchTerm || [e.leadName, e.note].some(value => (value || '').toLocaleLowerCase('pt-BR').includes(searchTerm)))
     .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 
@@ -834,6 +834,9 @@ const Agenda = () => {
                       onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedGoogleEvent(e); } }}
                       className="stat-card w-full text-left flex items-center gap-3 border-l-4 border-l-primary/50 border-t-2 border-t-border/70 hover:bg-muted/40 transition cursor-pointer"
                       title="Clique para ver detalhes e ações">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1"><span className="font-semibold tabular-nums">{timeStr}</span><div className="h-px flex-1 bg-border" /></div>
+                      </div>
                       <button type="button" onClick={event => { event.stopPropagation(); toggleCalendarCompletion('google', googleCompletionKey(e)); }}
                         aria-label={completionMap[`google:${googleCompletionKey(e)}`] ? 'Desmarcar como concluído' : 'Marcar como concluído'}
                         className={`h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${completionMap[`google:${googleCompletionKey(e)}`] ? 'bg-green-600 border-green-600 text-white' : 'border-primary'}`}>
