@@ -110,7 +110,7 @@ const Agenda = () => {
       }
       addLog('Sessão encontrada, verificando status...', 'info');
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/google-calendar?action=status`,
         {
@@ -146,7 +146,7 @@ const Agenda = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
       const now = new Date();
       const timeMin = now.toISOString();
       const timeMax = new Date(now.getTime() + 30 * 86400000).toISOString();
@@ -202,7 +202,7 @@ const Agenda = () => {
       }
 
       addLog('Gerando URL de autenticação...', 'info');
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
       const redirectUri = window.location.origin;
 
       const response = await fetch(
@@ -237,7 +237,7 @@ const Agenda = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
       await fetch(
         `https://${projectId}.supabase.co/functions/v1/google-calendar?action=disconnect`,
         {
@@ -265,7 +265,7 @@ const Agenda = () => {
         return;
       }
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/create-calendar-event`,
         {
@@ -312,7 +312,7 @@ const Agenda = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/update-calendar-event`,
         {
@@ -355,7 +355,7 @@ const Agenda = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/delete-calendar-event`,
         {
