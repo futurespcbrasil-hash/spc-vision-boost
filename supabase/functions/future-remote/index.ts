@@ -307,7 +307,7 @@ Deno.serve(async (req) => {
             deviceIds.length
               ? admin
                   .from('future_remote_devices')
-                  .select('id, mesh_device_id, device_name, client_name, client_company')
+                  .select('id, mesh_device_id, device_name, client_name, client_company, created_at')
                   .in('mesh_device_id', deviceIds)
               : Promise.resolve({ data: [], error: null } as any),
             deviceIds.length
@@ -330,8 +330,35 @@ Deno.serve(async (req) => {
           const existingById = new Map(
             (existingDevices ?? []).map((device: any) => [device.mesh_device_id, device]),
           )
+
+          // MeshCentral can return stale node identities after a reinstall.
+          // Keep one node per normalized computer name, preferring connected and
+          // most recently seen nodes; CRM creation time breaks remaining ties.
           const normalizeName = (value: unknown) =>
             String(value ?? '').trim().toLocaleLowerCase('pt-BR')
+          const uniqueByName = new Map<string, any>()
+          const score = (node: any) => ({
+            connected: Number(node?.raw?.conn ?? 0) > 0 ? 1 : 0,
+            seen: Number(node?.raw?.lastconnect ?? 0),
+            created: new Date((existingById.get(node.mesh_device_id) as any)?.created_at ?? 0).getTime() || 0,
+          })
+          for (const node of syncedDevices) {
+            const key = normalizeName(node.device_name)
+            if (!key) continue
+            const current = uniqueByName.get(key)
+            if (!current) {
+              uniqueByName.set(key, node)
+              continue
+            }
+            const a = score(node)
+            const b = score(current)
+            if (a.connected > b.connected ||
+              (a.connected === b.connected && a.seen > b.seen) ||
+              (a.connected === b.connected && a.seen === b.seen && a.created > b.created)) {
+              uniqueByName.set(key, node)
+            }
+          }
+          const uniqueSyncedDevices = [...uniqueByName.values()]
           const { data: sameNameDevices, error: sameNameError } = await admin
             .from('future_remote_devices')
             .select('id, mesh_device_id, device_name, client_name, client_company')
@@ -350,7 +377,7 @@ Deno.serve(async (req) => {
             }
           }
 
-          const devices = syncedDevices.map((device) => {
+          const devices = uniqueSyncedDevices.map((device) => {
             const existing = (existingById.get(device.mesh_device_id) ?? existingByName.get(normalizeName(device.device_name))) as any
             const request = latestRequestById.get(device.mesh_device_id)
             return {
