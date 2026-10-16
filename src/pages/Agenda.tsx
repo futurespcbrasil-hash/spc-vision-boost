@@ -1,5 +1,5 @@
 import { useAppState } from '@/context/AppContext';
-import { Calendar as CalIcon, Check, Clock, Plus, Link, Unlink, Loader2, AlertCircle, CheckCircle2, Info, Video, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { Calendar as CalIcon, Check, Clock, Plus, Link, Unlink, Loader2, AlertCircle, CheckCircle2, Info, Video, Pencil, Trash2, ExternalLink, Search } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -62,11 +62,34 @@ const statusConfig: Record<string, { label: string; color: string; icon: string 
   error: { label: 'Erro', color: 'bg-destructive/10 text-destructive', icon: '🔴' },
   pending: { label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-600', icon: '🟡' },
 };
+const formatGoogleDescription = (value?: string | null) => {
+  if (!value) return '';
+  let text = value.replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/(p|div|li|tr|h[1-6])\s*>/gi, '\n')
+    .replace(/<(p|div|li|tr|h[1-6])\b[^>]*>/gi, '').replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'");
+  text = text.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+  const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const result: string[] = [];
+  const labels = /^(protocolo|nome|cpf|cnpj|telefone|celular|e-?mail|endereço|empresa|assunto)$/i;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^[-–—_]{2,}$/.test(line)) continue;
+    if (labels.test(line) && lines[i + 1] && !labels.test(lines[i + 1])) { result.push(`${line}: ${lines[++i]}`); continue; }
+    if (/^\+?\d[\d\s().-]{8,}\d$/.test(line) && result.length && !/^(telefone|celular):/i.test(result[result.length - 1])) { result.push(`Telefone: ${line}`); continue; }
+    result.push(line);
+  }
+  return result.join('\n').trim();
+};
+const googleCompletionKey = (event: GCalEvent) => `${event.calendar_id || 'primary'}::${event.google_event_id || event.id}`;
 
 const Agenda = () => {
   const { schedule, toggleScheduleDone, addScheduleEvent } = useAppState();
   const [showForm, setShowForm] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [eventSearch, setEventSearch] = useState('');
+  const [completionMap, setCompletionMap] = useState<Record<string, boolean>>({});
 
   // Google Calendar state
   const [gcalConnected, setGcalConnected] = useState(false);
@@ -92,15 +115,7 @@ const Agenda = () => {
   }, []);
 
   const selectedDateStr = selectedDate ? selectedDate.toISOString().split('T')[0] : '';
-  const todayStr = new Date().toISOString().split('T')[0];
-
-  const pending = schedule.filter(e => !e.done).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
-  const futureEvents = pending.filter(e => e.date >= todayStr);
-  const done = schedule.filter(e => e.done);
-
-  const filteredPending = selectedDateStr
-    ? pending.filter(e => e.date === selectedDateStr)
-    : pending;
+  const searchTerm = eventSearch.trim().toLocaleLowerCase('pt-BR');
 
   const eventDates = [
     ...schedule.filter(e => !e.done).map(e => new Date(e.date + 'T12:00:00')),
@@ -123,6 +138,30 @@ const Agenda = () => {
       setEventsLoading(false);
     }
   }, []);
+
+  const fetchCompletionStatuses = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data, error } = await supabase.from('calendar_event_completions').select('source_type,event_key,is_completed').eq('user_id', session.user.id);
+    if (error) { console.error('Error fetching completion statuses:', error); return; }
+    const next: Record<string, boolean> = {};
+    (data || []).forEach((row: any) => { next[`${row.source_type}:${row.event_key}`] = !!row.is_completed; });
+    setCompletionMap(next);
+  }, []);
+  const toggleCalendarCompletion = async (sourceType: 'app' | 'google', eventKey: string) => {
+    const mapKey = `${sourceType}:${eventKey}`;
+    const nextValue = !completionMap[mapKey];
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error('Faça login para registrar a conclusão'); return; }
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('calendar_event_completions').upsert({
+      user_id: session.user.id, source_type: sourceType, event_key: eventKey,
+      is_completed: nextValue, completed_at: nextValue ? now : null, updated_at: now,
+    }, { onConflict: 'user_id,source_type,event_key' });
+    if (error) { console.error('Error saving completion:', error); toast.error('Não foi possível salvar a conclusão'); return; }
+    setCompletionMap(prev => ({ ...prev, [mapKey]: nextValue }));
+    toast.success(nextValue ? 'Compromisso marcado como concluído' : 'Conclusão desfeita');
+  };
 
   // Check Google Calendar connection status
   const checkGcalStatus = useCallback(async () => {
@@ -226,7 +265,8 @@ const Agenda = () => {
   useEffect(() => {
     checkGcalStatus();
     fetchAppEvents();
-  }, [checkGcalStatus, fetchAppEvents]);
+    fetchCompletionStatuses();
+  }, [checkGcalStatus, fetchAppEvents, fetchCompletionStatuses]);
 
   useEffect(() => {
     if (gcalConnected) fetchGcalEvents();
@@ -519,14 +559,13 @@ const Agenda = () => {
     }
   };
 
-  // Filter app events by selected date
-  const filteredAppEvents = selectedDateStr
-    ? appEvents.filter(e => e.start_datetime.startsWith(selectedDateStr))
-    : appEvents;
-
-  const filteredGcalEvents = selectedDateStr
-    ? gcalEvents.filter(e => e.start.startsWith(selectedDateStr))
-    : gcalEvents;
+  const filteredAppEvents = (selectedDateStr ? appEvents.filter(e => e.start_datetime.startsWith(selectedDateStr)) : appEvents)
+    .filter(e => !searchTerm || [e.title, e.description, e.client_email].some(value => (value || '').toLocaleLowerCase('pt-BR').includes(searchTerm)));
+  const filteredGcalEvents = (selectedDateStr ? gcalEvents.filter(e => e.start.startsWith(selectedDateStr)) : gcalEvents)
+    .filter(e => !searchTerm || [e.summary, e.location, e.description, e.calendar_name, ...(e.attendees || []).map(a => a.displayName || a.email || '')].some(value => (value || '').toLocaleLowerCase('pt-BR').includes(searchTerm)));
+  const filteredSchedule = schedule.filter(e => !selectedDateStr || e.date === selectedDateStr)
+    .filter(e => !searchTerm || [e.leadName, e.note].some(value => (value || '').toLocaleLowerCase('pt-BR').includes(searchTerm)))
+    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -654,7 +693,7 @@ const Agenda = () => {
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Fim</p><p className="font-medium">{selectedGoogleEvent.end ? (selectedGoogleEvent.end.includes('T') ? new Date(selectedGoogleEvent.end).toLocaleString('pt-BR') : new Date(selectedGoogleEvent.end + 'T12:00:00').toLocaleDateString('pt-BR')) : '—'}</p></div>
               <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Agenda</p><p>{selectedGoogleEvent.calendar_name || 'Agenda principal'}</p></div>
               <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Local</p><p className="whitespace-pre-wrap break-words">{selectedGoogleEvent.location || 'Não informado'}</p></div>
-              <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Descrição</p><p className="whitespace-pre-wrap break-words">{selectedGoogleEvent.description || 'Sem descrição'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Observações</p><p className="whitespace-pre-wrap break-words">{formatGoogleDescription(selectedGoogleEvent.description) || 'Sem observações'}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Organizador</p><p className="break-words">{selectedGoogleEvent.organizer?.displayName || selectedGoogleEvent.organizer?.email || '—'}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Criado por</p><p className="break-words">{selectedGoogleEvent.creator?.displayName || selectedGoogleEvent.creator?.email || '—'}</p></div>
               <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Convidados</p>{selectedGoogleEvent.attendees?.length ? <ul className="space-y-1">{selectedGoogleEvent.attendees.map((a, i) => <li key={a.email || i} className="break-words">{a.displayName ? a.displayName + ' — ' : ''}{a.email || 'Convidado'}{a.responseStatus ? ' · ' + a.responseStatus : ''}</li>)}</ul> : <p>Nenhum convidado listado</p>}</div>
@@ -669,6 +708,10 @@ const Agenda = () => {
               <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Permissões dos convidados</p><p>Convidar outros: {selectedGoogleEvent.guestsCanInviteOthers === undefined ? 'Padrão' : selectedGoogleEvent.guestsCanInviteOthers ? 'Sim' : 'Não'} · Editar evento: {selectedGoogleEvent.guestsCanModify === undefined ? 'Padrão' : selectedGoogleEvent.guestsCanModify ? 'Sim' : 'Não'} · Ver outros convidados: {selectedGoogleEvent.guestsCanSeeOtherGuests === undefined ? 'Padrão' : selectedGoogleEvent.guestsCanSeeOtherGuests ? 'Sim' : 'Não'}</p></div>
             </div>
             <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+              <button type="button" onClick={() => toggleCalendarCompletion('google', googleCompletionKey(selectedGoogleEvent))}
+                className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-sm ${completionMap[`google:${googleCompletionKey(selectedGoogleEvent)}`] ? 'border-green-600/40 text-green-700 hover:bg-green-500/10' : 'border-border hover:bg-muted'}`}>
+                <Check size={14} /> {completionMap[`google:${googleCompletionKey(selectedGoogleEvent)}`] ? 'Concluído · desfazer' : 'Marcar como concluído'}
+              </button>
               {(selectedGoogleEvent.hangoutLink || selectedGoogleEvent.htmlLink) && <a href={selectedGoogleEvent.hangoutLink || selectedGoogleEvent.htmlLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted"><ExternalLink size={14} /> Abrir no Google</a>}
               <button type="button" onClick={() => { setEditingGoogleEvent(selectedGoogleEvent); setSelectedGoogleEvent(null); }} className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"><Pencil size={14} /> Editar</button>
               <button type="button" onClick={() => handleDeleteGoogleEvent(selectedGoogleEvent)} className="inline-flex items-center gap-1 rounded-lg border border-destructive/30 px-3 py-2 text-sm text-destructive hover:bg-destructive/10"><Trash2 size={14} /> Excluir</button>
@@ -692,6 +735,13 @@ const Agenda = () => {
 
         {/* Events list */}
         <div className="space-y-4">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input type="search" value={eventSearch} onChange={event => setEventSearch(event.target.value)}
+              placeholder="Pesquisar compromisso por nome, telefone, e-mail ou observação..."
+              aria-label="Pesquisar compromissos"
+              className="w-full rounded-lg border border-border bg-background py-2.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20" />
+          </div>
           {/* App Events (with Meet) */}
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
@@ -710,8 +760,14 @@ const Agenda = () => {
                 const st = statusConfig[event.status] || statusConfig.pending;
 
                 return (
-                  <div key={event.id} className="stat-card space-y-2">
+                  <div key={event.id} className="stat-card space-y-2 border-t-2 border-border/70">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="font-semibold tabular-nums">{startTime}</span><div className="h-px flex-1 bg-border" /></div>
                     <div className="flex items-start gap-3">
+                      <button type="button" onClick={() => toggleCalendarCompletion('app', event.id)}
+                        aria-label={completionMap[`app:${event.id}`] ? 'Desmarcar como concluído' : 'Marcar como concluído'}
+                        className={`mt-0.5 h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${completionMap[`app:${event.id}`] ? 'bg-green-600 border-green-600 text-white' : 'border-primary'}`}>
+                        {completionMap[`app:${event.id}`] && <Check size={12} />}
+                      </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-foreground">{event.title}</span>
@@ -774,13 +830,15 @@ const Agenda = () => {
                   const dateStr = startDate.toLocaleDateString('pt-BR');
                   const timeStr = e.start.includes('T') ? startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Dia inteiro';
                   return (
-                    <button
-                      key={e.id}
-                      type="button"
-                      onClick={() => setSelectedGoogleEvent(e)}
-                      className="stat-card w-full text-left flex items-center gap-3 border-l-4 border-l-primary/50 hover:bg-muted/40 transition cursor-pointer"
-                      title="Clique para ver detalhes e ações"
-                    >
+                    <div key={e.id} role="button" tabIndex={0} onClick={() => setSelectedGoogleEvent(e)}
+                      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedGoogleEvent(e); } }}
+                      className="stat-card w-full text-left flex items-center gap-3 border-l-4 border-l-primary/50 border-t-2 border-t-border/70 hover:bg-muted/40 transition cursor-pointer"
+                      title="Clique para ver detalhes e ações">
+                      <button type="button" onClick={event => { event.stopPropagation(); toggleCalendarCompletion('google', googleCompletionKey(e)); }}
+                        aria-label={completionMap[`google:${googleCompletionKey(e)}`] ? 'Desmarcar como concluído' : 'Marcar como concluído'}
+                        className={`h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${completionMap[`google:${googleCompletionKey(e)}`] ? 'bg-green-600 border-green-600 text-white' : 'border-primary'}`}>
+                        {completionMap[`google:${googleCompletionKey(e)}`] && <Check size={12} />}
+                      </button>
                       <div className="w-5 h-5 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
                         <CalIcon size={12} className="text-primary" />
                       </div>
@@ -793,73 +851,24 @@ const Agenda = () => {
                         <CalIcon size={12} /> {dateStr}
                         <Clock size={12} /> {timeStr}
                       </div>
-                    </button>
+                    </div>
                   );
                 })
               )}
             </div>
           )}
 
-          {/* Future schedule events */}
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">🔜 Compromissos Futuros ({futureEvents.length})</h3>
-            {futureEvents.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">Nenhum compromisso futuro agendado.</p>
-            ) : (
-              futureEvents.map(e => (
-                <div key={`future-${e.id}`} className="stat-card flex items-center gap-3">
-                  <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full border-2 border-primary flex-shrink-0 hover:bg-primary/10 transition" />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-foreground">{e.leadName}</div>
-                    <div className="text-xs text-muted-foreground">{e.note}</div>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
-                    <CalIcon size={12} /> {e.date}
-                    <Clock size={12} /> {e.time}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">
-              📌 {selectedDateStr ? `Pendentes em ${selectedDate?.toLocaleDateString('pt-BR')}` : 'Todos Pendentes'} ({filteredPending.length})
-            </h3>
-            {filteredPending.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4">Nenhum compromisso {selectedDateStr ? 'nesta data' : 'pendente'}.</p>
-            )}
-            {filteredPending.map(e => (
-              <div key={e.id} className="stat-card flex items-center gap-3">
-                <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full border-2 border-primary flex-shrink-0 hover:bg-primary/10 transition" />
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-foreground">{e.leadName}</div>
-                  <div className="text-xs text-muted-foreground">{e.note}</div>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
-                  <CalIcon size={12} /> {e.date}
-                  <Clock size={12} /> {e.time}
-                </div>
+            <h3 className="text-sm font-semibold text-foreground">📌 Compromissos {selectedDateStr ? `- ${selectedDate?.toLocaleDateString('pt-BR')}` : ''} ({filteredSchedule.length})</h3>
+            {filteredSchedule.length === 0 ? <p className="text-sm text-muted-foreground py-3">Nenhum compromisso encontrado para esta data ou pesquisa.</p> : filteredSchedule.map(item => (
+              <div key={item.id} className={`stat-card flex items-center gap-3 border-t-2 border-border/70 ${item.done ? 'opacity-60' : ''}`}>
+                <button type="button" onClick={() => toggleScheduleDone(item.id)} aria-label={item.done ? 'Desmarcar como concluído' : 'Marcar como concluído'}
+                  className={`h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${item.done ? 'bg-green-600 border-green-600 text-white' : 'border-primary'}`}>{item.done && <Check size={12} />}</button>
+                <div className="flex-1 min-w-0"><div className={`text-sm font-medium text-foreground ${item.done ? 'line-through' : ''}`}>{item.leadName}</div>{item.note && <div className="text-xs text-muted-foreground">{item.note}</div>}</div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0 border-l border-border pl-3"><CalIcon size={12} /> {item.date}<Clock size={12} /> {item.time}</div>
               </div>
             ))}
           </div>
-
-          {done.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-muted-foreground">✅ Concluídos ({done.length})</h3>
-              {done.map(e => (
-                <div key={e.id} className="stat-card flex items-center gap-3 opacity-50">
-                  <button onClick={() => toggleScheduleDone(e.id)} className="w-5 h-5 rounded-full bg-success flex-shrink-0 flex items-center justify-center">
-                    <Check size={12} className="text-success-foreground" />
-                  </button>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-foreground line-through">{e.leadName}</div>
-                    <div className="text-xs text-muted-foreground">{e.note}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>
