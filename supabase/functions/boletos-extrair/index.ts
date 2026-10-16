@@ -45,6 +45,10 @@ Deno.serve(async (req) => {
     const b64 = toBase64(await file.arrayBuffer());
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!apiKey) {
+      await sb.from('boleto_envios').update({ status: 'erro', erro: 'LOVABLE_API_KEY não configurada nos secrets do Supabase' }).eq('id', b.id);
+      return json({ error: 'LOVABLE_API_KEY não configurada nos secrets do Supabase.' }, 503);
+    }
     const prompt = `Você lê boletos bancários brasileiros (PDF com texto ou imagem escaneada). Extraia SOMENTE o que estiver escrito no documento. NUNCA invente: se não encontrar um campo, use null.
 Retorne APENAS JSON com as chaves:
 {"pagador_nome": string|null, "pagador_cpf_cnpj": string|null, "valor": number|null, "vencimento": "AAAA-MM-DD"|null, "nosso_numero": string|null, "linha_digitavel": string|null, "codigo_barras": string|null, "numero_documento": string|null, "data_emissao": "AAAA-MM-DD"|null, "banco": string|null, "legivel": boolean}
