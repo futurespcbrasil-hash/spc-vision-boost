@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { RefreshCw, Monitor, Pencil, Search, Copy, ExternalLink } from 'lucide-react';
+import { RefreshCw, Monitor, Pencil, Search, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { syncDevices, getRemoteUrl } from '@/services/meshCentralService';
 import { DeviceStatus, fmtDateTime } from './statusUtils';
@@ -15,6 +15,7 @@ const Computadores = () => {
   const [devices, setDevices] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState({ client_name: '', client_company: '' });
@@ -85,6 +86,31 @@ const Computadores = () => {
       await load();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const excluirConexao = async (device: any) => {
+    const confirmed = window.confirm(
+      `Excluir do CRM a conexão de "${device.device_name || 'computador'}"?\n\nIsso remove somente o cadastro desta conexão no CRM. Não desinstala nem exclui o dispositivo no MeshCentral.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(device.id);
+    try {
+      const { error } = await supabase
+        .from('future_remote_devices')
+        .delete()
+        .eq('id', device.id);
+
+      if (error) {
+        toast.error('Não foi possível excluir a conexão: ' + error.message);
+        return;
+      }
+
+      toast.success('Conexão removida do CRM');
+      await load();
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -197,6 +223,16 @@ const Computadores = () => {
                         <div className="flex justify-end gap-2">
                           <Button size="sm" variant="outline" onClick={() => editar(d)}>
                             <Pencil size={14} className="mr-1" />Editar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => excluirConexao(d)}
+                            disabled={deletingId === d.id}
+                            title="Excluir somente esta conexão do CRM"
+                          >
+                            <Trash2 size={14} className="mr-1" />
+                            {deletingId === d.id ? 'Excluindo...' : 'Excluir conexão'}
                           </Button>
                           <Button size="sm" onClick={() => acessar(d)}>
                             <Monitor size={14} className="mr-1" />Conectar
