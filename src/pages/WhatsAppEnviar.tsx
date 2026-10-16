@@ -1,120 +1,168 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Send, Paperclip, Users } from 'lucide-react';
-import { mockAccounts } from '@/data/whatsappMockData';
+import { Badge } from '@/components/ui/badge';
+import { Send, RefreshCw, Loader2, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { waha } from '@/services/ryzeService';
 
-const mockLeads = [
-  { id: '1', name: 'João Silva', phone: '+55 11 98888-1111' },
-  { id: '2', name: 'Maria Oliveira', phone: '+55 21 97777-2222' },
-  { id: '3', name: 'Carlos Santos', phone: '+55 31 96666-3333' },
-  { id: '4', name: 'Ana Costa', phone: '+55 41 95555-4444' },
-  { id: '5', name: 'Pedro Lima', phone: '+55 51 94444-5555' },
-];
+type Instance = { id: string; name: string; status: string; phone: string | null };
+
+const digits = (value: string) => value.replace(/\\D/g, '');
+const normalizeNumber = (value: string) => {
+  const raw = digits(value);
+  const number = raw.startsWith('55') ? raw : `55${raw}`;
+  return number.length >= 12 && number.length <= 13 ? number : null;
+};
 
 const WhatsAppEnviar = () => {
   const { toast } = useToast();
-  const [account, setAccount] = useState('');
+  const [instances, setInstances] = useState<Instance[]>([]);
+  const [instanceId, setInstanceId] = useState('');
+  const [recipients, setRecipients] = useState('');
   const [message, setMessage] = useState('');
-  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
-  const [sendMode, setSendMode] = useState<'single' | 'multi'>('single');
-  const [singleContact, setSingleContact] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [results, setResults] = useState<{ number: string; ok: boolean; error?: string }[]>([]);
 
-  const toggleLead = (id: string) => {
-    setSelectedLeads(prev => prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]);
-  };
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await waha.syncInstances();
+      const list = (response?.instances || []) as Instance[];
+      setInstances(list);
+      setInstanceId((current) => list.some((item) => item.id === current && item.status === 'connected')
+        ? current : list.find((item) => item.status === 'connected')?.id || '');
+    } catch (error: any) {
+      toast({ title: 'Não foi possível carregar as instâncias WAHA', description: error?.message || 'Verifique a configuração do servidor.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
-  const handleSend = () => {
-    const count = sendMode === 'single' ? 1 : selectedLeads.length;
-    if (!account || !message.trim() || count === 0) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' });
+  useEffect(() => { void load(); }, [load]);
+
+  const connected = useMemo(() => instances.filter((item) => item.status === 'connected'), [instances]);
+  const parsedRecipients = useMemo(() => recipients.split(/[\\n,;]+/).map((item) => item.trim()).filter(Boolean), [recipients]);
+
+  const handleSend = async () => {
+    if (!instanceId) {
+      toast({ title: 'Selecione uma instância conectada', variant: 'destructive' });
       return;
     }
-    toast({ title: `Mensagem enviada para ${count} contato(s)` });
-    setMessage('');
-    setSelectedLeads([]);
-    setSingleContact('');
+    if (!message.trim()) {
+      toast({ title: 'Digite a mensagem', variant: 'destructive' });
+      return;
+    }
+    if (!parsedRecipients.length) {
+      toast({ title: 'Informe pelo menos um número', variant: 'destructive' });
+      return;
+    }
+    const normalized = parsedRecipients.map((item) => ({ original: item, number: normalizeNumber(item) }));
+    const invalid = normalized.filter((item) => !item.number);
+    if (invalid.length) {
+      toast({ title: 'Revise os números inválidos', description: invalid.map((item) => item.original).join(', '), variant: 'destructive' });
+      return;
+    }
+
+    setSending(true);
+    setResults([]);
+    setProgress({ done: 0, total: normalized.length });
+    const nextResults: { number: string; ok: boolean; error?: string }[] = [];
+    try {
+      for (const item of normalized) {
+        try {
+          await waha.sendText(instanceId, item.number!, message.trim());
+          nextResults.push({ number: item.number!, ok: true });
+        } catch (error: any) {
+          nextResults.push({ number: item.number!, ok: false, error: error?.message || 'Falha no envio' });
+        }
+        setResults([...nextResults]);
+        setProgress({ done: nextResults.length, total: normalized.length });
+        if (nextResults.length < normalized.length) await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+      const ok = nextResults.filter((item) => item.ok).length;
+      const failed = nextResults.length - ok;
+      toast({
+        title: failed ? 'Envio concluído com falhas' : 'Mensagens aceitas pela WAHA',
+        description: `${ok} enviado(s), ${failed} com erro. Consulte os resultados abaixo.`,
+        variant: failed && !ok ? 'destructive' : 'default',
+      });
+      if (!failed) {
+        setMessage('');
+        setRecipients('');
+      }
+    } finally {
+      setSending(false);
+      setProgress(null);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Enviar Mensagem</h1>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Configuração</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Conta WhatsApp</Label>
-              <Select value={account} onValueChange={setAccount}>
-                <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
-                <SelectContent>
-                  {mockAccounts.filter(a => a.status === 'connected').map(a => (
-                    <SelectItem key={a.id} value={a.id}>{a.name} - {a.number}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex gap-2">
-              <Button variant={sendMode === 'single' ? 'default' : 'outline'} size="sm" onClick={() => setSendMode('single')}>
-                Um contato
-              </Button>
-              <Button variant={sendMode === 'multi' ? 'default' : 'outline'} size="sm" onClick={() => setSendMode('multi')} className="gap-1">
-                <Users size={14} /> Múltiplos
-              </Button>
-            </div>
-
-            {sendMode === 'single' ? (
-              <div className="space-y-2">
-                <Label>Contato</Label>
-                <Select value={singleContact} onValueChange={setSingleContact}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o contato" /></SelectTrigger>
-                  <SelectContent>
-                    {mockLeads.map(l => (
-                      <SelectItem key={l.id} value={l.id}>{l.name} - {l.phone}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Selecione os contatos ({selectedLeads.length})</Label>
-                <div className="border rounded-lg max-h-48 overflow-y-auto">
-                  {mockLeads.map(lead => (
-                    <label key={lead.id} className="flex items-center gap-3 p-2.5 hover:bg-muted/50 cursor-pointer border-b last:border-b-0">
-                      <Checkbox checked={selectedLeads.includes(lead.id)} onCheckedChange={() => toggleLead(lead.id)} />
-                      <div>
-                        <p className="text-sm font-medium">{lead.name}</p>
-                        <p className="text-xs text-muted-foreground">{lead.phone}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base">Mensagem</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea placeholder="Digite sua mensagem..." rows={8} value={message} onChange={e => setMessage(e.target.value)} />
-            <div className="flex items-center justify-between">
-              <Button variant="outline" size="sm" className="gap-1"><Paperclip size={14} /> Anexar</Button>
-              <Button onClick={handleSend} className="gap-2 bg-green-500 hover:bg-green-600">
-                <Send size={16} /> Enviar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Enviar mensagem pelo WhatsApp</h1>
+          <p className="text-sm text-muted-foreground">Envio real pela WAHA usando uma instância conectada.</p>
+        </div>
+        <Button variant="outline" onClick={() => void load()} disabled={loading || sending} className="gap-2">
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Atualizar
+        </Button>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><MessageCircle size={18} /> Destinatários e mensagem</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Instância WhatsApp</Label>
+            <Select value={instanceId} onValueChange={setInstanceId} disabled={loading || sending}>
+              <SelectTrigger><SelectValue placeholder="Selecione uma instância conectada" /></SelectTrigger>
+              <SelectContent>
+                {connected.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}{item.phone ? ` — ${item.phone}` : ''}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {!loading && connected.length === 0 && <p className="text-sm text-amber-700">Nenhuma instância conectada. Acesse WhatsApp → Instâncias WAHA e conecte um número pelo QR Code.</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>Números de WhatsApp</Label>
+            <Textarea value={recipients} onChange={(event) => setRecipients(event.target.value)} placeholder="Digite um número por linha, com DDD. Ex.: 54999999999" rows={4} disabled={sending} />
+            <p className="text-xs text-muted-foreground">Aceita números separados por linha, vírgula ou ponto e vírgula. O código do Brasil (55) é adicionado quando necessário.</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Mensagem</Label>
+            <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Digite a mensagem que deseja enviar..." rows={6} disabled={sending} />
+          </div>
+          {progress && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm"><span>Processando envios</span><span>{progress.done}/{progress.total}</span></div>
+              <div className="h-2 rounded bg-muted overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${progress.total ? progress.done / progress.total * 100 : 0}%` }} /></div>
+            </div>
+          )}
+          <Button onClick={() => void handleSend()} disabled={sending || loading || !connected.length} className="gap-2">
+            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            {sending ? 'Enviando...' : `Enviar para ${parsedRecipients.length || 0} contato(s)`}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {results.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Resultado dos envios</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {results.map((item, index) => (
+              <div key={`${item.number}-${index}`} className="flex items-start justify-between gap-3 rounded-md border p-3">
+                <div className="min-w-0"><p className="font-medium">{item.number}</p>{item.error && <p className="text-sm text-destructive break-words">{item.error}</p>}</div>
+                <Badge variant={item.ok ? 'default' : 'destructive'}>{item.ok ? 'Aceito pela WAHA' : 'Falhou'}</Badge>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground">“Aceito pela WAHA” confirma que a API aceitou o pedido, não garante que o destinatário leu a mensagem.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
