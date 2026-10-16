@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
-import { ryze } from '@/services/ryzeService';
+import { waha } from '@/services/ryzeService';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -260,7 +260,7 @@ const WhatsAppChat = () => {
     try {
       for (const file of clipboardFiles) {
         const url = await uploadMedia(file, file.name || 'clipboard-image.png', user.id);
-        await ryze.sendMedia(instanceId, selected.contact_number, url, 'image', text.trim() || undefined);
+        await waha.sendMedia(instanceId, selected.contact_number, url, 'image', text.trim() || undefined);
       }
       setClipboardFiles([]);
       setText('');
@@ -468,7 +468,7 @@ const WhatsAppChat = () => {
     // Foto de perfil: apenas 1 GET por conversa (Ryze /api/profile/getAccount)
     if (!selected.avatar_url && instanceId && !profilePicFetched.current.has(chatId)) {
       profilePicFetched.current.add(chatId);
-      ryze.getProfilePic(instanceId, selected.wa_chat_id)
+      waha.getProfilePic(instanceId, selected.wa_chat_id)
         .then((res: any) => {
           const url = res?.avatar_url;
           if (!url) return;
@@ -528,7 +528,7 @@ const WhatsAppChat = () => {
       if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, 100);
     try {
-      await ryze.sendText(instanceId, selected.contact_number, msg);
+      await waha.sendText(instanceId, selected.contact_number, msg);
       if (!selected.assigned_to && user) {
         await supabase.from('whatsapp_chats').update({ assigned_to: user.id }).eq('id', selected.id);
       }
@@ -560,7 +560,7 @@ const WhatsAppChat = () => {
     setUploading(true);
     try {
       const url = await uploadMedia(file, file.name, user.id);
-      await ryze.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined, file.type);
+      await waha.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined, file.type);
       setText('');
       loadMessages(selected.id);
       loadChats();
@@ -595,7 +595,7 @@ const WhatsAppChat = () => {
         try {
           const ext = mime.includes('webm') ? 'webm' : 'm4a';
           const url = await uploadMedia(blob, `audio.${ext}`, user!.id);
-          await ryze.sendMedia(instanceId, selected.contact_number, url, 'audio');
+          await waha.sendMedia(instanceId, selected.contact_number, url, 'audio');
           loadMessages(selected.id);
           loadChats();
         } catch (err: any) {
@@ -626,7 +626,7 @@ const WhatsAppChat = () => {
     setStartingChat(true);
     try {
       if (newChatMessage.trim()) {
-        await ryze.sendText(instanceId, number, newChatMessage.trim());
+        await waha.sendText(instanceId, number, newChatMessage.trim());
       }
       await loadChats();
       const { data } = await supabase.from('whatsapp_chats').select('*')
@@ -653,7 +653,7 @@ const WhatsAppChat = () => {
     if (!instanceId) return;
     setSyncing(true);
     try {
-      await ryze.getChats(instanceId);
+      await waha.getChats(instanceId);
       toast({ title: 'Conversas sincronizadas com sucesso' });
       loadChats();
     } catch (e: any) {
@@ -664,7 +664,7 @@ const WhatsAppChat = () => {
   const handleSyncMessages = async () => {
     if (!instanceId || !selected) return;
     try {
-      await ryze.getMessages(instanceId, selected.wa_chat_id);
+      await waha.getMessages(instanceId, selected.wa_chat_id);
       loadMessages(selected.id);
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
