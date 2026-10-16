@@ -16,7 +16,7 @@ const AppSidebar = () => {
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
   const [indicacoesOpen, setIndicacoesOpen] = useState(location.pathname.startsWith('/indicacoes'));
   const [consultasOpen, setConsultasOpen] = useState(location.pathname.startsWith('/consultas'));
-  const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'));
+  const [comissoesOpen, setComissoesOpen] = useState(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores') || location.pathname.startsWith('/comissoes/'));
   const [remoteOpen, setRemoteOpen] = useState(location.pathname.startsWith('/future-remote'));
   const [finOpen, setFinOpen] = useState(location.pathname.startsWith('/financeiro'));
 
@@ -51,6 +51,7 @@ const AppSidebar = () => {
   const COMISSOES_SUB = [
     { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatórios', moduleKey: 'comissoes' },
     { to: '/cadastro-vendedores', icon: UserPlus, label: 'Cadastro Vendedores', moduleKey: 'comissoes' },
+    { to: '/comissoes/indicacoes-sistema', icon: Building2, label: 'Indicações — Sistema de Notas', moduleKey: 'comissoes' },
   ];
 
   const WHATSAPP_SUB = [
@@ -273,7 +274,7 @@ const AppSidebar = () => {
             <button
               onClick={() => setComissoesOpen(!comissoesOpen)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
-                ${(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores'))
+                ${(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores') || location.pathname.startsWith('/comissoes/'))
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
               title={collapsed ? 'Comissões' : undefined}
