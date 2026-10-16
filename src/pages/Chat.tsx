@@ -30,20 +30,33 @@ const Chat = () => {
   const [unread, setUnread] = useState<Record<string, number>>({});
   const endRef = useRef<HTMLDivElement>(null);
 
-  // Load users
+  // Load every registered teammate through a scoped RPC.
+  // This avoids profile/role table RLS rules hiding coworkers from non-manager roles.
   useEffect(() => {
+    let active = true;
     const load = async () => {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, email');
-      const { data: roles } = await supabase.from('user_roles').select('user_id, role');
-      const roleMap = new Map((roles || []).map(r => [r.user_id, r.role]));
-      const list = (profiles || [])
-        .filter(p => p.user_id !== user?.id)
-        .map(p => ({ ...p, role: roleMap.get(p.user_id) as string }));
+      const { data, error } = await supabase.rpc('get_chat_users');
+      if (!active) return;
+      if (error) {
+        console.error('Erro ao carregar usuários do Chat Interno:', error);
+        toast({
+          title: 'Não foi possível carregar os usuários',
+          description: 'Verifique sua conexão e tente novamente.',
+          variant: 'destructive',
+        });
+        setUsers([]);
+        return;
+      }
+      const list = (data || [])
+        .filter((p: UserItem) => p.user_id !== user?.id)
+        .map((p: UserItem) => ({
+          ...p,
+          display_name: p.display_name || p.email || 'Usuário',
+        }));
       setUsers(list);
     };
     if (user) load();
+    return () => { active = false; };
   }, [user]);
 
   // Load unread counts
