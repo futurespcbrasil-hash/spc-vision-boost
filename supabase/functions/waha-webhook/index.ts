@@ -5,6 +5,9 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { "Content-Type": "application/json" },
 });
 const str = (v: unknown) => typeof v === "string" ? v : "";
+const cleanWebhookSecret = (value: string | null | undefined) =>
+  (value || "").split(/\r?\n/)[0].replace(/\s+Copiar chave.*$/i, "").trim();
+
 const timestamp = (v: unknown) => {
   if (typeof v === "number") return new Date(v < 10_000_000_000 ? v * 1000 : v).toISOString();
   if (typeof v === "string" && v) {
@@ -20,8 +23,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok");
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const secret = Deno.env.get("WAHA_WEBHOOK_SECRET");
-  const supplied = new URL(req.url).searchParams.get("token") || req.headers.get("X-WAHA-Webhook-Secret");
+  const secret = cleanWebhookSecret(Deno.env.get("WAHA_WEBHOOK_SECRET"));
+  const supplied = cleanWebhookSecret(new URL(req.url).searchParams.get("token") || req.headers.get("X-WAHA-Webhook-Secret"));
   if (!secret || !supplied || supplied !== secret) return json({ error: "Unauthorized" }, 401);
 
   const url = Deno.env.get("SUPABASE_URL");
@@ -59,13 +62,15 @@ Deno.serve(async (req: Request) => {
   if (eventName === "message.ack") return json({ accepted: true });
 
   const fromMe = payload?.fromMe === true || payload?.from_me === true || payload?.key?.fromMe === true;
-  const remote = str(fromMe ? payload?.to : payload?.from);
-  // WAHA payload.id é o ID DA MENSAGEM, não o ID da conversa.
-  // Prioriza chatId/remote JID para não criar uma conversa diferente por mensagem.
-  const waChatId = str(payload?.chatId || payload?.chat_id || payload?._data?.id?.remote || remote);
-  if (!remote || !waChatId) return json({ accepted: true, ignored: true });
-
-  const contactNumber = remote.split("@")[0].replace(/\D/g, "");
+  // Em alguns eventos message.any de saída, WAHA fornece chatId mas não preenche to.
+  const candidateRemote = str(fromMe
+    ? payload?.to || payload?.chatId || payload?.chat_id || payload?._data?.id?.remote
+    : payload?.from || payload?.chatId || payload?.chat_id);
+  // payload.id é o ID DA MENSAGEM, não o ID da conversa.
+  const waChatId = str(payload?.chatId || payload?.chat_id || payload?._data?.id?.remote || candidateRemote);
+  if (!waChatId) return json({ accepted: true, ignored: true });
+  const remote = candidateRemote || waChatId;
+  const contactNumber = waChatId.split("@")[0].replace(/\D/g, "");
   const contactName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName) || contactNumber;
   const body = str(payload?.body || payload?.text);
   const rawType = str(payload?.type || payload?.media?.mimetype).toLowerCase();
@@ -83,7 +88,7 @@ Deno.serve(async (req: Request) => {
       contact_number: contactNumber, contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
       last_message_at: sentAt, unread_count: fromMe ? (existingChat?.unread_count || 0) : (existingChat?.unread_count || 0) + 1,
-      is_group: remote.endsWith("@g.us"), updated_at: new Date().toISOString(),
+      is_group: waChatId.endsWith("@g.us"), updated_at: new Date().toISOString(),
     }).eq("id", chatId);
   } else {
     const { data: inserted, error } = await db.from("whatsapp_chats").insert({
@@ -91,7 +96,7 @@ Deno.serve(async (req: Request) => {
       contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
       last_message_at: sentAt, unread_count: fromMe ? 0 : 1,
-      is_group: remote.endsWith("@g.us"), archived: false,
+      is_group: waChatId.endsWith("@g.us"), archived: false,
     }).select("id").single();
     if (error) return json({ error: "Failed to persist chat" }, 500);
     chatId = inserted.id;
@@ -103,7 +108,7 @@ Deno.serve(async (req: Request) => {
     if (!duplicate) {
       const { error } = await db.from("whatsapp_messages").insert({
         chat_id: chatId, instance_id: instance.id, wa_message_id: messageId,
-        from_me: fromMe, sender: fromMe ? "me" : contactNumber,
+        from_me: fromMe, sender: fromMe ? "me" : str(payload?.participant || payload?._data?.id?.participant) || contactNumber,
         message_type: messageType, text: body, media_url: mediaUrl,
         media_mime: str(payload?.media?.mimetype) || null,
         media_filename: str(payload?.media?.filename) || null,
