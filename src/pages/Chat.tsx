@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-import { Send, MessageCircle, Search, ArrowLeft, Paperclip, Image as ImageIcon, Video, Mic, Loader2, X } from 'lucide-react';
+import { Send, MessageCircle, Search, ArrowLeft, Paperclip, Loader2 } from 'lucide-react';
 
 interface UserItem {
   user_id: string;
