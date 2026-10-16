@@ -72,7 +72,7 @@ const uploadMedia = async (file: Blob, filename: string, userId: string) => {
     upsert: false,
   });
   if (error) throw error;
-  const { data, error: sErr } = await supabase.storage.from('whatsapp-media').createSignedUrl(path, 60 * 60 * 24 * 7);
+  const { data, error: sErr } = await supabase.storage.from('whatsapp-media').createSignedUrl(path, 15 * 60);
   if (sErr || !data?.signedUrl) throw sErr || new Error('Não foi possível gerar o link do arquivo');
   return data.signedUrl;
 };
@@ -260,7 +260,7 @@ const WhatsAppChat = () => {
     try {
       for (const file of clipboardFiles) {
         const url = await uploadMedia(file, file.name || 'clipboard-image.png', user.id);
-        await waha.sendMedia(instanceId, selected.contact_number, url, 'image', text.trim() || undefined);
+        await waha.sendMedia(instanceId, selected.contact_number, url, 'image', text.trim() || undefined, file.type || 'image/png', file.name || 'imagem.png');
       }
       setClipboardFiles([]);
       setText('');
@@ -560,7 +560,7 @@ const WhatsAppChat = () => {
     setUploading(true);
     try {
       const url = await uploadMedia(file, file.name, user.id);
-      await waha.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined, file.type);
+      await waha.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined, file.type, file.name);
       setText('');
       loadMessages(selected.id);
       loadChats();
@@ -595,7 +595,7 @@ const WhatsAppChat = () => {
         try {
           const ext = mime.includes('webm') ? 'webm' : 'm4a';
           const url = await uploadMedia(blob, `audio.${ext}`, user!.id);
-          await waha.sendMedia(instanceId, selected.contact_number, url, 'audio');
+          await waha.sendMedia(instanceId, selected.contact_number, url, 'audio', undefined, mime, `audio.${ext}`);
           loadMessages(selected.id);
           loadChats();
         } catch (err: any) {
