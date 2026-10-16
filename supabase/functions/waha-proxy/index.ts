@@ -8,6 +8,8 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+const cleanWebhookSecret = (value: string | null | undefined) =>
+  (value || "").split(/\r?\n/)[0].replace(/\s+Copiar chave.*$/i, "").trim();
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -101,9 +103,9 @@ Deno.serve(async (req: Request) => {
     return chatId;
   };
 
-  const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any) => {
+  const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any, recipient: string) => {
     const now = new Date().toISOString();
-    const digits = chatId.split("@")[0].replace(/\D/g, "");
+    const digits = String(recipient || chatId).split("@")[0].replace(/\D/g, "");
     const { data: existing } = await db.from("whatsapp_chats").select("id,unread_count")
       .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
     let chatIdDb = existing?.id as string | undefined;
@@ -230,11 +232,15 @@ Deno.serve(async (req: Request) => {
       case "register_webhook": {
         const inst = await getOwnedInstance();
         const hookUrl = Deno.env.get("WAHA_WEBHOOK_URL");
-        const hookSecret = Deno.env.get("WAHA_WEBHOOK_SECRET");
+        const hookSecret = cleanWebhookSecret(Deno.env.get("WAHA_WEBHOOK_SECRET"));
         if (!hookUrl || !hookSecret) return json({ error: "Defina WAHA_WEBHOOK_URL e WAHA_WEBHOOK_SECRET nos secrets do Supabase." }, 503);
         const target = new URL(hookUrl);
-        target.searchParams.set("token", hookSecret);
-        await callWaha(`/api/sessions/${encodeURIComponent(inst.provider_instance_name)}`, "PUT", { config: { webhooks: [{ url: target.toString(), events: ["message", "message.any", "message.ack", "state.change", "session.status"] }] } });
+        target.searchParams.delete("token");
+        await callWaha(`/api/sessions/${encodeURIComponent(inst.provider_instance_name)}`, "PUT", { config: { webhooks: [{
+          url: target.toString(),
+          events: ["message", "message.any", "message.ack", "state.change", "session.status"],
+          customHeaders: [{ name: "X-WAHA-Webhook-Secret", value: hookSecret }],
+        }] } });
         return json({ success: true });
       }
       case "send_text": {
@@ -242,7 +248,7 @@ Deno.serve(async (req: Request) => {
         if (!number || typeof body.text !== "string" || !body.text.trim()) return json({ error: "Número e texto são obrigatórios." }, 400);
         const chatId = await resolveChatId(inst.provider_instance_name, number);
         const result = await callWaha("/api/sendText", "POST", { session: inst.provider_instance_name, chatId, text: body.text });
-        await persistOutbound(inst, chatId, String(body.text).trim(), "text", result);
+        await persistOutbound(inst, chatId, String(body.text).trim(), "text", result, number);
         return json(result);
       }
       case "send_media": {
@@ -255,7 +261,7 @@ Deno.serve(async (req: Request) => {
         const payload: Record<string, unknown> = { session: inst.provider_instance_name, chatId, file: { url: body.media_url, mimetype, filename } };
         if (typeof body.caption === "string" && body.caption) payload.caption = body.caption;
         const result = await callWaha("/api/sendFile", "POST", payload);
-        await persistOutbound(inst, chatId, typeof body.caption === "string" ? body.caption : "", mediaType, result);
+        await persistOutbound(inst, chatId, typeof body.caption === "string" ? body.caption : "", mediaType, result, number);
         return json({ ...result, media_type: mediaType });
       }
       case "get_chats": {
