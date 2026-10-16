@@ -291,7 +291,7 @@ Deno.serve(async (req: Request) => {
             const parsedTime = new Date(rawTime);
             if (!Number.isNaN(parsedTime.getTime())) lastMessageAt = parsedTime.toISOString();
           }
-          const lastText = String(last?.body || last?.text || "");
+          const lastText = typeof last === "string" ? last : String(last?.body || last?.text || last?.caption || "");
           const record = {
             instance_id: inst.id,
             wa_chat_id: waChatId,
