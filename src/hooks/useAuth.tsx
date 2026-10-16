@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
-import { USER_MODULES, DEFAULT_MODULES_BY_ROLE } from '@/lib/userModules';
+import { USER_MODULES } from '@/lib/userModules';
 
 export type AppRole = 'vendedor' | 'gestor' | 'atendimento';
 type AccountType = 'dono_app' | 'revenda' | 'parceiro' | 'usuario_final' | null;
@@ -74,17 +74,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           : 'vendedor';
       setRole(resolvedRole);
 
-      // Complete older/incomplete permission sets with role defaults. Explicit saved
-      // false values remain false, while missing Gestor modules receive their defaults.
+      // Missing permission rows are denied by default. Only an explicit saved
+      // can_access=true grants access; role defaults must never bypass saved settings.
       const permissionRows = permissions || [];
       const savedPermissions = Object.fromEntries(
         permissionRows.map((item: { module_key: string; can_access: boolean }) => [item.module_key, item.can_access])
       ) as Record<string, boolean>;
       const completedPermissions = Object.fromEntries(
-        USER_MODULES.map(({ key }) => [
-          key,
-          savedPermissions[key] ?? DEFAULT_MODULES_BY_ROLE[resolvedRole].includes(key),
-        ])
+        USER_MODULES.map(({ key }) => [key, savedPermissions[key] === true])
       );
       setModulePermissions(completedPermissions);
       setAccountType(null);
