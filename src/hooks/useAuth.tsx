@@ -150,8 +150,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
   };
 
-  // Somente a conta responsável pode administrar usuários e permissões.
-  const canManageUsers = user?.email?.toLowerCase() === OWNER_EMAIL;
+  // A conta responsável e os usuários com perfil Gestor podem administrar usuários.
+  const canManageUsers = user?.email?.toLowerCase() === OWNER_EMAIL || role === 'gestor';
 
   // Para todos os demais usuários, o acesso é definido exclusivamente pelas
   // permissões salvas. Cargo Gestor/Atendimento não concede módulos implícitos.
