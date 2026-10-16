@@ -445,7 +445,8 @@ const Agenda = () => {
             start_datetime: formData.start_datetime,
             end_datetime: formData.end_datetime,
             location: formData.location || '',
-            attendee_email: formData.client_email || '',
+            attendee_emails: formData.client_email.split(',').map(email => email.trim()).filter(Boolean),
+            all_day: !editingGoogleEvent.start?.includes('T'),
           }),
         }
       );
@@ -629,6 +630,34 @@ const Agenda = () => {
         )
       )}
 
+      {selectedGoogleEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedGoogleEvent(null); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="google-event-title" className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-background p-5 shadow-xl space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-xs font-medium uppercase tracking-wide text-primary">Google Calendar</p><h2 id="google-event-title" className="text-xl font-semibold text-foreground mt-1">{selectedGoogleEvent.summary || '(Sem título)'}</h2></div>
+              <button type="button" onClick={() => setSelectedGoogleEvent(null)} className="rounded-lg border border-border px-2 py-1 text-sm hover:bg-muted">Fechar</button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Início</p><p className="font-medium">{selectedGoogleEvent.start ? (selectedGoogleEvent.start.includes('T') ? new Date(selectedGoogleEvent.start).toLocaleString('pt-BR') : new Date(selectedGoogleEvent.start + 'T12:00:00').toLocaleDateString('pt-BR')) : '—'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Fim</p><p className="font-medium">{selectedGoogleEvent.end ? (selectedGoogleEvent.end.includes('T') ? new Date(selectedGoogleEvent.end).toLocaleString('pt-BR') : new Date(selectedGoogleEvent.end + 'T12:00:00').toLocaleDateString('pt-BR')) : '—'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Agenda</p><p>{selectedGoogleEvent.calendar_name || 'Agenda principal'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Local</p><p className="whitespace-pre-wrap break-words">{selectedGoogleEvent.location || 'Não informado'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Descrição</p><p className="whitespace-pre-wrap break-words">{selectedGoogleEvent.description || 'Sem descrição'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Organizador</p><p className="break-words">{selectedGoogleEvent.organizer?.displayName || selectedGoogleEvent.organizer?.email || '—'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Criado por</p><p className="break-words">{selectedGoogleEvent.creator?.displayName || selectedGoogleEvent.creator?.email || '—'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Convidados</p>{selectedGoogleEvent.attendees?.length ? <ul className="space-y-1">{selectedGoogleEvent.attendees.map((a, i) => <li key={a.email || i} className="break-words">{a.displayName ? a.displayName + ' — ' : ''}{a.email || 'Convidado'}{a.responseStatus ? ' · ' + a.responseStatus : ''}</li>)}</ul> : <p>Nenhum convidado listado</p>}</div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Status</p><p>{selectedGoogleEvent.status || '—'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Visibilidade</p><p>{selectedGoogleEvent.visibility || 'Padrão'}</p></div>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+              {(selectedGoogleEvent.hangoutLink || selectedGoogleEvent.htmlLink) && <a href={selectedGoogleEvent.hangoutLink || selectedGoogleEvent.htmlLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted"><ExternalLink size={14} /> Abrir no Google</a>}
+              <button type="button" onClick={() => { setEditingGoogleEvent(selectedGoogleEvent); setSelectedGoogleEvent(null); }} className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"><Pencil size={14} /> Editar</button>
+              <button type="button" onClick={() => handleDeleteGoogleEvent(selectedGoogleEvent)} className="inline-flex items-center gap-1 rounded-lg border border-destructive/30 px-3 py-2 text-sm text-destructive hover:bg-destructive/10"><Trash2 size={14} /> Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
         {/* Calendar */}
         <div className="stat-card flex justify-center">
@@ -715,7 +744,7 @@ const Agenda = () => {
           {gcalConnected && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                📅 Google Calendar {selectedDateStr ? `- ${selectedDate?.toLocaleDateString('pt-BR')}` : '(próximos 30 dias)'}
+                📅 Google Calendar {selectedDateStr ? `- ${selectedDate?.toLocaleDateString('pt-BR')}` : '(todos os eventos carregados)'}
                 {gcalLoading && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
               </h3>
               {filteredGcalEvents.length === 0 ? (
@@ -905,7 +934,6 @@ const EventForm = ({
         <input className={inputClass} type="email" placeholder="Email do cliente" value={form.client_email} onChange={e => setForm({ ...form, client_email: e.target.value })} />
       </div>
       <input className={inputClass} placeholder="Descrição" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-      <input className={inputClass} placeholder="Local (opcional)" value={form.location || ''} onChange={e => setForm({ ...form, location: e.target.value })} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Início *</label>
