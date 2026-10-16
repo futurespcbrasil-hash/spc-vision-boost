@@ -77,7 +77,7 @@ async function sha256(file: File) {
 }
 
 export function renderMensagem(tpl: string, b: Boleto, c?: Cliente | null) {
-  const nome = c?.nome || b.nome_extraido || '';
+  const nome = c?.contato_nome || c?.nome || b.nome_extraido || '';
   const vars: Record<string, string> = {
     nome, razao_social: c?.razao_social || b.nome_extraido || nome, cpf_cnpj: fmtDoc(c?.cpf_cnpj || b.cpf_cnpj_extraido),
     valor: brl(b.valor), vencimento: dateBR(b.vencimento), numero_documento: b.numero_documento || '', nosso_numero: b.nosso_numero || '',
