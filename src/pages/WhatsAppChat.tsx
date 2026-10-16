@@ -260,7 +260,7 @@ const WhatsAppChat = () => {
     try {
       for (const file of clipboardFiles) {
         const url = await uploadMedia(file, file.name || 'clipboard-image.png', user.id);
-        await waha.sendMedia(instanceId, selected.contact_number, url, 'image', text.trim() || undefined, file.type || 'image/png', file.name || 'imagem.png');
+        await waha.sendMedia(instanceId, selected.wa_chat_id || selected.contact_number, url, 'image', text.trim() || undefined, file.type || 'image/png', file.name || 'imagem.png');
       }
       setClipboardFiles([]);
       setText('');
@@ -528,7 +528,7 @@ const WhatsAppChat = () => {
       if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, 100);
     try {
-      await waha.sendText(instanceId, selected.contact_number, msg);
+      await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, msg);
       if (!selected.assigned_to && user) {
         await supabase.from('whatsapp_chats').update({ assigned_to: user.id }).eq('id', selected.id);
       }
@@ -560,7 +560,7 @@ const WhatsAppChat = () => {
     setUploading(true);
     try {
       const url = await uploadMedia(file, file.name, user.id);
-      await waha.sendMedia(instanceId, selected.contact_number, url, mediaType, text.trim() || undefined, file.type, file.name);
+      await waha.sendMedia(instanceId, selected.wa_chat_id || selected.contact_number, url, mediaType, text.trim() || undefined, file.type, file.name);
       setText('');
       loadMessages(selected.id);
       loadChats();
@@ -595,7 +595,7 @@ const WhatsAppChat = () => {
         try {
           const ext = mime.includes('webm') ? 'webm' : 'm4a';
           const url = await uploadMedia(blob, `audio.${ext}`, user!.id);
-          await waha.sendMedia(instanceId, selected.contact_number, url, 'audio', undefined, mime, `audio.${ext}`);
+          await waha.sendMedia(instanceId, selected.wa_chat_id || selected.contact_number, url, 'audio', undefined, mime, `audio.${ext}`);
           loadMessages(selected.id);
           loadChats();
         } catch (err: any) {
