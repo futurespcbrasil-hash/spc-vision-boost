@@ -23,6 +23,7 @@ const moduleForPath = (pathname: string): string | null => {
   if (pathname.startsWith('/whatsapp')) return 'whatsapp';
   if (pathname.startsWith('/future-remote')) return 'future_remote';
   if (pathname.startsWith('/parceiros-spc')) return 'parceiros';
+  if (pathname.startsWith('/indicacoes')) return 'indicacoes_atendimento';
   if (pathname.startsWith('/financeiro')) return 'financeiro';
   if (pathname.startsWith('/produtos')) return 'produtos';
   if (pathname.startsWith('/comparador')) return 'comparador';
