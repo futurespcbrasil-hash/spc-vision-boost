@@ -23,6 +23,18 @@ interface GCalEvent {
   visibility?: string;
   transparency?: string;
   hangoutLink?: string;
+  created?: string;
+  updated?: string;
+  recurrence?: string[];
+  recurringEventId?: string;
+  reminders?: { useDefault?: boolean; overrides?: Array<{ method?: string; minutes?: number }> };
+  conferenceData?: { conferenceSolution?: { name?: string }; entryPoints?: Array<{ entryPointType?: string; uri?: string; label?: string }> };
+  attachments?: Array<{ fileUrl?: string; title?: string; mimeType?: string }>;
+  eventType?: string;
+  colorId?: string;
+  guestsCanInviteOthers?: boolean;
+  guestsCanModify?: boolean;
+  guestsCanSeeOtherGuests?: boolean;
 }
 
 interface AppEvent {
@@ -93,7 +105,7 @@ const Agenda = () => {
   const eventDates = [
     ...schedule.filter(e => !e.done).map(e => new Date(e.date + 'T12:00:00')),
     ...appEvents.map(e => new Date(e.start_datetime)),
-    ...gcalEvents.filter(e => e.start).map(e => new Date(e.start)),
+    ...gcalEvents.filter(e => e.start).map(e => new Date(e.start.includes('T') ? e.start : e.start + 'T12:00:00')),
   ];
 
   // Fetch app events from DB
@@ -648,6 +660,13 @@ const Agenda = () => {
               <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Convidados</p>{selectedGoogleEvent.attendees?.length ? <ul className="space-y-1">{selectedGoogleEvent.attendees.map((a, i) => <li key={a.email || i} className="break-words">{a.displayName ? a.displayName + ' — ' : ''}{a.email || 'Convidado'}{a.responseStatus ? ' · ' + a.responseStatus : ''}</li>)}</ul> : <p>Nenhum convidado listado</p>}</div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Status</p><p>{selectedGoogleEvent.status || '—'}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Visibilidade</p><p>{selectedGoogleEvent.visibility || 'Padrão'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Tipo de evento</p><p>{selectedGoogleEvent.eventType || 'Padrão'}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Última atualização</p><p>{selectedGoogleEvent.updated ? new Date(selectedGoogleEvent.updated).toLocaleString('pt-BR') : '—'}</p></div>
+              {selectedGoogleEvent.conferenceData?.entryPoints?.length ? <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Videoconferência</p><ul className="space-y-1">{selectedGoogleEvent.conferenceData.entryPoints.map((point, i) => <li key={point.uri || i} className="break-words">{point.label || point.entryPointType || 'Link'}: {point.uri || '—'}</li>)}</ul></div> : null}
+              {selectedGoogleEvent.attachments?.length ? <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Anexos</p><ul className="space-y-1">{selectedGoogleEvent.attachments.map((attachment, i) => <li key={attachment.fileUrl || i} className="break-words">{attachment.fileUrl ? <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">{attachment.title || attachment.fileUrl}</a> : (attachment.title || 'Anexo')}{attachment.mimeType ? ' · ' + attachment.mimeType : ''}</li>)}</ul></div> : null}
+              <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Lembretes</p><p>{selectedGoogleEvent.reminders?.useDefault ? 'Lembretes padrão do Google Calendar' : selectedGoogleEvent.reminders?.overrides?.length ? selectedGoogleEvent.reminders.overrides.map(reminder => (reminder.method || 'Lembrete') + ' · ' + reminder.minutes + ' min antes').join(' | ') : 'Nenhum lembrete personalizado informado'}</p></div>
+              {selectedGoogleEvent.recurrence?.length ? <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Recorrência</p><p className="whitespace-pre-wrap break-words">{selectedGoogleEvent.recurrence.join('\n')}</p></div> : null}
+              <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Permissões dos convidados</p><p>Convidar outros: {selectedGoogleEvent.guestsCanInviteOthers === undefined ? 'Padrão' : selectedGoogleEvent.guestsCanInviteOthers ? 'Sim' : 'Não'} · Editar evento: {selectedGoogleEvent.guestsCanModify === undefined ? 'Padrão' : selectedGoogleEvent.guestsCanModify ? 'Sim' : 'Não'} · Ver outros convidados: {selectedGoogleEvent.guestsCanSeeOtherGuests === undefined ? 'Padrão' : selectedGoogleEvent.guestsCanSeeOtherGuests ? 'Sim' : 'Não'}</p></div>
             </div>
             <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
               {(selectedGoogleEvent.hangoutLink || selectedGoogleEvent.htmlLink) && <a href={selectedGoogleEvent.hangoutLink || selectedGoogleEvent.htmlLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted"><ExternalLink size={14} /> Abrir no Google</a>}
