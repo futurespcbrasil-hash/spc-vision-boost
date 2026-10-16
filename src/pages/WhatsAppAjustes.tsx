@@ -160,8 +160,8 @@ const WhatsAppAjustes = () => {
       if (connected) {
         clearInterval(iv);
         setQrOpen(null);
-        await waha.registerWebhook(inst.id).catch(() => null);
-        await waha.getChats(inst.id).catch(() => null);
+        await waha.registerWebhook(inst.id).catch((e: any) => toast({ title: 'WhatsApp conectado, mas webhook não configurado', description: e.message, variant: 'destructive' }));
+        await waha.getChats(inst.id).catch((e: any) => toast({ title: 'Conectado, mas falhou a sincronização das conversas', description: e.message, variant: 'destructive' }));
         await loadAll();
         toast({ title: 'WhatsApp Conectado!', description: `Número: ${s?.phone || 'Dispositivo conectado'}` });
       }
@@ -175,7 +175,7 @@ const WhatsAppAjustes = () => {
       const r = await waha.connect(inst.id);
       await loadAll();
       if (r?.already_connected) {
-        await waha.registerWebhook(inst.id).catch(() => null);
+        await waha.registerWebhook(inst.id).catch((e: any) => toast({ title: 'WhatsApp conectado, mas webhook não configurado', description: e.message, variant: 'destructive' }));
         toast({ title: 'WhatsApp já conectado', description: `Número: ${r.phone || 'dispositivo ativo'}` });
         return;
       }

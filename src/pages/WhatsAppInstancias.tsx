@@ -64,8 +64,8 @@ const WhatsAppInstancias = () => {
       const r = await waha.connect(inst.id);
       await load();
       if (r.already_connected) {
-        await waha.registerWebhook(inst.id).catch(() => null);
-        await waha.getChats(inst.id).catch(() => null);
+        await waha.registerWebhook(inst.id).catch((e: any) => toast({ title: 'WhatsApp conectado, mas webhook não configurado', description: e.message, variant: 'destructive' }));
+        await waha.getChats(inst.id).catch((e: any) => toast({ title: 'Conectado, mas falhou a sincronização das conversas', description: e.message, variant: 'destructive' }));
         await load();
         toast({
           title: 'WhatsApp já está conectado',
@@ -84,8 +84,8 @@ const WhatsAppInstancias = () => {
           clearInterval(iv);
           setQrOpen(null);
           // Register webhook & sync chats automatically
-          await waha.registerWebhook(inst.id).catch(() => null);
-          await waha.getChats(inst.id).catch(() => null);
+          await waha.registerWebhook(inst.id).catch((e: any) => toast({ title: 'WhatsApp conectado, mas webhook não configurado', description: e.message, variant: 'destructive' }));
+          await waha.getChats(inst.id).catch((e: any) => toast({ title: 'Conectado, mas falhou a sincronização das conversas', description: e.message, variant: 'destructive' }));
           await load();
           toast({
             title: 'WhatsApp Conectado com Sucesso!',
