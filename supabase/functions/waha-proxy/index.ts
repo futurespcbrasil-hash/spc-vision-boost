@@ -80,6 +80,27 @@ Deno.serve(async (req: Request) => {
     }
     return migrated;
   };
+  // Resolve telefones novos pelo endpoint oficial da WAHA. No Brasil, o WhatsApp
+  // pode exigir um LID em vez do JID baseado no telefone; enviar diretamente para
+  // @c.us pode gerar "no LID found".
+  const resolveChatId = async (session: string, recipient: string) => {
+    const value = String(recipient || "").trim();
+    if (!value) throw new Error("Informe o número ou identificador da conversa.");
+    if (value.endsWith("@g.us") || value.endsWith("@lid")) return value;
+    let phone = value;
+    if (value.endsWith("@c.us")) phone = value.slice(0, -5);
+    phone = phone.replace(/\D/g, "");
+    if (!phone) throw new Error("O número informado é inválido.");
+    if ((phone.length === 10 || phone.length === 11) && !phone.startsWith("55")) phone = "55" + phone;
+    if (phone.length < 10 || phone.length > 15) throw new Error("Número inválido. Informe país + DDD + telefone.");
+    const params = new URLSearchParams({ session, phone });
+    const checked = await callWaha("/api/contacts/check-exists?" + params.toString());
+    if (checked?.numberExists === false) throw new Error("O número " + phone + " não está registrado no WhatsApp.");
+    const chatId = typeof checked?.chatId === "string" ? checked.chatId : "";
+    if (!chatId) throw new Error("A WAHA não retornou o identificador correto deste contato. Confira o número e tente novamente.");
+    return chatId;
+  };
+
   const normalizeStatus = (status: string) => {
     if (["WORKING", "SCAN_QR_CODE", "STARTING", "STOPPED", "FAILED"].includes(status)) {
       return ({ WORKING: "connected", SCAN_QR_CODE: "qr", STARTING: "connecting", STOPPED: "disconnected", FAILED: "disconnected" } as Record<string, string>)[status];
@@ -182,14 +203,14 @@ Deno.serve(async (req: Request) => {
       case "send_text": {
         const inst = await getOwnedInstance();
         if (!number || typeof body.text !== "string" || !body.text.trim()) return json({ error: "Número e texto são obrigatórios." }, 400);
-        const chatId = number.includes("@") ? number : `${number.replace(/\D/g, "")}@c.us`;
+        const chatId = await resolveChatId(inst.provider_instance_name, number);
         const result = await callWaha("/api/sendText", "POST", { session: inst.provider_instance_name, chatId, text: body.text });
         return json(result);
       }
       case "send_media": {
         const inst = await getOwnedInstance();
         if (!number || typeof body.media_url !== "string" || !body.media_url) return json({ error: "Número e URL da mídia são obrigatórios." }, 400);
-        const chatId = number.includes("@") ? number : `${number.replace(/\D/g, "")}@c.us`;
+        const chatId = await resolveChatId(inst.provider_instance_name, number);
         const mediaType = String(body.media_type || "document");
         const mimetype = typeof body.media_mime === "string" ? body.media_mime : "application/octet-stream";
         const filename = typeof body.filename === "string" && body.filename.trim() ? body.filename.trim().slice(0, 180) : "arquivo";
