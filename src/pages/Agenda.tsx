@@ -458,7 +458,7 @@ const Agenda = () => {
             end_datetime: formData.end_datetime,
             location: formData.location || '',
             attendee_emails: formData.client_email.split(',').map(email => email.trim()).filter(Boolean),
-            all_day: !editingGoogleEvent.start?.includes('T'),
+            all_day: formData.all_day ?? !editingGoogleEvent.start?.includes('T'),
           }),
         }
       );
@@ -901,6 +901,7 @@ interface EventFormData {
   end_datetime: string;
   client_email: string;
   location?: string;
+  all_day?: boolean;
   with_meet: boolean;
 }
 
@@ -1022,6 +1023,7 @@ const GoogleEventForm = ({ initialData, loading, onSubmit, onCancel }: {
       end_datetime: normalize(form.end_datetime),
       client_email: form.client_email.split(',').map(v => v.trim()).filter(Boolean)[0] || '',
       location: form.location,
+      all_day: allDay,
       with_meet: false,
     });
   };
@@ -1032,7 +1034,7 @@ const GoogleEventForm = ({ initialData, loading, onSubmit, onCancel }: {
       <textarea className={inputClass} rows={4} placeholder="Descrição completa" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
       <input className={inputClass} placeholder="Local" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
       <input className={inputClass} placeholder="E-mails dos convidados (separados por vírgula)" value={form.client_email} onChange={e => setForm({ ...form, client_email: e.target.value })} />
-      <label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} className="accent-primary" />Evento de dia inteiro</label>
+      <label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={allDay} onChange={e => { const next = e.target.checked; setAllDay(next); setForm(prev => ({ ...prev, start_datetime: next ? prev.start_datetime.slice(0, 10) : (prev.start_datetime.includes('T') ? prev.start_datetime : prev.start_datetime + 'T09:00'), end_datetime: next ? prev.end_datetime.slice(0, 10) : (prev.end_datetime.includes('T') ? prev.end_datetime : prev.end_datetime + 'T10:00') })); }} className="accent-primary" />Evento de dia inteiro</label>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div><label className="text-xs text-muted-foreground mb-1 block">Início *</label><input className={inputClass} type={allDay ? 'date' : 'datetime-local'} required value={form.start_datetime} onChange={e => setForm({ ...form, start_datetime: e.target.value })} /></div>
         <div><label className="text-xs text-muted-foreground mb-1 block">Fim *</label><input className={inputClass} type={allDay ? 'date' : 'datetime-local'} required value={form.end_datetime} onChange={e => setForm({ ...form, end_datetime: e.target.value })} /></div>
