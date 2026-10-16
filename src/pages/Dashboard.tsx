@@ -19,6 +19,38 @@ type AttendanceAgendaItem = {
   googleEventId?: string | null;
 };
 
+
+const cleanAgendaObservation = (value?: string | null): string => {
+  if (!value) return '';
+  const withBreaks = String(value)
+    .replace(/\\(?=<\/?(?:br|p|div|li|ul|ol|strong|b|span|html)\b)/gi, '')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/\s*(?:p|div|li|ul|ol|strong|b|span|html)\s*>/gi, '\n')
+    .replace(/<\s*(?:p|div|li|ul|ol)\b[^>]*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;|&#160;|&#xA0;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'");
+  const decoded = typeof document !== 'undefined'
+    ? (() => {
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = withBreaks;
+        return textarea.value;
+      })()
+    : withBreaks.replace(/&#x([0-9a-f]+);?/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(/&#(\d+);?/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+  return decoded
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+
 const AttendanceDashboard = () => {
   const { user } = useAuth();
   const { schedule } = useAppState();
@@ -161,7 +193,7 @@ const AttendanceDashboard = () => {
         title: event.title || 'Compromisso sem título',
         start: event.start_datetime,
         end: event.end_datetime,
-        detail: event.description || '',
+        detail: cleanAgendaObservation(event.description || ''),
         source: 'Agenda Vision',
         googleEventId: event.google_event_id,
       });
@@ -173,7 +205,7 @@ const AttendanceDashboard = () => {
         id: 'schedule:' + event.id,
         title: event.leadName || 'Compromisso',
         start,
-        detail: event.note || '',
+        detail: cleanAgendaObservation(event.note || ''),
         source: 'Agenda Vision',
       });
     });
@@ -188,7 +220,7 @@ const AttendanceDashboard = () => {
         title: event.summary || 'Compromisso sem título',
         start: startValue,
         end: event.end?.dateTime || event.end?.date || event.end,
-        detail: event.location || event.description || '',
+        detail: cleanAgendaObservation([event.description, event.location].filter(Boolean).join('\n')),
         source: 'Google Calendar',
         googleEventId: googleId || null,
       });
@@ -285,7 +317,7 @@ const AttendanceDashboard = () => {
                 <div className="min-w-[62px] rounded-md bg-background px-2 py-1 text-center text-sm font-semibold text-primary">{formatTime(event.start)}</div>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground break-words">{event.title}</p>
-                  {event.detail && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{event.detail}</p>}
+                  {event.detail && <p className="mt-0.5 text-xs text-muted-foreground whitespace-pre-line break-words">{event.detail}</p>}
                   <p className="mt-1 text-[11px] text-muted-foreground">{event.source}</p>
                 </div>
               </div>
