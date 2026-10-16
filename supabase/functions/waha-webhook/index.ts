@@ -70,8 +70,9 @@ Deno.serve(async (req: Request) => {
   const waChatId = str(payload?.chatId || payload?.chat_id || payload?._data?.id?.remote || candidateRemote);
   if (!waChatId) return json({ accepted: true, ignored: true });
   const remote = candidateRemote || waChatId;
-  const contactNumber = waChatId.split("@")[0].replace(/\D/g, "");
-  const contactName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName) || contactNumber;
+  const phoneSource = candidateRemote && !candidateRemote.endsWith("@lid") ? candidateRemote : waChatId;
+  const contactNumber = phoneSource.split("@")[0].replace(/\D/g, "");
+  const incomingName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName);
   const body = str(payload?.body || payload?.text);
   const rawType = str(payload?.type || payload?.media?.mimetype).toLowerCase();
   const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
@@ -80,11 +81,19 @@ Deno.serve(async (req: Request) => {
   const mediaUrl = str(payload?.media?.url || payload?.mediaUrl) || null;
   const avatar = str(payload?._data?.profilePicThumbObj?.eurl || payload?.profilePictureUrl) || null;
 
-  const { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number")
+  let { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id")
     .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
-  // WAHA pode usar @lid no JID sem expor o telefone; preserve o telefone já conhecido.
+  // Se a WAHA alternar entre JID telefônico e LID, reutilize a conversa pelo telefone conhecido.
+  if (!existingChat && contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
+    const lookup = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id")
+      .eq("instance_id", instance.id).eq("contact_number", contactNumber).eq("is_group", false).limit(1).maybeSingle();
+    existingChat = lookup.data;
+  }
   const persistedContactNumber = waChatId.endsWith("@lid") && existingChat?.contact_number
     ? existingChat.contact_number : contactNumber;
+  const previousName = str(existingChat?.contact_name);
+  const previousNumber = str(existingChat?.contact_number).replace(/\D/g, "");
+  const contactName = incomingName || (previousName && previousName.replace(/\D/g, "") !== previousNumber ? previousName : "") || persistedContactNumber;
   let chatId = existingChat?.id as string | undefined;
   if (chatId) {
     await db.from("whatsapp_chats").update({
