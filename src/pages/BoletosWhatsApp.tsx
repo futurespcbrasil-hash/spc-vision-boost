@@ -544,7 +544,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
                       <TableCell className="text-right whitespace-nowrap">
                         <Button size="icon" variant="ghost" title="Ver mensagem" onClick={() => { setPreview(b); openPdf(b); }}><Eye size={16} /></Button>
                         {b.status !== 'enviado' && <Button size="icon" variant="ghost" title="Revisar" onClick={() => { setReview({ ...b }); openPdf(b); }}><Pencil size={16} /></Button>}
-                        {['erro', 'importado'].includes(b.status) && <Button size="icon" variant="ghost" title="Ler novamente" onClick={async () => { await processar(b.id); load(); }}><RefreshCw size={16} /></Button>}
+                        {['erro', 'importado'].includes(b.status) && <Button size="icon" variant="ghost" title="Ler novamente" onClick={async () => { try { await processar(b.id); toast.success('Leitura concluída.'); } catch (e: any) { toast.error(e?.message || 'Falha ao reler o boleto'); } finally { await load(); } }}><RefreshCw size={16} /></Button>}
                         {b.status === 'pronto_envio' && <Button size="icon" variant="ghost" title="Enviar" onClick={() => pedirEnvio([b])}><Send size={16} /></Button>}
                         {b.status === 'enviado' && <Button size="sm" variant="ghost" onClick={() => reenviar(b)}>Reenviar</Button>}
                         {b.status !== 'enviado' && <Button size="icon" variant="ghost" title="Excluir" onClick={() => excluir(b)}><Trash2 size={16} /></Button>}
