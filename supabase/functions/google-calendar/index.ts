@@ -228,6 +228,18 @@ Deno.serve(async (req) => {
                 attendees: e.attendees || [],
                 visibility: e.visibility || "",
                 transparency: e.transparency || "",
+                created: e.created || "",
+                updated: e.updated || "",
+                recurrence: e.recurrence || [],
+                recurringEventId: e.recurringEventId || "",
+                reminders: e.reminders || null,
+                conferenceData: e.conferenceData || null,
+                attachments: e.attachments || [],
+                eventType: e.eventType || "default",
+                colorId: e.colorId || "",
+                guestsCanInviteOthers: e.guestsCanInviteOthers,
+                guestsCanModify: e.guestsCanModify,
+                guestsCanSeeOtherGuests: e.guestsCanSeeOtherGuests,
                 hangoutLink: e.hangoutLink || e.conferenceData?.entryPoints?.find((p: any) => p.entryPointType === "video")?.uri || "",
               });
             }
