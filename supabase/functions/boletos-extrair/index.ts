@@ -137,6 +137,23 @@ Deno.serve(async (req) => {
       return json({ error: 'Não foi possível consultar os clientes cadastrados' }, 500);
     }
     const list = clientes || [];
+    // Repair the placeholder client created by an earlier faulty extraction, but only
+    // when this exact boleto is already linked to a client whose name is just a field label.
+    if (b.client_id && nome && cpfCnpj) {
+      const linked = list.find((c: any) => c.id === b.client_id);
+      if (linked && /^(?:sacador\/avalista|benefici[aá]rio|cedente|pagador|sacado)$/i.test((linked.nome || '').trim())) {
+        const { error: repairError } = await sb.from('boleto_clientes')
+          .update({ nome, cpf_cnpj: cpfCnpj })
+          .eq('id', linked.id)
+          .eq('user_id', u.user.id);
+        if (repairError) {
+          console.error('Não foi possível corrigir o cadastro placeholder do boleto', repairError);
+        } else {
+          linked.nome = nome;
+          linked.cpf_cnpj = cpfCnpj;
+        }
+      }
+    }
     let match: any = null; let info = '';
     if (cpfCnpj) {
       const m = list.filter((c: any) => digits(c.cpf_cnpj) === cpfCnpj);
