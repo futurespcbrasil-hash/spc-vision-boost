@@ -151,8 +151,9 @@ Deno.serve(async (req: Request) => {
       if (!isOwner && targetIsGestor) {
         return json({ error: "Somente o responsável principal pode alterar permissões de outro Gestor." }, 403);
       }
-      // Gestores always receive every module, with the full permission set persisted in the database.
-      const grantedModules = targetIsGestor ? MODULE_KEYS : modules;
+      // The owner can explicitly enable or disable modules for any target, including Gestores.
+      // Non-owner Gestors are blocked above from changing another Gestor's permissions.
+      const grantedModules = modules;
       const rows = MODULE_KEYS.map((module_key) => ({
         user_id: targetUserId,
         module_key,
