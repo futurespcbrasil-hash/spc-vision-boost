@@ -7,11 +7,22 @@ import { toast } from 'sonner';
 
 interface GCalEvent {
   id: string;
+  google_event_id?: string;
+  calendar_id?: string;
+  calendar_name?: string;
   summary: string;
   start: string;
   end: string;
   location: string;
   description: string;
+  status?: string;
+  htmlLink?: string;
+  creator?: { email?: string; displayName?: string };
+  organizer?: { email?: string; displayName?: string };
+  attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string }>;
+  visibility?: string;
+  transparency?: string;
+  hangoutLink?: string;
 }
 
 interface AppEvent {
@@ -60,6 +71,8 @@ const Agenda = () => {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [showEventForm, setShowEventForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<AppEvent | null>(null);
+  const [editingGoogleEvent, setEditingGoogleEvent] = useState<GCalEvent | null>(null);
+  const [selectedGoogleEvent, setSelectedGoogleEvent] = useState<GCalEvent | null>(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
 
   const addLog = useCallback((message: string, type: GCalLog['type'] = 'info') => {
@@ -110,6 +123,17 @@ const Agenda = () => {
         return;
       }
       addLog('Sessão encontrada, verificando status...', 'info');
+      // Show this user's last calendar snapshot immediately; the network refresh happens after status check.
+      try {
+        const cached = localStorage.getItem(`spc-vision:gcal-events:${session.user.id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed.events)) setGcalEvents(parsed.events);
+          addLog('Eventos em cache exibidos enquanto atualiza o Google Calendar', 'info');
+        }
+      } catch {
+        // Ignore corrupt or unavailable browser cache.
+      }
 
       const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
       const response = await fetch(
@@ -164,6 +188,18 @@ const Agenda = () => {
       const data = await response.json();
       if (data.events) {
         setGcalEvents(data.events);
+        try {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+            localStorage.setItem(`spc-vision:gcal-events:${currentSession.user.id}`, JSON.stringify({
+              savedAt: Date.now(),
+              events: data.events,
+            }));
+          }
+        } catch {
+          // Cache is an optimization; the live result remains usable if storage is unavailable.
+        }
+        addLog(`Google Calendar atualizado: ${data.events.length} eventos`, 'success');
       } else if (data.connected === false) {
         setGcalConnected(false);
         toast.error('Conexão com Google Calendar expirou. Reconecte.');
@@ -382,6 +418,94 @@ const Agenda = () => {
     }
   };
 
+  const handleUpdateGoogleEvent = async (formData: EventFormData) => {
+    if (!editingGoogleEvent) return;
+    setCreatingEvent(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Faça login primeiro');
+        return;
+      }
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/google-calendar?action=update-event`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            calendar_id: editingGoogleEvent.calendar_id || 'primary',
+            event_id: editingGoogleEvent.google_event_id || editingGoogleEvent.id,
+            summary: formData.title,
+            description: formData.description,
+            start_datetime: formData.start_datetime,
+            end_datetime: formData.end_datetime,
+            location: formData.location || '',
+            attendee_email: formData.client_email || '',
+          }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        toast.error(data.error || 'Erro ao atualizar evento no Google Calendar');
+        return;
+      }
+      toast.success('Evento atualizado no Google Calendar');
+      setEditingGoogleEvent(null);
+      setSelectedGoogleEvent(null);
+      await fetchGcalEvents();
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao atualizar evento no Google Calendar');
+    } finally {
+      setCreatingEvent(false);
+    }
+  };
+
+  const handleDeleteGoogleEvent = async (event: GCalEvent) => {
+    if (!confirm(`Excluir "${event.summary || 'este evento'}" do Google Calendar? Esta ação também será refletida na agenda Google.`)) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Faça login primeiro');
+        return;
+      }
+      const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/google-calendar?action=delete-event`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            calendar_id: event.calendar_id || 'primary',
+            event_id: event.google_event_id || event.id,
+          }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        toast.error(data.error || 'Erro ao excluir evento do Google Calendar');
+        return;
+      }
+      setGcalEvents(prev => prev.filter(item => item.id !== event.id));
+      setSelectedGoogleEvent(null);
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (currentSession) localStorage.setItem(`spc-vision:gcal-events:${currentSession.user.id}`, JSON.stringify({ savedAt: Date.now(), events: gcalEvents.filter(item => item.id !== event.id) }));
+      } catch {}
+      toast.success('Evento excluído do Google Calendar');
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao excluir evento do Google Calendar');
+    }
+  };
+
   // Filter app events by selected date
   const filteredAppEvents = selectedDateStr
     ? appEvents.filter(e => e.start_datetime.startsWith(selectedDateStr))
@@ -487,13 +611,22 @@ const Agenda = () => {
       )}
 
       {/* Event form (Google Calendar + Meet) */}
-      {(showEventForm || editingEvent) && (
-        <EventForm
-          initialData={editingEvent}
-          loading={creatingEvent}
-          onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
-          onCancel={() => { setShowEventForm(false); setEditingEvent(null); }}
-        />
+      {(showEventForm || editingEvent || editingGoogleEvent) && (
+        editingGoogleEvent ? (
+          <GoogleEventForm
+            initialData={editingGoogleEvent}
+            loading={creatingEvent}
+            onSubmit={handleUpdateGoogleEvent}
+            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); }}
+          />
+        ) : (
+          <EventForm
+            initialData={editingEvent}
+            loading={creatingEvent}
+            onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
+            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); }}
+          />
+        )
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
@@ -593,19 +726,26 @@ const Agenda = () => {
                   const dateStr = startDate.toLocaleDateString('pt-BR');
                   const timeStr = e.start.includes('T') ? startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Dia inteiro';
                   return (
-                    <div key={e.id} className="stat-card flex items-center gap-3 border-l-4 border-l-primary/50">
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => setSelectedGoogleEvent(e)}
+                      className="stat-card w-full text-left flex items-center gap-3 border-l-4 border-l-primary/50 hover:bg-muted/40 transition cursor-pointer"
+                      title="Clique para ver detalhes e ações"
+                    >
                       <div className="w-5 h-5 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
                         <CalIcon size={12} className="text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground truncate">{e.summary}</div>
+                        <div className="text-sm font-medium text-foreground truncate">{e.summary || '(Sem título)'}</div>
                         {e.location && <div className="text-xs text-muted-foreground truncate">📍 {e.location}</div>}
+                        {e.calendar_name && <div className="text-[11px] text-muted-foreground truncate">Agenda: {e.calendar_name}</div>}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-shrink-0">
                         <CalIcon size={12} /> {dateStr}
                         <Clock size={12} /> {timeStr}
                       </div>
-                    </div>
+                    </button>
                   );
                 })
               )}
@@ -712,6 +852,7 @@ interface EventFormData {
   start_datetime: string;
   end_datetime: string;
   client_email: string;
+  location?: string;
   with_meet: boolean;
 }
 
@@ -740,6 +881,7 @@ const EventForm = ({
     start_datetime: initialData ? formatForInput(initialData.start_datetime) : '',
     end_datetime: initialData ? formatForInput(initialData.end_datetime) : '',
     client_email: initialData?.client_email || '',
+    location: '',
     with_meet: !!initialData?.meet_link,
   });
 
@@ -763,6 +905,7 @@ const EventForm = ({
         <input className={inputClass} type="email" placeholder="Email do cliente" value={form.client_email} onChange={e => setForm({ ...form, client_email: e.target.value })} />
       </div>
       <input className={inputClass} placeholder="Descrição" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+      <input className={inputClass} placeholder="Local (opcional)" value={form.location || ''} onChange={e => setForm({ ...form, location: e.target.value })} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Início *</label>
@@ -790,6 +933,67 @@ const EventForm = ({
           {loading && <Loader2 size={14} className="animate-spin" />}
           {initialData ? 'Atualizar' : 'Criar Evento'}
         </button>
+      </div>
+    </form>
+  );
+};
+
+
+const GoogleEventForm = ({ initialData, loading, onSubmit, onCancel }: {
+  initialData: GCalEvent;
+  loading: boolean;
+  onSubmit: (data: EventFormData) => void;
+  onCancel: () => void;
+}) => {
+  const isAllDay = !initialData.start?.includes('T');
+  const formatInput = (value: string) => {
+    if (!value) return '';
+    if (!value.includes('T')) return value;
+    const date = new Date(value);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  const [allDay, setAllDay] = useState(isAllDay);
+  const [form, setForm] = useState({
+    title: initialData.summary || '',
+    description: initialData.description || '',
+    start_datetime: formatInput(initialData.start),
+    end_datetime: formatInput(initialData.end),
+    client_email: initialData.attendees?.map(a => a.email).filter(Boolean).join(', ') || '',
+    location: initialData.location || '',
+  });
+  const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalize = (value: string) => {
+      if (allDay) return new Date(value + 'T12:00:00').toISOString();
+      return new Date(value).toISOString();
+    };
+    onSubmit({
+      title: form.title,
+      description: form.description,
+      start_datetime: normalize(form.start_datetime),
+      end_datetime: normalize(form.end_datetime),
+      client_email: form.client_email.split(',').map(v => v.trim()).filter(Boolean)[0] || '',
+      location: form.location,
+      with_meet: false,
+    });
+  };
+  return (
+    <form onSubmit={handleSubmit} className="stat-card space-y-3 animate-slide-in border-l-4 border-l-primary">
+      <h3 className="font-semibold text-foreground flex items-center gap-2"><CalIcon size={18} className="text-primary" />Editar evento do Google Calendar</h3>
+      <input className={inputClass} required placeholder="Título *" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+      <textarea className={inputClass} rows={4} placeholder="Descrição completa" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+      <input className={inputClass} placeholder="Local" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
+      <input className={inputClass} placeholder="E-mails dos convidados (separados por vírgula)" value={form.client_email} onChange={e => setForm({ ...form, client_email: e.target.value })} />
+      <label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} className="accent-primary" />Evento de dia inteiro</label>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div><label className="text-xs text-muted-foreground mb-1 block">Início *</label><input className={inputClass} type={allDay ? 'date' : 'datetime-local'} required value={form.start_datetime} onChange={e => setForm({ ...form, start_datetime: e.target.value })} /></div>
+        <div><label className="text-xs text-muted-foreground mb-1 block">Fim *</label><input className={inputClass} type={allDay ? 'date' : 'datetime-local'} required value={form.end_datetime} onChange={e => setForm({ ...form, end_datetime: e.target.value })} /></div>
+      </div>
+      <p className="text-xs text-muted-foreground">As alterações serão enviadas ao Google Calendar. Para convidados, informe os e-mails separados por vírgula.</p>
+      <div className="flex gap-2 justify-end">
+        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
+        <button type="submit" disabled={loading} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2">{loading && <Loader2 size={14} className="animate-spin" />}Salvar no Google</button>
       </div>
     </form>
   );
