@@ -80,6 +80,7 @@ const Agenda = () => {
   const eventDates = [
     ...schedule.filter(e => !e.done).map(e => new Date(e.date + 'T12:00:00')),
     ...appEvents.map(e => new Date(e.start_datetime)),
+    ...gcalEvents.filter(e => e.start).map(e => new Date(e.start)),
   ];
 
   // Fetch app events from DB
