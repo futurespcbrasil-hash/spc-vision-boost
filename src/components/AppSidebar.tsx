@@ -4,12 +4,29 @@ import {
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText, FileSpreadsheet,
   Monitor, History, Cog, Wallet, Smartphone
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 const AppSidebar = () => {
   const location = useLocation();
-  const { profile, role, signOut, canManageUsers, canAccessModule } = useAuth();
+  const { user, profile, role, signOut, canManageUsers, canAccessModule } = useAuth();
+  const [chatUnread, setChatUnread] = useState(0);
+
+  useEffect(() => {
+    if (!user) { setChatUnread(0); return; }
+    let active = true;
+    const refresh = async () => {
+      const { count, error } = await supabase.from('chat_messages').select('id', { count: 'exact', head: true }).eq('recipient_id', user.id).eq('read', false);
+      if (active && !error) setChatUnread(count || 0);
+    };
+    void refresh();
+    const channel = supabase.channel(`sidebar-chat-unread-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `recipient_id=eq.${user.id}` }, () => { void refresh(); })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `recipient_id=eq.${user.id}` }, () => { void refresh(); })
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [user]);
   const [collapsed, setCollapsed] = useState(false);
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
@@ -77,7 +94,8 @@ const AppSidebar = () => {
       title={collapsed ? item.label : undefined}
     >
       <item.icon size={18} />
-      {!collapsed && <span>{item.label}</span>}
+      {!collapsed && <span className="flex-1">{item.label}</span>}
+      {item.moduleKey === 'chat' && chatUnread > 0 && <span className="ml-auto inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" aria-label={`${chatUnread} mensagens não lidas`}>{chatUnread > 99 ? '99+' : chatUnread}</span>}
     </Link>
   );
 
