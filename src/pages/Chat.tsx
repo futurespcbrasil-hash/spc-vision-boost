@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-import { Send, MessageCircle, Search, ArrowLeft } from 'lucide-react';
+import { Send, MessageCircle, Search, ArrowLeft, Paperclip, Image as ImageIcon, Video, Mic, Loader2, X } from 'lucide-react';
 
 interface UserItem {
   user_id: string;
@@ -18,7 +18,24 @@ interface Message {
   content: string;
   read: boolean;
   created_at: string;
+  mediaUrl?: string;
 }
+
+const MEDIA_PREFIX = '__chat_media__:';
+type ChatMedia = { type: 'image' | 'video' | 'audio' | 'file'; path: string; name: string; mime: string; caption?: string };
+
+const parseMedia = (content: string): ChatMedia | null => {
+  if (!content.startsWith(MEDIA_PREFIX)) return null;
+  try { return JSON.parse(content.slice(MEDIA_PREFIX.length)) as ChatMedia; } catch { return null; }
+};
+
+const hydrateMessage = async (message: Message): Promise<Message> => {
+  const media = parseMedia(message.content);
+  if (!media) return message;
+  const { data, error } = await supabase.storage.from('chat-media').createSignedUrl(media.path, 60 * 60);
+  if (error || !data?.signedUrl) return message;
+  return { ...message, mediaUrl: data.signedUrl };
+};
 
 const Chat = () => {
   const { user } = useAuth();
@@ -28,6 +45,8 @@ const Chat = () => {
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
   const [unread, setUnread] = useState<Record<string, number>>({});
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   // Load every registered teammate through a scoped RPC.
@@ -84,7 +103,8 @@ const Chat = () => {
         .select('*')
         .or(`and(sender_id.eq.${user.id},recipient_id.eq.${selected.user_id}),and(sender_id.eq.${selected.user_id},recipient_id.eq.${user.id})`)
         .order('created_at', { ascending: true });
-      setMessages(data || []);
+      const hydrated = await Promise.all(((data || []) as Message[]).map(hydrateMessage));
+      setMessages(hydrated);
       // mark received as read
       await supabase
         .from('chat_messages')
@@ -107,7 +127,7 @@ const Chat = () => {
         const involves = m.sender_id === user.id || m.recipient_id === user.id;
         if (!involves) return;
         if (selected && (m.sender_id === selected.user_id || m.recipient_id === selected.user_id)) {
-          setMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
+          void hydrateMessage(m).then(hydrated => setMessages(prev => prev.some(x => x.id === hydrated.id) ? prev : [...prev, hydrated]));
         } else if (m.recipient_id === user.id) {
           setUnread(u => ({ ...u, [m.sender_id]: (u[m.sender_id] || 0) + 1 }));
         }
@@ -134,6 +154,42 @@ const Chat = () => {
       return;
     }
     if (data) setMessages(prev => prev.some(x => x.id === data.id) ? prev : [...prev, data]);
+  };
+
+  const sendFile = async (file?: File) => {
+    if (!file || !selected || !user) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast({ title: 'Arquivo muito grande', description: 'O limite é de 25 MB por arquivo.', variant: 'destructive' });
+      return;
+    }
+    const type: ChatMedia['type'] = file.type.startsWith('image/') ? 'image'
+      : file.type.startsWith('video/') ? 'video'
+      : file.type.startsWith('audio/') ? 'audio' : 'file';
+    if (!['image', 'video', 'audio'].includes(type)) {
+      toast({ title: 'Formato não suportado', description: 'Envie uma imagem, vídeo ou áudio.', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const safeName = file.name.replace(/[^\\w.\\-]/g, '_');
+      const path = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage.from('chat-media').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+      if (uploadError) throw uploadError;
+      const media: ChatMedia = { type, path, name: file.name, mime: file.type || 'application/octet-stream', caption: text.trim() || undefined };
+      const content = MEDIA_PREFIX + JSON.stringify(media);
+      const { data, error } = await supabase.from('chat_messages')
+        .insert({ sender_id: user.id, recipient_id: selected.user_id, content })
+        .select().single();
+      if (error) throw error;
+      if (data) {
+        const hydrated = await hydrateMessage(data as Message);
+        setMessages(prev => prev.some(m => m.id === hydrated.id) ? prev : [...prev, hydrated]);
+      }
+      setText('');
+      toast({ title: 'Mídia enviada' });
+    } catch (error: any) {
+      toast({ title: 'Falha ao enviar mídia', description: error?.message || 'Tente novamente.', variant: 'destructive' });
+    } finally { setUploading(false); }
   };
 
   const filteredUsers = users.filter(u =>
@@ -217,10 +273,19 @@ const Chat = () => {
                 )}
                 {messages.map(m => {
                   const mine = m.sender_id === user?.id;
+                  const media = parseMedia(m.content);
                   return (
                     <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${mine ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-card border border-border text-foreground rounded-bl-sm'}`}>
-                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                        {media && m.mediaUrl ? (
+                          <div className="space-y-2 min-w-0">
+                            {media.type === 'image' && <a href={m.mediaUrl} target="_blank" rel="noreferrer"><img src={m.mediaUrl} alt={media.name} className="max-w-full max-h-72 rounded-lg object-contain" /></a>}
+                            {media.type === 'video' && <video src={m.mediaUrl} controls preload="metadata" className="max-w-full max-h-72 rounded-lg" />}
+                            {media.type === 'audio' && <audio src={m.mediaUrl} controls preload="metadata" className="max-w-full" />}
+                            {media.caption && <p className="whitespace-pre-wrap break-words">{media.caption}</p>}
+                            <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="text-xs underline break-all">{media.name}</a>
+                          </div>
+                        ) : media ? <p className="text-xs">Mídia anexada: {media.name} (link temporariamente indisponível)</p> : <p className="whitespace-pre-wrap break-words">{m.content}</p>}
                         <p className={`text-[10px] mt-1 ${mine ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                           {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
@@ -231,7 +296,9 @@ const Chat = () => {
                 <div ref={endRef} />
               </div>
 
-              <div className="p-3 border-t border-border flex gap-2">
+              <div className="p-3 border-t border-border flex gap-2 items-center">
+                <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; void sendFile(file); }} />
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Enviar imagem, vídeo ou áudio" className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50"><Paperclip size={17} /></button>
                 <input
                   value={text}
                   onChange={e => setText(e.target.value)}
@@ -241,10 +308,10 @@ const Chat = () => {
                 />
                 <button
                   onClick={send}
-                  disabled={!text.trim()}
+                  disabled={!text.trim() || uploading}
                   className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  <Send size={15} /> Enviar
+                  {uploading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Enviar
                 </button>
               </div>
             </>
