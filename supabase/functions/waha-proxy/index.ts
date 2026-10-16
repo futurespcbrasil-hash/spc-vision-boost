@@ -116,9 +116,12 @@ Deno.serve(async (req: Request) => {
       existing = lookup.data;
     }
     let chatIdDb = existing?.id as string | undefined;
+    const previousName = String(existing?.contact_name || "").trim();
+    const previousNumber = String(existing?.contact_number || "").replace(/\D/g, "");
+    const hasPreviousName = !!previousName && previousName.replace(/\D/g, "") !== previousNumber;
     const chatRecord = {
       instance_id: inst.id, wa_chat_id: chatId, contact_number: digits,
-      contact_name: digits || chatId, last_message: text || (messageType !== "text" ? "[" + messageType + "]" : ""),
+      contact_name: hasPreviousName ? previousName : (digits || chatId), last_message: text || (messageType !== "text" ? "[" + messageType + "]" : ""),
       last_message_at: now, is_group: chatId.endsWith("@g.us"), updated_at: now,
     };
     if (chatIdDb) {
