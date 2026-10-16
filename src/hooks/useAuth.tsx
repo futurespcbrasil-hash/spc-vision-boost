@@ -160,6 +160,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const canAccessModule = (moduleKey: string) => {
     if (user?.email?.toLowerCase() === OWNER_EMAIL) return true;
     if (role === 'gestor') return true;
+    // Atendimento deve ter o mesmo acesso ao módulo Future Remote e à lista completa de computadores.
+    if (role === 'atendimento' && moduleKey === 'future_remote') return true;
     if (modulePermissions === null) return false;
     return modulePermissions[moduleKey] === true;
   };
