@@ -80,19 +80,22 @@ Deno.serve(async (req: Request) => {
   const mediaUrl = str(payload?.media?.url || payload?.mediaUrl) || null;
   const avatar = str(payload?._data?.profilePicThumbObj?.eurl || payload?.profilePictureUrl) || null;
 
-  const { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count")
+  const { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number")
     .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
+  // WAHA pode usar @lid no JID sem expor o telefone; preserve o telefone já conhecido.
+  const persistedContactNumber = waChatId.endsWith("@lid") && existingChat?.contact_number
+    ? existingChat.contact_number : contactNumber;
   let chatId = existingChat?.id as string | undefined;
   if (chatId) {
     await db.from("whatsapp_chats").update({
-      contact_number: contactNumber, contact_name: contactName, avatar_url: avatar,
+      contact_number: persistedContactNumber, contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
       last_message_at: sentAt, unread_count: fromMe ? (existingChat?.unread_count || 0) : (existingChat?.unread_count || 0) + 1,
       is_group: waChatId.endsWith("@g.us"), updated_at: new Date().toISOString(),
     }).eq("id", chatId);
   } else {
     const { data: inserted, error } = await db.from("whatsapp_chats").insert({
-      instance_id: instance.id, wa_chat_id: waChatId, contact_number: contactNumber,
+      instance_id: instance.id, wa_chat_id: waChatId, contact_number: persistedContactNumber,
       contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
       last_message_at: sentAt, unread_count: fromMe ? 0 : 1,
