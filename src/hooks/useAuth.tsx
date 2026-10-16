@@ -153,15 +153,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
   };
 
-  const canManageUsers = Boolean(
-    user?.email?.toLowerCase() === OWNER_EMAIL || role === 'gestor'
-  );
+  // Somente a conta responsável pode administrar usuários e permissões.
+  const canManageUsers = user?.email?.toLowerCase() === OWNER_EMAIL;
 
+  // Para todos os demais usuários, o acesso é definido exclusivamente pelas
+  // permissões salvas. Cargo Gestor/Atendimento não concede módulos implícitos.
   const canAccessModule = (moduleKey: string) => {
     if (user?.email?.toLowerCase() === OWNER_EMAIL) return true;
-    if (role === 'gestor') return true;
-    // Atendimento deve ter o mesmo acesso ao módulo Future Remote e à lista completa de computadores.
-    if (role === 'atendimento' && moduleKey === 'future_remote') return true;
     if (modulePermissions === null) return false;
     return modulePermissions[moduleKey] === true;
   };
