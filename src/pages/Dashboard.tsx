@@ -3,7 +3,7 @@ import { KANBAN_STAGES } from '@/data/spcData';
 import { Users, Phone, Send, Handshake, CheckCircle2, FileText, Link2, Plus, Calendar, TrendingUp, Bell, StickyNote } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 
@@ -197,7 +197,8 @@ const AttendanceDashboard = () => {
     return items
       .filter((item) => {
         const start = item.start.includes('T') ? new Date(item.start) : new Date(item.start + 'T00:00:00');
-        return !Number.isNaN(start.getTime()) && start.toLocaleDateString('en-CA') === todayKey;
+        const localKey = [start.getFullYear(), String(start.getMonth() + 1).padStart(2, '0'), String(start.getDate()).padStart(2, '0')].join('-');
+        return !Number.isNaN(start.getTime()) && localKey === todayKey;
       })
       .sort((a, b) => new Date(a.start.includes('T') ? a.start : a.start + 'T00:00:00').getTime() -
         new Date(b.start.includes('T') ? b.start : b.start + 'T00:00:00').getTime());
