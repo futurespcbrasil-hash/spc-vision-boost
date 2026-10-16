@@ -10,7 +10,7 @@ const MODULE_KEYS = [
   "dashboard", "crm", "leads", "agenda", "relatorios", "metas", "notas", "chat",
   "consultas_spc", "consulta_cnpj", "consulta_sintegra", "consulta_cnpj_lote",
   "whatsapp", "future_remote", "comissoes", "parceiros", "financeiro",
-  "produtos", "comparador", "gerar_link", "revendas", "perfil", "usuarios"
+  "produtos", "comparador", "gerar_link", "revendas", "perfil", "usuarios", "indicacoes_atendimento"
 ];
 
 const json = (body: unknown, status = 200) =>
@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
           "consultas_spc", "consulta_cnpj", "consulta_sintegra", "comparador", "gerar_link", "perfil",
         ],
         gestor: [...MODULE_KEYS],
-        atendimento: ["dashboard", "leads", "agenda", "chat", "whatsapp", "financeiro", "perfil"],
+        atendimento: ["dashboard", "leads", "agenda", "chat", "whatsapp", "financeiro", "perfil", "indicacoes_atendimento"],
       };
       const modules = role in DEFAULT_MODULES_BY_ROLE ? DEFAULT_MODULES_BY_ROLE[role] : requestedModules;
       if (!name || !email || !password) return json({ error: "Informe nome, e-mail e senha." }, 400);
