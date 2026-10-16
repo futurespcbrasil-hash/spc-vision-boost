@@ -294,6 +294,7 @@ Deno.serve(async (req: Request) => {
           const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
           const waChatId = typeof rawId === "string" ? rawId : "";
           if (!waChatId) continue;
+          if (waChatId === "status@broadcast") continue;
           const number = waChatId.split("@")[0].replace(/\D/g, "");
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
@@ -305,20 +306,52 @@ Deno.serve(async (req: Request) => {
             if (!Number.isNaN(parsedTime.getTime())) lastMessageAt = parsedTime.toISOString();
           }
           const lastText = typeof last === "string" ? last : String(last?.body || last?.text || last?.caption || "");
+          const hasLastMedia = !!(last?.hasMedia || last?.media || last?.mimetype);
+          // /chats pode retornar todos os contatos. Sincronizar somente conversas com histórico real.
+          if (!lastMessageAt && !lastText.trim() && !hasLastMedia) continue;
+          const isGroup = waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true;
+          const contactName = String(chat?.name || chat?.pushName || chat?.contact?.name || number || waChatId);
           const record = {
             instance_id: inst.id,
             wa_chat_id: waChatId,
             contact_number: number,
-            contact_name: String(chat?.name || chat?.pushName || chat?.contact?.name || number || waChatId),
+            contact_name: contactName,
             avatar_url: chat?.picture || chat?.profilePictureUrl || null,
-            last_message: lastText || (last?.hasMedia ? "[mídia]" : null),
+            last_message: lastText || (hasLastMedia ? "[mídia]" : null),
             last_message_at: lastMessageAt,
             unread_count: Number(chat?.unreadCount ?? chat?.unread_count ?? 0),
-            is_group: waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true,
+            is_group: isGroup,
+            archived: false,
             updated_at: new Date().toISOString(),
           };
-          const { error } = await db.from("whatsapp_chats").upsert(record, { onConflict: "instance_id,wa_chat_id" });
-          if (!error) synced++;
+          // WAHA pode apresentar o mesmo contato com JIDs @c.us e @lid.
+          // Reaproveitar o registro por telefone para não criar uma segunda conversa.
+          let existing: any = null;
+          const exact = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count")
+            .eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
+          if (exact.error) throw exact.error;
+          existing = exact.data;
+          if (!existing && !isGroup && number.length >= 10 && !waChatId.endsWith("@lid")) {
+            const byPhone = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count")
+              .eq("instance_id", inst.id).eq("contact_number", number).eq("is_group", false).limit(1).maybeSingle();
+            if (byPhone.error) throw byPhone.error;
+            existing = byPhone.data;
+          }
+          if (existing) {
+            const { error } = await db.from("whatsapp_chats").update({
+              ...record,
+              wa_chat_id: existing.wa_chat_id,
+              contact_number: existing.contact_number || number,
+              contact_name: contactName || existing.contact_name,
+              unread_count: Math.max(Number(existing.unread_count || 0), record.unread_count),
+            }).eq("id", existing.id);
+            if (!error) synced++;
+            else throw error;
+          } else {
+            const { error } = await db.from("whatsapp_chats").upsert(record, { onConflict: "instance_id,wa_chat_id" });
+            if (!error) synced++;
+            else throw error;
+          }
         }
         return json({ chats, synced });
       }
