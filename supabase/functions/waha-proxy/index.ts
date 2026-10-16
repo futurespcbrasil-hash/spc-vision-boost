@@ -182,7 +182,7 @@ Deno.serve(async (req: Request) => {
         const chatId = number.includes("@") ? number : `${number.replace(/\D/g, "")}@c.us`;
         const mediaType = String(body.media_type || "document");
         const mimetype = typeof body.media_mime === "string" ? body.media_mime : "application/octet-stream";
-        const filename = typeof body.filename === "string" && body.filename.trim() ? body.filename.trim().slice(0, 180) : "arquivo.pdf";
+        const filename = typeof body.filename === "string" && body.filename.trim() ? body.filename.trim().slice(0, 180) : "arquivo";
         const payload: Record<string, unknown> = { session: inst.provider_instance_name, chatId, file: { url: body.media_url, mimetype, filename } };
         if (typeof body.caption === "string" && body.caption) payload.caption = body.caption;
         const result = await callWaha("/api/sendFile", "POST", payload);
