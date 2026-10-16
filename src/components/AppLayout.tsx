@@ -1,9 +1,10 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { ShieldAlert } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const moduleForPath = (pathname: string): string | null => {
   if (pathname === '/') return 'dashboard';
@@ -32,7 +33,39 @@ const moduleForPath = (pathname: string): string | null => {
 
 const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: boolean }) => {
   const location = useLocation();
-  const { canAccessModule, canManageUsers } = useAuth();
+  const { user, canAccessModule, canManageUsers } = useAuth();
+
+  // Unread internal-chat messages update the browser tab title and desktop notification.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const baseTitle = document.title.replace(/^\\(\\d+\\)\\s*/, '');
+    const refreshUnread = async () => {
+      const { count, error } = await supabase.from('chat_messages').select('id', { count: 'exact', head: true }).eq('recipient_id', user.id).eq('read', false);
+      if (!active || error) return;
+      document.title = (count || 0) > 0 ? `(${count}) ${baseTitle}` : baseTitle;
+    };
+    void refreshUnread();
+    if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission().catch(() => undefined);
+    const channel = supabase.channel(`chat-notifications-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `recipient_id=eq.${user.id}` }, payload => {
+        const message = payload.new as { sender_id?: string; recipient_id?: string; content?: string; read?: boolean };
+        if (message.recipient_id !== user.id) return;
+        void refreshUnread();
+        if (message.sender_id && message.sender_id !== user.id && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+          void supabase.from('profiles').select('display_name').eq('user_id', message.sender_id).maybeSingle().then(({ data }) => {
+            if (!active) return;
+            const notification = new Notification(data?.display_name || 'Nova mensagem', { body: message.content?.startsWith('__chat_media__:') ? 'Enviou um arquivo de mídia' : (message.content || 'Nova mensagem'), icon: '/favicon.ico', tag: `chat-${message.sender_id}` });
+            notification.onclick = () => { window.focus(); window.location.href = '/chat'; notification.close(); };
+          });
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `recipient_id=eq.${user.id}` }, () => { void refreshUnread(); })
+      .subscribe();
+    const onFocus = () => { void refreshUnread(); };
+    window.addEventListener('focus', onFocus);
+    return () => { active = false; window.removeEventListener('focus', onFocus); supabase.removeChannel(channel); document.title = baseTitle; };
+  }, [user]);
   const moduleKey = moduleForPath(location.pathname);
   // User administration is owner-only; all other routes require an explicit saved module permission.
   const allowed = moduleKey !== null
