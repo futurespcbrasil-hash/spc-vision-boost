@@ -6,6 +6,302 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+
+import { useAuth } from '@/hooks/useAuth';
+
+type AttendanceAgendaItem = {
+  id: string;
+  title: string;
+  start: string;
+  end?: string;
+  detail?: string;
+  source: 'Agenda Vision' | 'Google Calendar';
+  googleEventId?: string | null;
+};
+
+const AttendanceDashboard = () => {
+  const { user } = useAuth();
+  const { schedule } = useAppState();
+  const [indicationsCount, setIndicationsCount] = useState(0);
+  const [monthlyCommission, setMonthlyCommission] = useState(10);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [appEvents, setAppEvents] = useState<any[]>([]);
+  const [googleEvents, setGoogleEvents] = useState<any[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarStatus, setCalendarStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected');
+
+  const todayKey = (() => {
+    const now = new Date();
+    return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+  })();
+  const dayBounds = useMemo(() => {
+    const parts = todayKey.split('-').map(Number);
+    const start = new Date(parts[0], parts[1] - 1, parts[2]);
+    const end = new Date(parts[0], parts[1] - 1, parts[2] + 1);
+    return { start: start.toISOString(), end: end.toISOString() };
+  }, [todayKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user?.id) {
+      setMetricsLoading(false);
+      return;
+    }
+    const loadMetrics = async () => {
+      setMetricsLoading(true);
+      const [indicationsResult, commissionResult] = await Promise.all([
+        (supabase as any).from('atendimento_indicacoes')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id),
+        (supabase as any).from('atendimento_comissao_config')
+          .select('valor_mensal')
+          .eq('id', 1)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      if (indicationsResult.error) {
+        console.error('Erro ao carregar indicadores de indicações:', indicationsResult.error);
+      } else {
+        setIndicationsCount(indicationsResult.count ?? 0);
+      }
+      if (commissionResult.error) {
+        console.error('Erro ao carregar configuração de comissão:', commissionResult.error);
+      } else if (commissionResult.data?.valor_mensal != null) {
+        setMonthlyCommission(Number(commissionResult.data.valor_mensal) || 0);
+      }
+      setMetricsLoading(false);
+    };
+    void loadMetrics();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTodayAgenda = async () => {
+      if (!user?.id) {
+        setCalendarLoading(false);
+        return;
+      }
+      setCalendarLoading(true);
+      const [sessionResult, appResult] = await Promise.all([
+        supabase.auth.getSession(),
+        (supabase as any).from('events')
+          .select('id,title,description,start_datetime,end_datetime,google_event_id,status')
+          .eq('user_id', user.id)
+          .gte('start_datetime', dayBounds.start)
+          .lt('start_datetime', dayBounds.end)
+          .order('start_datetime', { ascending: true }),
+      ]);
+      if (cancelled) return;
+      if (appResult.error) {
+        console.error('Erro ao carregar eventos da agenda:', appResult.error);
+      } else {
+        setAppEvents(appResult.data ?? []);
+      }
+
+      const session = sessionResult.data.session;
+      if (!session) {
+        setCalendarStatus('disconnected');
+        setCalendarLoading(false);
+        return;
+      }
+
+      try {
+        const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
+        const headers = {
+          'Authorization': 'Bearer ' + session.access_token,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        };
+        const statusResponse = await fetch(
+          'https://' + projectId + '.supabase.co/functions/v1/google-calendar?action=status',
+          { headers }
+        );
+        const statusData = await statusResponse.json();
+        if (!statusResponse.ok || !statusData.connected) {
+          if (!cancelled) {
+            setGoogleEvents([]);
+            setCalendarStatus(statusResponse.ok ? 'disconnected' : 'error');
+          }
+          return;
+        }
+
+        const eventsResponse = await fetch(
+          'https://' + projectId + '.supabase.co/functions/v1/google-calendar?action=events&timeMin=' +
+          encodeURIComponent(dayBounds.start) + '&timeMax=' + encodeURIComponent(dayBounds.end),
+          { headers }
+        );
+        const eventsData = await eventsResponse.json();
+        if (!eventsResponse.ok) throw new Error(eventsData.error || 'Falha ao consultar Google Calendar');
+        if (!cancelled) {
+          setGoogleEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
+          setCalendarStatus('connected');
+        }
+      } catch (error) {
+        console.error('Erro ao carregar Google Calendar na dashboard:', error);
+        if (!cancelled) {
+          setGoogleEvents([]);
+          setCalendarStatus('error');
+        }
+      } finally {
+        if (!cancelled) setCalendarLoading(false);
+      }
+    };
+    void loadTodayAgenda();
+    return () => { cancelled = true; };
+  }, [user?.id, dayBounds.start, dayBounds.end]);
+
+  const todaySchedule = useMemo(() => {
+    const items: AttendanceAgendaItem[] = [];
+    const appGoogleIds = new Set<string>();
+
+    appEvents.forEach((event) => {
+      if (event.google_event_id) appGoogleIds.add(String(event.google_event_id));
+      items.push({
+        id: 'app:' + event.id,
+        title: event.title || 'Compromisso sem título',
+        start: event.start_datetime,
+        end: event.end_datetime,
+        detail: event.description || '',
+        source: 'Agenda Vision',
+        googleEventId: event.google_event_id,
+      });
+    });
+
+    schedule.filter((event) => event.date === todayKey && (!user?.id || event.userId === user.id)).forEach((event) => {
+      const start = event.date + 'T' + (event.time || '00:00') + ':00';
+      items.push({
+        id: 'schedule:' + event.id,
+        title: event.leadName || 'Compromisso',
+        start,
+        detail: event.note || '',
+        source: 'Agenda Vision',
+      });
+    });
+
+    googleEvents.forEach((event) => {
+      const googleId = String(event.google_event_id || event.id || '');
+      if (googleId && appGoogleIds.has(googleId)) return;
+      const startValue = event.start?.dateTime || event.start?.date || event.start;
+      if (!startValue) return;
+      items.push({
+        id: 'google:' + (event.id || googleId || startValue),
+        title: event.summary || 'Compromisso sem título',
+        start: startValue,
+        end: event.end?.dateTime || event.end?.date || event.end,
+        detail: event.location || event.description || '',
+        source: 'Google Calendar',
+        googleEventId: googleId || null,
+      });
+    });
+
+    return items
+      .filter((item) => {
+        const start = item.start.includes('T') ? new Date(item.start) : new Date(item.start + 'T00:00:00');
+        return !Number.isNaN(start.getTime()) && start.toLocaleDateString('en-CA') === todayKey;
+      })
+      .sort((a, b) => new Date(a.start.includes('T') ? a.start : a.start + 'T00:00:00').getTime() -
+        new Date(b.start.includes('T') ? b.start : b.start + 'T00:00:00').getTime());
+  }, [appEvents, googleEvents, schedule, todayKey, user?.id]);
+
+  const currency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const formatTime = (value: string) => {
+    if (!value.includes('T')) return 'Dia inteiro';
+    return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+  const nextAppointment = todaySchedule.find((event) => {
+    const start = new Date(event.start.includes('T') ? event.start : event.start + 'T00:00:00');
+    return start.getTime() >= Date.now();
+  });
+
+  return (
+    <div className="space-y-6 animate-fade-in relative pb-20">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Minha Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">Suas indicações, comissões e compromissos de hoje.</p>
+        </div>
+        <span className="text-sm text-muted-foreground">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Link to="/indicacoes/clientes" className="stat-card block transition hover:border-primary/40">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">Clientes indicados</span>
+            <Users size={21} className="text-primary" />
+          </div>
+          <div className="text-3xl font-bold text-foreground">{metricsLoading ? '—' : indicationsCount}</div>
+          <p className="mt-2 text-xs text-muted-foreground">Total de clientes cadastrados por você</p>
+          <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary">Ver indicações <Link2 size={13} /></span>
+        </Link>
+
+        <div className="stat-card">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">Comissão mensal estimada</span>
+            <TrendingUp size={21} className="text-success" />
+          </div>
+          <div className="text-3xl font-bold text-foreground">{metricsLoading ? '—' : currency(indicationsCount * monthlyCommission)}</div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {metricsLoading ? 'Calculando com os dados registrados' : currency(monthlyCommission) + ' por cliente indicado/mês'}
+          </p>
+        </div>
+
+        <Link to="/agenda" className="stat-card block transition hover:border-primary/40">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">Agendamentos de hoje</span>
+            <Calendar size={21} className="text-primary" />
+          </div>
+          <div className="text-3xl font-bold text-foreground">{calendarLoading ? '—' : todaySchedule.length}</div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {calendarLoading ? 'Consultando Agenda e Google Calendar…' : nextAppointment ? 'Próximo: ' + formatTime(nextAppointment.start) + ' · ' + nextAppointment.title : 'Nenhum próximo compromisso encontrado'}
+          </p>
+          <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary">Abrir agenda <Calendar size={13} /></span>
+        </Link>
+      </div>
+
+      <section className="stat-card">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div>
+            <h2 className="font-semibold text-foreground">Agenda de hoje</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {calendarStatus === 'connected' ? 'Google Calendar conectado' : calendarStatus === 'error' ? 'Não foi possível atualizar o Google Calendar; exibindo os eventos locais disponíveis.' : 'Exibindo os eventos locais disponíveis.'}
+            </p>
+          </div>
+          <Link to="/agenda" className="text-sm font-medium text-primary hover:underline">Ver agenda completa →</Link>
+        </div>
+
+        {calendarLoading ? (
+          <div className="flex items-center gap-2 py-8 justify-center text-sm text-muted-foreground"><Calendar size={17} className="animate-pulse" /> Carregando compromissos…</div>
+        ) : todaySchedule.length === 0 ? (
+          <div className="py-8 text-center">
+            <Calendar size={28} className="mx-auto mb-2 text-muted-foreground/60" />
+            <p className="text-sm font-medium text-foreground">Nenhum agendamento encontrado para hoje</p>
+            <p className="text-xs text-muted-foreground mt-1">Os compromissos aparecerão aqui quando estiverem cadastrados na Agenda ou no Google Calendar.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {todaySchedule.slice(0, 8).map((event) => (
+              <div key={event.id} className="flex items-start gap-3 rounded-lg bg-muted/40 p-3">
+                <div className="min-w-[62px] rounded-md bg-background px-2 py-1 text-center text-sm font-semibold text-primary">{formatTime(event.start)}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground break-words">{event.title}</p>
+                  {event.detail && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{event.detail}</p>}
+                  <p className="mt-1 text-[11px] text-muted-foreground">{event.source}</p>
+                </div>
+              </div>
+            ))}
+            {todaySchedule.length > 8 && <p className="pt-1 text-center text-xs text-muted-foreground">Mais {todaySchedule.length - 8} compromisso(s) na agenda.</p>}
+          </div>
+        )}
+      </section>
+
+      <Link to="/leads" className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:opacity-90" title="Novo Lead">
+        <Plus size={24} />
+      </Link>
+    </div>
+  );
+};
+
+
 const STAT_ICONS: Record<string, any> = {
   lead_novo: Users,
   em_negociacao: Handshake,
@@ -15,7 +311,7 @@ const STAT_ICONS: Record<string, any> = {
 
 const PIE_COLORS = ['hsl(262,70%,50%)', 'hsl(152,60%,40%)', 'hsl(38,92%,50%)', 'hsl(280,50%,55%)', 'hsl(199,80%,45%)'];
 
-const Dashboard = () => {
+const SalesDashboard = () => {
   const { leads, schedule } = useAppState();
 
   const counts = KANBAN_STAGES.reduce((acc, s) => {
@@ -209,6 +505,11 @@ const Dashboard = () => {
       </Link>
     </div>
   );
+};
+
+const Dashboard = () => {
+  const { role } = useAuth();
+  return role === 'atendimento' ? <AttendanceDashboard /> : <SalesDashboard />;
 };
 
 export default Dashboard;
