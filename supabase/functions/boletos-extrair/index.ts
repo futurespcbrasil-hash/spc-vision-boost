@@ -1,24 +1,90 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { getDocument } from 'https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js?target=deno';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } });
-
-const norm = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
-  .replace(/\.PDF$/i, '').replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const digits = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
+const norm = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\.PDF$/i, '').replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const SUFFIX = /\b(LTDA|ME|EPP|EIRELI|S ?A|MEI|SS|LTDA ME|CIA)\b/g;
 const core = (s: string) => norm(s).replace(SUFFIX, ' ').replace(/\s+/g, ' ').trim();
-const digits = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
-
-function toBase64(buf: ArrayBuffer) {
-  const bytes = new Uint8Array(buf);
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
-}
 const validDate = (s: unknown) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s)) ? s : null;
+const dateISO = (s: string | null) => {
+  if (!s) return null;
+  const m = s.match(/\b(\d{2})[./-](\d{2})[./-](\d{4})\b/);
+  if (!m) return null;
+  return validDate(`${m[3]}-${m[2]}-${m[1]}`);
+};
+function money(s: string | null) {
+  if (!s) return null;
+  const m = s.match(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/);
+  if (!m) return null;
+  const n = Number(m[1].includes(',') ? m[1].replace(/\./g, '').replace(',', '.') : m[1]);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+}
+async function extractPdfText(data: Uint8Array) {
+  const doc = await getDocument({ data, disableFontFace: true, isEvalSupported: false, useSystemFonts: true }).promise;
+  const pages: string[] = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const content = await page.getTextContent();
+    const rows = new Map<number, string[]>();
+    for (const item of content.items as any[]) {
+      if (typeof item.str !== 'string' || !item.str.trim()) continue;
+      const y = Math.round(Number(item.transform?.[5] || 0) / 2) * 2;
+      const row = rows.get(y) || [];
+      row.push(item.str.trim());
+      rows.set(y, row);
+    }
+    pages.push([...rows.entries()].sort((a, b) => b[0] - a[0]).map(([, parts]) => parts.join(' ')).join('\n'));
+  }
+  return pages.join('\n');
+}
+function parseBoleto(text: string) {
+  const lines = text.split(/\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const all = lines.join('\n');
+  let nome: string | null = null;
+  const namePatterns = [
+    /(?:nome\s*(?:do)?\s*pagador|pagador|sacado|nome\/raz[aã]o\s*social)\s*[:\-]?\s*([^\n]{3,100})/i,
+  ];
+  for (const re of namePatterns) {
+    const m = all.match(re);
+    if (m?.[1]) {
+      const candidate = m[1].replace(/\s+(?:CPF|CNPJ|CPF\/CNPJ|documento|endereço|endere[cç]o).*/i, '').trim();
+      if (candidate && !/^(CPF|CNPJ|BENEFICIARIO|BENEFICIÁRIO|CEDENTE)$/i.test(candidate)) nome = candidate.slice(0, 200);
+      if (nome) break;
+    }
+  }
+  if (!nome) {
+    const idx = lines.findIndex(l => /^(?:pagador|sacado|pagador\/sacado)\s*:?$/i.test(l));
+    if (idx >= 0 && lines[idx + 1] && !/CPF|CNPJ|BENEFICI|CEDENTE|VENCIMENTO/i.test(lines[idx + 1])) nome = lines[idx + 1].slice(0, 200);
+  }
+  let cpfCnpj: string | null = null;
+  const docMatch = all.match(/(?:CPF\s*\/?\s*CNPJ|CPF|CNPJ)\s*[:\-]?\s*([\d.\/\-\s]{11,24})/i);
+  if (docMatch) {
+    const d = digits(docMatch[1]);
+    if (d.length === 11 || d.length === 14) cpfCnpj = d;
+  }
+  const dateLine = lines.find(l => /data\s*(?:de\s*)?vencimento|vencimento/i.test(l));
+  let vencimento = dateISO(dateLine || null);
+  if (!vencimento) {
+    const m = all.match(/(?:vencimento|vence\s*em)\s*[:\-]?\s*(\d{2}[./-]\d{2}[./-]\d{4})/i);
+    vencimento = dateISO(m?.[1] || null);
+  }
+  const valueLine = lines.find(l => /valor\s*(?:do\s*documento|cobrado|nominal|a\s*pagar|total)?\s*[:\-]?\s*R?\$?/i.test(l) && /\d+[,.]\d{2}/.test(l));
+  let valor = money(valueLine || null);
+  if (!valor) {
+    const m = all.match(/(?:valor\s*(?:do\s*documento|cobrado|nominal|a\s*pagar|total))\s*[:\-]?\s*(?:R\$\s*)?([\d.]+,\d{2}|\d+\.\d{2})/i);
+    valor = money(m?.[1] || null);
+  }
+  const linhaMatch = all.match(/(?:\d{5}\.\d{5}\s*\d{5}\.\d{6}\s*\d{5}\.\d{6}\s*\d\s*\d{14}|\d{47,48})/);
+  const barcodeMatch = all.match(/\b\d{44}\b/);
+  const docLine = all.match(/(?:nosso\s*n[uú]mero|n[uú]mero\s*do\s*documento)\s*[:\-]?\s*([A-Z0-9./-]{3,30})/i);
+  const bankLine = lines.find(l => /BANCO DO BRASIL|BRADESCO|ITA[ÚU]|SANTANDER|CAIXA ECONOMICA|SICREDI|SICOOB|BTG|INTER|BANRISUL|NUBANK/i.test(l));
+  return { nome, cpfCnpj, valor, vencimento, linha: linhaMatch?.[0]?.replace(/\s+/g, ' ').trim() || null, barcode: barcodeMatch?.[0] || null, nossoNumero: docLine?.[1] || null, banco: bankLine?.slice(0, 100) || null };
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
@@ -28,65 +94,35 @@ Deno.serve(async (req) => {
     const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } });
     const { data: u } = await sb.auth.getUser();
     if (!u?.user) return json({ error: 'Não autenticado' }, 401);
-
     const { boleto_id } = await req.json();
     if (typeof boleto_id !== 'string') return json({ error: 'boleto_id obrigatório' }, 400);
     const { data: b, error: be } = await sb.from('boleto_envios').select('*').eq('id', boleto_id).maybeSingle();
     if (be || !b) return json({ error: 'Boleto não encontrado' }, 404);
     if (b.user_id !== u.user.id) return json({ error: 'Sem permissão' }, 403);
-
     await sb.from('boleto_envios').update({ status: 'processando', erro: null }).eq('id', b.id);
-
     const { data: file, error: fe } = await sb.storage.from('boletos').download(b.arquivo_path);
     if (fe || !file) {
       await sb.from('boleto_envios').update({ status: 'erro', erro: 'Arquivo não encontrado no armazenamento' }).eq('id', b.id);
       return json({ error: 'Arquivo não encontrado' }, 404);
     }
-    const b64 = toBase64(await file.arrayBuffer());
-
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!apiKey) {
-      await sb.from('boleto_envios').update({ status: 'erro', erro: 'LOVABLE_API_KEY não configurada nos secrets do Supabase' }).eq('id', b.id);
-      return json({ error: 'LOVABLE_API_KEY não configurada nos secrets do Supabase.' }, 503);
+    let parsed;
+    try {
+      parsed = parseBoleto(await extractPdfText(new Uint8Array(await file.arrayBuffer())));
+    } catch (e) {
+      console.error('Falha ao extrair texto do PDF', e);
+      await sb.from('boleto_envios').update({ status: 'erro', erro: 'Não foi possível ler o texto deste PDF. Se for um documento escaneado, será necessária uma etapa de OCR.' }).eq('id', b.id);
+      return json({ error: 'Não foi possível extrair texto do PDF. Documentos escaneados precisam de OCR.' }, 200);
     }
-    const prompt = `Você lê boletos bancários brasileiros (PDF com texto ou imagem escaneada). Extraia SOMENTE o que estiver escrito no documento. NUNCA invente: se não encontrar um campo, use null.
-Retorne APENAS JSON com as chaves:
-{"pagador_nome": string|null, "pagador_cpf_cnpj": string|null, "valor": number|null, "vencimento": "AAAA-MM-DD"|null, "nosso_numero": string|null, "linha_digitavel": string|null, "codigo_barras": string|null, "numero_documento": string|null, "data_emissao": "AAAA-MM-DD"|null, "banco": string|null, "legivel": boolean}
-Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). valor em reais como número (ex.: 1250.00).`;
-
-    const ai = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        temperature: 0,
-        messages: [{ role: 'user', content: [
-          { type: 'text', text: prompt },
-          { type: 'file', file: { filename: b.arquivo_nome, file_data: `data:application/pdf;base64,${b64}` } },
-        ] }],
-      }),
-    });
-    if (!ai.ok) {
-      const t = await ai.text();
-      const msg = ai.status === 429 ? 'Limite de leituras atingido, tente novamente em instantes' : ai.status === 402 ? 'Créditos de IA esgotados' : `Falha na leitura (${ai.status})`;
-      console.error('AI error', ai.status, t.slice(0, 300));
+    const nome = parsed.nome;
+    const cpfCnpj = parsed.cpfCnpj;
+    const valor = parsed.valor;
+    const venc = parsed.vencimento;
+    if (!nome && !cpfCnpj && !valor && !venc) {
+      const msg = 'O PDF não contém texto selecionável de boleto ou os campos não foram reconhecidos. Verifique o PDF; documentos escaneados precisam de OCR.';
       await sb.from('boleto_envios').update({ status: 'erro', erro: msg }).eq('id', b.id);
       return json({ error: msg }, 200);
     }
-    const aj = await ai.json();
-    let ex: any = {};
-    try {
-      const c = String(aj.choices?.[0]?.message?.content || '{}').replace(/```json?/g, '').replace(/```/g, '').trim();
-      ex = JSON.parse(c.slice(c.indexOf('{'), c.lastIndexOf('}') + 1));
-    } catch { ex = {}; }
 
-    const doc = digits(ex.pagador_cpf_cnpj);
-    const cpfCnpj = doc.length === 11 || doc.length === 14 ? doc : null;
-    const valor = typeof ex.valor === 'number' && ex.valor > 0 ? Math.round(ex.valor * 100) / 100 : null;
-    const venc = validDate(ex.vencimento);
-    const nome = typeof ex.pagador_nome === 'string' && ex.pagador_nome.trim() ? ex.pagador_nome.trim() : null;
-
-    // Identificação do cliente
     const { data: clientes, error: clientesError } = await sb.from('boleto_clientes').select('id,nome,razao_social,cpf_cnpj,whatsapp').eq('user_id', u.user.id);
     if (clientesError) {
       console.error('Falha ao consultar clientes de boletos', clientesError);
@@ -96,21 +132,19 @@ Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). 
     const list = clientes || [];
     let match: any = null; let info = '';
     if (cpfCnpj) {
-      const m = list.filter((c) => digits(c.cpf_cnpj) === cpfCnpj);
+      const m = list.filter((c: any) => digits(c.cpf_cnpj) === cpfCnpj);
       if (m.length === 1) { match = m[0]; info = 'Identificado pelo CPF/CNPJ'; }
       else if (m.length > 1) info = 'Mais de um cliente com o mesmo CPF/CNPJ';
     }
     const byName = (label: string, src: string | null) => {
       if (match || !src) return;
       const k = core(src); if (!k) return;
-      const m = list.filter((c) => core(c.nome) === k || (c.razao_social && core(c.razao_social) === k));
+      const m = list.filter((c: any) => core(c.nome || '') === k || (c.razao_social && core(c.razao_social) === k));
       if (m.length === 1) { match = m[0]; info = `Identificado pelo ${label} (confirme)`; }
       else if (m.length > 1) info = `Mais de um cliente possível pelo ${label}`;
     };
     if (!match && !info) byName('nome do pagador', nome);
-    if (!match && !info) byName('nome do arquivo', b.arquivo_nome);
     if (!match && !info && nome) {
-      // Cadastro automático de cliente novo a partir do boleto
       const { data: novo, error: novoError } = await sb.from('boleto_clientes').insert({ user_id: u.user.id, nome: nome.slice(0, 200), cpf_cnpj: cpfCnpj }).select('id,nome,razao_social,cpf_cnpj,whatsapp').single();
       if (novoError) {
         console.error('Falha ao cadastrar cliente extraído do boleto', novoError);
@@ -120,7 +154,6 @@ Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). 
       if (novo) { match = novo; info = 'Cliente novo cadastrado automaticamente'; }
     }
     if (!match && !info) info = 'Nenhum cliente encontrado no cadastro';
-
     const strong = match && (info === 'Identificado pelo CPF/CNPJ' || info === 'Cliente novo cadastrado automaticamente');
     const whatsapp = match?.whatsapp ? digits(match.whatsapp) : null;
     const pendencias: string[] = [];
@@ -129,26 +162,20 @@ Atenção: "pagador" é o cliente que vai pagar (não o beneficiário/cedente). 
     if (!match) pendencias.push('cliente não identificado');
     else if (!strong) pendencias.push('confirmar cliente');
     if (match && !whatsapp) pendencias.push('cliente sem WhatsApp');
-    if (ex.legivel === false) pendencias.push('documento pouco legível');
-
     const status = pendencias.length === 0 ? 'pronto_envio' : 'aguardando_revisao';
     const { error: updateError } = await sb.from('boleto_envios').update({
       nome_extraido: nome, cpf_cnpj_extraido: cpfCnpj, valor, vencimento: venc,
-      nosso_numero: ex.nosso_numero || null, linha_digitavel: ex.linha_digitavel || null,
-      codigo_barras: ex.codigo_barras || null, numero_documento: ex.numero_documento || null,
-      data_emissao: validDate(ex.data_emissao), banco: ex.banco || null,
-      client_id: match?.id || null, whatsapp,
-      match_info: [info, ...pendencias.filter((p) => p !== 'confirmar cliente')].join(' · '),
-      status, erro: null,
+      nosso_numero: parsed.nossoNumero, linha_digitavel: parsed.linha, codigo_barras: parsed.barcode,
+      banco: parsed.banco, client_id: match?.id || null, whatsapp,
+      match_info: [info, ...pendencias].filter(Boolean).join(' · '), status, erro: null,
     }).eq('id', b.id);
     if (updateError) {
       console.error('Falha ao salvar dados extraídos do boleto', updateError);
       return json({ error: 'Os dados foram lidos, mas não foi possível salvar o resultado. Tente novamente.' }, 500);
     }
-
     return json({ ok: true, status });
   } catch (e) {
     console.error(e);
-    return json({ error: e instanceof Error ? e.message : 'Erro' }, 500);
+    return json({ error: e instanceof Error ? e.message : 'Erro inesperado' }, 500);
   }
 });
