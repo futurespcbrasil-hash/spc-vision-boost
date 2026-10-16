@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LogOut, Plus, QrCode, RefreshCcw, Smartphone, Trash2, Unplug, Webhook } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { ryze } from '@/services/ryzeService';
+import { waha } from '@/services/ryzeService';
 import { useToast } from '@/hooks/use-toast';
 
 interface Instance {
@@ -38,7 +38,7 @@ const WhatsAppInstancias = () => {
   };
 
   useEffect(() => {
-    ryze.syncInstances().catch(() => null).finally(load);
+    waha.syncInstances().catch(() => null).finally(load);
     const ch = supabase.channel('wa-instances')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_instances' }, load)
       .subscribe();
@@ -49,7 +49,7 @@ const WhatsAppInstancias = () => {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      await ryze.createInstance(newName.trim());
+      await waha.createInstance(newName.trim());
       setNewName('');
       toast({ title: 'Instância criada!' });
       await load();
@@ -61,11 +61,11 @@ const WhatsAppInstancias = () => {
   const handleConnect = async (inst: Instance) => {
     setLoading(true);
     try {
-      const r = await ryze.connect(inst.id);
+      const r = await waha.connect(inst.id);
       await load();
       if (r.already_connected) {
-        await ryze.registerWebhook(inst.id).catch(() => null);
-        await ryze.getChats(inst.id).catch(() => null);
+        await waha.registerWebhook(inst.id).catch(() => null);
+        await waha.getChats(inst.id).catch(() => null);
         await load();
         toast({
           title: 'WhatsApp já está conectado',
@@ -78,14 +78,14 @@ const WhatsAppInstancias = () => {
 
       // Poll status every 3 seconds to auto-detect QR scan & login
       const iv = setInterval(async () => {
-        const s = await ryze.status(inst.id).catch(() => null);
+        const s = await waha.status(inst.id).catch(() => null);
         const isConnected = s?.status === 'connected' || s?.raw?.connection?.state === 'open' || s?.raw?.connection?.state === 'connected';
         if (isConnected) {
           clearInterval(iv);
           setQrOpen(null);
           // Register webhook & sync chats automatically
-          await ryze.registerWebhook(inst.id).catch(() => null);
-          await ryze.getChats(inst.id).catch(() => null);
+          await waha.registerWebhook(inst.id).catch(() => null);
+          await waha.getChats(inst.id).catch(() => null);
           await load();
           toast({
             title: 'WhatsApp Conectado com Sucesso!',
@@ -101,7 +101,7 @@ const WhatsAppInstancias = () => {
 
   const handleStatus = async (inst: Instance) => {
     try {
-      const s = await ryze.status(inst.id);
+      const s = await waha.status(inst.id);
       load();
       if (s?.status === 'connected') {
         toast({ title: 'Instância Online!', description: `Número: ${s.phone || 'Conectado'}` });
@@ -115,7 +115,7 @@ const WhatsAppInstancias = () => {
 
   const handleWebhook = async (inst: Instance) => {
     try {
-      await ryze.registerWebhook(inst.id);
+      await waha.registerWebhook(inst.id);
       toast({ title: 'Webhook registrado!' });
     } catch (e: any) {
       toast({ title: 'Erro webhook', description: e.message, variant: 'destructive' });
@@ -124,7 +124,7 @@ const WhatsAppInstancias = () => {
 
   const handleDisconnect = async (inst: Instance) => {
     try {
-      await ryze.disconnect(inst.id);
+      await waha.disconnect(inst.id);
       toast({ title: 'Instância desconectada!' });
       await load();
     } catch (e: any) {
@@ -135,18 +135,11 @@ const WhatsAppInstancias = () => {
   const handleDelete = async (inst: Instance) => {
     if (!confirm(`Deseja realmente excluir a instância "${inst.name}"?`)) return;
     try {
-      await ryze.deleteInstance(inst.id);
+      await waha.deleteInstance(inst.id);
       toast({ title: 'Instância excluída!' });
       await load();
     } catch (e: any) {
-      // Fallback to local delete if remote fails
-      const { error } = await supabase.from('whatsapp_instances').delete().eq('id', inst.id);
-      if (error) {
-        toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
-      } else {
-        toast({ title: 'Instância removida!' });
-        await load();
-      }
+      toast({ title: 'Erro ao excluir', description: e.message || 'Não foi possível excluir a sessão na WAHA.', variant: 'destructive' });
     }
   };
 
@@ -154,7 +147,7 @@ const WhatsAppInstancias = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">WhatsApp — Instâncias</h1>
-        <p className="text-muted-foreground text-sm">Conecte números via Ryze API. Preparado para múltiplas instâncias.</p>
+        <p className="text-muted-foreground text-sm">Conecte números usando a WAHA. Suporta múltiplas instâncias.</p>
       </div>
 
       <Card>
@@ -234,7 +227,7 @@ const WhatsAppInstancias = () => {
               <div className="w-64 h-64 flex flex-col items-center justify-center bg-muted rounded-lg p-4 gap-2">
                 <QrCode size={64} className="text-muted-foreground/40 animate-pulse" />
                 <p className="text-xs text-muted-foreground">
-                  Aguardando geração do QR Code pela API Ryze...
+                  Aguardando geração do QR Code pela WAHA...
                 </p>
               </div>
             )}
