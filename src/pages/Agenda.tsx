@@ -142,7 +142,7 @@ const Agenda = () => {
   const fetchCompletionStatuses = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-    const { data, error } = await supabase.from('calendar_event_completions').select('source_type,event_key,is_completed').eq('user_id', session.user.id);
+    const { data, error } = await (supabase as any).from('calendar_event_completions').select('source_type,event_key,is_completed').eq('user_id', session.user.id);
     if (error) { console.error('Error fetching completion statuses:', error); return; }
     const next: Record<string, boolean> = {};
     (data || []).forEach((row: any) => { next[`${row.source_type}:${row.event_key}`] = !!row.is_completed; });
@@ -154,7 +154,7 @@ const Agenda = () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { toast.error('Faça login para registrar a conclusão'); return; }
     const now = new Date().toISOString();
-    const { error } = await supabase.from('calendar_event_completions').upsert({
+    const { error } = await (supabase as any).from('calendar_event_completions').upsert({
       user_id: session.user.id, source_type: sourceType, event_key: eventKey,
       is_completed: nextValue, completed_at: nextValue ? now : null, updated_at: now,
     }, { onConflict: 'user_id,source_type,event_key' });
