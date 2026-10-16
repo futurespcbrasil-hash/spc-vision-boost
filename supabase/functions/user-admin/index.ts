@@ -37,9 +37,7 @@ Deno.serve(async (req: Request) => {
 
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const isOwner = user.email?.toLowerCase() === "dalprapf1@gmail.com";
-    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
-    const isGestor = roles?.some((item: { role: string }) => item.role === "gestor") ?? false;
-    if (!isOwner && !isGestor) return json({ error: "Somente o responsável ou um gestor pode administrar usuários." }, 403);
+    if (!isOwner) return json({ error: "Somente o responsável principal pode administrar usuários e permissões." }, 403);
 
     const body = await req.json();
     const action = String(body.action || "");
