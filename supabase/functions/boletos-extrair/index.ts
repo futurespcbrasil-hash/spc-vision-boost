@@ -32,47 +32,78 @@ async function extractPdfText(data: Uint8Array) {
 function parseBoleto(text: string) {
   const lines = text.split(/\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const all = lines.join('\n');
+  const labelOnly = /^(?:pagador(?:\/sacado)?|sacado|sacador\/avalista|benefici[aá]rio|cedente|cpf\/cnpj|cnpj\/cpf|cpf|cnpj|endereço|endere[cç]o|vencimento|valor do documento|recibo do pagador|ficha de compensa[cç][aã]o)\s*:?\s*$/i;
+  const validName = (s: string) => {
+    const v = s.replace(/\s+(?:CPF|CNPJ|CPF\/CNPJ|documento|endereço|endere[cç]o).*/i, '').trim();
+    return v.length >= 3 && v.length <= 200 && !labelOnly.test(v) &&
+      !/^(?:sacador\/avalista|benefici[aá]rio|cedente|recibo do pagador|ficha de compensa[cç][aã]o)$/i.test(v) &&
+      !/^(?:\d{2}[./-])/.test(v) && !/^\d[\d./-]{8,}$/.test(v) ? v : null;
+  };
+
+  // Use the payer field specifically; never infer the payer from the beneficiary block.
   let nome: string | null = null;
-  const namePatterns = [
-    /(?:nome\s*(?:do)?\s*pagador|pagador|sacado|nome\/raz[aã]o\s*social)\s*[:\-]?\s*([^\n]{3,100})/i,
-  ];
-  for (const re of namePatterns) {
-    const m = all.match(re);
-    if (m?.[1]) {
-      const candidate = m[1].replace(/\s+(?:CPF|CNPJ|CPF\/CNPJ|documento|endereço|endere[cç]o).*/i, '').trim();
-      if (candidate && !/^(CPF|CNPJ|BENEFICIARIO|BENEFICIÁRIO|CEDENTE)$/i.test(candidate)) nome = candidate.slice(0, 200);
-      if (nome) break;
+  const payerLabel = /(?:CNPJ\/CPF|CPF\/CNPJ|nome\s*(?:do)?\s*pagador|pagador|sacado)\s*:?\s*/ig;
+  const labelPositions = [...all.matchAll(payerLabel)].filter(m => !/benefici[aá]rio|cedente|sacador\/avalista/i.test(all.slice(Math.max(0, (m.index || 0) - 30), m.index || 0)));
+  // The receipt block often has the clearest payer name; inspect explicit payer labels from last to first.
+  for (const m of labelPositions.reverse()) {
+    const pos = (m.index || 0) + m[0].length;
+    const snippet = all.slice(pos, pos + 180);
+    const candidate = snippet.split(/\n/).map(s => s.trim()).find(s => {
+      const n = validName(s);
+      return !!n && !/^(?:CPF|CNPJ|CPF\/CNPJ|CNPJ\/CPF|pagador|sacado|sacador\/avalista|benefici[aá]rio|cedente|endereço|vencimento|valor do documento)$/i.test(s);
+    });
+    if (candidate) {
+      const n = validName(candidate);
+      if (n) { nome = n; break; }
     }
   }
   if (!nome) {
-    const idx = lines.findIndex(l => /^(?:pagador|sacado|pagador\/sacado)\s*:?$/i.test(l));
-    if (idx >= 0 && lines[idx + 1] && !/CPF|CNPJ|BENEFICI|CEDENTE|VENCIMENTO/i.test(lines[idx + 1])) nome = lines[idx + 1].slice(0, 200);
+    const receipt = all.match(/recibo do pagador[\s\S]{0,180}?pagador\s*:?\s*([A-ZÀ-Ý][^\n]{2,100})/i);
+    if (receipt?.[1]) nome = validName(receipt[1]);
   }
+
+  // Prefer a document explicitly labelled as the payer's CPF/CNPJ.
   let cpfCnpj: string | null = null;
-  const docMatch = all.match(/(?:CPF\s*\/?\s*CNPJ|CPF|CNPJ)\s*[:\-]?\s*([\d.\/\-\s]{11,24})/i);
-  if (docMatch) {
-    const d = digits(docMatch[1]);
-    if (d.length === 11 || d.length === 14) cpfCnpj = d;
+  const payerDocPatterns = [
+    /(?:CNPJ\/CPF|CPF\/CNPJ)\s+Pagador\s*:?\s*([\d./-]{11,24})/i,
+    /(?:CPF|CNPJ)\s+do\s+Pagador\s*:?\s*([\d./-]{11,24})/i,
+    /Pagador[\s\S]{0,180}?(?:CPF\/CNPJ|CNPJ\/CPF|CPF|CNPJ)\s*:?\s*([\d./-]{11,24})/i,
+  ];
+  for (const re of payerDocPatterns) {
+    const m = all.match(re);
+    if (m) {
+      const d = digits(m[1]);
+      if (d.length === 11 || d.length === 14) { cpfCnpj = d; break; }
+    }
   }
-  const dateLine = lines.find(l => /data\s*(?:de\s*)?vencimento|vencimento/i.test(l));
-  let vencimento = dateISO(dateLine || null);
-  if (!vencimento) {
-    const m = all.match(/(?:vencimento|vence\s*em)\s*[:\-]?\s*(\d{2}[./-]\d{2}[./-]\d{4})/i);
-    vencimento = dateISO(m?.[1] || null);
+
+  // Due date: use dates after an explicit due-date label and prefer the final date in that field block.
+  let vencimento: string | null = null;
+  const dueMatches = [...all.matchAll(/vencimento/ig)];
+  for (const m of dueMatches) {
+    const snippet = all.slice((m.index || 0) + m[0].length, (m.index || 0) + m[0].length + 220);
+    const dates = [...snippet.matchAll(/\b(\d{2}[./-]\d{2}[./-]\d{4})\b/g)].map(x => dateISO(x[1])).filter((x): x is string => !!x);
+    if (dates.length) { vencimento = dates[dates.length - 1]; break; }
   }
-  const valueLine = lines.find(l => /valor\s*(?:do\s*documento|cobrado|nominal|a\s*pagar|total)?\s*[:\-]?\s*R?\$?/i.test(l) && /\d+[,.]\d{2}/.test(l));
-  let valor = money(valueLine || null);
-  if (!valor) {
-    const m = all.match(/(?:valor\s*(?:do\s*documento|cobrado|nominal|a\s*pagar|total))\s*[:\-]?\s*(?:R\$\s*)?([\d.]+,\d{2}|\d+\.\d{2})/i);
-    valor = money(m?.[1] || null);
+
+  // Extract amount only from an explicit "Valor do Documento" / "Valor Cobrado" field.
+  // Do not parse arbitrary numbers on the page (e.g. CNPJ fragments or phone numbers).
+  let valor: number | null = null;
+  const valueLabels = [...all.matchAll(/(?:\(?\s*=\s*\)?\s*)?valor\s+(?:do\s+documento|cobrado|nominal|a\s+pagar|total)/ig)];
+  for (const m of valueLabels) {
+    const pos = (m.index || 0) + m[0].length;
+    const snippet = all.slice(pos, pos + 260);
+    const amountMatch = snippet.match(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})/);
+    const candidate = amountMatch ? money(amountMatch[1]) : null;
+    if (candidate !== null) { valor = candidate; break; }
   }
+
   const linhaMatch = all.match(/(?:\d{5}\.\d{5}\s*\d{5}\.\d{6}\s*\d{5}\.\d{6}\s*\d\s*\d{14}|\d{47,48})/);
   const barcodeMatch = all.match(/\b\d{44}\b/);
   const docLine = all.match(/(?:nosso\s*n[uú]mero|n[uú]mero\s*do\s*documento)\s*[:\-]?\s*([A-Z0-9./-]{3,30})/i);
   const bankLine = lines.find(l => /BANCO DO BRASIL|BRADESCO|ITA[ÚU]|SANTANDER|CAIXA ECONOMICA|SICREDI|SICOOB|BTG|INTER|BANRISUL|NUBANK/i.test(l));
   return { nome, cpfCnpj, valor, vencimento, linha: linhaMatch?.[0]?.replace(/\s+/g, ' ').trim() || null, barcode: barcodeMatch?.[0] || null, nossoNumero: docLine?.[1] || null, banco: bankLine?.slice(0, 100) || null };
 }
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
   try {
