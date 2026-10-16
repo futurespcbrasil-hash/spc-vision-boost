@@ -307,7 +307,7 @@ Deno.serve(async (req) => {
             deviceIds.length
               ? admin
                   .from('future_remote_devices')
-                  .select('mesh_device_id, client_name, client_company')
+                  .select('id, mesh_device_id, device_name, client_name, client_company')
                   .in('mesh_device_id', deviceIds)
               : Promise.resolve({ data: [], error: null } as any),
             deviceIds.length
@@ -330,6 +330,19 @@ Deno.serve(async (req) => {
           const existingById = new Map(
             (existingDevices ?? []).map((device: any) => [device.mesh_device_id, device]),
           )
+          const normalizeName = (value: unknown) =>
+            String(value ?? '').trim().toLocaleLowerCase('pt-BR')
+          const { data: sameNameDevices, error: sameNameError } = await admin
+            .from('future_remote_devices')
+            .select('id, mesh_device_id, device_name, client_name, client_company')
+          if (sameNameError) {
+            return json({ error: 'db_error', detail: sameNameError.message }, 500)
+          }
+          const existingByName = new Map<string, any>()
+          for (const row of sameNameDevices ?? []) {
+            const key = normalizeName(row.device_name)
+            if (key && !existingByName.has(key)) existingByName.set(key, row)
+          }
           const latestRequestById = new Map<string, any>()
           for (const request of linkedRequests ?? []) {
             if (request.mesh_device_id && !latestRequestById.has(request.mesh_device_id)) {
@@ -338,7 +351,7 @@ Deno.serve(async (req) => {
           }
 
           const devices = syncedDevices.map((device) => {
-            const existing = existingById.get(device.mesh_device_id) as any
+            const existing = (existingById.get(device.mesh_device_id) ?? existingByName.get(normalizeName(device.device_name))) as any
             const request = latestRequestById.get(device.mesh_device_id)
             return {
               ...device,
@@ -350,6 +363,26 @@ Deno.serve(async (req) => {
           })
 
           if (devices.length) {
+            // A reinstall/re-enrollment can create a new Mesh node ID for the same computer name.
+            // Remove stale CRM rows for those names before upserting the current Mesh inventory.
+            const currentNames = [...new Set(devices.map((device) => normalizeName(device.device_name)).filter(Boolean))]
+            for (const name of currentNames) {
+              const current = devices.find((device) => normalizeName(device.device_name) === name)
+              if (!current) continue
+              const staleRows = (sameNameDevices ?? []).filter((row: any) =>
+                normalizeName(row.device_name) === name && row.mesh_device_id !== current.mesh_device_id
+              )
+              for (const stale of staleRows) {
+                const { error: deleteError } = await admin
+                  .from('future_remote_devices')
+                  .delete()
+                  .eq('id', stale.id)
+                if (deleteError) {
+                  return json({ error: 'db_error', detail: deleteError.message }, 500)
+                }
+              }
+            }
+
             const { error } = await admin
               .from('future_remote_devices')
               .upsert(devices, { onConflict: 'mesh_device_id' })
