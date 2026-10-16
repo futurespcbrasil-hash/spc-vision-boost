@@ -45,7 +45,17 @@ Deno.serve(async (req: Request) => {
     const raw = await response.text();
     let data: any;
     try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
-    if (!response.ok) throw new Error(data?.message || data?.error || `WAHA respondeu HTTP ${response.status}`);
+    if (!response.ok) {
+      // Preserva status e detalhe do provedor para diagnosticar 4xx/5xx.
+      // Nunca devolve links assinados ou credenciais que possam aparecer no corpo.
+      let detail = String(data?.message || data?.error || data?.detail || raw || "").trim();
+      if (typeof payload === "object" && payload !== null) {
+        const file = (payload as Record<string, any>).file;
+        if (typeof file?.url === "string" && file.url) detail = detail.split(file.url).join("[URL DO ARQUIVO REDIGIDA]");
+      }
+      detail = detail.slice(0, 900);
+      throw new Error(`WAHA HTTP ${response.status}${detail ? ": " + detail : ""}`);
+    }
     return data;
   };
 
