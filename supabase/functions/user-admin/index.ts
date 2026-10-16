@@ -37,7 +37,11 @@ Deno.serve(async (req: Request) => {
 
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const isOwner = user.email?.toLowerCase() === "dalprapf1@gmail.com";
-    if (!isOwner) return json({ error: "Somente o responsável principal pode administrar usuários e permissões." }, 403);
+    const { data: callerRoles, error: callerRolesError } = await admin.from("user_roles").select("role").eq("user_id", user.id);
+    if (callerRolesError) throw callerRolesError;
+    const isGestor = (callerRoles || []).some((item) => item.role === "gestor");
+    const canManageUsers = isOwner || isGestor;
+    if (!canManageUsers) return json({ error: "Somente o responsável principal ou um Gestor pode administrar usuários." }, 403);
 
     const body = await req.json();
     const action = String(body.action || "");
@@ -143,13 +147,16 @@ Deno.serve(async (req: Request) => {
       const modules = Array.isArray(body.modules) ? body.modules.filter((m: unknown) => typeof m === "string" && MODULE_KEYS.includes(m)) : [];
       if (!targetUserId) return json({ error: "Usuário não informado." }, 400);
       const { data: targetRoles } = await admin.from("user_roles").select("role").eq("user_id", targetUserId);
-      if (!isOwner && targetRoles?.some((r) => r.role === "gestor")) {
-        return json({ error: "Somente o responsável principal pode alterar permissões de outro gestor." }, 403);
+      const targetIsGestor = (targetRoles || []).some((r) => r.role === "gestor");
+      if (!isOwner && targetIsGestor) {
+        return json({ error: "Somente o responsável principal pode alterar permissões de outro Gestor." }, 403);
       }
+      // Gestores always receive every module, with the full permission set persisted in the database.
+      const grantedModules = targetIsGestor ? MODULE_KEYS : modules;
       const rows = MODULE_KEYS.map((module_key) => ({
         user_id: targetUserId,
         module_key,
-        can_access: modules.includes(module_key),
+        can_access: grantedModules.includes(module_key),
         updated_by: user.id,
       }));
       const { error } = await admin.from("user_module_permissions").upsert(rows, { onConflict: "user_id,module_key" });
