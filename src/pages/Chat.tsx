@@ -32,7 +32,7 @@ const parseMedia = (content: string): ChatMedia | null => {
 const hydrateMessage = async (message: Message): Promise<Message> => {
   const media = parseMedia(message.content);
   if (!media) return message;
-  const { data, error } = await supabase.storage.from('chat-media').createSignedUrl(media.path, 60 * 60);
+  const { data, error } = await supabase.storage.from('chat-media').createSignedUrl(media.path, 7 * 24 * 60 * 60);
   if (error || !data?.signedUrl) return message;
   return { ...message, mediaUrl: data.signedUrl };
 };
@@ -128,6 +128,10 @@ const Chat = () => {
         if (!involves) return;
         if (selected && (m.sender_id === selected.user_id || m.recipient_id === selected.user_id)) {
           void hydrateMessage(m).then(hydrated => setMessages(prev => prev.some(x => x.id === hydrated.id) ? prev : [...prev, hydrated]));
+          if (m.recipient_id === user.id) {
+            void supabase.from('chat_messages').update({ read: true }).eq('id', m.id).eq('recipient_id', user.id);
+            setUnread(current => ({ ...current, [selected.user_id]: 0 }));
+          }
         } else if (m.recipient_id === user.id) {
           setUnread(u => ({ ...u, [m.sender_id]: (u[m.sender_id] || 0) + 1 }));
         }
