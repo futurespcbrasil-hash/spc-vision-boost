@@ -63,6 +63,7 @@ const WhatsAppChat = lazyWithRetry(() => import("@/pages/WhatsAppChat"));
 const WhatsAppInstancias = lazyWithRetry(() => import("@/pages/WhatsAppInstancias"));
 const WhatsAppAjustes = lazyWithRetry(() => import("@/pages/WhatsAppAjustes"));
 const RelatoriosComissoes = lazyWithRetry(() => import("@/pages/RelatoriosComissoes"));
+const ComissoesIndicacoesSistema = lazyWithRetry(() => import("@/pages/ComissoesIndicacoesSistema"));
 const CadastroVendedores = lazyWithRetry(() => import("@/pages/CadastroVendedores"));
 const Usuarios = lazyWithRetry(() => import("@/pages/Usuarios"));
 const Revendas = lazyWithRetry(() => import("@/pages/Revendas"));
@@ -130,6 +131,7 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp/instancias" element={<AppLayout noPadding><WhatsAppInstancias /></AppLayout>} />
             <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
             <Route path="/relatorios-comissoes" element={<AppLayout><RelatoriosComissoes /></AppLayout>} />
+            <Route path="/comissoes/indicacoes-sistema" element={<AppLayout><ComissoesIndicacoesSistema /></AppLayout>} />
             <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />
             <Route path="/usuarios" element={<AppLayout><Usuarios /></AppLayout>} />
             <Route path="/revendas" element={<AppLayout><Revendas /></AppLayout>} />
