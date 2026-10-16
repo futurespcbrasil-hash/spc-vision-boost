@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Users, Handshake, CheckCircle2, TrendingUp, DollarSign, Lightbulb, Calendar as CalendarIcon, Headset } from 'lucide-react';
+import { Users, Handshake, CheckCircle2, TrendingUp, Calendar as CalendarIcon, Headset } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 
@@ -29,24 +29,44 @@ const GestorDashboard = () => {
 
   useEffect(() => {
     const load = async () => {
-      const [leadsRes, eventsRes, profilesRes, rolesRes, indicationsRes, googleEventsRes] = await Promise.all([
+      const [leadsRes, eventsRes, profilesRes, rolesRes, indicationsRes] = await Promise.all([
         supabase.from('leads').select('*'),
         supabase.from('schedule_events').select('*'),
         supabase.from('profiles').select('*'),
         supabase.from('user_roles').select('user_id, role'),
         supabase.from('atendimento_indicacoes').select('id, user_id, created_at'),
-        supabase.from('events').select('id, user_id, title, start_datetime, google_event_id'),
       ]);
       setAllLeads(leadsRes.data || []);
       setAllEvents(eventsRes.data || []);
       setProfiles(profilesRes.data || []);
       setUserRoles(rolesRes.data || []);
       setSystemIndications(indicationsRes.data || []);
-      setGoogleCalendarEvents(googleEventsRes.data || []);
+
+      // Consult the connected Google Calendar of each Atendimento user for today's appointments.
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+          const part = (type: string) => parts.find(p => p.type === type)?.value || '';
+          const today = `${part('year')}-${part('month')}-${part('day')}`;
+          const tomorrowDate = new Date(`${today}T12:00:00-03:00`);
+          tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+          const tomorrowParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(tomorrowDate);
+          const nextDay = `${tomorrowParts.find(p => p.type === 'year')?.value}-${tomorrowParts.find(p => p.type === 'month')?.value}-${tomorrowParts.find(p => p.type === 'day')?.value}`;
+          const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
+          const response = await fetch(`https://${projectId}.supabase.co/functions/v1/google-calendar?action=team-events&timeMin=${encodeURIComponent(`${today}T00:00:00-03:00`)}&timeMax=${encodeURIComponent(`${nextDay}T00:00:00-03:00`)}`, {
+            headers: { Authorization: `Bearer ${session.access_token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+          });
+          const result = await response.json();
+          if (response.ok && Array.isArray(result.users)) setGoogleCalendarEvents(result.users);
+          else console.error('Erro ao consultar agendas conectadas da equipe:', result.error || response.status);
+        }
+      } catch (calendarError) {
+        console.error('Erro ao consultar agendamentos de hoje no Google Calendar:', calendarError);
+      }
       if (leadsRes.error) console.error('Erro ao carregar leads do gestor:', leadsRes.error);
       if (rolesRes.error) console.error('Erro ao carregar perfis de acesso:', rolesRes.error);
       if (indicationsRes.error) console.error('Erro ao carregar indicações do sistema:', indicationsRes.error);
-      if (googleEventsRes.error) console.error('Erro ao carregar eventos do Google Calendar:', googleEventsRes.error);
       setLoading(false);
     };
     load();
@@ -66,12 +86,10 @@ const GestorDashboard = () => {
       name: p.display_name || p.email || 'Usuário do atendimento',
       email: p.email || '',
       indications: systemIndications.filter(i => i.user_id === p.user_id).length,
-      appointments: googleCalendarEvents.filter(e =>
-        e.user_id === p.user_id &&
-        Boolean(e.google_event_id) &&
-        e.start_datetime &&
-        new Date(e.start_datetime).getTime() < Date.now()
-      ).length,
+      appointments: (() => {
+        const calendarUser = googleCalendarEvents.find(e => e.user_id === p.user_id);
+        return calendarUser?.connected && !calendarUser?.error ? calendarUser.appointments : null;
+      })(),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
@@ -115,16 +133,6 @@ const GestorDashboard = () => {
     { name: 'Fechamento', value: allLeads.filter(l => l.status === 'fechamento').length },
     { name: 'Venda', value: vendasFechadas },
   ];
-
-  // Revenue forecast (mock based on negotiation leads)
-  const potentialRevenue = (emNegociacao + allLeads.filter(l => l.status === 'fechamento').length) * 500;
-
-  // Insights
-  const insights: string[] = [];
-  if (parseFloat(taxaConversao) < 10) insights.push('A taxa de conversão está abaixo de 10% — considere revisar a abordagem comercial');
-  const bestVendor = vendorPerf.reduce((best, v) => parseFloat(v.taxa) > parseFloat(best.taxa) ? v : best, vendorPerf[0]);
-  if (bestVendor && parseFloat(bestVendor.taxa) > 0) insights.push(`${bestVendor.name} está com o melhor desempenho (${bestVendor.taxa}% de conversão)`);
-  if (funnelData[3].value > funnelData[4].value * 2) insights.push('Leads estão parando na etapa de negociação');
 
   if (loading) {
     return (
@@ -190,20 +198,20 @@ const GestorDashboard = () => {
         </div>
         <div className="mt-6 pt-5 border-t border-border">
           <h4 className="font-semibold text-foreground mb-1 flex items-center gap-2"><Headset size={17} /> Setor Atendimento</h4>
-          <p className="text-xs text-muted-foreground mb-3">Indicações cadastradas no Sistema e atendimentos registrados no Google Calendar por usuário</p>
+          <p className="text-xs text-muted-foreground mb-3">Indicações cadastradas no sistema e agendamentos de hoje no Google Calendar por usuário</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-border">
                 <th className="text-left py-2 text-muted-foreground font-medium">Nome</th>
                 <th className="text-center py-2 text-muted-foreground font-medium">Indicações de sistema</th>
-                <th className="text-center py-2 text-muted-foreground font-medium">Atendimentos no Google Agenda</th>
+                <th className="text-center py-2 text-muted-foreground font-medium">Agendamentos hoje (Google Agenda)</th>
               </tr></thead>
               <tbody>
                 {atendimentoProfiles.map(p => (
                   <tr key={p.user_id} className="border-b border-border/50 hover:bg-muted/50 transition">
                     <td className="py-2.5 font-medium text-foreground">{p.name}</td>
                     <td className="py-2.5 text-center text-foreground">{p.indications}</td>
-                    <td className="py-2.5 text-center text-foreground">{p.appointments}</td>
+                    <td className="py-2.5 text-center text-foreground">{p.appointments === null ? <span className="text-xs text-muted-foreground">Agenda não conectada / indisponível</span> : p.appointments}</td>
                   </tr>
                 ))}
                 {atendimentoProfiles.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-muted-foreground">Nenhum usuário do setor Atendimento encontrado</td></tr>}
@@ -213,7 +221,7 @@ const GestorDashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {/* Funnel Chart */}
         <div className="stat-card">
           <h3 className="font-semibold text-foreground mb-1">📈 Visão geral do funil</h3>
@@ -228,18 +236,6 @@ const GestorDashboard = () => {
           </ResponsiveContainer>
         </div>
 
-        {/* Revenue Forecast */}
-        <div className="stat-card flex flex-col">
-          <h3 className="font-semibold text-foreground mb-1">💰 Potencial estimado de faturamento</h3>
-          <p className="text-xs text-muted-foreground mb-4">Estimativa provisória de R$ 500 por lead em negociação ou fechamento</p>
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <DollarSign size={40} className="text-success mx-auto mb-2" />
-              <div className="text-3xl font-bold text-foreground">R$ {potentialRevenue.toLocaleString('pt-BR')}</div>
-              <p className="text-sm text-muted-foreground mt-1">Valor ilustrativo, não é faturamento real</p>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Team Schedule */}
@@ -266,23 +262,6 @@ const GestorDashboard = () => {
         </div>
       </div>
 
-      {/* Insights */}
-      {insights.length > 0 && (
-        <div className="stat-card">
-          <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Lightbulb size={18} className="text-primary" /> 🎯 Insights do sistema
-          </h3>
-          <div className="space-y-2">
-            {insights.map((insight, i) => (
-              <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-primary/5">
-                <span className="text-primary text-sm">💡</span>
-                <span className="text-sm text-foreground">{insight}</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-3 text-center">Dados atualizados em tempo real • Oportunidades identificadas automaticamente</p>
-        </div>
-      )}
     </div>
   );
 };
