@@ -26,7 +26,7 @@ const MobileBottomNav = () => {
     { to: '/consultas/cnpj', icon: Building2, label: '— Consulta Receita', moduleKey: 'consulta_cnpj' },
     { to: '/consultas/sintegra', icon: FileText, label: '— Consulta Sintegra', moduleKey: 'consulta_sintegra' },
     { to: '/consultas/cnpj-lote', icon: Building2, label: '— Consulta CNPJ em Lote', moduleKey: 'consulta_cnpj_lote' },
-    { to: '/future-remote', icon: Monitor, label: 'Future Remote', moduleKey: 'future_remote' },
+    { to: '/future-remote', icon: Monitor, label: 'Acesso Remoto', moduleKey: 'future_remote' },
     { to: '/future-remote/computadores', icon: Monitor, label: '— Computadores', moduleKey: 'future_remote' },
     { to: '/future-remote/historico', icon: History, label: '— Histórico Remote', moduleKey: 'future_remote' },
     { to: '/future-remote/configuracoes', icon: Cog, label: '— Configurações Remote', moduleKey: 'future_remote' },

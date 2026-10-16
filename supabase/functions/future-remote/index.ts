@@ -243,11 +243,14 @@ Deno.serve(async (req) => {
     const isGestor =
       !roleError &&
       (roleRows ?? []).some((row) => row.role === 'gestor')
+    const isAtendimento =
+      !roleError &&
+      (roleRows ?? []).some((row) => row.role === 'atendimento')
 
-    if (!isOwner && !isGestor) {
+    if (!isOwner && !isGestor && !isAtendimento) {
       return json({
         error: 'forbidden',
-        message: 'Acesso restrito ao proprietário e gestores.',
+        message: 'Acesso restrito ao proprietário, gestores e Atendimento.',
       }, 403)
     }
 
