@@ -69,6 +69,15 @@ Deno.serve(async (req: Request) => {
   // payload.id é o ID DA MENSAGEM, não o ID da conversa.
   const waChatId = str(payload?.chatId || payload?.chat_id || payload?._data?.id?.remote || candidateRemote);
   if (!waChatId) return json({ accepted: true, ignored: true });
+  // WAHA pode entregar message e message.any para a mesma mensagem. Deduplicar
+  // antes de alterar unread_count/last_message para não contar o mesmo evento duas vezes.
+  const messageId = str(payload?.id?._serialized || payload?.id || payload?.key?.id);
+  if (messageId) {
+    const { data: duplicate, error: duplicateError } = await db.from("whatsapp_messages")
+      .select("id").eq("instance_id", instance.id).eq("wa_message_id", messageId).maybeSingle();
+    if (duplicateError) return json({ error: "Message deduplication lookup failed" }, 500);
+    if (duplicate) return json({ accepted: true, duplicate: true });
+  }
   const remote = candidateRemote || waChatId;
   const phoneSource = candidateRemote && !candidateRemote.endsWith("@lid") ? candidateRemote : waChatId;
   const contactNumber = phoneSource.split("@")[0].replace(/\D/g, "");
@@ -114,11 +123,8 @@ Deno.serve(async (req: Request) => {
     chatId = inserted.id;
   }
 
-  const messageId = str(payload?.id?._serialized || payload?.id || payload?.key?.id);
   if (messageId) {
-    const { data: duplicate } = await db.from("whatsapp_messages").select("id").eq("instance_id", instance.id).eq("wa_message_id", messageId).maybeSingle();
-    if (!duplicate) {
-      const { error } = await db.from("whatsapp_messages").insert({
+    const { error } = await db.from("whatsapp_messages").insert({
         chat_id: chatId, instance_id: instance.id, wa_message_id: messageId,
         from_me: fromMe, sender: fromMe ? "me" : str(payload?.participant || payload?._data?.id?.participant) || contactNumber,
         message_type: messageType, text: body, media_url: mediaUrl,
@@ -126,9 +132,8 @@ Deno.serve(async (req: Request) => {
         media_filename: str(payload?.media?.filename) || null,
         status: "received", timestamp: sentAt, raw: payload,
         sent_by: fromMe ? instance.owner_id : null,
-      });
-      if (error) return json({ error: "Failed to persist message" }, 500);
-    }
+    });
+    if (error) return json({ error: "Failed to persist message" }, 500);
   }
   return json({ accepted: true });
 });
