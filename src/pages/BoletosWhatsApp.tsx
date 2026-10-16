@@ -19,7 +19,7 @@ import { Upload, FileText, Send, Eye, Pencil, Trash2, RefreshCw, Plus, Loader2, 
 const supabase = typedSupabase as any;
 
 type Boleto = {
-  id: string; user_id: string; client_id: string | null; arquivo_path: string; arquivo_nome: string; arquivo_hash: string;
+  id: string; user_id: string; client_id: string | null; arquivo_path: string; arquivo_nome: string; arquivo_hash: string; tentativas?: number;
   nome_extraido: string | null; cpf_cnpj_extraido: string | null; valor: number | null; vencimento: string | null;
   nosso_numero: string | null; linha_digitavel: string | null; codigo_barras: string | null; numero_documento: string | null;
   data_emissao: string | null; banco: string | null; whatsapp: string | null; mensagem: string | null; match_info: string | null;
@@ -160,8 +160,10 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
 
   // ---------- Upload ----------
   const processar = async (id: string) => {
-    const { error } = await supabase.functions.invoke('boletos-extrair', { body: { boleto_id: id } });
-    if (error) console.error(error);
+    const { data, error } = await supabase.functions.invoke('boletos-extrair', { body: { boleto_id: id } });
+    if (error) throw new Error(error.message || 'Falha ao processar o boleto');
+    if (data?.error || data?.ok === false) throw new Error(String(data.error || 'A leitura do boleto não foi concluída'));
+    return data;
   };
 
   const onFiles = async (files: FileList | null) => {
@@ -200,11 +202,14 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
     if (novos.length) {
       toast.info(`Lendo ${novos.length} boleto(s)...`);
       // 3 por vez para não sobrecarregar a leitura
+      let falhasLeitura = 0;
       for (let i = 0; i < novos.length; i += 3) {
-        await Promise.all(novos.slice(i, i + 3).map(processar));
+        const resultados = await Promise.allSettled(novos.slice(i, i + 3).map(processar));
+        falhasLeitura += resultados.filter((resultado) => resultado.status === 'rejected').length;
         await load();
       }
-      toast.success('Leitura concluída. Confira os boletos.');
+      if (falhasLeitura) toast.warning(`Leitura concluída com ${falhasLeitura} falha(s). Confira os boletos marcados com erro e tente novamente.`);
+      else toast.success('Leitura concluída. Confira os boletos antes de enviar.');
     } else if (dup) toast.warning('Nenhum boleto novo importado.');
   };
 
@@ -216,13 +221,23 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
   };
 
   // ---------- Envio ----------
-  const pedirEnvio = (lista: Boleto[]) => {
-    if (!instanceId) return toast.error('Escolha o WhatsApp de envio na aba Configurações');
+  const pedirEnvio = async (lista: Boleto[]) => {
+    if (!instanceId) return toast.error('Escolha o WhatsApp de envio na aba Instâncias WAHA');
     const instancia = instances.find((i) => i.id === instanceId);
     if (!instancia) return toast.error('A instância selecionada não foi encontrada. Atualize a página e escolha novamente.');
-    if (instancia.status !== 'connected') return toast.error('O WhatsApp selecionado está desconectado. Abra WhatsApp → Instâncias WAHA e conecte pelo QR Code.');
+    try {
+      const statusAtual = await waha.status(instanceId);
+      setInstances((current) => current.map((item) => item.id === instanceId
+        ? { ...item, status: statusAtual?.status || item.status, phone: statusAtual?.phone || item.phone }
+        : item));
+      if (statusAtual?.status !== 'connected') {
+        return toast.error('O WhatsApp não está conectado à WAHA. Acesse WhatsApp → Instâncias WAHA e conecte pelo QR Code.');
+      }
+    } catch (error: any) {
+      return toast.error(`Não foi possível validar a conexão WAHA: ${error?.message || 'erro de conexão'}`);
+    }
     const validos = lista.filter((b) => b.status === 'pronto_envio' && waNumber(b.whatsapp));
-    if (!validos.length) return toast.error('Nenhum boleto pronto para envio');
+    if (!validos.length) return toast.error('Nenhum boleto pronto para envio com número de WhatsApp válido');
     setConfirmSend(validos);
   };
 
@@ -247,7 +262,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
       const msg = renderMensagem(template, b, c);
       const numero = waNumber(b.whatsapp)!;
       // trava: só envia se ainda estiver pronto (evita duplo envio em abas diferentes)
-      const { data: lock } = await supabase.from('boleto_envios').update({ status: 'enviando', mensagem: msg }).eq('id', b.id).eq('status', 'pronto_envio').select('id');
+      const { data: lock } = await supabase.from('boleto_envios').update({ status: 'enviando', mensagem: msg, tentativas: (b.tentativas || 0) + 1 }).eq('id', b.id).eq('status', 'pronto_envio').select('id');
       if (!lock?.length) { setSending((s) => s && { ...s, done: s.done + 1 }); continue; }
       try {
         const { data: signed, error: se } = await supabase.storage.from('boletos').createSignedUrl(b.arquivo_path, 60 * 60 * 24 * 3);
