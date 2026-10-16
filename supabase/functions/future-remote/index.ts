@@ -246,11 +246,16 @@ Deno.serve(async (req) => {
     const isAtendimento =
       !roleError &&
       (roleRows ?? []).some((row) => row.role === 'atendimento')
+    const isVendedor =
+      !roleError &&
+      (roleRows ?? []).some((row) => row.role === 'vendedor')
 
-    if (!isOwner && !isGestor && !isAtendimento) {
+    // Todos os perfis operacionais autorizados podem usar o Future Remote.
+    // A permissão continua sendo validada no servidor, não apenas na interface.
+    if (!isOwner && !isGestor && !isAtendimento && !isVendedor) {
       return json({
         error: 'forbidden',
-        message: 'Acesso restrito ao proprietário, gestores e Atendimento.',
+        message: 'Acesso restrito aos perfis autorizados do CRM.',
       }, 403)
     }
 
