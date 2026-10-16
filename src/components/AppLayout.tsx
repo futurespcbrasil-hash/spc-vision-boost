@@ -32,10 +32,12 @@ const moduleForPath = (pathname: string): string | null => {
 
 const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: boolean }) => {
   const location = useLocation();
-  const { canAccessModule } = useAuth();
+  const { canAccessModule, canManageUsers } = useAuth();
   const moduleKey = moduleForPath(location.pathname);
-  // Deny routes that have not been explicitly mapped to a module.
-  const allowed = moduleKey !== null && canAccessModule(moduleKey);
+  // User administration is owner-only; all other routes require an explicit saved module permission.
+  const allowed = moduleKey !== null
+    && canAccessModule(moduleKey)
+    && (location.pathname !== '/usuarios' || canManageUsers);
 
   return (
     <div className="flex min-h-screen bg-background">
