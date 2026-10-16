@@ -246,11 +246,16 @@ Deno.serve(async (req) => {
     const isAtendimento =
       !roleError &&
       (roleRows ?? []).some((row) => row.role === 'atendimento')
+    const isVendedor =
+      !roleError &&
+      (roleRows ?? []).some((row) => row.role === 'vendedor')
 
-    if (!isOwner && !isGestor && !isAtendimento) {
+    // Todos os perfis operacionais autorizados podem usar o Future Remote.
+    // A permissão continua sendo validada no servidor, não apenas na interface.
+    if (!isOwner && !isGestor && !isAtendimento && !isVendedor) {
       return json({
         error: 'forbidden',
-        message: 'Acesso restrito ao proprietário, gestores e Atendimento.',
+        message: 'Acesso restrito aos perfis autorizados do CRM.',
       }, 403)
     }
 
@@ -286,6 +291,15 @@ Deno.serve(async (req) => {
       }
 
       case 'sync_devices': {
+        // Synchronizing the global MeshCentral inventory is administrative; operational
+        // roles may open authorized remote sessions but must not manage the inventory.
+        if (!isOwner && !isGestor) {
+          return json({
+            error: 'forbidden',
+            message: 'Somente o administrador ou gestor pode sincronizar os computadores.',
+          }, 403)
+        }
+
         if (!meshConfigured()) {
           return json({
             error: 'mesh_not_configured',
@@ -423,8 +437,30 @@ Deno.serve(async (req) => {
           return json({ error: 'mesh_device_id_required' }, 400)
         }
 
+        // Do not allow a CRM user to open arbitrary MeshCentral nodes by guessing an ID.
+        // The inventory is synced from MeshCentral and is the allowlist for remote access.
+        const { data: registeredDevice, error: deviceError } = await admin
+          .from('future_remote_devices')
+          .select('mesh_device_id')
+          .eq('mesh_device_id', rawNodeId)
+          .maybeSingle()
+
+        if (deviceError) {
+          return json({ error: 'db_error', detail: 'Não foi possível validar o computador.' }, 500)
+        }
+
+        if (!registeredDevice) {
+          return json({
+            error: 'device_not_registered',
+            message: 'Este computador não está cadastrado no Future Remote. Sincronize os computadores e tente novamente.',
+          }, 404)
+        }
+
+        // This URL only selects the remote-control view. Authentication must be provided
+        // by a dedicated, short-lived MeshCentral browser-login flow; never put the
+        // backend API credential (MESH_LOGIN_TOKEN) into a browser URL.
         return json({
-          url: `${MESH_URL}/?viewmode=11&gotonode=${nodeId}`,
+          url: `${MESH_URL}/?viewmode=11&gotonode=${encodeURIComponent(nodeId)}`,
         })
       }
 
