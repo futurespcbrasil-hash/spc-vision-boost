@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Users, Handshake, CheckCircle2, TrendingUp, AlertTriangle, DollarSign, Activity, Lightbulb, Calendar as CalendarIcon } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Users, Handshake, CheckCircle2, TrendingUp, DollarSign, Lightbulb, Calendar as CalendarIcon, Headset } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
-const PIE_COLORS = ['hsl(262,70%,50%)', 'hsl(152,60%,40%)', 'hsl(38,92%,50%)', 'hsl(280,50%,55%)', 'hsl(199,80%,45%)'];
 
 interface VendorPerformance {
   name: string;
@@ -15,6 +14,7 @@ interface VendorPerformance {
   negociacao: number;
   vendas: number;
   taxa: string;
+  role?: string;
 }
 
 const GestorDashboard = () => {
@@ -22,18 +22,31 @@ const GestorDashboard = () => {
   const [allLeads, setAllLeads] = useState<any[]>([]);
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [userRoles, setUserRoles] = useState<any[]>([]);
+  const [systemIndications, setSystemIndications] = useState<any[]>([]);
+  const [googleCalendarEvents, setGoogleCalendarEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      const [leadsRes, eventsRes, profilesRes] = await Promise.all([
+      const [leadsRes, eventsRes, profilesRes, rolesRes, indicationsRes, googleEventsRes] = await Promise.all([
         supabase.from('leads').select('*'),
         supabase.from('schedule_events').select('*'),
         supabase.from('profiles').select('*'),
+        supabase.from('user_roles').select('user_id, role'),
+        supabase.from('atendimento_indicacoes').select('id, user_id, created_at'),
+        supabase.from('events').select('id, user_id, title, start_datetime, google_event_id'),
       ]);
       setAllLeads(leadsRes.data || []);
       setAllEvents(eventsRes.data || []);
       setProfiles(profilesRes.data || []);
+      setUserRoles(rolesRes.data || []);
+      setSystemIndications(indicationsRes.data || []);
+      setGoogleCalendarEvents(googleEventsRes.data || []);
+      if (leadsRes.error) console.error('Erro ao carregar leads do gestor:', leadsRes.error);
+      if (rolesRes.error) console.error('Erro ao carregar perfis de acesso:', rolesRes.error);
+      if (indicationsRes.error) console.error('Erro ao carregar indicações do sistema:', indicationsRes.error);
+      if (googleEventsRes.error) console.error('Erro ao carregar eventos do Google Calendar:', googleEventsRes.error);
       setLoading(false);
     };
     load();
@@ -44,16 +57,36 @@ const GestorDashboard = () => {
   const vendasFechadas = allLeads.filter(l => l.status === 'venda_ganha').length;
   const taxaConversao = totalLeads > 0 ? ((vendasFechadas / totalLeads) * 100).toFixed(1) : '0';
 
-  // Performance by vendor
+  const roleMap = new Map<string, string>((userRoles || []).map(r => [r.user_id, String(r.role || '')]));
+  const profileByUser = new Map<string, any>((profiles || []).map(p => [p.user_id, p]));
+  const atendimentoProfiles = profiles
+    .filter(p => roleMap.get(p.user_id) === 'atendimento')
+    .map(p => ({
+      user_id: p.user_id,
+      name: p.display_name || p.email || 'Usuário do atendimento',
+      email: p.email || '',
+      indications: systemIndications.filter(i => i.user_id === p.user_id).length,
+      appointments: googleCalendarEvents.filter(e =>
+        e.user_id === p.user_id &&
+        Boolean(e.google_event_id) &&
+        e.start_datetime &&
+        new Date(e.start_datetime).getTime() < Date.now()
+      ).length,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+  // Performance by SPC/commercial vendor.
   const vendorMap = new Map<string, VendorPerformance>();
   allLeads.forEach(lead => {
     const uid = lead.user_id || 'sem_usuario';
+    if (uid !== 'sem_usuario' && roleMap.get(uid) !== 'vendedor') return;
     if (!vendorMap.has(uid)) {
-      const p = profiles.find(pr => pr.user_id === uid);
+      const p = profileByUser.get(uid);
       vendorMap.set(uid, {
-        name: p?.display_name || 'Sem vendedor',
+        name: p?.display_name || p?.email || 'Sem vendedor',
         email: p?.email || '',
         user_id: uid,
+        role: roleMap.get(uid),
         total: 0, contato: 0, negociacao: 0, vendas: 0, taxa: '0',
       });
     }
@@ -83,24 +116,12 @@ const GestorDashboard = () => {
     { name: 'Venda', value: vendasFechadas },
   ];
 
-  // Alerts
-  const twoDaysAgo = new Date();
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-  const twoDaysStr = twoDaysAgo.toISOString();
-  const leadsWithoutContact = allLeads.filter(l => l.status === 'lead_novo' && l.updated_at < twoDaysStr);
-  const stuckNegotiations = allLeads.filter(l => l.status === 'em_negociacao' && l.updated_at < twoDaysStr);
-  const forgottenLeads = allLeads.filter(l => ['lead_novo', 'contato_realizado'].includes(l.status) && l.updated_at < twoDaysStr);
-
   // Revenue forecast (mock based on negotiation leads)
   const potentialRevenue = (emNegociacao + allLeads.filter(l => l.status === 'fechamento').length) * 500;
-
-  // Activity log
-  const recentLeads = [...allLeads].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 8);
 
   // Insights
   const insights: string[] = [];
   if (parseFloat(taxaConversao) < 10) insights.push('A taxa de conversão está abaixo de 10% — considere revisar a abordagem comercial');
-  if (leadsWithoutContact.length > 3) insights.push(`${leadsWithoutContact.length} leads estão sem contato há mais de 2 dias`);
   const bestVendor = vendorPerf.reduce((best, v) => parseFloat(v.taxa) > parseFloat(best.taxa) ? v : best, vendorPerf[0]);
   if (bestVendor && parseFloat(bestVendor.taxa) > 0) insights.push(`${bestVendor.name} está com o melhor desempenho (${bestVendor.taxa}% de conversão)`);
   if (funnelData[3].value > funnelData[4].value * 2) insights.push('Leads estão parando na etapa de negociação');
@@ -128,10 +149,12 @@ const GestorDashboard = () => {
         <StatCard icon={TrendingUp} label="Taxa de Conversão" value={`${taxaConversao}%`} desc="Percentual de leads convertidos em vendas" color="text-warning" />
       </div>
 
-      {/* Team Performance Table */}
+      {/* Team performance split by sector */}
       <div className="stat-card">
-        <h3 className="font-semibold text-foreground mb-1">👥 Desempenho da equipe</h3>
-        <p className="text-xs text-muted-foreground mb-4">Veja quem está performando melhor e onde melhorar</p>
+        <h3 className="font-semibold text-foreground mb-1">👥 Desempenho da equipe por setor</h3>
+        <p className="text-xs text-muted-foreground mb-4">Indicadores separados entre SPC e Atendimento</p>
+        <h4 className="font-semibold text-foreground mb-2">Setor SPC</h4>
+        <p className="text-xs text-muted-foreground mb-3">Leads, contatos, negociações e vendas por usuário</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -165,6 +188,29 @@ const GestorDashboard = () => {
             </tbody>
           </table>
         </div>
+        <div className="mt-6 pt-5 border-t border-border">
+          <h4 className="font-semibold text-foreground mb-1 flex items-center gap-2"><Headset size={17} /> Setor Atendimento</h4>
+          <p className="text-xs text-muted-foreground mb-3">Indicações cadastradas no Sistema e atendimentos registrados no Google Calendar por usuário</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-border">
+                <th className="text-left py-2 text-muted-foreground font-medium">Nome</th>
+                <th className="text-center py-2 text-muted-foreground font-medium">Indicações de sistema</th>
+                <th className="text-center py-2 text-muted-foreground font-medium">Atendimentos no Google Agenda</th>
+              </tr></thead>
+              <tbody>
+                {atendimentoProfiles.map(p => (
+                  <tr key={p.user_id} className="border-b border-border/50 hover:bg-muted/50 transition">
+                    <td className="py-2.5 font-medium text-foreground">{p.name}</td>
+                    <td className="py-2.5 text-center text-foreground">{p.indications}</td>
+                    <td className="py-2.5 text-center text-foreground">{p.appointments}</td>
+                  </tr>
+                ))}
+                {atendimentoProfiles.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-muted-foreground">Nenhum usuário do setor Atendimento encontrado</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -196,35 +242,6 @@ const GestorDashboard = () => {
         </div>
       </div>
 
-      {/* Alerts */}
-      {(leadsWithoutContact.length > 0 || stuckNegotiations.length > 0 || forgottenLeads.length > 0) && (
-        <div className="stat-card border-warning/30">
-          <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-            <AlertTriangle size={18} className="text-warning" /> Atenção necessária
-          </h3>
-          <div className="space-y-2">
-            {leadsWithoutContact.length > 0 && (
-              <div className="flex items-start gap-2 p-2 rounded-lg bg-warning/5">
-                <span className="text-warning text-sm">⚠️</span>
-                <span className="text-sm text-foreground">{leadsWithoutContact.length} leads sem contato há mais de 2 dias</span>
-              </div>
-            )}
-            {stuckNegotiations.length > 0 && (
-              <div className="flex items-start gap-2 p-2 rounded-lg bg-warning/5">
-                <span className="text-warning text-sm">⚠️</span>
-                <span className="text-sm text-foreground">{stuckNegotiations.length} negociações paradas</span>
-              </div>
-            )}
-            {forgottenLeads.length > 0 && (
-              <div className="flex items-start gap-2 p-2 rounded-lg bg-destructive/5">
-                <span className="text-destructive text-sm">🚨</span>
-                <span className="text-sm text-foreground">{forgottenLeads.length} leads esquecidos — isso pode impactar suas vendas</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Team Schedule */}
       <div className="stat-card">
         <h3 className="font-semibold text-foreground mb-1">📅 Próximos compromissos da equipe</h3>
@@ -245,39 +262,6 @@ const GestorDashboard = () => {
           })}
           {upcomingEvents.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">Nenhum compromisso pendente</p>
-          )}
-        </div>
-      </div>
-
-      {/* Activity Log */}
-      <div className="stat-card">
-        <h3 className="font-semibold text-foreground mb-1">📋 Atividades da equipe</h3>
-        <p className="text-xs text-muted-foreground mb-3">Acompanhe tudo o que está sendo feito em tempo real</p>
-        <div className="space-y-2">
-          {recentLeads.map(lead => {
-            const p = profiles.find(pr => pr.user_id === lead.user_id);
-            const vendorName = p?.display_name || 'Vendedor';
-            const statusLabel: Record<string, string> = {
-              lead_novo: 'criou um novo lead',
-              contato_realizado: 'realizou contato com cliente',
-              comparacao_enviada: 'enviou comparação',
-              em_negociacao: 'moveu lead para negociação',
-              fechamento: 'avançou para fechamento',
-              venda_ganha: 'fechou uma venda',
-              venda_perdida: 'perdeu uma venda',
-            };
-            return (
-              <div key={lead.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition">
-                <Activity size={14} className="text-primary shrink-0" />
-                <span className="text-sm text-foreground">
-                  <strong>{vendorName}</strong> {statusLabel[lead.status] || `atualizou lead`}
-                </span>
-                <span className="text-xs text-muted-foreground ml-auto shrink-0">{lead.name}</span>
-              </div>
-            );
-          })}
-          {recentLeads.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">Nenhuma atividade recente</p>
           )}
         </div>
       </div>
