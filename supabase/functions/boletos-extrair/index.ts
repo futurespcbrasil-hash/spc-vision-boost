@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { getDocument } from 'https://esm.sh/pdfjs-dist@3.11.174/legacy/build/pdf.js?target=deno&external=canvas';
+import { getDocumentProxy, extractText } from 'https://esm.sh/unpdf@0.12.1?target=deno';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -25,22 +25,9 @@ function money(s: string | null) {
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
 }
 async function extractPdfText(data: Uint8Array) {
-  const doc = await getDocument({ data, disableFontFace: true, isEvalSupported: false, useSystemFonts: true }).promise;
-  const pages: string[] = [];
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p);
-    const content = await page.getTextContent();
-    const rows = new Map<number, string[]>();
-    for (const item of content.items as any[]) {
-      if (typeof item.str !== 'string' || !item.str.trim()) continue;
-      const y = Math.round(Number(item.transform?.[5] || 0) / 2) * 2;
-      const row = rows.get(y) || [];
-      row.push(item.str.trim());
-      rows.set(y, row);
-    }
-    pages.push([...rows.entries()].sort((a, b) => b[0] - a[0]).map(([, parts]) => parts.join(' ')).join('\n'));
-  }
-  return pages.join('\n');
+  const pdf = await getDocumentProxy(data);
+  const result = await extractText(pdf, { mergePages: true });
+  return typeof result.text === 'string' ? result.text : '';
 }
 function parseBoleto(text: string) {
   const lines = text.split(/\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
