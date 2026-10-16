@@ -218,6 +218,9 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
   // ---------- Envio ----------
   const pedirEnvio = (lista: Boleto[]) => {
     if (!instanceId) return toast.error('Escolha o WhatsApp de envio na aba Configurações');
+    const instancia = instances.find((i) => i.id === instanceId);
+    if (!instancia) return toast.error('A instância selecionada não foi encontrada. Atualize a página e escolha novamente.');
+    if (instancia.status !== 'connected') return toast.error('O WhatsApp selecionado está desconectado. Abra WhatsApp → Instâncias WAHA e conecte pelo QR Code.');
     const validos = lista.filter((b) => b.status === 'pronto_envio' && waNumber(b.whatsapp));
     if (!validos.length) return toast.error('Nenhum boleto pronto para envio');
     setConfirmSend(validos);
