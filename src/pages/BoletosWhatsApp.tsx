@@ -25,7 +25,7 @@ type Boleto = {
   data_emissao: string | null; banco: string | null; whatsapp: string | null; mensagem: string | null; match_info: string | null;
   status: string; api_message_id: string | null; api_resposta: string | null; enviado_em: string | null; erro: string | null; created_at: string;
 };
-type Cliente = { id: string; nome: string; razao_social: string | null; cpf_cnpj: string | null; whatsapp: string | null; email: string | null; observacoes: string | null };
+type Cliente = { id: string; nome: string; razao_social: string | null; contato_nome: string | null; cpf_cnpj: string | null; whatsapp: string | null; email: string | null; observacoes: string | null };
 type Template = { id: string; nome: string; mensagem: string; ativo: boolean };
 type Log = { id: string; boleto_id: string; status: string; whatsapp: string | null; resposta: string | null; created_at: string };
 
@@ -393,6 +393,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
     if (!clienteEdit?.nome?.trim()) return toast.error('Informe o nome');
     const payload = {
       nome: clienteEdit.nome.trim().slice(0, 200), razao_social: clienteEdit.razao_social?.trim() || null,
+      contato_nome: clienteEdit.contato_nome?.trim().slice(0, 160) || null,
       cpf_cnpj: digits(clienteEdit.cpf_cnpj) || null, whatsapp: digits(clienteEdit.whatsapp) || null,
       email: clienteEdit.email?.trim() || null, observacoes: clienteEdit.observacoes?.trim() || null,
     };
@@ -711,9 +712,9 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
           <DialogHeader><DialogTitle>{clienteEdit?.id ? 'Editar cliente' : 'Novo cliente'}</DialogTitle></DialogHeader>
           {clienteEdit && (
             <div className="space-y-2">
-              {(['nome', 'razao_social', 'cpf_cnpj', 'whatsapp', 'email'] as const).map((k) => (
+              {(['nome', 'razao_social', 'contato_nome', 'cpf_cnpj', 'whatsapp', 'email'] as const).map((k) => (
                 <div key={k} className="space-y-1">
-                  <Label>{{ nome: 'Nome *', razao_social: 'Razão social', cpf_cnpj: 'CPF/CNPJ', whatsapp: 'WhatsApp', email: 'E-mail' }[k]}</Label>
+                  <Label>{{ nome: 'Nome *', razao_social: 'Razão social', contato_nome: 'Nome do contato', cpf_cnpj: 'CPF/CNPJ', whatsapp: 'WhatsApp', email: 'E-mail' }[k]}</Label>
                   <Input value={(clienteEdit[k] as string) || ''} maxLength={200} onChange={(e) => setClienteEdit({ ...clienteEdit, [k]: e.target.value })} />
                 </div>
               ))}
