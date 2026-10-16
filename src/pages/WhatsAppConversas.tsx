@@ -135,11 +135,11 @@ export default function WhatsAppConversas() {
     try {
       const response: any = await waha.sendText(instanceId, selectedChat.wa_chat_id || selectedChat.contact_number, text);
       const rawId = response?.wa_message_id || response?.messageId || response?.id?._serialized || response?.id || response?.data?.id || null;
-      const { error: saveError } = await (supabase as any).from('whatsapp_messages').insert({
+      const { error: saveError } = await (supabase as any).from('whatsapp_messages').upsert({
         chat_id: selectedChat.id, instance_id: instanceId, wa_message_id: typeof rawId === 'string' ? rawId : null,
         from_me: true, sender: 'me', message_type: 'text', text, status: 'sent',
         timestamp: new Date().toISOString(), sent_by: user?.id || null, raw: response || {},
-      });
+      }, { onConflict: 'instance_id,wa_message_id' });
       await (supabase as any).from('whatsapp_chats').update({
         last_message: text, last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).eq('id', selectedChat.id);
