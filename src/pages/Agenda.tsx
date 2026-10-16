@@ -172,9 +172,9 @@ const Agenda = () => {
       if (!session) return;
 
       const projectId = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
-      const now = new Date();
-      const timeMin = now.toISOString();
-      const timeMax = new Date(now.getTime() + 30 * 86400000).toISOString();
+      // Fetch the full range once per refresh; cached data is displayed immediately on reload.
+      const timeMin = '1970-01-01T00:00:00.000Z';
+      const timeMax = '2100-01-01T00:00:00.000Z';
 
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/google-calendar?action=events&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`,
