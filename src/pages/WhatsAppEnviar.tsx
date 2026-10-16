@@ -11,7 +11,7 @@ import { waha } from '@/services/ryzeService';
 
 type Instance = { id: string; name: string; status: string; phone: string | null };
 
-const digits = (value: string) => value.replace(/\\D/g, '');
+const digits = (value: string) => value.replace(/\D/g, '');
 const normalizeNumber = (value: string) => {
   const raw = digits(value);
   const number = raw.startsWith('55') ? raw : `55${raw}`;
@@ -47,7 +47,7 @@ const WhatsAppEnviar = () => {
   useEffect(() => { void load(); }, [load]);
 
   const connected = useMemo(() => instances.filter((item) => item.status === 'connected'), [instances]);
-  const parsedRecipients = useMemo(() => recipients.split(/[\\n,;]+/).map((item) => item.trim()).filter(Boolean), [recipients]);
+  const parsedRecipients = useMemo(() => recipients.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean), [recipients]);
 
   const handleSend = async () => {
     if (!instanceId) {
