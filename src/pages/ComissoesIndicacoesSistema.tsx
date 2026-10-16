@@ -90,7 +90,7 @@ export default function ComissoesIndicacoesSistema() {
   const totalMensal = competenciaRows.length * valor;
 
   const saveConfig = async () => {
-    const parsed = Number(valorInput.replace(/\\./g, '').replace(',', '.'));
+    const parsed = Number(valorInput.replace(/\./g, '').replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1000000) {
       toast.error('Informe um valor mensal válido.');
       return;
