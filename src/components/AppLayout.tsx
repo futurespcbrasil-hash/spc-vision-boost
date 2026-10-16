@@ -39,7 +39,7 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
   useEffect(() => {
     if (!user) return;
     let active = true;
-    const baseTitle = document.title.replace(/^\\(\\d+\\)\\s*/, '');
+    const baseTitle = document.title.replace(/^\(\d+\)\s*/, '');
     const refreshUnread = async () => {
       const { count, error } = await supabase.from('chat_messages').select('id', { count: 'exact', head: true }).eq('recipient_id', user.id).eq('read', false);
       if (!active || error) return;
