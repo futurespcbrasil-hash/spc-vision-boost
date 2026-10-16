@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { RefreshCw, Monitor, Pencil, Search, Copy, ExternalLink, Trash2 } from 'lucide-react';
+import { RefreshCw, Monitor, Pencil, Search, Copy, ExternalLink, Trash2, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { syncDevices, getRemoteUrl } from '@/services/meshCentralService';
 import { DeviceStatus, fmtDateTime } from './statusUtils';
@@ -21,7 +21,7 @@ const Computadores = () => {
   const [form, setForm] = useState({ client_name: '', client_company: '' });
 
   const load = async () => {
-    const { data, error } = await supabase.from('future_remote_devices').select('*').order('device_name');
+    const { data, error } = await supabase.from('future_remote_devices').select('*').order('created_at', { ascending: false, nullsFirst: false }).order('device_name');
     if (error) {
       toast.error('Não foi possível carregar os computadores: ' + error.message);
       return;
@@ -33,13 +33,38 @@ const Computadores = () => {
 
   const filteredDevices = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return devices;
-    return devices.filter((d) =>
+    const filtered = !query ? [...devices] : devices.filter((d) =>
       [d.device_name, d.client_name, d.client_company, d.operating_system, d.mesh_device_id]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query))
     );
+    // created_at indica quando o computador apareceu pela primeira vez no CRM.
+    // Não usar updated_at, pois a sincronização pode atualizá-lo em todos os registros.
+    return filtered.sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateB - dateA || String(a.device_name || '').localeCompare(String(b.device_name || ''));
+    });
   }, [devices, search]);
+
+  const groupedDevices = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    for (const device of filteredDevices) {
+      const key = device.created_at
+        ? new Date(device.created_at).toLocaleDateString('sv-SE')
+        : 'sem-data';
+      groups.set(key, [...(groups.get(key) ?? []), device]);
+    }
+    return Array.from(groups.entries()).map(([key, items]) => ({
+      key,
+      items,
+      label: key === 'sem-data'
+        ? 'Data de cadastro não disponível'
+        : new Date(`${key}T12:00:00`).toLocaleDateString('pt-BR', {
+            weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+          }),
+    }));
+  }, [filteredDevices]);
 
   const sync = async () => {
     setSyncing(true);
@@ -180,7 +205,7 @@ const Computadores = () => {
             />
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {filteredDevices.length} de {devices.length} computador(es). Sincronize para atualizar os dispositivos vindos do MeshCentral.
+            {filteredDevices.length} de {devices.length} computador(es). Os mais recentes aparecem primeiro, agrupados pelo dia em que foram cadastrados no CRM. Sincronize para atualizar os dispositivos vindos do MeshCentral.
           </p>
         </CardContent>
       </Card>
@@ -208,7 +233,17 @@ const Computadores = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDevices.map((d) => (
+                  {groupedDevices.flatMap((group) => [
+                    <TableRow key={`date-${group.key}`} className="bg-muted/60 hover:bg-muted/60">
+                      <TableCell colSpan={7} className="py-2">
+                        <div className="flex items-center gap-2 text-sm font-semibold capitalize text-foreground">
+                          <CalendarDays size={15} className="text-primary" />
+                          {group.label}
+                          <span className="font-normal text-muted-foreground">· {group.items.length} computador(es)</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>,
+                    ...group.items.map((d) => (
                     <TableRow key={d.id}>
                       <TableCell className="font-medium">{d.device_name || 'Sem nome'}</TableCell>
                       <TableCell>
@@ -240,7 +275,8 @@ const Computadores = () => {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  ])}
                 </TableBody>
               </Table>
             </div>
