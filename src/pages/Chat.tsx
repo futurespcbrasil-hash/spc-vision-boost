@@ -175,7 +175,7 @@ const Chat = () => {
     }
     setUploading(true);
     try {
-      const safeName = file.name.replace(/[^\\w.\\-]/g, '_');
+      const safeName = file.name.replace(/[^\w.-]/g, '_');
       const path = `${user.id}/${crypto.randomUUID()}-${safeName}`;
       const { error: uploadError } = await supabase.storage.from('chat-media').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
       if (uploadError) throw uploadError;
