@@ -108,9 +108,16 @@ Deno.serve(async (req: Request) => {
           status = await callWaha(`/api/sessions/${session}`).catch(() => status);
         }
         // Busca a imagem diretamente da WAHA para não enviar o código de pareamento a serviços de terceiros.
-        const qrResponse = await fetch(`${wahaUrl}/api/${session}/auth/qr?format=image`, {
-          headers: { "X-Api-Key": wahaKey },
-        }).catch(() => null);
+        let qrResponse: Response | null = null;
+        // A sessão pode levar alguns segundos para gerar o QR; tenta novamente antes de responder.
+        for (let attempt = 0; attempt < 8; attempt++) {
+          qrResponse = await fetch(`${wahaUrl}/api/${session}/auth/qr?format=image`, {
+            headers: { "X-Api-Key": wahaKey },
+          }).catch(() => null);
+          if (qrResponse?.ok) break;
+          await qrResponse?.body?.cancel().catch(() => null);
+          await new Promise((resolve) => setTimeout(resolve, 900));
+        }
         let qrValue: string | null = null;
         if (qrResponse?.ok) {
           const contentType = qrResponse.headers.get("content-type") || "";
