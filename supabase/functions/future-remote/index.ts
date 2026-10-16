@@ -291,14 +291,9 @@ Deno.serve(async (req) => {
       }
 
       case 'sync_devices': {
-        // Synchronizing the global MeshCentral inventory is administrative; operational
-        // roles may open authorized remote sessions but must not manage the inventory.
-        if (!isOwner && !isGestor) {
-          return json({
-            error: 'forbidden',
-            message: 'Somente o administrador ou gestor pode sincronizar os computadores.',
-          }, 403)
-        }
+        // A sincronização atualiza o catálogo compartilhado de computadores do Future Remote.
+        // Todos os perfis já autorizados no módulo (owner, gestor, atendimento e vendedor)
+        // podem sincronizar, visualizar e conectar; a autorização do módulo continua validada acima.
 
         if (!meshConfigured()) {
           return json({
