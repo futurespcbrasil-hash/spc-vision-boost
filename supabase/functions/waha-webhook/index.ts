@@ -1,0 +1,115 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status, headers: { "Content-Type": "application/json" },
+});
+const str = (v: unknown) => typeof v === "string" ? v : "";
+const timestamp = (v: unknown) => {
+  if (typeof v === "number") return new Date(v < 10_000_000_000 ? v * 1000 : v).toISOString();
+  if (typeof v === "string" && v) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return new Date(n < 10_000_000_000 ? n * 1000 : n).toISOString();
+    const d = new Date(v);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  return new Date().toISOString();
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok");
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  const secret = Deno.env.get("WAHA_WEBHOOK_SECRET");
+  const supplied = new URL(req.url).searchParams.get("token") || req.headers.get("X-WAHA-Webhook-Secret");
+  if (!secret || !supplied || supplied !== secret) return json({ error: "Unauthorized" }, 401);
+
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return json({ error: "Server not configured" }, 500);
+  const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+  let event: any;
+  try { event = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+  const eventName = str(event?.event);
+  if (!["message", "message.any", "message.ack", "state.change", "session.status"].includes(eventName)) {
+    return json({ accepted: true, ignored: true });
+  }
+
+  const session = str(event?.session);
+  if (!session) return json({ accepted: true, ignored: true });
+  const { data: instance, error: instanceError } = await db.from("whatsapp_instances")
+    .select("id,owner_id,provider_instance_name").eq("provider", "waha").eq("provider_instance_name", session).maybeSingle();
+  if (instanceError) return json({ error: "Database lookup failed" }, 500);
+  if (!instance) return json({ accepted: true, ignored: true });
+
+  const payload = event?.payload || {};
+  if (eventName === "state.change" || eventName === "session.status") {
+    const state = str(payload?.status || payload?.state || payload?.name).toUpperCase();
+    const status = ["WORKING", "CONNECTED", "OPEN"].includes(state) ? "connected"
+      : state.includes("QR") ? "qr"
+      : ["STARTING", "SCAN_QR_CODE"].includes(state) ? "connecting"
+      : ["STOPPED", "FAILED", "DISCONNECTED"].includes(state) ? "disconnected" : null;
+    if (status) await db.from("whatsapp_instances").update({
+      status, last_status_at: new Date().toISOString(),
+    }).eq("id", instance.id);
+    return json({ accepted: true });
+  }
+
+  if (eventName === "message.ack") return json({ accepted: true });
+
+  const fromMe = payload?.fromMe === true || payload?.from_me === true;
+  const remote = str(fromMe ? payload?.to : payload?.from);
+  const waChatId = str(payload?.id?._serialized || payload?.chatId || (fromMe ? payload?.to : payload?.from));
+  if (!remote || !waChatId) return json({ accepted: true, ignored: true });
+
+  const contactNumber = remote.split("@")[0].replace(/\D/g, "");
+  const contactName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName) || contactNumber;
+  const body = str(payload?.body || payload?.text);
+  const rawType = str(payload?.type || payload?.media?.mimetype).toLowerCase();
+  const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
+    : rawType.includes("video") ? "video" : payload?.hasMedia ? "document" : "text";
+  const sentAt = timestamp(payload?.timestamp || payload?.t);
+  const mediaUrl = str(payload?.media?.url || payload?.mediaUrl) || null;
+  const avatar = str(payload?._data?.profilePicThumbObj?.eurl || payload?.profilePictureUrl) || null;
+
+  const { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count")
+    .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
+  let chatId = existingChat?.id as string | undefined;
+  if (chatId) {
+    await db.from("whatsapp_chats").update({
+      contact_number: contactNumber, contact_name: contactName, avatar_url: avatar,
+      last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
+      last_message_at: sentAt, unread_count: fromMe ? (existingChat?.unread_count || 0) : (existingChat?.unread_count || 0) + 1,
+      is_group: remote.endsWith("@g.us"), updated_at: new Date().toISOString(),
+    }).eq("id", chatId);
+  } else {
+    const { data: inserted, error } = await db.from("whatsapp_chats").insert({
+      instance_id: instance.id, wa_chat_id: waChatId, contact_number: contactNumber,
+      contact_name: contactName, avatar_url: avatar,
+      last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
+      last_message_at: sentAt, unread_count: fromMe ? 0 : 1,
+      is_group: remote.endsWith("@g.us"), archived: false,
+    }).select("id").single();
+    if (error) return json({ error: "Failed to persist chat" }, 500);
+    chatId = inserted.id;
+  }
+
+  const messageId = str(payload?.id?._serialized || payload?.id || payload?.key?.id);
+  if (messageId) {
+    const { data: duplicate } = await db.from("whatsapp_messages").select("id").eq("instance_id", instance.id).eq("wa_message_id", messageId).maybeSingle();
+    if (!duplicate) {
+      const { error } = await db.from("whatsapp_messages").insert({
+        chat_id: chatId, instance_id: instance.id, wa_message_id: messageId,
+        from_me: fromMe, sender: fromMe ? "me" : contactNumber,
+        message_type: messageType, text: body, media_url: mediaUrl,
+        media_mime: str(payload?.media?.mimetype) || null,
+        media_filename: str(payload?.media?.filename) || null,
+        status: "received", timestamp: sentAt, raw: payload,
+        sent_by: fromMe ? instance.owner_id : null,
+      });
+      if (error) return json({ error: "Failed to persist message" }, 500);
+    }
+  }
+  return json({ accepted: true });
+});
