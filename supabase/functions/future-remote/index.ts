@@ -291,6 +291,15 @@ Deno.serve(async (req) => {
       }
 
       case 'sync_devices': {
+        // Synchronizing the global MeshCentral inventory is administrative; operational
+        // roles may open authorized remote sessions but must not manage the inventory.
+        if (!isOwner && !isGestor) {
+          return json({
+            error: 'forbidden',
+            message: 'Somente o administrador ou gestor pode sincronizar os computadores.',
+          }, 403)
+        }
+
         if (!meshConfigured()) {
           return json({
             error: 'mesh_not_configured',
