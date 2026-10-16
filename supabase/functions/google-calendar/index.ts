@@ -117,6 +117,86 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Manager-only summary: read today's events directly from each Atendimento user's connected Google Calendar.
+    if (action === "team-events") {
+      const { data: roleRow, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (roleError || roleRow?.role !== "gestor") {
+        return new Response(JSON.stringify({ error: "Acesso permitido somente ao gestor." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const timeMin = url.searchParams.get("timeMin");
+      const timeMax = url.searchParams.get("timeMax");
+      if (!timeMin || !timeMax) {
+        return new Response(JSON.stringify({ error: "Informe timeMin e timeMax para o dia consultado." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const [{ data: roles }, { data: profileRows }, { data: tokenRows }] = await Promise.all([
+        supabase.from("user_roles").select("user_id, role").eq("role", "atendimento"),
+        supabase.from("profiles").select("user_id, display_name, email"),
+        supabase.from("google_calendar_tokens").select("user_id"),
+      ]);
+      const roleUsers = roles || [];
+      const profileMap = new Map((profileRows || []).map((p: any) => [p.user_id, p]));
+      const connectedIds = new Set((tokenRows || []).map((t: any) => t.user_id));
+      const users = await Promise.all(roleUsers.map(async (role: any) => {
+        const profile: any = profileMap.get(role.user_id);
+        const name = profile?.display_name || profile?.email || "Usuário do atendimento";
+        if (!connectedIds.has(role.user_id)) {
+          return { user_id: role.user_id, name, email: profile?.email || "", connected: false, appointments: 0, error: null };
+        }
+
+        const accessToken = await getValidAccessToken(role.user_id);
+        if (!accessToken) {
+          return { user_id: role.user_id, name, email: profile?.email || "", connected: false, appointments: 0, error: "Reconectar Google Calendar" };
+        }
+
+        try {
+          const params = new URLSearchParams({
+            timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "2500",
+          });
+          const response = await fetch(
+            "https://www.googleapis.com/calendar/v3/calendars/primary/events?" + params.toString(),
+            { headers: { Authorization: "Bearer " + accessToken } },
+          );
+          const result = await response.json();
+          if (!response.ok) {
+            return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments: 0, error: result.error?.message || "Não foi possível ler a agenda" };
+          }
+          let items = result.items || [];
+          let pageToken = result.nextPageToken || "";
+          while (pageToken) {
+            const nextParams = new URLSearchParams({
+              timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "2500", pageToken,
+            });
+            const nextResponse = await fetch(
+              "https://www.googleapis.com/calendar/v3/calendars/primary/events?" + nextParams.toString(),
+              { headers: { Authorization: "Bearer " + accessToken } },
+            );
+            const nextResult = await nextResponse.json();
+            if (!nextResponse.ok) break;
+            items = items.concat(nextResult.items || []);
+            pageToken = nextResult.nextPageToken || "";
+          }
+          const appointments = items.filter((event: any) => event.status !== "cancelled").length;
+          return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments, error: null };
+        } catch (error) {
+          return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments: 0, error: error instanceof Error ? error.message : "Falha ao consultar agenda" };
+        }
+      }));
+
+      return new Response(JSON.stringify({ users, timeMin, timeMax }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Generate OAuth URL
     if (action === "auth-url") {
       const redirectUri = url.searchParams.get("redirect_uri") || url.origin;
