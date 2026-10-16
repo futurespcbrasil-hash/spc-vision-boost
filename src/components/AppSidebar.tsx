@@ -98,7 +98,7 @@ const AppSidebar = () => {
       </div>
 
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.filter(item => item.moduleKey === 'chat' || canAccessModule(item.moduleKey)).map(item => {
+        {NAV_ITEMS.filter(item => canAccessModule(item.moduleKey)).map(item => {
           return renderNavItem(item, location.pathname === item.to);
         })}
 
