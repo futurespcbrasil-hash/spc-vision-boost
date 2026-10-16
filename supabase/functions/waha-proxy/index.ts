@@ -197,7 +197,7 @@ Deno.serve(async (req: Request) => {
           const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
           const waChatId = typeof rawId === "string" ? rawId : "";
           if (!waChatId) continue;
-          const number = waChatId.split("@")[0].replace(/\\D/g, "");
+          const number = waChatId.split("@")[0].replace(/\D/g, "");
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
           let lastMessageAt: string | null = null;
@@ -236,7 +236,7 @@ Deno.serve(async (req: Request) => {
         if (!waChatId) return json({ error: "wa_chat_id é obrigatório." }, 400);
         const rawMessages = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats/${encodeURIComponent(waChatId)}/messages?limit=100`);
         const messages = Array.isArray(rawMessages) ? rawMessages : Array.isArray(rawMessages?.messages) ? rawMessages.messages : [];
-        const number = waChatId.split("@")[0].replace(/\\D/g, "");
+        const number = waChatId.split("@")[0].replace(/\D/g, "");
         const { data: existingChat } = await db.from("whatsapp_chats")
           .select("id").eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
         let chat = existingChat;
