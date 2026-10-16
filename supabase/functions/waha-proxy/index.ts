@@ -101,6 +101,43 @@ Deno.serve(async (req: Request) => {
     return chatId;
   };
 
+  const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any) => {
+    const now = new Date().toISOString();
+    const digits = chatId.split("@")[0].replace(/\D/g, "");
+    const { data: existing } = await db.from("whatsapp_chats").select("id,unread_count")
+      .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
+    let chatIdDb = existing?.id as string | undefined;
+    const chatRecord = {
+      instance_id: inst.id, wa_chat_id: chatId, contact_number: digits,
+      contact_name: digits || chatId, last_message: text || (messageType !== "text" ? "[" + messageType + "]" : ""),
+      last_message_at: now, is_group: chatId.endsWith("@g.us"), updated_at: now,
+    };
+    if (chatIdDb) {
+      const { error } = await db.from("whatsapp_chats").update(chatRecord).eq("id", chatIdDb);
+      if (error) throw new Error("Mensagem enviada, mas falhou atualizar a conversa no CRM: " + error.message);
+    } else {
+      const { data: inserted, error } = await db.from("whatsapp_chats").insert({ ...chatRecord, unread_count: 0, archived: false }).select("id").single();
+      if (error) throw new Error("Mensagem enviada, mas falhou criar a conversa no CRM: " + error.message);
+      chatIdDb = inserted.id;
+    }
+    const rawId = result?.id?._serialized || result?.id || result?.messageId || result?.key?.id || null;
+    if (chatIdDb) {
+      let duplicate: any = null;
+      if (typeof rawId === "string" && rawId) {
+        const { data } = await db.from("whatsapp_messages").select("id").eq("instance_id", inst.id).eq("wa_message_id", rawId).maybeSingle();
+        duplicate = data;
+      }
+      if (!duplicate) {
+        const { error } = await db.from("whatsapp_messages").insert({
+          chat_id: chatIdDb, instance_id: inst.id, wa_message_id: typeof rawId === "string" ? rawId : null,
+          from_me: true, sender: "me", message_type: messageType, text: text || null,
+          status: "sent", timestamp: now, raw: result || {}, sent_by: inst.owner_id,
+        });
+        if (error) throw new Error("Mensagem enviada, mas falhou gravar o histórico no CRM: " + error.message);
+      }
+    }
+  };
+
   const normalizeStatus = (status: string) => {
     if (["WORKING", "SCAN_QR_CODE", "STARTING", "STOPPED", "FAILED"].includes(status)) {
       return ({ WORKING: "connected", SCAN_QR_CODE: "qr", STARTING: "connecting", STOPPED: "disconnected", FAILED: "disconnected" } as Record<string, string>)[status];
@@ -205,6 +242,7 @@ Deno.serve(async (req: Request) => {
         if (!number || typeof body.text !== "string" || !body.text.trim()) return json({ error: "Número e texto são obrigatórios." }, 400);
         const chatId = await resolveChatId(inst.provider_instance_name, number);
         const result = await callWaha("/api/sendText", "POST", { session: inst.provider_instance_name, chatId, text: body.text });
+        await persistOutbound(inst, chatId, String(body.text).trim(), "text", result);
         return json(result);
       }
       case "send_media": {
@@ -217,12 +255,21 @@ Deno.serve(async (req: Request) => {
         const payload: Record<string, unknown> = { session: inst.provider_instance_name, chatId, file: { url: body.media_url, mimetype, filename } };
         if (typeof body.caption === "string" && body.caption) payload.caption = body.caption;
         const result = await callWaha("/api/sendFile", "POST", payload);
+        await persistOutbound(inst, chatId, typeof body.caption === "string" ? body.caption : "", mediaType, result);
         return json({ ...result, media_type: mediaType });
       }
       case "get_chats": {
         const inst = await getOwnedInstance();
-        const rawChats = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats`);
-        const chats = Array.isArray(rawChats) ? rawChats : Array.isArray(rawChats?.chats) ? rawChats.chats : [];
+        // Overview inclui última mensagem e dados de exibição; fallback para /chats em versões antigas.
+        let rawChats: any;
+        try {
+          rawChats = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats/overview`);
+        } catch {
+          rawChats = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats`);
+        }
+        const chats = Array.isArray(rawChats) ? rawChats
+          : Array.isArray(rawChats?.chats) ? rawChats.chats
+          : Array.isArray(rawChats?.items) ? rawChats.items : [];
         let synced = 0;
         for (const chat of chats) {
           const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
