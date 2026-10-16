@@ -40,29 +40,19 @@ function parseBoleto(text: string) {
       !/^(?:\d{2}[./-])/.test(v) && !/^\d[\d./-]{8,}$/.test(v) ? v : null;
   };
 
-  // Use the payer field specifically; never infer the payer from the beneficiary block.
+  // Prioritize the "Recibo do Pagador" block, which explicitly names the payer.
+  // Some PDF extractors flatten columns and make the main form's labels appear before the values.
   let nome: string | null = null;
-  const payerLabel = /(?:CNPJ\/CPF|CPF\/CNPJ|nome\s*(?:do)?\s*pagador|pagador|sacado)\s*:?\s*/ig;
-  const labelPositions = [...all.matchAll(payerLabel)].filter(m => !/benefici[aá]rio|cedente|sacador\/avalista/i.test(all.slice(Math.max(0, (m.index || 0) - 30), m.index || 0)));
-  // The receipt block often has the clearest payer name; inspect explicit payer labels from last to first.
-  for (const m of labelPositions.reverse()) {
-    const pos = (m.index || 0) + m[0].length;
-    const snippet = all.slice(pos, pos + 180);
-    const candidate = snippet.split(/\n/).map(s => s.trim()).find(s => {
-      const n = validName(s);
-      return !!n && !/^(?:CPF|CNPJ|CPF\/CNPJ|CNPJ\/CPF|pagador|sacado|sacador\/avalista|benefici[aá]rio|cedente|endereço|vencimento|valor do documento)$/i.test(s);
-    });
-    if (candidate) {
-      const n = validName(candidate);
-      if (n) { nome = n; break; }
-    }
-  }
+  const receiptName = all.match(/recibo\s+do\s+pagador[\s\S]{0,240}?\bpagador\b\s*:?\s*([A-ZÀ-Ý][A-ZÀ-Ý0-9 .&,'/-]{2,100}?)(?=\s+(?:ag[eê]ncia|nosso\s*n[uú]mero|n[uú]mero\s+do\s+documento|CNPJ\/CPF\s+Pagador|CPF\/CNPJ\s+Pagador|benefici[aá]rio|endereço|autentica[cç][aã]o)|\n|$)/i);
+  if (receiptName?.[1]) nome = validName(receiptName[1]);
   if (!nome) {
-    const receipt = all.match(/recibo do pagador[\s\S]{0,180}?pagador\s*:?\s*([A-ZÀ-Ý][^\n]{2,100})/i);
-    if (receipt?.[1]) nome = validName(receipt[1]);
+    const explicitPayer = all.match(/(?:nome\s*(?:do)?\s*pagador|pagador|sacado)\s*:?\s*([A-ZÀ-Ý][A-ZÀ-Ý0-9 .&,'/-]{2,100}?)(?=\s+(?:CPF|CNPJ|CPF\/CNPJ|CNPJ\/CPF|endereço|vencimento|valor|sacador\/avalista|benefici[aá]rio|cedente)|\n|$)/i);
+    if (explicitPayer?.[1]) nome = validName(explicitPayer[1]);
   }
+  // Never accept a field label such as "Sacador/Avalista" as the customer's name.
+  if (nome && /^(?:sacador\/avalista|benefici[aá]rio|cedente|pagador|sacado|recibo do pagador)$/i.test(nome)) nome = null;
 
-  // Prefer a document explicitly labelled as the payer's CPF/CNPJ.
+  // Prefer the explicitly labelled payer document from the receipt block, not the beneficiary CNPJ.
   let cpfCnpj: string | null = null;
   const payerDocPatterns = [
     /(?:CNPJ\/CPF|CPF\/CNPJ)\s+Pagador\s*:?\s*([\d./-]{11,24})/i,
@@ -76,7 +66,6 @@ function parseBoleto(text: string) {
       if (d.length === 11 || d.length === 14) { cpfCnpj = d; break; }
     }
   }
-
   // Due date: use dates after an explicit due-date label and prefer the final date in that field block.
   let vencimento: string | null = null;
   const dueMatches = [...all.matchAll(/vencimento/ig)];
