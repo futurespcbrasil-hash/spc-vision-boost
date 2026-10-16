@@ -485,7 +485,21 @@ const WhatsAppChat = () => {
     if (!selected) return;
     const chatId = selected.id;
     setMessages([]);
-    loadMessages(chatId);
+    let cancelled = false;
+    // Carrega primeiro o histórico local para resposta rápida e, em seguida,
+    // sincroniza as mensagens reais da WAHA (até 100) ao abrir cada conversa.
+    const hydrateConversation = async () => {
+      await loadMessages(chatId);
+      if (!instanceId) return;
+      try {
+        await waha.getMessages(instanceId, selected.wa_chat_id);
+        if (!cancelled) await loadMessages(chatId, true);
+      } catch (err: any) {
+        // Mantém o histórico local disponível mesmo quando a WAHA estiver temporariamente indisponível.
+        console.warn('[WhatsApp] Não foi possível sincronizar o histórico remoto:', err?.message || err);
+      }
+    };
+    void hydrateConversation();
 
     // Foto de perfil: apenas 1 GET por conversa (Ryze /api/profile/getAccount)
     if (!selected.avatar_url && instanceId && !profilePicFetched.current.has(chatId)) {
@@ -533,7 +547,7 @@ const WhatsAppChat = () => {
     }
     // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
     const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
-    return () => { window.clearInterval(poll); supabase.removeChannel(ch); };
+    return () => { cancelled = true; window.clearInterval(poll); supabase.removeChannel(ch); };
   }, [selected?.id, loadMessages, instanceId]);
 
   const handleSend = async () => {
