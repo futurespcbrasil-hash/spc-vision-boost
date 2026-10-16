@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText, FileSpreadsheet,
-  Monitor, History, Cog, Wallet, Package, Link2
+  Monitor, History, Cog, Wallet, Smartphone
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -36,11 +36,8 @@ const AppSidebar = () => {
 
   const NAV_ITEMS = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'dashboard' },
-    { to: '/crm', icon: GitBranch, label: 'Funil', moduleKey: 'crm' },
+    { to: '/crm', icon: GitBranch, label: 'Kanban', moduleKey: 'crm' },
     { to: '/leads', icon: Users, label: 'Leads', moduleKey: 'leads' },
-    { to: '/produtos', icon: Package, label: 'Produtos', moduleKey: 'produtos' },
-    { to: '/comparador', icon: Layers, label: 'Comparador', moduleKey: 'comparador' },
-    { to: '/gerar-link', icon: Link2, label: 'Gerar Link', moduleKey: 'gerar_link' },
     { to: '/agenda', icon: Calendar, label: 'Agenda', moduleKey: 'agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios', moduleKey: 'relatorios' },
     { to: '/metas', icon: Target, label: 'Metas', moduleKey: 'metas' },
@@ -56,6 +53,7 @@ const AppSidebar = () => {
 
   const WHATSAPP_SUB = [
     { to: '/whatsapp', icon: MessageSquare, label: 'Conversas', moduleKey: 'whatsapp' },
+    { to: '/whatsapp/instancias', icon: Smartphone, label: 'Instâncias WAHA', moduleKey: 'whatsapp' },
     { to: '/whatsapp/ajustes', icon: Settings2, label: 'Ajustes', moduleKey: 'whatsapp' },
   ];
 
@@ -105,19 +103,6 @@ const AppSidebar = () => {
         })}
 
 
-        {canAccessModule('revendas') && (
-          <Link
-            to="/revendas"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
-              ${location.pathname.startsWith('/revendas')
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-            title={collapsed ? 'Revendas' : undefined}
-          >
-            <Building2 size={18} />
-            {!collapsed && <span>Revendas</span>}
-          </Link>
-        )}
         {['consultas_spc', 'consulta_cnpj', 'consulta_sintegra', 'consulta_cnpj_lote'].some(key => canAccessModule(key)) && (
           <>
         <button
@@ -253,15 +238,7 @@ const AppSidebar = () => {
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
               <FileText size={14} />
-              <span>Boletos WhatsApp</span>
-            </Link>
-            <Link to="/financeiro/clientes"
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
-                ${location.pathname === '/financeiro/clientes'
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
-              <Users size={14} />
-              <span>Clientes</span>
+              <span>Envio de boletos</span>
             </Link>
           </div>
         )}

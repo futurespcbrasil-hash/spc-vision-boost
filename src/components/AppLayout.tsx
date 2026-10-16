@@ -25,10 +25,6 @@ const moduleForPath = (pathname: string): string | null => {
   if (pathname.startsWith('/parceiros-spc')) return 'parceiros';
   if (pathname.startsWith('/indicacoes')) return 'indicacoes_atendimento';
   if (pathname.startsWith('/financeiro')) return 'financeiro';
-  if (pathname.startsWith('/produtos')) return 'produtos';
-  if (pathname.startsWith('/comparador')) return 'comparador';
-  if (pathname.startsWith('/gerar-link')) return 'gerar_link';
-  if (pathname.startsWith('/revendas')) return 'revendas';
   if (pathname.startsWith('/perfil')) return 'perfil';
   if (pathname.startsWith('/usuarios')) return 'usuarios';
   return null;

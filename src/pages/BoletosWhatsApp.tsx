@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase as typedSupabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ryze } from '@/services/ryzeService';
+import { waha } from '@/services/ryzeService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -218,6 +218,9 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
   // ---------- Envio ----------
   const pedirEnvio = (lista: Boleto[]) => {
     if (!instanceId) return toast.error('Escolha o WhatsApp de envio na aba Configurações');
+    const instancia = instances.find((i) => i.id === instanceId);
+    if (!instancia) return toast.error('A instância selecionada não foi encontrada. Atualize a página e escolha novamente.');
+    if (instancia.status !== 'connected') return toast.error('O WhatsApp selecionado está desconectado. Abra WhatsApp → Instâncias WAHA e conecte pelo QR Code.');
     const validos = lista.filter((b) => b.status === 'pronto_envio' && waNumber(b.whatsapp));
     if (!validos.length) return toast.error('Nenhum boleto pronto para envio');
     setConfirmSend(validos);
@@ -249,7 +252,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
       try {
         const { data: signed, error: se } = await supabase.storage.from('boletos').createSignedUrl(b.arquivo_path, 60 * 60 * 24 * 3);
         if (se || !signed) throw new Error('Não foi possível gerar o link do PDF');
-        const r: any = await ryze.sendMedia(instanceId, numero, signed.signedUrl, 'document', msg, 'application/pdf');
+        const r: any = await waha.sendMedia(instanceId, numero, signed.signedUrl, 'document', msg, 'application/pdf');
         const apiId = r?.wa_message_id || r?.messageId || r?.data?.messageId || null;
         await supabase.from('boleto_envios').update({ status: 'enviado', enviado_em: new Date().toISOString(), api_message_id: apiId, api_resposta: 'Mensagem enviada com sucesso', erro: null }).eq('id', b.id);
         await supabase.from('boleto_envio_logs').insert({ boleto_id: b.id, status: 'enviado', whatsapp: numero, resposta: 'Mensagem enviada com sucesso' });
@@ -403,7 +406,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Boletos WhatsApp</h1>
+          <h1 className="text-2xl font-bold">Envio de boletos</h1>
           <p className="text-sm text-muted-foreground">Importe os PDFs, confira os dados e envie os boletos aos clientes.</p>
         </div>
         <div className="flex gap-2">

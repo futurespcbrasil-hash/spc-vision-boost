@@ -39,12 +39,9 @@ const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const GestorDashboard = lazyWithRetry(() => import("@/pages/GestorDashboard"));
 const CRMKanban = lazyWithRetry(() => import("@/pages/CRMKanban"));
 const LeadsPage = lazyWithRetry(() => import("@/pages/LeadsPage"));
-const Comparador = lazyWithRetry(() => import("@/pages/Comparador"));
-const GerarLink = lazyWithRetry(() => import("@/pages/GerarLink"));
 const PublicComparison = lazyWithRetry(() => import("@/pages/PublicComparison"));
 const Agenda = lazyWithRetry(() => import("@/pages/Agenda"));
 const Argumentos = lazyWithRetry(() => import("@/pages/Argumentos"));
-const Produtos = lazyWithRetry(() => import("@/pages/Produtos"));
 const Relatorios = lazyWithRetry(() => import("@/pages/Relatorios"));
 const Chat = lazyWithRetry(() => import("@/pages/Chat"));
 const Perfil = lazyWithRetry(() => import("@/pages/Perfil"));
@@ -66,7 +63,6 @@ const RelatoriosComissoes = lazyWithRetry(() => import("@/pages/RelatoriosComiss
 const ComissoesIndicacoesSistema = lazyWithRetry(() => import("@/pages/ComissoesIndicacoesSistema"));
 const CadastroVendedores = lazyWithRetry(() => import("@/pages/CadastroVendedores"));
 const Usuarios = lazyWithRetry(() => import("@/pages/Usuarios"));
-const Revendas = lazyWithRetry(() => import("@/pages/Revendas"));
 const Suporte = lazyWithRetry(() => import("@/pages/Suporte"));
 const FutureRemoteDashboard = lazyWithRetry(() => import("@/pages/remote/FutureRemoteDashboard"));
 const RemoteComputadores = lazyWithRetry(() => import("@/pages/remote/Computadores"));
@@ -108,9 +104,9 @@ const ProtectedRoutes = () => {
             <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
             <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
             <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
-            <Route path="/produtos" element={<AppLayout><Produtos /></AppLayout>} />
-            <Route path="/comparador" element={<AppLayout><Comparador /></AppLayout>} />
-            <Route path="/gerar-link" element={<AppLayout><GerarLink /></AppLayout>} />
+            <Route path="/produtos" element={<Navigate to="/" replace />} />
+            <Route path="/comparador" element={<Navigate to="/" replace />} />
+            <Route path="/gerar-link" element={<Navigate to="/" replace />} />
             <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
             <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
             <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
@@ -134,7 +130,7 @@ const ProtectedRoutes = () => {
             <Route path="/comissoes/indicacoes-sistema" element={<AppLayout><ComissoesIndicacoesSistema /></AppLayout>} />
             <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />
             <Route path="/usuarios" element={<AppLayout><Usuarios /></AppLayout>} />
-            <Route path="/revendas" element={<AppLayout><Revendas /></AppLayout>} />
+            <Route path="/revendas" element={<Navigate to="/" replace />} />
             <Route path="/financeiro/clientes" element={<AppLayout><BoletosWhatsApp initialTab="clientes" /></AppLayout>} />
             <Route path="/financeiro/boletos" element={<AppLayout><BoletosWhatsApp /></AppLayout>} />
             <Route path="/future-remote" element={<AppLayout><FutureRemoteDashboard /></AppLayout>} />
