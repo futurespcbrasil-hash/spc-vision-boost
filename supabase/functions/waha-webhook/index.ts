@@ -58,9 +58,11 @@ Deno.serve(async (req: Request) => {
 
   if (eventName === "message.ack") return json({ accepted: true });
 
-  const fromMe = payload?.fromMe === true || payload?.from_me === true;
+  const fromMe = payload?.fromMe === true || payload?.from_me === true || payload?.key?.fromMe === true;
   const remote = str(fromMe ? payload?.to : payload?.from);
-  const waChatId = str(payload?.id?._serialized || payload?.chatId || (fromMe ? payload?.to : payload?.from));
+  // WAHA payload.id é o ID DA MENSAGEM, não o ID da conversa.
+  // Prioriza chatId/remote JID para não criar uma conversa diferente por mensagem.
+  const waChatId = str(payload?.chatId || payload?.chat_id || payload?._data?.id?.remote || remote);
   if (!remote || !waChatId) return json({ accepted: true, ignored: true });
 
   const contactNumber = remote.split("@")[0].replace(/\D/g, "");
