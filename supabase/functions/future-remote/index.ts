@@ -460,7 +460,7 @@ Deno.serve(async (req) => {
         // by a dedicated, short-lived MeshCentral browser-login flow; never put the
         // backend API credential (MESH_LOGIN_TOKEN) into a browser URL.
         return json({
-          url: `${MESH_URL}/?viewmode=11&gotonode=${encodeURIComponent(nodeId)}`,
+          url: `${MESH_URL}/?viewmode=11&gotonode=${nodeId}`,
         })
       }
 
