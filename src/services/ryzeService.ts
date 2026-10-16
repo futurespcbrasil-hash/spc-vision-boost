@@ -11,11 +11,14 @@ async function invoke(action: string, payload: Record<string, unknown> = {}) {
       const context = (error as any).context;
       if (context) {
         const body = await context.clone().json();
-        if (body?.error) message = typeof body.error === 'string' ? body.error : JSON.stringify(body.error);
+        const detail = body?.error ?? body?.message ?? body?.details;
+        if (detail) message = typeof detail === 'string' ? detail : JSON.stringify(detail);
       }
-    } catch { /* usa a mensagem original */ }
+    } catch { /* mantém a mensagem original quando a resposta não é JSON */ }
+    // Não substituir o erro real por uma mensagem genérica: a Edge Function retorna
+    // detalhes seguros do status/resposta WAHA para diagnosticar falhas de envio.
     if (message.includes('non-2xx status code')) {
-      message = 'Falha ao conectar com a WAHA. Confira os secrets WAHA_API_URL e WAHA_API_KEY no Supabase.';
+      message = 'A função waha-proxy respondeu com erro, mas não retornou detalhes legíveis. Verifique os logs da função no Supabase.';
     }
     throw new Error(message);
   }
@@ -40,8 +43,7 @@ export const waha = {
   getMessages: (instance_id: string, wa_chat_id: string) =>
     invoke('get_messages', { instance_id, wa_chat_id }),
   getContacts: (instance_id: string) => invoke('get_contacts', { instance_id }),
-  getProfilePic: (instance_id: string, wa_chat_id: string) =>
-    invoke('get_profile_pic', { instance_id, wa_chat_id }),
+  getProfilePic: (instance_id: string, wa_chat_id: string) => invoke('get_profile_pic', { instance_id, wa_chat_id }),
 };
 
 export async function sendWhatsappMessage(instanceId: string, number: string, text: string) {
