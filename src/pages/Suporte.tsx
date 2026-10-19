@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -5,7 +6,6 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleHelp,
-  Download,
   Laptop,
   Monitor,
   ShieldCheck,
@@ -18,7 +18,7 @@ const WINDOWS_64_URL = 'https://future-remote.duckdns.org/meshagents?id=4&meshid
 const WINDOWS_32_URL = 'https://future-remote.duckdns.org/meshagents?id=3&meshid=gNMXnlbg6HdU$FJEtoaSlvkK29xPiAO88S8aiH099ihJu7AnKMYckSyhMfEfDZz$5Cl$aZQerBAc7J3TM7NPcKqtSEvy0AioC70674LOz37pW2xd0GJInCoYkbhKNVMw4DD2Klr$9DTxbG6D21$cX6PZVXk64w==';
 const MAC_UNIVERSAL_URL = 'https://future-remote.duckdns.org/meshosxagent?id=10005&meshid=gNMXnlbg6HdU$FJEtoaSlvkK29xPiAO88S8aiH099ihJu7AnKMYckSyhMfEfDZz$5Cl$aZQerBAc7J3TM7NPcKqtSEvy0AioC70674LOz37pW2xd0GJInCoYkbhKNVMw4DD2Klr$9DTxbG6D21$cX6PZVXk64w==';
 
-const DownloadButton = ({ href, children }: { href: string; children: React.ReactNode }) => (
+const DownloadButton = ({ href, children }: { href: string; children: ReactNode }) => (
   <Button asChild className="h-11 w-full justify-center gap-2 text-sm font-semibold">
     <a href={href} target="_blank" rel="noopener noreferrer">
       <ArrowDownToLine size={18} />
