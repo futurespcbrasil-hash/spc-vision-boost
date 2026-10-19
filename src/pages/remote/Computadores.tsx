@@ -171,6 +171,7 @@ const Computadores = () => {
       const res = await getRemoteUrl(d.mesh_device_id);
       if (!res?.url) { toast.error(res?.message || 'MeshCentral não conectado'); return; }
       window.open(res.url, '_blank', 'noopener');
+      await load();
     } catch (e: any) {
       toast.error(e.message || 'MeshCentral não conectado');
     }
