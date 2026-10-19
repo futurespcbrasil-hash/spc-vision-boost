@@ -359,6 +359,44 @@ const CadastroVendedores = () => {
           </table>
         </div>
       </div>
+
+      <Dialog open={!!historicoVendedor} onOpenChange={(open) => !open && setHistoricoVendedor(null)}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><History size={20} className="text-primary" />{historicoVendedor?.nome} — cadastro e histórico de comissões</DialogTitle>
+          </DialogHeader>
+          {historicoVendedor && <div className="space-y-5">
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">E-mail</div><div className="font-medium break-all">{historicoVendedor.email || 'Não informado'}</div></div>
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Cidade</div><div className="font-medium">{historicoVendedor.cidade || 'Não informada'}</div></div>
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Comissão cadastrada</div><div className="font-medium">{Number(historicoVendedor.percentual_comissao || 0).toLocaleString('pt-BR')}%</div></div>
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Chave PIX</div><div className="font-medium break-all">{historicoVendedor.chave_pix || 'Não informada'}</div></div>
+              <div className="rounded-lg border border-border p-3 sm:col-span-2"><div className="text-xs text-muted-foreground">Dados bancários</div><div className="font-medium whitespace-pre-wrap">{historicoVendedor.dados_bancarios || 'Não informados'}</div></div>
+            </section>
+            <section className="space-y-3">
+              <h3 className="font-semibold text-base">Histórico de relatórios</h3>
+              {loadingHistorico ? <div className="py-8 text-center"><Loader2 className="animate-spin mx-auto text-primary" size={28} /></div> :
+                historicoDoVendedor.length === 0 ? <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Ainda não há relatórios históricos salvos para este vendedor.</div> :
+                historicoDoVendedor.map((relatorio: any) => <article key={relatorio.id} className="rounded-xl border border-border overflow-hidden">
+                  <div className="bg-muted/30 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div><div className="font-semibold">{relatorio.nomeImportacao || 'Importação sem nome'}</div><div className="text-xs text-muted-foreground">{new Date(relatorio.criadoEm).toLocaleString('pt-BR')} · {relatorio.vendas.length} vendas</div></div>
+                    <div className="flex flex-wrap gap-4 text-sm"><span>Vendido: <strong>{relatorio.totalVendido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span><span>Comissão: <strong className="text-primary">{relatorio.totalComissao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span></div>
+                  </div>
+                  <div className="overflow-x-auto"><table className="w-full text-left text-xs">
+                    <thead className="bg-muted/20 text-muted-foreground"><tr><th className="p-3">Cliente</th><th className="p-3">Protocolo</th><th className="p-3">Produto</th><th className="p-3">Valor venda</th><th className="p-3">Comissão</th><th className="p-3">Regra aplicada</th></tr></thead>
+                    <tbody className="divide-y divide-border">{relatorio.vendas.map((venda: any, index: number) => <tr key={(venda.protocolo || 'venda') + '-' + index}>
+                      <td className="p-3">{venda.cliente || '—'}</td><td className="p-3">{venda.protocolo || '—'}</td><td className="p-3">{venda.produto || '—'}</td>
+                      <td className="p-3 whitespace-nowrap">{Number(venda.valorVenda || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="p-3 whitespace-nowrap font-medium">{Number(venda.comissao || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="p-3 whitespace-nowrap">{venda.tipoRegra === 'fixo' ? 'Valor fixo' : venda.tipoRegra === 'custo' ? 'Custo por venda' : (venda.regra ?? '—') + (venda.regra !== undefined ? '%' : '')}</td>
+                    </tr>)}</tbody>
+                  </table></div>
+                </article>)
+              }
+            </section>
+          </div>}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

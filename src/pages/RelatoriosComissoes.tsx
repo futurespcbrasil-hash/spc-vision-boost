@@ -36,6 +36,7 @@ interface CommissionData {
   tipoEmissao?: string;
   statusVenda?: string;
   regra?: number;
+  tipoRegra?: 'percentual' | 'fixo' | 'custo';
   dataVenda?: string;
 }
 
@@ -44,7 +45,7 @@ const RelatoriosComissoes = () => {
   const navigate = useNavigate();
   const [results, setResults] = useState<Record<string, CommissionData[]>>({});
   const [loading, setLoading] = useState(false);
-  const [vendedoresDB, setVendedoresDB] = useState<Record<string, { percentual: number, email?: string }>>({});
+  const [vendedoresDB, setVendedoresDB] = useState<Record<string, { percentual: number, tipoRegra: 'percentual' | 'fixo' | 'custo', email?: string }>>({});
   const [savedImports, setSavedImports] = useState<ImportacaoComissoes[]>([]);
   const [importName, setImportName] = useState("");
   const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
@@ -68,6 +69,7 @@ const RelatoriosComissoes = () => {
     vendedoresNaoEncontrados: string[];
   } | null>(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
+  const [historySellerFilter, setHistorySellerFilter] = useState('');
 
   useEffect(() => {
     fetchVendedores();
@@ -94,10 +96,11 @@ const RelatoriosComissoes = () => {
       .from('vendedores_comissoes')
       .select('*');
     if (!error && data) {
-      const config: Record<string, { percentual: number, email?: string }> = {};
+      const config: Record<string, { percentual: number, tipoRegra: 'percentual' | 'fixo' | 'custo', email?: string }> = {};
       data.forEach(v => {
         config[v.nome.trim()] = { 
           percentual: Number(v.percentual_comissao),
+          tipoRegra: (v.tipo_comissao || 'percentual') as 'percentual' | 'fixo' | 'custo',
           email: v.email || undefined
         };
       });
@@ -129,7 +132,7 @@ const RelatoriosComissoes = () => {
       // Garantir que temos a tabela de vendedores atualizada
       // Priorizar os vendedores que estavam salvos na importação para manter consistência histórica
       if (imp.dados_vendedores) {
-        setVendedoresDB(imp.dados_vendedores as Record<string, { percentual: number, email?: string }>);
+        setVendedoresDB(imp.dados_vendedores as Record<string, { percentual: number, tipoRegra: 'percentual' | 'fixo' | 'custo', email?: string }>);
       } else {
         await fetchVendedoresComissoes();
       }
@@ -263,28 +266,154 @@ const RelatoriosComissoes = () => {
       const vendsSheet = vendsWorkbook.Sheets[vendsWorkbook.SheetNames[0]];
       const vendsJson: any[] = XLSX.utils.sheet_to_json(vendsSheet);
       
-      const config = { ...vendedoresDB };
-      vendsJson.forEach(row => {
-        const comissaoRaw = row['Comissão'] || row['Comissao'] || row['REGRA'];
-        let percentual = 0;
-        
-        if (typeof comissaoRaw === 'string') {
-          percentual = parseFloat(comissaoRaw.replace('%', '').replace(',', '.'));
-        } else if (typeof comissaoRaw === 'number') {
-          percentual = comissaoRaw < 1 ? comissaoRaw * 100 : comissaoRaw;
+      // Recarrega os vendedores do banco para evitar usar cadastro desatualizado.
+      const { data: dbVendedores, error: dbVendedoresError } = await supabase
+        .from('vendedores_comissoes')
+        .select('*');
+      if (dbVendedoresError) throw dbVendedoresError;
+
+      const vendedoresAtuais = dbVendedores || [];
+      const config: Record<string, { percentual: number, tipoRegra: 'percentual' | 'fixo' | 'custo', email?: string }> = {};
+      vendedoresAtuais.forEach((v) => {
+        config[v.nome.trim()] = {
+          percentual: Number(v.percentual_comissao),
+          tipoRegra: (v.tipo_comissao || 'percentual') as 'percentual' | 'fixo' | 'custo',
+          email: v.email || undefined
+        };
+      });
+
+      const parseValorMonetario = (raw: any): number | null => {
+        if (raw === null || raw === undefined || String(raw).trim() === '') return null;
+        const normalized = String(raw)
+          .replace(/[^0-9,.-]/g, '')
+          .replace(/\./g, '')
+          .replace(',', '.')
+          .trim();
+        const value = Number(normalized);
+        return Number.isFinite(value) && value >= 0 ? value : null;
+      };
+
+      const parsePercentual = (raw: any): number | null => {
+        if (raw === null || raw === undefined || String(raw).trim() === '') return null;
+        let value: number;
+        if (typeof raw === 'string') {
+          value = parseFloat(raw.replace('%', '').replace(',', '.').trim());
+        } else {
+          value = Number(raw);
+          if (value < 1 && value >= 0) value = value * 100;
+        }
+        return Number.isFinite(value) && value >= 0 ? value : null;
+      };
+
+      // Deduplica os nomes da planilha por nome normalizado, sem criar cadastros duplicados.
+      const vendedoresPlanilha = new Map<string, { nome: string; email: string; percentual: number; tipoRegra: 'percentual' | 'fixo' | 'custo' }>();
+      for (const row of vendsJson) {
+        const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || row['Nome'] || '').trim();
+        if (!nome) continue;
+
+        const email = String(row['ENVIO'] || row['Envio'] || row['E-MAIL'] || row['Email'] || row['email'] || '').trim();
+        const comissaoRaw = row['Comissão'] ?? row['Comissao'] ?? row['REGRA'];
+        const regraTexto = String(comissaoRaw ?? '').trim().replace(/\*/g, '');
+        const regraNorm = normalize(regraTexto);
+        const existente = vendedoresAtuais.find((v) => normalize(v.nome) === normalize(nome));
+        let tipoRegra: 'percentual' | 'fixo' | 'custo' = 'percentual';
+        let percentual: number | null = null;
+
+        if (regraNorm === 'custo' || regraNorm.startsWith('custo ')) {
+          tipoRegra = 'custo';
+          const valorCusto = window.prompt(
+            `Informe o custo por venda para "${nome}" (R$). Esse valor será multiplicado pelo número de vendas emitidas:`,
+            ''
+          );
+          if (valorCusto === null || !valorCusto.trim()) {
+            toast.error(`Importação cancelada: informe o custo por venda de "${nome}".`);
+            setLoading(false);
+            return;
+          }
+          percentual = parseValorMonetario(valorCusto);
+        } else if (/r\$|\$/.test(regraNorm) || /r\\$|\\$/.test(regraTexto.toLowerCase())) {
+          tipoRegra = 'fixo';
+          percentual = parseValorMonetario(regraTexto);
+        } else {
+          percentual = parsePercentual(comissaoRaw);
+          if (percentual === null) {
+            const valorInformado = window.prompt(
+              `A regra de comissão de "${nome}" não foi reconhecida. Informe o percentual (ex.: 40), valor fixo por venda (R$ 90) ou "custo":`,
+              existente ? String(existente.percentual_comissao) : ''
+            );
+            if (valorInformado === null || !valorInformado.trim()) {
+              toast.error(`Importação cancelada: informe a regra de comissão de "${nome}".`);
+              setLoading(false);
+              return;
+            }
+            if (normalize(valorInformado) === 'custo') {
+              tipoRegra = 'custo';
+              const valorCusto = window.prompt(`Informe o custo por venda para "${nome}" (R$):`, '');
+              if (valorCusto === null || !valorCusto.trim()) { setLoading(false); return; }
+              percentual = parseValorMonetario(valorCusto);
+            } else if (/r\\$|\\$/.test(valorInformado.toLowerCase())) {
+              tipoRegra = 'fixo';
+              percentual = parseValorMonetario(valorInformado);
+            } else {
+              percentual = parsePercentual(valorInformado);
+            }
+          }
         }
 
-        const nome = String(row['Contabilidade'] || row['Vendedor'] || row['VENDEDOR'] || row['Nome'] || '').trim();
-        const email = String(row['ENVIO'] || row['Envio'] || row['E-MAIL'] || row['Email'] || row['email'] || '').trim();
-        if (nome && !isNaN(percentual)) {
-          config[nome] = { 
-            percentual,
-            email: email || config[nome]?.email 
+        if (percentual === null || !Number.isFinite(percentual) || percentual < 0) {
+          toast.error(`Regra inválida para "${nome}". Nenhuma comissão foi calculada.`);
+          setLoading(false);
+          return;
+        }
+        vendedoresPlanilha.set(normalize(nome), { nome, email, percentual, tipoRegra });
+      }
+
+      // Persiste os vendedores da planilha. Em cadastros existentes, altera somente percentual
+      // e e-mail quando informado; cidade, PIX e dados bancários permanecem intactos.
+      for (const item of vendedoresPlanilha.values()) {
+        const existente = vendedoresAtuais.find((v) => normalize(v.nome) === normalize(item.nome));
+        if (existente) {
+          const atualizacao: { percentual_comissao: number; tipo_comissao: string; email?: string } = {
+            percentual_comissao: item.percentual,
+            tipo_comissao: item.tipoRegra
+          };
+          if (item.email) atualizacao.email = item.email;
+
+          const { error: updateError } = await supabase
+            .from('vendedores_comissoes')
+            .update(atualizacao)
+            .eq('id', existente.id);
+          if (updateError) throw updateError;
+
+          config[existente.nome.trim()] = {
+            percentual: item.percentual,
+            tipoRegra: item.tipoRegra,
+            email: item.email || existente.email || undefined
+          };
+        } else {
+          const { data: novoVendedor, error: insertError } = await supabase
+            .from('vendedores_comissoes')
+            .insert({
+              nome: item.nome,
+              percentual_comissao: item.percentual,
+              tipo_comissao: item.tipoRegra,
+              email: item.email || null
+            })
+            .select('*')
+            .single();
+          if (insertError) throw insertError;
+          vendedoresAtuais.push(novoVendedor);
+          config[novoVendedor.nome.trim()] = {
+            percentual: item.percentual,
+            tipoRegra: item.tipoRegra,
+            email: item.email || undefined
           };
         }
-      });
-      
+      }
+
       setVendedoresDB(config);
+      // Atualiza a listagem do cadastro para refletir novos vendedores imediatamente.
+      await fetchVendedoresComissoes();
 
       // 2. Process Vendas CSV
       const salesText = await salesFile.text();
@@ -323,8 +452,9 @@ const RelatoriosComissoes = () => {
               if (match) {
                 vendasVinculadasCount++;
                 vendedoresEncontradosSet.add(match);
-                const basePercentual = config[match].percentual;
-                const valorComissao = (valorVenda * basePercentual) / 100;
+                const regra = config[match];
+                const basePercentual = regra.percentual;
+                const valorComissao = regra.tipoRegra === 'percentual' ? (valorVenda * basePercentual) / 100 : basePercentual;
                 
                 if (!commissions[match]) commissions[match] = [];
                 commissions[match].push({
@@ -337,6 +467,7 @@ const RelatoriosComissoes = () => {
                   cliente,
                   statusVenda: statusVendaRaw,
                   regra: basePercentual,
+                  tipoRegra: regra.tipoRegra,
                   dataVenda: dataVenda 
                 });
                 
@@ -483,7 +614,7 @@ const RelatoriosComissoes = () => {
       data.forEach(item => {
         if (item.comissao > 0) {
           if (!summary[item.vendedor]) {
-            summary[item.vendedor] = { count: 0, totalVendas: 0, perc: `${item.regra}%`, totalComissao: 0 };
+            summary[item.vendedor] = { count: 0, totalVendas: 0, perc: (item.tipoRegra || 'percentual') === 'percentual' ? `${item.regra}%` : `${item.tipoRegra === 'custo' ? 'Custo' : 'Fixo'} R$ ${Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, totalComissao: 0 };
           }
           summary[item.vendedor].count += 1;
           summary[item.vendedor].totalVendas += item.valorVenda;
@@ -507,7 +638,7 @@ const RelatoriosComissoes = () => {
         if (!groupedByVendedor[item.vendedor]) {
           groupedByVendedor[item.vendedor] = {
             email: item.email || '-',
-            regra: `${item.regra}%`,
+            regra: (item.tipoRegra || 'percentual') === 'percentual' ? `${item.regra}%` : `${item.tipoRegra === 'custo' ? 'Custo' : 'Fixo'}: R$ ${Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
             protocolos: 0,
             totalVendas: 0,
             totalComissao: 0
@@ -536,7 +667,7 @@ const RelatoriosComissoes = () => {
         item.dataVenda || '-',
         item.vendedor,
         `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `${item.regra}%`,
+        `${(item.tipoRegra || 'percentual') === 'percentual' ? item.regra + '%' : (item.tipoRegra === 'custo' ? 'Custo' : 'Fixo') + ' R$ ' + Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
     }
@@ -676,6 +807,24 @@ const RelatoriosComissoes = () => {
 
     return newResults;
   }, [results, filterConfig, vendedoresDB]);
+
+  const historicalSellerNames = useMemo(() => {
+    const names = new Set<string>();
+    savedImports.forEach((imp) => {
+      const processed = (imp.dados_processados || {}) as Record<string, CommissionData[]>;
+      Object.keys(processed).forEach((name) => names.add(name));
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [savedImports]);
+
+  const historicalSellerEntries = useMemo(() => {
+    return savedImports.flatMap((imp) => {
+      const processed = (imp.dados_processados || {}) as Record<string, CommissionData[]>;
+      return Object.entries(processed)
+        .filter(([seller, sales]) => sales?.length && (!historySellerFilter || seller === historySellerFilter))
+        .map(([seller, sales]) => ({ imp, seller, sales }));
+    });
+  }, [savedImports, historySellerFilter]);
 
   if (loading) {
     return (
@@ -1059,6 +1208,72 @@ const RelatoriosComissoes = () => {
         </div>
       </div>
 
+
+      <div className="bg-card p-6 rounded-xl border border-border shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Archive size={20} className="text-primary" />
+              Histórico de Relatórios por Vendedor
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Cada importação mantém os dados, percentuais e valores calculados daquela geração para consultas futuras.
+            </p>
+          </div>
+          <select
+            value={historySellerFilter}
+            onChange={(e) => setHistorySellerFilter(e.target.value)}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">Todos os vendedores</option>
+            {historicalSellerNames.map((seller) => (
+              <option key={seller} value={seller}>{seller}</option>
+            ))}
+          </select>
+        </div>
+        {historicalSellerEntries.length > 0 ? (
+          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+            {historicalSellerEntries.map(({ imp, seller, sales }) => {
+              const totalVendido = sales.reduce((sum, sale) => sum + Number(sale.valorVenda || 0), 0);
+              const totalComissao = sales.reduce((sum, sale) => sum + Number(sale.comissao || 0), 0);
+              return (
+                <div key={imp.id + '-' + seller} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm truncate">{seller}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {imp.nome_importacao} • {new Date(imp.created_at).toLocaleString('pt-BR')} • {sales.length} vendas
+                    </div>
+                    <div className="text-xs mt-1">
+                      Vendas: <span className="font-medium">{totalVendido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      {' • '}Comissão: <span className="font-semibold text-primary">{totalComissao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => exportPDF(seller, sales, 'completo')}
+                      className="flex items-center gap-1 rounded-lg border border-primary/30 px-3 py-2 text-xs text-primary hover:bg-primary/10"
+                      title="Baixar PDF detalhado desta geração"
+                    >
+                      <FileDown size={14} /> PDF detalhado
+                    </button>
+                    <button
+                      onClick={() => loadImport(imp)}
+                      className="rounded-lg border border-border px-3 py-2 text-xs hover:bg-muted"
+                      title="Abrir esta importação no relatório"
+                    >
+                      Abrir geração
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground py-5 text-center">
+            Ainda não há relatórios individuais salvos para este filtro.
+          </p>
+        )}
+      </div>
 
       {Object.keys(filteredResults).length > 0 && (
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm">

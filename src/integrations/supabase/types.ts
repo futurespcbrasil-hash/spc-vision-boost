@@ -1446,6 +1446,7 @@ export type Database = {
           id: string
           nome: string
           percentual_comissao: number
+          tipo_comissao: string
           updated_at: string | null
           user_id: string | null
         }
@@ -1458,6 +1459,7 @@ export type Database = {
           id?: string
           nome: string
           percentual_comissao?: number
+          tipo_comissao?: string
           updated_at?: string | null
           user_id?: string | null
         }
