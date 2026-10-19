@@ -68,8 +68,8 @@ const Computadores = () => {
     );
     // Ordena pelo último acesso deste usuário, não pelo cadastro global do dispositivo.
     return filtered.sort((a, b) => {
-      const dateA = a.last_accessed_at ? new Date(a.last_accessed_at).getTime() : 0;
-      const dateB = b.last_accessed_at ? new Date(b.last_accessed_at).getTime() : 0;
+      const dateA = new Date(a.last_accessed_at || a.last_seen || a.created_at || 0).getTime();
+      const dateB = new Date(b.last_accessed_at || b.last_seen || b.created_at || 0).getTime();
       return dateB - dateA || String(a.device_name || '').localeCompare(String(b.device_name || ''));
     });
   }, [devices, search, filterMode]);
@@ -77,8 +77,11 @@ const Computadores = () => {
   const groupedDevices = useMemo(() => {
     const groups = new Map<string, any[]>();
     for (const device of filteredDevices) {
-      const key = device.last_accessed_at
-        ? new Date(device.last_accessed_at).toLocaleDateString('sv-SE')
+      const activityDate = filterMode === 'mine'
+        ? (device.last_accessed_at || device.last_seen || device.created_at)
+        : (device.last_seen || device.last_accessed_at || device.created_at);
+      const key = activityDate
+        ? new Date(activityDate).toLocaleDateString('sv-SE')
         : 'sem-data';
       groups.set(key, [...(groups.get(key) ?? []), device]);
     }
@@ -91,7 +94,7 @@ const Computadores = () => {
             weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
           }),
     }));
-  }, [filteredDevices]);
+  }, [filteredDevices, filterMode]);
 
   const openNewAccess = async () => {
     setShowNewAccess(true);
@@ -289,7 +292,7 @@ const Computadores = () => {
                     <TableHead>Cliente / empresa</TableHead>
                     <TableHead>Sistema operacional</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Último contato</TableHead>
+                    <TableHead>{filterMode === 'mine' ? 'Último acesso' : 'Último contato / atividade'}</TableHead>
                     <TableHead>Mesh Device ID</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -314,7 +317,7 @@ const Computadores = () => {
                       </TableCell>
                       <TableCell>{d.operating_system || '—'}</TableCell>
                       <TableCell><DeviceStatus status={d.status} /></TableCell>
-                      <TableCell>{d.last_accessed_at ? fmtDateTime(d.last_accessed_at) : fmtDateTime(d.last_seen)}</TableCell>
+                      <TableCell>{fmtDateTime(filterMode === 'mine' ? (d.last_accessed_at || d.last_seen) : (d.last_seen || d.last_accessed_at))}</TableCell>
                       <TableCell className="max-w-[180px] truncate font-mono text-xs">{d.mesh_device_id}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
