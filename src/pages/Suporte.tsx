@@ -88,8 +88,8 @@ const Suporte = () => {
       <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
         <header className="flex items-center justify-between gap-4">
           <a href={CRM_PUBLIC_URL + '/suporte'} className="flex min-w-0 items-center gap-3" aria-label="Future Soluções — página de suporte">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 shadow-lg shadow-violet-950/30">
-              <Monitor className="h-5 w-5 text-violet-200" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/10 p-1.5 shadow-lg shadow-violet-950/30 sm:h-14 sm:w-14">
+              <img src="/logo-future.png" alt="Logo Future Soluções" className="h-full w-full object-contain" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-bold tracking-wide text-white sm:text-base">Future Soluções</p>
