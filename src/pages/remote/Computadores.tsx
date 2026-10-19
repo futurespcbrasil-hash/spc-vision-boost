@@ -55,8 +55,8 @@ const Computadores = () => {
   const groupedDevices = useMemo(() => {
     const groups = new Map<string, any[]>();
     for (const device of filteredDevices) {
-      const key = device.created_at
-        ? new Date(device.created_at).toLocaleDateString('sv-SE')
+      const key = device.last_accessed_at
+        ? new Date(device.last_accessed_at).toLocaleDateString('sv-SE')
         : 'sem-data';
       groups.set(key, [...(groups.get(key) ?? []), device]);
     }
@@ -64,7 +64,7 @@ const Computadores = () => {
       key,
       items,
       label: key === 'sem-data'
-        ? 'Data de cadastro não disponível'
+        ? 'Data do acesso não disponível'
         : new Date(`${key}T12:00:00`).toLocaleDateString('pt-BR', {
             weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
           }),
