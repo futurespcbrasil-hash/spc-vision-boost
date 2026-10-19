@@ -771,7 +771,7 @@ const RelatoriosComissoes = () => {
     return savedImports.flatMap((imp) => {
       const processed = (imp.dados_processados || {}) as Record<string, CommissionData[]>;
       return Object.entries(processed)
-        .filter(([seller, sales]) => sales?.length && (!historySellerFilter || normalize(seller) === normalize(historySellerFilter)))
+        .filter(([seller, sales]) => sales?.length && (!historySellerFilter || seller === historySellerFilter))
         .map(([seller, sales]) => ({ imp, seller, sales }));
     });
   }, [savedImports, historySellerFilter]);
