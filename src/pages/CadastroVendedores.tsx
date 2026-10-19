@@ -17,6 +17,7 @@ interface Vendedor {
   nome: string;
   cidade: string | null;
   percentual_comissao: number;
+  tipo_comissao?: string | null;
   email: string | null;
   chave_pix: string | null;
   dados_bancarios: string | null;
@@ -396,7 +397,7 @@ const CadastroVendedores = () => {
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">E-mail</div><div className="font-medium break-all">{historicoVendedor.email || 'Não informado'}</div></div>
               <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Cidade</div><div className="font-medium">{historicoVendedor.cidade || 'Não informada'}</div></div>
-              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Comissão cadastrada</div><div className="font-medium">{Number(historicoVendedor.percentual_comissao || 0).toLocaleString('pt-BR')}%</div></div>
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Regra cadastrada</div><div className="font-medium">{historicoVendedor.tipo_comissao === 'fixo' ? Number(historicoVendedor.percentual_comissao || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ' por venda' : historicoVendedor.tipo_comissao === 'custo' ? Number(historicoVendedor.percentual_comissao || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ' de custo por venda' : Number(historicoVendedor.percentual_comissao || 0).toLocaleString('pt-BR') + '%'}</div></div>
               <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Chave PIX</div><div className="font-medium break-all">{historicoVendedor.chave_pix || 'Não informada'}</div></div>
               <div className="rounded-lg border border-border p-3 sm:col-span-2"><div className="text-xs text-muted-foreground">Dados bancários</div><div className="font-medium whitespace-pre-wrap">{historicoVendedor.dados_bancarios || 'Não informados'}</div></div>
             </section>
