@@ -19,6 +19,10 @@ const Computadores = () => {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState({ client_name: '', client_company: '' });
+  const [showNewAccess, setShowNewAccess] = useState(false);
+  const [availableDevices, setAvailableDevices] = useState<any[]>([]);
+  const [availableLoading, setAvailableLoading] = useState(false);
+  const [availableSearch, setAvailableSearch] = useState('');
 
   const load = async () => {
     const { data, error } = await (supabase as any)
@@ -70,6 +74,24 @@ const Computadores = () => {
           }),
     }));
   }, [filteredDevices]);
+
+  const openNewAccess = async () => {
+    setShowNewAccess(true);
+    setAvailableLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('future_remote_devices')
+        .select('id, mesh_device_id, device_name, client_name, client_company, operating_system, status')
+        .order('device_name');
+      if (error) {
+        toast.error('Não foi possível carregar o inventário para novo acesso: ' + error.message);
+        return;
+      }
+      setAvailableDevices(data ?? []);
+    } finally {
+      setAvailableLoading(false);
+    }
+  };
 
   const sync = async () => {
     setSyncing(true);
@@ -161,9 +183,14 @@ const Computadores = () => {
           <h1 className="text-2xl font-bold text-foreground">Computadores</h1>
           <p className="text-sm text-muted-foreground">Mostra somente os computadores que você acessou pelo CRM. O inventário global continua sincronizado com o MeshCentral.</p>
         </div>
-        <Button variant="outline" onClick={sync} disabled={syncing}>
-          <RefreshCw size={16} className={`mr-2 ${syncing ? 'animate-spin' : ''}`} />Sincronizar
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={openNewAccess}>
+            <Monitor size={16} className="mr-2" />Novo acesso
+          </Button>
+          <Button variant="outline" onClick={sync} disabled={syncing}>
+            <RefreshCw size={16} className={`mr-2 ${syncing ? 'animate-spin' : ''}`} />Sincronizar
+          </Button>
+        </div>
       </div>
 
       <Card className="border-primary/30 bg-primary/5">
@@ -288,6 +315,52 @@ const Computadores = () => {
           )}
         </CardContent>
       </Card>
+
+
+      <Dialog open={showNewAccess} onOpenChange={setShowNewAccess}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Iniciar novo acesso remoto</DialogTitle>
+            <DialogDescription>
+              Escolha um computador do inventário global. Ele será adicionado à sua lista pessoal quando você iniciar o acesso.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Pesquisar computador, cliente ou empresa..."
+              value={availableSearch}
+              onChange={(e) => setAvailableSearch(e.target.value)}
+            />
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto">
+              {availableLoading ? (
+                <p className="p-4 text-sm text-muted-foreground">Carregando computadores...</p>
+              ) : availableDevices.filter((d) =>
+                [d.device_name, d.client_name, d.client_company, d.operating_system]
+                  .filter(Boolean).some((v) => String(v).toLowerCase().includes(availableSearch.trim().toLowerCase()))
+              ).length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">Nenhum computador encontrado. Clique em Sincronizar para atualizar o inventário.</p>
+              ) : availableDevices.filter((d) =>
+                [d.device_name, d.client_name, d.client_company, d.operating_system]
+                  .filter(Boolean).some((v) => String(v).toLowerCase().includes(availableSearch.trim().toLowerCase()))
+              ).map((d) => (
+                <div key={d.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="font-medium">{d.device_name || 'Sem nome'}</div>
+                    <div className="text-sm text-muted-foreground">{d.client_name || 'Cliente não identificado'} · {d.client_company || 'Empresa não informada'}</div>
+                    <div className="text-xs text-muted-foreground">{d.operating_system || 'Sistema operacional não informado'}</div>
+                  </div>
+                  <Button size="sm" onClick={() => { setShowNewAccess(false); void acessar(d); }}>
+                    <Monitor size={14} className="mr-1" />Conectar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewAccess(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(open) => { if (!open && !saving) setEditing(null); }}>
         <DialogContent>
