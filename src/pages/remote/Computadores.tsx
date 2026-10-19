@@ -21,12 +21,18 @@ const Computadores = () => {
   const [form, setForm] = useState({ client_name: '', client_company: '' });
 
   const load = async () => {
-    const { data, error } = await supabase.from('future_remote_devices').select('*').order('created_at', { ascending: false, nullsFirst: false }).order('device_name');
+    const { data, error } = await (supabase as any)
+      .from('future_remote_device_access')
+      .select('id, first_accessed_at, last_accessed_at, access_count, device:future_remote_devices!future_remote_device_access_device_id_fkey(*)')
+      .order('last_accessed_at', { ascending: false });
     if (error) {
-      toast.error('Não foi possível carregar os computadores: ' + error.message);
+      toast.error('Não foi possível carregar seus computadores acessados: ' + error.message);
       return;
     }
-    setDevices(data ?? []);
+    setDevices((data ?? []).filter((row: any) => row.device).map((row: any) => ({
+      ...row.device, access_id: row.id, first_accessed_at: row.first_accessed_at,
+      last_accessed_at: row.last_accessed_at, access_count: row.access_count,
+    })));
   };
 
   useEffect(() => { void load(); }, []);
@@ -38,11 +44,10 @@ const Computadores = () => {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query))
     );
-    // created_at indica quando o computador apareceu pela primeira vez no CRM.
-    // Não usar updated_at, pois a sincronização pode atualizá-lo em todos os registros.
+    // Ordena pelo último acesso deste usuário, não pelo cadastro global do dispositivo.
     return filtered.sort((a, b) => {
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      const dateA = a.last_accessed_at ? new Date(a.last_accessed_at).getTime() : 0;
+      const dateB = b.last_accessed_at ? new Date(b.last_accessed_at).getTime() : 0;
       return dateB - dateA || String(a.device_name || '').localeCompare(String(b.device_name || ''));
     });
   }, [devices, search]);
@@ -122,17 +127,17 @@ const Computadores = () => {
 
     setDeletingId(device.id);
     try {
-      const { error } = await supabase
-        .from('future_remote_devices')
+      const { error } = await (supabase as any)
+        .from('future_remote_device_access')
         .delete()
-        .eq('id', device.id);
+        .eq('id', device.access_id);
 
       if (error) {
         toast.error('Não foi possível excluir a conexão: ' + error.message);
         return;
       }
 
-      toast.success('Conexão removida do CRM');
+      toast.success('Computador removido da sua lista de acessos');
       await load();
     } finally {
       setDeletingId(null);
@@ -154,7 +159,7 @@ const Computadores = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Computadores</h1>
-          <p className="text-sm text-muted-foreground">Dispositivos sincronizados com o MeshCentral e cadastro dos clientes atendidos.</p>
+          <p className="text-sm text-muted-foreground">Mostra somente os computadores que você acessou pelo CRM. O inventário global continua sincronizado com o MeshCentral.</p>
         </div>
         <Button variant="outline" onClick={sync} disabled={syncing}>
           <RefreshCw size={16} className={`mr-2 ${syncing ? 'animate-spin' : ''}`} />Sincronizar
@@ -205,7 +210,7 @@ const Computadores = () => {
             />
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {filteredDevices.length} de {devices.length} computador(es). Os mais recentes aparecem primeiro, agrupados pelo dia em que foram cadastrados no CRM. Sincronize para atualizar os dispositivos vindos do MeshCentral.
+            {filteredDevices.length} de {devices.length} computador(es) que você acessou. Os acessos mais recentes aparecem primeiro. Sincronizar atualiza o inventário global, mas não adiciona computadores à sua lista pessoal.
           </p>
         </CardContent>
       </Card>
@@ -214,7 +219,7 @@ const Computadores = () => {
         <CardContent className="p-0">
           {devices.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">
-              Nenhum computador sincronizado. Configure o MeshCentral e clique em Sincronizar.
+              Sua lista ainda está vazia. Sincronize o inventário e conecte a um computador para ele aparecer aqui.
             </p>
           ) : filteredDevices.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">Nenhum computador corresponde à pesquisa.</p>
@@ -264,10 +269,10 @@ const Computadores = () => {
                             variant="destructive"
                             onClick={() => excluirConexao(d)}
                             disabled={deletingId === d.id}
-                            title="Excluir somente esta conexão do CRM"
+                            title="Remover somente da sua lista pessoal"
                           >
                             <Trash2 size={14} className="mr-1" />
-                            {deletingId === d.id ? 'Excluindo...' : 'Excluir conexão'}
+                            {deletingId === d.id ? 'Removendo...' : 'Remover da minha lista'}
                           </Button>
                           <Button size="sm" onClick={() => acessar(d)}>
                             <Monitor size={14} className="mr-1" />Conectar
