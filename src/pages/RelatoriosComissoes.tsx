@@ -273,10 +273,11 @@ const RelatoriosComissoes = () => {
       if (dbVendedoresError) throw dbVendedoresError;
 
       const vendedoresAtuais = dbVendedores || [];
-      const config: Record<string, { percentual: number, email?: string }> = {};
+      const config: Record<string, { percentual: number, tipoRegra: 'percentual' | 'fixo' | 'custo', email?: string }> = {};
       vendedoresAtuais.forEach((v) => {
         config[v.nome.trim()] = {
           percentual: Number(v.percentual_comissao),
+          tipoRegra: (v.tipo_comissao || 'percentual') as 'percentual' | 'fixo' | 'custo',
           email: v.email || undefined
         };
       });
@@ -301,7 +302,7 @@ const RelatoriosComissoes = () => {
 
         const email = String(row['ENVIO'] || row['Envio'] || row['E-MAIL'] || row['Email'] || row['email'] || '').trim();
         const comissaoRaw = row['Comissão'] ?? row['Comissao'] ?? row['REGRA'];
-        const regraTexto = String(comissaoRaw ?? '').trim().replace(/\\*/g, '');
+        const regraTexto = String(comissaoRaw ?? '').trim().replace(/\*/g, '');
         const regraNorm = normalize(regraTexto);
         const existente = vendedoresAtuais.find((v) => normalize(v.nome) === normalize(nome));
         let tipoRegra: 'percentual' | 'fixo' | 'custo' = 'percentual';
@@ -318,10 +319,10 @@ const RelatoriosComissoes = () => {
             setLoading(false);
             return;
           }
-          percentual = parseFloat(valorCusto.replace(/R\\$/gi, '').replace(/\\./g, '').replace(',', '.').trim());
-        } else if (/r\\$|\\$/.test(regraNorm) || /r\\$|\\$/.test(regraTexto.toLowerCase())) {
+          percentual = parseFloat(valorCusto.replace(/R\$/gi, '').replace(/\./g, '').replace(',', '.').trim());
+        } else if (/r\$|\$/.test(regraNorm) || /r\\$|\\$/.test(regraTexto.toLowerCase())) {
           tipoRegra = 'fixo';
-          percentual = parseFloat(regraTexto.replace(/[^0-9,.-]/g, '').replace(/\\.(?=.*\\.)/g, '').replace(',', '.'));
+          percentual = parseFloat(regraTexto.replace(/[^0-9,.-]/g, '').replace(/\.(?=.*\.)/g, '').replace(',', '.'));
         } else {
           percentual = parsePercentual(comissaoRaw);
           if (percentual === null) {
