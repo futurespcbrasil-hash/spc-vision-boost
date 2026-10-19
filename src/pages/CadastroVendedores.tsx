@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
-import { Users, UserPlus, Search, Edit2, Trash2, Loader2, Save, X } from 'lucide-react';
+import { Users, UserPlus, Search, Edit2, Trash2, Loader2, Save, X, History, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
   Dialog,
@@ -27,6 +27,7 @@ const CadastroVendedores = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVendedor, setEditingVendedor] = useState<Vendedor | null>(null);
+  const [historicoVendedor, setHistoricoVendedor] = useState<Vendedor | null>(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -37,6 +38,32 @@ const CadastroVendedores = () => {
     chave_pix: '',
     dados_bancarios: '',
   });
+
+
+  const { data: importacoesHistoricas = [], isLoading: loadingHistorico } = useQuery({
+    queryKey: ['historico_comissoes_vendedor'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('importacoes_comissoes').select('id, nome_importacao, created_at, dados_processados').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!historicoVendedor,
+  });
+
+  const historicoDoVendedor = useMemo(() => {
+    if (!historicoVendedor) return [];
+    const normalizar = (valor: string) => valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const nomeAlvo = normalizar(historicoVendedor.nome);
+    return importacoesHistoricas.flatMap((imp: any) => {
+      const processados = (imp.dados_processados || {}) as Record<string, any[]>;
+      const entrada = Object.entries(processados).find(([nome, vendas]) => normalizar(nome) === nomeAlvo && Array.isArray(vendas) && vendas.length > 0);
+      if (!entrada) return [];
+      const [nome, vendas] = entrada;
+      const totalVendido = vendas.reduce((soma, venda: any) => soma + Number(venda.valorVenda || 0), 0);
+      const totalComissao = vendas.reduce((soma, venda: any) => soma + Number(venda.comissao || 0), 0);
+      return [{ id: imp.id, nomeImportacao: imp.nome_importacao, criadoEm: imp.created_at, nome, vendas, totalVendido, totalComissao }];
+    });
+  }, [historicoVendedor, importacoesHistoricas]);
 
   const { data: vendedores, isLoading } = useQuery({
     queryKey: ['vendedores_comissoes'],
@@ -308,7 +335,7 @@ const CadastroVendedores = () => {
                 filteredVendedores?.map((vendedor) => (
                   <tr key={vendedor.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-medium">{vendedor.nome}</div>
+                      <button type="button" onClick={() => setHistoricoVendedor(vendedor)} className="font-semibold text-left text-primary hover:underline inline-flex items-center gap-1" title="Abrir cadastro e histórico do vendedor">{vendedor.nome}<ChevronRight size={14} /></button>
                       <div className="text-[10px] text-muted-foreground">{vendedor.email || 'Sem email'}</div>
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">{vendedor.cidade || '-'}</td>
