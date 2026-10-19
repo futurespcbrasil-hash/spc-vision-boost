@@ -17,6 +17,7 @@ const Computadores = () => {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'mine'>('all');
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState({ client_name: '', client_company: '' });
   const [showNewAccess, setShowNewAccess] = useState(false);
@@ -25,25 +26,42 @@ const Computadores = () => {
   const [availableSearch, setAvailableSearch] = useState('');
 
   const load = async () => {
-    const { data, error } = await (supabase as any)
-      .from('future_remote_device_access')
-      .select('id, first_accessed_at, last_accessed_at, access_count, device:future_remote_devices!future_remote_device_access_device_id_fkey(*)')
-      .order('last_accessed_at', { ascending: false });
-    if (error) {
-      toast.error('Não foi possível carregar seus computadores acessados: ' + error.message);
+    // Carrega o inventário completo do MeshCentral e o histórico pessoal em separado.
+    // Assim os acessos antigos continuam visíveis em "Todos", mesmo sem vínculo histórico.
+    const [{ data: inventory, error: inventoryError }, { data: accessRows, error: accessError }] = await Promise.all([
+      supabase.from('future_remote_devices').select('*').order('device_name'),
+      (supabase as any).from('future_remote_device_access')
+        .select('id, device_id, first_accessed_at, last_accessed_at, access_count')
+        .order('last_accessed_at', { ascending: false }),
+    ]);
+    if (inventoryError) {
+      toast.error('Não foi possível carregar o inventário de computadores: ' + inventoryError.message);
       return;
     }
-    setDevices((data ?? []).filter((row: any) => row.device).map((row: any) => ({
-      ...row.device, access_id: row.id, first_accessed_at: row.first_accessed_at,
-      last_accessed_at: row.last_accessed_at, access_count: row.access_count,
-    })));
+    if (accessError) {
+      toast.error('Não foi possível carregar seus acessos pessoais: ' + accessError.message);
+      return;
+    }
+    const accessByDevice = new Map((accessRows ?? []).map((row: any) => [row.device_id, row]));
+    setDevices((inventory ?? []).map((device: any) => {
+      const access: any = accessByDevice.get(device.id);
+      return {
+        ...device,
+        access_id: access?.id ?? null,
+        first_accessed_at: access?.first_accessed_at ?? null,
+        last_accessed_at: access?.last_accessed_at ?? null,
+        access_count: access?.access_count ?? 0,
+        accessed_by_current_user: Boolean(access),
+      };
+    }));
   };
 
   useEffect(() => { void load(); }, []);
 
   const filteredDevices = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const filtered = !query ? [...devices] : devices.filter((d) =>
+    const source = filterMode === 'mine' ? devices.filter((d) => d.accessed_by_current_user) : devices;
+    const filtered = !query ? [...source] : source.filter((d) =>
       [d.device_name, d.client_name, d.client_company, d.operating_system, d.mesh_device_id]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query))
@@ -54,7 +72,7 @@ const Computadores = () => {
       const dateB = b.last_accessed_at ? new Date(b.last_accessed_at).getTime() : 0;
       return dateB - dateA || String(a.device_name || '').localeCompare(String(b.device_name || ''));
     });
-  }, [devices, search]);
+  }, [devices, search, filterMode]);
 
   const groupedDevices = useMemo(() => {
     const groups = new Map<string, any[]>();
@@ -182,7 +200,7 @@ const Computadores = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Computadores</h1>
-          <p className="text-sm text-muted-foreground">Mostra somente os computadores que você acessou pelo CRM. O inventário global continua sincronizado com o MeshCentral.</p>
+          <p className="text-sm text-muted-foreground">Consulte todo o inventário sincronizado ou filtre somente os computadores que você acessou pelo CRM.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={openNewAccess}>
@@ -228,17 +246,28 @@ const Computadores = () => {
 
       <Card>
         <CardContent className="p-4">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Pesquisar por computador, cliente, empresa, sistema ou ID Mesh..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Pesquisar por computador, cliente, empresa, sistema ou ID Mesh..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <select
+              aria-label="Filtrar computadores"
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={filterMode}
+              onChange={(e) => setFilterMode(e.target.value as 'all' | 'mine')}
+            >
+              <option value="all">Todos os computadores</option>
+              <option value="mine">Somente meus acessos</option>
+            </select>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {filteredDevices.length} de {devices.length} computador(es) que você acessou. Os acessos mais recentes aparecem primeiro. Sincronizar atualiza o inventário global, mas não adiciona computadores à sua lista pessoal.
+            Exibindo {filteredDevices.length} de {devices.length} computador(es) do inventário. {filterMode === 'all' ? 'A lista inclui todos os computadores sincronizados com o MeshCentral.' : 'A lista inclui somente os computadores registrados nos seus acessos pelo CRM.'}
           </p>
         </CardContent>
       </Card>
@@ -247,10 +276,10 @@ const Computadores = () => {
         <CardContent className="p-0">
           {devices.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">
-              Sua lista ainda está vazia. Sincronize o inventário e conecte a um computador para ele aparecer aqui.
+              Nenhum computador cadastrado no inventário. Clique em Sincronizar para carregar os computadores do MeshCentral.
             </p>
           ) : filteredDevices.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">Nenhum computador corresponde à pesquisa.</p>
+            <p className="p-6 text-sm text-muted-foreground">Nenhum computador corresponde ao filtro ou à pesquisa.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -285,14 +314,14 @@ const Computadores = () => {
                       </TableCell>
                       <TableCell>{d.operating_system || '—'}</TableCell>
                       <TableCell><DeviceStatus status={d.status} /></TableCell>
-                      <TableCell>{fmtDateTime(d.last_seen)}</TableCell>
+                      <TableCell>{d.last_accessed_at ? fmtDateTime(d.last_accessed_at) : fmtDateTime(d.last_seen)}</TableCell>
                       <TableCell className="max-w-[180px] truncate font-mono text-xs">{d.mesh_device_id}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button size="sm" variant="outline" onClick={() => editar(d)}>
                             <Pencil size={14} className="mr-1" />Editar
                           </Button>
-                          <Button
+                          {d.access_id && <Button
                             size="sm"
                             variant="destructive"
                             onClick={() => excluirConexao(d)}
@@ -300,8 +329,8 @@ const Computadores = () => {
                             title="Remover somente da sua lista pessoal"
                           >
                             <Trash2 size={14} className="mr-1" />
-                            {deletingId === d.id ? 'Removendo...' : 'Remover da minha lista'}
-                          </Button>
+                            {deletingId === d.access_id ? 'Removendo...' : 'Remover da minha lista'}
+                          </Button>}
                           <Button size="sm" onClick={() => acessar(d)}>
                             <Monitor size={14} className="mr-1" />Conectar
                           </Button>
