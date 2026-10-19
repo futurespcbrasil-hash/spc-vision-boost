@@ -614,7 +614,7 @@ const RelatoriosComissoes = () => {
       data.forEach(item => {
         if (item.comissao > 0) {
           if (!summary[item.vendedor]) {
-            summary[item.vendedor] = { count: 0, totalVendas: 0, perc: item.tipoRegra === 'percentual' ? `${item.regra}%` : `${item.tipoRegra === 'custo' ? 'Custo' : 'Fixo'} R$ ${Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, totalComissao: 0 };
+            summary[item.vendedor] = { count: 0, totalVendas: 0, perc: (item.tipoRegra || 'percentual') === 'percentual' ? `${item.regra}%` : `${item.tipoRegra === 'custo' ? 'Custo' : 'Fixo'} R$ ${Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, totalComissao: 0 };
           }
           summary[item.vendedor].count += 1;
           summary[item.vendedor].totalVendas += item.valorVenda;
@@ -638,7 +638,7 @@ const RelatoriosComissoes = () => {
         if (!groupedByVendedor[item.vendedor]) {
           groupedByVendedor[item.vendedor] = {
             email: item.email || '-',
-            regra: item.tipoRegra === 'percentual' ? `${item.regra}%` : `${item.tipoRegra === 'custo' ? 'Custo' : 'Fixo'}: R$ ${Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            regra: (item.tipoRegra || 'percentual') === 'percentual' ? `${item.regra}%` : `${item.tipoRegra === 'custo' ? 'Custo' : 'Fixo'}: R$ ${Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
             protocolos: 0,
             totalVendas: 0,
             totalComissao: 0
@@ -667,7 +667,7 @@ const RelatoriosComissoes = () => {
         item.dataVenda || '-',
         item.vendedor,
         `R$ ${item.valorVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        `${item.tipoRegra === 'percentual' ? item.regra + '%' : (item.tipoRegra === 'custo' ? 'Custo' : 'Fixo') + ' R$ ' + Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        `${(item.tipoRegra || 'percentual') === 'percentual' ? item.regra + '%' : (item.tipoRegra === 'custo' ? 'Custo' : 'Fixo') + ' R$ ' + Number(item.regra).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
         `R$ ${item.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       ]);
     }
