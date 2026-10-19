@@ -90,6 +90,10 @@ const GestorDashboard = () => {
         const calendarUser = googleCalendarEvents.find(e => e.user_id === p.user_id);
         return calendarUser?.connected && !calendarUser?.error ? calendarUser.appointments : null;
       })(),
+      calendarError: (() => {
+        const calendarUser = googleCalendarEvents.find(e => e.user_id === p.user_id);
+        return calendarUser?.error || (!calendarUser?.connected ? 'Google Agenda não conectada ou precisa ser reconectada' : '');
+      })(),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
@@ -211,7 +215,7 @@ const GestorDashboard = () => {
                   <tr key={p.user_id} className="border-b border-border/50 hover:bg-muted/50 transition">
                     <td className="py-2.5 font-medium text-foreground">{p.name}</td>
                     <td className="py-2.5 text-center text-foreground">{p.indications}</td>
-                    <td className="py-2.5 text-center text-foreground">{p.appointments === null ? <span className="text-xs text-muted-foreground">Agenda não conectada / indisponível</span> : p.appointments}</td>
+                    <td className="py-2.5 text-center text-foreground">{p.appointments === null ? <span className="text-xs text-muted-foreground" title={p.calendarError}>{p.calendarError || 'Agenda indisponível'}</span> : p.appointments}</td>
                   </tr>
                 ))}
                 {atendimentoProfiles.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-muted-foreground">Nenhum usuário do setor Atendimento encontrado</td></tr>}
