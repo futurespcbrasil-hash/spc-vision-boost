@@ -451,6 +451,49 @@ Deno.serve(async (req) => {
           }, 404)
         }
 
+        // Registra o computador na lista individual do usuário autenticado.
+        // O catálogo global do MeshCentral permanece compartilhado; a lista pessoal
+        // é alimentada somente quando o usuário inicia o acesso a este computador.
+        const { data: accessRow, error: accessLookupError } = await admin
+          .from('future_remote_device_access')
+          .select('id, access_count')
+          .eq('user_id', userData.user.id)
+          .eq('device_id', (await admin
+            .from('future_remote_devices')
+            .select('id')
+            .eq('mesh_device_id', rawNodeId)
+            .single()).data?.id)
+          .maybeSingle()
+
+        if (accessLookupError) {
+          return json({ error: 'db_error', detail: 'Não foi possível registrar o acesso ao computador.' }, 500)
+        }
+
+        const { data: deviceRow, error: deviceLookupError } = await admin
+          .from('future_remote_devices')
+          .select('id')
+          .eq('mesh_device_id', rawNodeId)
+          .single()
+
+        if (deviceLookupError || !deviceRow?.id) {
+          return json({ error: 'device_not_registered' }, 404)
+        }
+
+        const accessNow = new Date().toISOString()
+        const { error: accessWriteError } = await admin
+          .from('future_remote_device_access')
+          .upsert({
+            user_id: userData.user.id,
+            device_id: deviceRow.id,
+            last_accessed_at: accessNow,
+            access_count: (accessRow?.access_count ?? 0) + 1,
+            updated_at: accessNow,
+          }, { onConflict: 'user_id,device_id' })
+
+        if (accessWriteError) {
+          return json({ error: 'db_error', detail: 'Não foi possível registrar o acesso ao computador.' }, 500)
+        }
+
         // This URL only selects the remote-control view. Authentication must be provided
         // by a dedicated, short-lived MeshCentral browser-login flow; never put the
         // backend API credential (MESH_LOGIN_TOKEN) into a browser URL.
