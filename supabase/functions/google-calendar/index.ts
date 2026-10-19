@@ -159,34 +159,51 @@ Deno.serve(async (req) => {
         }
 
         try {
-          const params = new URLSearchParams({
-            timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "2500",
-          });
-          const response = await fetch(
-            "https://www.googleapis.com/calendar/v3/calendars/primary/events?" + params.toString(),
-            { headers: { Authorization: "Bearer " + accessToken } },
-          );
-          const result = await response.json();
-          if (!response.ok) {
-            return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments: 0, error: result.error?.message || "Não foi possível ler a agenda" };
-          }
-          let items = result.items || [];
-          let pageToken = result.nextPageToken || "";
-          while (pageToken) {
-            const nextParams = new URLSearchParams({
-              timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "2500", pageToken,
-            });
-            const nextResponse = await fetch(
-              "https://www.googleapis.com/calendar/v3/calendars/primary/events?" + nextParams.toString(),
+          // Igual à Agenda do usuário: consultar todas as agendas acessíveis,
+          // não apenas "primary", pois os compromissos podem estar em agendas secundárias.
+          const calendars: any[] = [];
+          let calendarPageToken = "";
+          do {
+            const calendarParams = new URLSearchParams({ maxResults: "250" });
+            if (calendarPageToken) calendarParams.set("pageToken", calendarPageToken);
+            const calendarResponse = await fetch(
+              "https://www.googleapis.com/calendar/v3/users/me/calendarList?" + calendarParams.toString(),
               { headers: { Authorization: "Bearer " + accessToken } },
             );
-            const nextResult = await nextResponse.json();
-            if (!nextResponse.ok) break;
-            items = items.concat(nextResult.items || []);
-            pageToken = nextResult.nextPageToken || "";
+            const calendarResult = await calendarResponse.json();
+            if (!calendarResponse.ok) {
+              return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments: 0, error: calendarResult.error?.message || "Não foi possível listar as agendas" };
+            }
+            calendars.push(...(calendarResult.items || []));
+            calendarPageToken = calendarResult.nextPageToken || "";
+          } while (calendarPageToken);
+
+          const eventIds = new Set<string>();
+          let totalEvents = 0;
+          for (const calendar of calendars) {
+            let eventPageToken = "";
+            do {
+              const eventParams = new URLSearchParams({
+                timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "2500",
+              });
+              if (eventPageToken) eventParams.set("pageToken", eventPageToken);
+              const eventResponse = await fetch(
+                "https://www.googleapis.com/calendar/v3/calendars/" + encodeURIComponent(calendar.id) + "/events?" + eventParams.toString(),
+                { headers: { Authorization: "Bearer " + accessToken } },
+              );
+              const eventResult = await eventResponse.json();
+              if (!eventResponse.ok) {
+                return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments: 0, error: eventResult.error?.message || "Não foi possível ler a agenda " + (calendar.summary || calendar.id) };
+              }
+              for (const event of (eventResult.items || [])) {
+                if (event.status === "cancelled" || !event.id) continue;
+                eventIds.add(String(event.id));
+              }
+              eventPageToken = eventResult.nextPageToken || "";
+            } while (eventPageToken);
           }
-          const appointments = items.filter((event: any) => event.status !== "cancelled").length;
-          return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments, error: null };
+          totalEvents = eventIds.size;
+          return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments: totalEvents, calendars: calendars.length, error: null };
         } catch (error) {
           return { user_id: role.user_id, name, email: profile?.email || "", connected: true, appointments: 0, error: error instanceof Error ? error.message : "Falha ao consultar agenda" };
         }
