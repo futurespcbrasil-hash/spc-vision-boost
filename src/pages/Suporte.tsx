@@ -221,6 +221,39 @@ const Suporte = () => {
             </Card>
           </div>
 
+          <section aria-labelledby="mesh-tutorial-title" className="mt-8 rounded-2xl border border-violet-300/20 bg-white/[0.045] p-4 sm:p-6">
+            <div className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-200">Passo a passo</p>
+              <h2 id="mesh-tutorial-title" className="mt-2 text-xl font-bold text-white sm:text-2xl">
+                Tutorial de instalação do MeshCentral Agent
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                Depois de baixar o instalador correspondente ao seu computador, acompanhe as etapas da imagem abaixo para instalar o agente.
+                Ao finalizar, abra “Detalhes da conexão” e confira se o status está como “Executando” e se o servidor é
+                <strong className="text-white"> future-remote.duckdns.org</strong>.
+              </p>
+            </div>
+            <figure className="overflow-hidden rounded-xl border border-white/10 bg-slate-900">
+              <a
+                href="/tuturial%20de%20como%20instalar%20o%20agent.jpg"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Abrir o tutorial de instalação do MeshCentral Agent em tamanho original"
+                className="block"
+              >
+                <img
+                  src="/tuturial%20de%20como%20instalar%20o%20agent.jpg"
+                  alt="Tutorial visual de como instalar o MeshCentral Agent da Future Soluções"
+                  loading="lazy"
+                  className="mx-auto block h-auto w-full max-w-4xl object-contain"
+                />
+              </a>
+              <figcaption className="border-t border-white/10 px-3 py-2 text-center text-xs text-slate-400">
+                Clique na imagem para abrir em tamanho original.
+              </figcaption>
+            </figure>
+          </section>
+
           <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.045] p-4 sm:p-5">
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-300/10 text-violet-200">
