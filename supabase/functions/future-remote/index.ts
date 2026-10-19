@@ -466,7 +466,7 @@ Deno.serve(async (req) => {
 
         const { data: accessRow, error: accessLookupError } = await admin
           .from('future_remote_device_access')
-          .select('id, access_count')
+          .select('id, access_count, first_accessed_at')
           .eq('user_id', userData.user.id)
           .eq('device_id', deviceRow.id)
           .maybeSingle()
@@ -481,7 +481,7 @@ Deno.serve(async (req) => {
           .upsert({
             user_id: userData.user.id,
             device_id: deviceRow.id,
-            first_accessed_at: accessRow ? undefined : accessNow,
+            first_accessed_at: accessRow?.first_accessed_at ?? accessNow,
             last_accessed_at: accessNow,
             access_count: (accessRow?.access_count ?? 0) + 1,
             updated_at: accessNow,
