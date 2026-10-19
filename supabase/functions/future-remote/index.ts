@@ -454,21 +454,6 @@ Deno.serve(async (req) => {
         // Registra o computador na lista individual do usuário autenticado.
         // O catálogo global do MeshCentral permanece compartilhado; a lista pessoal
         // é alimentada somente quando o usuário inicia o acesso a este computador.
-        const { data: accessRow, error: accessLookupError } = await admin
-          .from('future_remote_device_access')
-          .select('id, access_count')
-          .eq('user_id', userData.user.id)
-          .eq('device_id', (await admin
-            .from('future_remote_devices')
-            .select('id')
-            .eq('mesh_device_id', rawNodeId)
-            .single()).data?.id)
-          .maybeSingle()
-
-        if (accessLookupError) {
-          return json({ error: 'db_error', detail: 'Não foi possível registrar o acesso ao computador.' }, 500)
-        }
-
         const { data: deviceRow, error: deviceLookupError } = await admin
           .from('future_remote_devices')
           .select('id')
@@ -479,12 +464,24 @@ Deno.serve(async (req) => {
           return json({ error: 'device_not_registered' }, 404)
         }
 
+        const { data: accessRow, error: accessLookupError } = await admin
+          .from('future_remote_device_access')
+          .select('id, access_count')
+          .eq('user_id', userData.user.id)
+          .eq('device_id', deviceRow.id)
+          .maybeSingle()
+
+        if (accessLookupError) {
+          return json({ error: 'db_error', detail: 'Não foi possível registrar o acesso ao computador.' }, 500)
+        }
+
         const accessNow = new Date().toISOString()
         const { error: accessWriteError } = await admin
           .from('future_remote_device_access')
           .upsert({
             user_id: userData.user.id,
             device_id: deviceRow.id,
+            first_accessed_at: accessRow ? undefined : accessNow,
             last_accessed_at: accessNow,
             access_count: (accessRow?.access_count ?? 0) + 1,
             updated_at: accessNow,
