@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -27,7 +27,56 @@ const DownloadButton = ({ href, children }: { href: string; children: ReactNode 
   </Button>
 );
 
+type DetectionResult = 'windows64' | 'mac' | 'windowsUnknown' | 'unknown';
+
 const Suporte = () => {
+  const [detection, setDetection] = useState<DetectionResult | null>(null);
+
+  const detectSystem = () => {
+    const userAgent = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    const browserNavigator = navigator as Navigator & {
+      userAgentData?: {
+        platform?: string;
+        architecture?: string;
+        bitness?: string;
+        getHighEntropyValues?: (hints: string[]) => Promise<{ architecture?: string; bitness?: string; platform?: string }>;
+      };
+    };
+    const platformInfo = browserNavigator.userAgentData?.platform || platform;
+    const isMac = /mac/i.test(platformInfo) || /Macintosh|Mac OS X/i.test(userAgent);
+    const isWindows = /win/i.test(platformInfo) || /Windows/i.test(userAgent);
+
+    if (isMac) {
+      setDetection('mac');
+      return;
+    }
+    if (!isWindows) {
+      setDetection('unknown');
+      return;
+    }
+
+    const userAgentData = browserNavigator.userAgentData;
+    if (userAgentData?.getHighEntropyValues) {
+      userAgentData.getHighEntropyValues(['architecture', 'bitness']).then((details) => {
+        const architecture = details.architecture || userAgentData.architecture || '';
+        const bitness = details.bitness || userAgentData.bitness || '';
+        if (bitness === '64' || /x86_64|x64|arm64|aarch64/i.test(architecture)) {
+          setDetection('windows64');
+        } else {
+          setDetection('windowsUnknown');
+        }
+      }).catch(() => setDetection(/Win64|x64|WOW64|x86_64|amd64/i.test(userAgent) ? 'windows64' : 'windowsUnknown'));
+      return;
+    }
+
+    if (/Win64|x64|WOW64|x86_64|amd64/i.test(userAgent)) {
+      setDetection('windows64');
+    } else {
+      setDetection('windowsUnknown');
+    }
+  };
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -65,6 +114,48 @@ const Suporte = () => {
             <p className="mx-auto mt-5 max-w-xl text-sm leading-6 text-slate-300 sm:text-base sm:leading-7">
               Escolha abaixo o instalador certo para seu dispositivo. O download é direto, sem precisar navegar por uma lista de sistemas e ferramentas.
             </p>
+          </div>
+
+          <div className="mx-auto mb-7 max-w-2xl text-center">
+            <Button type="button" onClick={detectSystem} className="h-12 gap-2 px-6 text-sm font-semibold shadow-lg shadow-violet-950/30">
+              <Laptop size={18} />
+              Clique aqui para detectar a versão do seu sistema
+            </Button>
+            {detection && (
+              <div role="status" aria-live="polite" className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-left sm:p-5">
+                {detection === 'windows64' && (
+                  <>
+                    <p className="font-semibold text-emerald-200">Detectamos Windows de 64 bits.</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300">Clique em <strong className="text-white">Baixar para Windows 64 bits</strong> abaixo. Se o instalador não funcionar, confira o “Tipo de sistema” nas configurações do Windows.</p>
+                  </>
+                )}
+                {detection === 'mac' && (
+                  <>
+                    <p className="font-semibold text-emerald-200">Detectamos um Mac (macOS).</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300">Clique em <strong className="text-white">Baixar para Mac</strong>. O instalador Universal é a opção disponibilizada para macOS.</p>
+                  </>
+                )}
+                {detection === 'windowsUnknown' && (
+                  <>
+                    <p className="font-semibold text-amber-200">Detectamos Windows, mas não foi possível confirmar se é 32 ou 64 bits.</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300">Veja como conferir manualmente:</p>
+                    <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-6 text-slate-300">
+                      <li>Abra o menu <strong className="text-white">Iniciar</strong> e entre em <strong className="text-white">Configurações</strong>.</li>
+                      <li>Selecione <strong className="text-white">Sistema</strong> e depois <strong className="text-white">Sobre</strong>.</li>
+                      <li>Na seção <strong className="text-white">Especificações do dispositivo</strong>, procure <strong className="text-white">Tipo de sistema</strong>.</li>
+                      <li>Se aparecer “sistema operacional de 64 bits”, baixe Windows 64 bits. Se aparecer “sistema operacional de 32 bits”, baixe Windows 32 bits.</li>
+                    </ol>
+                    <p className="mt-2 text-xs leading-5 text-slate-400">Atalho: pressione Windows + Pause/Break para abrir a página de informações do sistema, se o teclado tiver essa tecla.</p>
+                  </>
+                )}
+                {detection === 'unknown' && (
+                  <>
+                    <p className="font-semibold text-amber-200">Não foi possível identificar o sistema automaticamente.</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300">Escolha manualmente uma das opções abaixo. Se estiver usando Windows, siga os passos de “Não sabe qual versão do Windows escolher?” para confirmar se é 32 ou 64 bits.</p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="grid gap-4 md:grid-cols-3 md:gap-5">
