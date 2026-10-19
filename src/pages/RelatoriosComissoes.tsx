@@ -350,10 +350,10 @@ const RelatoriosComissoes = () => {
               tipoRegra = 'custo';
               const valorCusto = window.prompt(`Informe o custo por venda para "${nome}" (R$):`, '');
               if (valorCusto === null || !valorCusto.trim()) { setLoading(false); return; }
-              percentual = parseFloat(valorCusto.replace(/R\\$/gi, '').replace(/\\./g, '').replace(',', '.').trim());
+              percentual = parseValorMonetario(valorCusto);
             } else if (/r\\$|\\$/.test(valorInformado.toLowerCase())) {
               tipoRegra = 'fixo';
-              percentual = parseFloat(valorInformado.replace(/[^0-9,.-]/g, '').replace(/\\.(?=.*\\.)/g, '').replace(',', '.'));
+              percentual = parseValorMonetario(valorInformado);
             } else {
               percentual = parsePercentual(valorInformado);
             }
