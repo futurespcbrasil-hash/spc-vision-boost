@@ -154,3 +154,23 @@ div[style*="Edit with Lovable"],
   position: absolute !important;
   z-index: -9999 !important;
 }
+
+/* Oculta apenas a aparência da barra de rolagem do menu lateral,
+   preservando a rolagem por mouse, touch e trackpad. */
+[data-sidebar="content"] {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+[data-sidebar="content"]::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+}
+
+[data-sidebar="content"]::-webkit-scrollbar-thumb,
+[data-sidebar="content"]::-webkit-scrollbar-track {
+  background: transparent !important;
+  border: 0 !important;
+}
