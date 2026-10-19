@@ -14,9 +14,9 @@ import {
 // Links oficiais dos agentes do MeshCentral fornecidos pela Future Soluções.
 // O link anterior do botão foi preservado em docs/backups/FUTURE-REMOTE-DOWNLOAD-LINKS.2026-10-19.md.
 const CRM_PUBLIC_URL = 'https://crm.futuresolucoes.com.br';
-const WINDOWS_64_URL = 'https://future-remote.duckdns.org/meshagents?id=4&meshid=2HvEW0BjOwhWEmztqpDdJHEBM1dk7UKVgoBYm6MMTczwSJbSDmKORHZuDRC57W$zEPkDAWRhUiy7p34kgGWuLniy17e$hZ$a4g9LNlTr2VquYfTYRF63zKc@93ujBOyVzdi19nBAHALrk4YNSFtknHuzLX69rg==';
-const WINDOWS_32_URL = 'https://future-remote.duckdns.org/meshagents?id=3&meshid=2HvEW0BjOwhWEmztqpDdJHEBM1dk7UKVgoBYm6MMTczwSJbSDmKORHZuDRC57W$zEPkDAWRhUiy7p34kgGWuLniy17e$hZ$a4g9LNlTr2VquYfTYRF63zKc@93ujBOyVzdi19nBAHALrk4YNSFtknHuzLX69rg==';
-const MAC_UNIVERSAL_URL = 'https://future-remote.duckdns.org/meshosxagent?id=10005&meshid=2HvEW0BjOwhWEmztqpDdJHEBM1dk7UKVgoBYm6MMTczwSJbSDmKORHZuDRC57W$zEPkDAWRhUiy7p34kgGWuLniy17e$hZ$a4g9LNlTr2VquYfTYRF63zKc@93ujBOyVzdi19nBAHALrk4YNSFtknHuzLX69rg==';
+const WINDOWS_64_URL = 'https://jhmdavcidwqycjedvgoz.supabase.co/storage/v1/object/public/future-remote-installers/future-remote-win64.exe.exe';
+const WINDOWS_32_URL = 'https://jhmdavcidwqycjedvgoz.supabase.co/storage/v1/object/public/future-remote-installers/future-remote-win32.exe.exe';
+const MAC_UNIVERSAL_URL = 'https://jhmdavcidwqycjedvgoz.supabase.co/storage/v1/object/public/future-remote-installers/future-remote-mac.zip';
 
 const DownloadButton = ({ href, children }: { href: string; children: ReactNode }) => (
   <Button asChild className="h-11 w-full justify-center gap-2 text-sm font-semibold">
