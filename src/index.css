@@ -174,3 +174,23 @@ div[style*="Edit with Lovable"],
   background: transparent !important;
   border: 0 !important;
 }
+
+/* Menu lateral do CRM Vision: o elemento rolável real é o nav dentro do aside.gradient-spc. */
+aside.gradient-spc nav {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  scrollbar-color: transparent transparent !important;
+}
+
+aside.gradient-spc nav::-webkit-scrollbar,
+aside.gradient-spc nav::-webkit-scrollbar-button,
+aside.gradient-spc nav::-webkit-scrollbar-thumb,
+aside.gradient-spc nav::-webkit-scrollbar-track,
+aside.gradient-spc nav::-webkit-scrollbar-track-piece,
+aside.gradient-spc nav::-webkit-scrollbar-corner {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+  border: none !important;
+}
