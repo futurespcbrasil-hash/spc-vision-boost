@@ -69,7 +69,6 @@ const RelatoriosComissoes = () => {
     vendedoresNaoEncontrados: string[];
   } | null>(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
-  const [historySellerFilter, setHistorySellerFilter] = useState('');
 
   useEffect(() => {
     fetchVendedores();
@@ -808,23 +807,6 @@ const RelatoriosComissoes = () => {
     return newResults;
   }, [results, filterConfig, vendedoresDB]);
 
-  const historicalSellerNames = useMemo(() => {
-    const names = new Set<string>();
-    savedImports.forEach((imp) => {
-      const processed = (imp.dados_processados || {}) as Record<string, CommissionData[]>;
-      Object.keys(processed).forEach((name) => names.add(name));
-    });
-    return Array.from(names).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [savedImports]);
-
-  const historicalSellerEntries = useMemo(() => {
-    return savedImports.flatMap((imp) => {
-      const processed = (imp.dados_processados || {}) as Record<string, CommissionData[]>;
-      return Object.entries(processed)
-        .filter(([seller, sales]) => sales?.length && (!historySellerFilter || seller === historySellerFilter))
-        .map(([seller, sales]) => ({ imp, seller, sales }));
-    });
-  }, [savedImports, historySellerFilter]);
 
   if (loading) {
     return (
@@ -1208,72 +1190,6 @@ const RelatoriosComissoes = () => {
         </div>
       </div>
 
-
-      <div className="bg-card p-6 rounded-xl border border-border shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Archive size={20} className="text-primary" />
-              Histórico de Relatórios por Vendedor
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              Cada importação mantém os dados, percentuais e valores calculados daquela geração para consultas futuras.
-            </p>
-          </div>
-          <select
-            value={historySellerFilter}
-            onChange={(e) => setHistorySellerFilter(e.target.value)}
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          >
-            <option value="">Todos os vendedores</option>
-            {historicalSellerNames.map((seller) => (
-              <option key={seller} value={seller}>{seller}</option>
-            ))}
-          </select>
-        </div>
-        {historicalSellerEntries.length > 0 ? (
-          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-            {historicalSellerEntries.map(({ imp, seller, sales }) => {
-              const totalVendido = sales.reduce((sum, sale) => sum + Number(sale.valorVenda || 0), 0);
-              const totalComissao = sales.reduce((sum, sale) => sum + Number(sale.comissao || 0), 0);
-              return (
-                <div key={imp.id + '-' + seller} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-sm truncate">{seller}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {imp.nome_importacao} • {new Date(imp.created_at).toLocaleString('pt-BR')} • {sales.length} vendas
-                    </div>
-                    <div className="text-xs mt-1">
-                      Vendas: <span className="font-medium">{totalVendido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                      {' • '}Comissão: <span className="font-semibold text-primary">{totalComissao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => exportPDF(seller, sales, 'completo')}
-                      className="flex items-center gap-1 rounded-lg border border-primary/30 px-3 py-2 text-xs text-primary hover:bg-primary/10"
-                      title="Baixar PDF detalhado desta geração"
-                    >
-                      <FileDown size={14} /> PDF detalhado
-                    </button>
-                    <button
-                      onClick={() => loadImport(imp)}
-                      className="rounded-lg border border-border px-3 py-2 text-xs hover:bg-muted"
-                      title="Abrir esta importação no relatório"
-                    >
-                      Abrir geração
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground py-5 text-center">
-            Ainda não há relatórios individuais salvos para este filtro.
-          </p>
-        )}
-      </div>
 
       {Object.keys(filteredResults).length > 0 && (
         <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
