@@ -121,11 +121,11 @@ const Computadores = () => {
 
   const excluirConexao = async (device: any) => {
     const confirmed = window.confirm(
-      `Excluir do CRM a conexão de "${device.device_name || 'computador'}"?\n\nIsso remove somente o cadastro desta conexão no CRM. Não desinstala nem exclui o dispositivo no MeshCentral.`
+      `Remover "${device.device_name || 'computador'}" da sua lista de acessos?\n\nIsso afeta somente a sua lista pessoal. O computador continua cadastrado no inventário global e no MeshCentral.`
     );
     if (!confirmed) return;
 
-    setDeletingId(device.id);
+    setDeletingId(device.access_id);
     try {
       const { error } = await (supabase as any)
         .from('future_remote_device_access')
@@ -133,7 +133,7 @@ const Computadores = () => {
         .eq('id', device.access_id);
 
       if (error) {
-        toast.error('Não foi possível excluir a conexão: ' + error.message);
+        toast.error('Não foi possível remover o computador da sua lista: ' + error.message);
         return;
       }
 
@@ -268,7 +268,7 @@ const Computadores = () => {
                             size="sm"
                             variant="destructive"
                             onClick={() => excluirConexao(d)}
-                            disabled={deletingId === d.id}
+                            disabled={deletingId === d.access_id}
                             title="Remover somente da sua lista pessoal"
                           >
                             <Trash2 size={14} className="mr-1" />
