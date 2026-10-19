@@ -282,6 +282,17 @@ const RelatoriosComissoes = () => {
         };
       });
 
+      const parseValorMonetario = (raw: any): number | null => {
+        if (raw === null || raw === undefined || String(raw).trim() === '') return null;
+        const normalized = String(raw)
+          .replace(/[^0-9,.-]/g, '')
+          .replace(/\./g, '')
+          .replace(',', '.')
+          .trim();
+        const value = Number(normalized);
+        return Number.isFinite(value) && value >= 0 ? value : null;
+      };
+
       const parsePercentual = (raw: any): number | null => {
         if (raw === null || raw === undefined || String(raw).trim() === '') return null;
         let value: number;
@@ -319,10 +330,10 @@ const RelatoriosComissoes = () => {
             setLoading(false);
             return;
           }
-          percentual = parseFloat(valorCusto.replace(/R\$/gi, '').replace(/\./g, '').replace(',', '.').trim());
+          percentual = parseValorMonetario(valorCusto);
         } else if (/r\$|\$/.test(regraNorm) || /r\\$|\\$/.test(regraTexto.toLowerCase())) {
           tipoRegra = 'fixo';
-          percentual = parseFloat(regraTexto.replace(/[^0-9,.-]/g, '').replace(/\.(?=.*\.)/g, '').replace(',', '.'));
+          percentual = parseValorMonetario(regraTexto);
         } else {
           percentual = parsePercentual(comissaoRaw);
           if (percentual === null) {
