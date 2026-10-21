@@ -318,7 +318,7 @@ const EmailMarketing = () => {
   const startSending = async () => {
     if (!googleConnected && !(await checkGoogle(true))) return;
     if (!subject.trim() || !message.trim()) { toast.error("Preencha o assunto e a mensagem."); return; }
-    const invalidButton = campaignButtons.find((button) => button.kind === "whatsapp" ? button.target.replace(/\\D/g, "").length < 8 : !/^https?:\\/\\//i.test(button.target.trim()));
+    const invalidButton = campaignButtons.find((button) => button.kind === "whatsapp" ? button.target.replace(/\D/g, "").length < 8 : !/^https?:\/\//i.test(button.target.trim()));
     if (invalidButton) { toast.error(invalidButton.kind === "whatsapp" ? "Informe o telefone do WhatsApp com DDI e DDD." : "Informe uma URL válida começando com https:// ou http://."); return; }
     if (!selectedContacts.length) { toast.error("Selecione pelo menos um e-mail."); return; }
     const alreadySent = new Set(sentEmails);
