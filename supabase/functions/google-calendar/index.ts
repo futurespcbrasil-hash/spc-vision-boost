@@ -248,17 +248,22 @@ Deno.serve(async (req) => {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const profileResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
-        headers: { Authorization: "Bearer " + accessToken },
-      });
-      const profile = await profileResponse.json().catch(() => ({}));
-      if (!profileResponse.ok) {
+      // gmail.send does not grant access to users.getProfile. Check granted scopes
+      // through Google's tokeninfo endpoint instead of calling a Gmail read/profile API.
+      const tokenInfoResponse = await fetch("https://oauth2.googleapis.com/tokeninfo?access_token=" + encodeURIComponent(accessToken));
+      const tokenInfo = await tokenInfoResponse.json().catch(() => ({}));
+      const grantedScopes = String(tokenInfo.scope || "").split(/\\s+/).filter(Boolean);
+      const hasGmailSendScope = grantedScopes.includes("https://www.googleapis.com/auth/gmail.send");
+      if (!tokenInfoResponse.ok || !hasGmailSendScope) {
         return new Response(JSON.stringify({
           connected: false,
-          error: profile.error?.message || "O Gmail ainda não autorizou o envio. Clique em Entrar com Google e aceite a permissão de envio.",
+          error: !tokenInfoResponse.ok
+            ? "Não foi possível validar a autorização Google. Clique em Entrar com Google novamente."
+            : "A conta Google ainda não concedeu a permissão de envio do Gmail. Clique em Entrar com Google e aceite a permissão.",
+          missingScope: !hasGmailSendScope ? "https://www.googleapis.com/auth/gmail.send" : null,
         }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      return new Response(JSON.stringify({ connected: true, emailAddress: profile.emailAddress || "" }), {
+      return new Response(JSON.stringify({ connected: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
