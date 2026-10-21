@@ -78,6 +78,11 @@ const EmailMarketing = () => {
   const [logs, setLogs] = useState<SendLog[]>([]);
   const [sentEmails, setSentEmails] = useState<string[]>([]);
   const [failedEmails, setFailedEmails] = useState<string[]>([]);
+  const [suppressionEmail, setSuppressionEmail] = useState("");
+  const [suppressionReason, setSuppressionReason] = useState("unsubscribe");
+  const [suppressions, setSuppressions] = useState<Array<{ email: string; reason: string; source: string; created_at: string }>>([]);
+  const [loadingSuppressions, setLoadingSuppressions] = useState(false);
+  const [savingSuppression, setSavingSuppression] = useState(false);
   const stopRef = useRef(false);
   const pauseRef = useRef(false);
 
@@ -107,6 +112,52 @@ const EmailMarketing = () => {
   }, []);
 
   useEffect(() => { void refreshSavedCampaigns(); }, [refreshSavedCampaigns]);
+
+  const refreshSuppressions = useCallback(async () => {
+    setLoadingSuppressions(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sua sessão do CRM expirou. Entre novamente.");
+      const { data, error } = await db.from("email_marketing_suppressions")
+        .select("email,reason,source,created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setSuppressions(data || []);
+    } catch (error) {
+      console.error("Falha ao carregar descadastros", error);
+      toast.error("Não foi possível carregar a lista de descadastros.");
+    } finally {
+      setLoadingSuppressions(false);
+    }
+  }, []);
+
+  useEffect(() => { void refreshSuppressions(); }, [refreshSuppressions]);
+
+  const addSuppression = async () => {
+    const email = suppressionEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Informe um endereço de e-mail válido.");
+      return;
+    }
+    setSavingSuppression(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sua sessão do CRM expirou. Entre novamente.");
+      const { error } = await db.from("email_marketing_suppressions").upsert({
+        user_id: user.id, email, reason: suppressionReason, source: "manual",
+      }, { onConflict: "user_id,email", ignoreDuplicates: true });
+      if (error) throw error;
+      setSuppressionEmail("");
+      await refreshSuppressions();
+      toast.success("E-mail incluído na lista de bloqueio de novos envios.");
+    } catch (error) {
+      console.error("Falha ao cadastrar descadastro", error);
+      toast.error(error instanceof Error ? error.message : "Não foi possível incluir o e-mail.");
+    } finally {
+      setSavingSuppression(false);
+    }
+  };
 
   const persistCampaign = useCallback(async (options: {
     createIfMissing?: boolean; status?: string; name?: string;
@@ -470,6 +521,22 @@ const EmailMarketing = () => {
               })}
             </tbody></table></div>
           ) : <p className="text-sm text-muted-foreground">Nenhuma campanha salva ainda. Importe uma lista para criar a primeira.</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de descadastros</CardTitle>
+          <CardDescription>Endereços adicionados aqui serão ignorados pelo processador do servidor nas próximas tentativas. A remoção da lista não é permitida nesta tela para evitar reativar contatos que pediram para não receber.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
+            <div className="space-y-1"><Label htmlFor="suppression-email">E-mail para bloquear</Label><Input id="suppression-email" type="email" value={suppressionEmail} maxLength={254} placeholder="contato@empresa.com.br" onChange={(event) => setSuppressionEmail(event.target.value)} disabled={savingSuppression} /></div>
+            <div className="space-y-1"><Label htmlFor="suppression-reason">Motivo</Label><select id="suppression-reason" value={suppressionReason} onChange={(event) => setSuppressionReason(event.target.value)} disabled={savingSuppression} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="unsubscribe">Pediu descadastro</option><option value="bounce">Endereço inválido / falha</option><option value="complaint">Reclamação</option><option value="manual">Bloqueio manual</option></select></div>
+            <div className="flex items-end"><Button onClick={() => void addSuppression()} disabled={savingSuppression || !suppressionEmail.trim()}>{savingSuppression ? "Salvando..." : "Bloquear e-mail"}</Button></div>
+          </div>
+          <p className="text-xs text-muted-foreground">A lista é individual por usuário do CRM. Os e-mails permanecem bloqueados mesmo se uma campanha antiga for aberta novamente.</p>
+          {loadingSuppressions ? <p className="text-sm text-muted-foreground">Carregando lista…</p> : suppressions.length ? <div className="max-h-56 overflow-auto rounded-md border"><table className="w-full text-sm"><thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">E-mail</th><th className="p-2 text-left">Motivo</th><th className="p-2 text-left">Adicionado em</th></tr></thead><tbody>{suppressions.map((item) => <tr key={item.email} className="border-t"><td className="p-2 break-all">{item.email}</td><td className="p-2">{item.reason === "unsubscribe" ? "Pediu descadastro" : item.reason === "bounce" ? "Endereço inválido / falha" : item.reason === "complaint" ? "Reclamação" : "Bloqueio manual"}</td><td className="p-2 whitespace-nowrap">{new Date(item.created_at).toLocaleString("pt-BR")}</td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhum e-mail bloqueado cadastrado ainda.</p>}
         </CardContent>
       </Card>
 
