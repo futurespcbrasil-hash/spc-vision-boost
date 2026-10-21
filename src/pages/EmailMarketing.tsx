@@ -229,6 +229,7 @@ const EmailMarketing = () => {
       setSentEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email))] as string[]);
       setFailedEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email))] as string[]);
       setUncertainEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
+      setUncertainEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
       setFileName("Lista salva na campanha");
       setDelaySeconds(data.delay_seconds || 60);
       setDailyLimit(data.daily_limit || 100);
@@ -247,7 +248,7 @@ const EmailMarketing = () => {
     setCampaignId(null);
     setCampaignName(`Campanha ${new Date().toLocaleString("pt-BR")}`);
     setCampaignStatus("draft");
-    setContacts([]); setFileName(""); setLogs([]); setSentEmails([]); setFailedEmails([]);
+    setContacts([]); setFileName(""); setLogs([]); setSentEmails([]); setFailedEmails([]); setUncertainEmails([]);
     setProgress(0); setCurrentEmail(""); setImageData(""); setImageName(""); setImageMimeType("");
     setCampaignButtons([]); setSubject("Conheça o emissor fiscal da Future Soluções"); setMessage(DEFAULT_MESSAGE);
     setPreviewOpen(false);
@@ -267,6 +268,7 @@ const EmailMarketing = () => {
       setContacts(nextContacts);
       setSentEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email))] as string[]);
       setFailedEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email))] as string[]);
+      setUncertainEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
       setUncertainEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
       setCurrentEmail(data.last_worker_email || "");
       setCampaignStatus(data.status || "draft");
@@ -373,6 +375,7 @@ const EmailMarketing = () => {
       setLogs([]);
       setSentEmails([]);
       setFailedEmails([]);
+      setUncertainEmails([]);
       setProgress(0);
       const suggestedName = file.name.replace(/\\.(xlsx|xls|csv)$/i, "").trim() || `Campanha ${new Date().toLocaleString("pt-BR")}`;
       setCampaignId(null);
