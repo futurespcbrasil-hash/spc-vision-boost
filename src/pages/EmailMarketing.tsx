@@ -16,7 +16,7 @@ import { toast } from "sonner";
 
 type Contact = { email: string; selected: boolean };
 type CampaignButton = { id: string; text: string; kind: "whatsapp" | "website"; target: string; whatsappMessage: string };
-type SendLog = { email: string; status: "sent" | "error"; message: string; at: string };
+type SendLog = { email: string; status: "sent" | "error" | "uncertain"; message: string; at: string };
 
 const PROJECT_ID = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split(".")[0];
 const EDGE_BASE = `https://${PROJECT_ID}.supabase.co/functions/v1/google-calendar`;
@@ -78,6 +78,7 @@ const EmailMarketing = () => {
   const [logs, setLogs] = useState<SendLog[]>([]);
   const [sentEmails, setSentEmails] = useState<string[]>([]);
   const [failedEmails, setFailedEmails] = useState<string[]>([]);
+  const [uncertainEmails, setUncertainEmails] = useState<string[]>([]);
   const [suppressionEmail, setSuppressionEmail] = useState("");
   const [suppressionReason, setSuppressionReason] = useState("unsubscribe");
   const [suppressions, setSuppressions] = useState<Array<{ email: string; reason: string; source: string; created_at: string }>>([]);
@@ -227,6 +228,7 @@ const EmailMarketing = () => {
       setLogs(restoredLogs);
       setSentEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email))] as string[]);
       setFailedEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email))] as string[]);
+      setUncertainEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
       setFileName("Lista salva na campanha");
       setDelaySeconds(data.delay_seconds || 60);
       setDailyLimit(data.daily_limit || 100);
@@ -265,6 +267,7 @@ const EmailMarketing = () => {
       setContacts(nextContacts);
       setSentEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email))] as string[]);
       setFailedEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email))] as string[]);
+      setUncertainEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
       setCurrentEmail(data.last_worker_email || "");
       setCampaignStatus(data.status || "draft");
       const isRunning = data.status === "sending" && data.automation_enabled === true;
@@ -432,6 +435,10 @@ const EmailMarketing = () => {
     }
     // Preserve histórico de tentativas; remover falhas permitiria reenviar destinatários já tentados.
     const retryLogs = logs;
+    if (uncertainEmails.length) {
+      toast.error(`Envio bloqueado: ${uncertainEmails.length} tentativa(s) com resultado incerto precisam ser verificadas antes de continuar, para evitar duplicidades.`);
+      return;
+    }
     const saved = await persistCampaign({ createIfMissing: !campaignId, status: "sending", logs: retryLogs }, false);
     if (!saved) { toast.error("Não foi possível salvar a campanha antes de ativar o envio."); return; }
     let activeId = campaignId;
@@ -451,7 +458,8 @@ const EmailMarketing = () => {
     }).eq("id", activeId);
     if (activationError) { toast.error("Não foi possível ativar o envio automático no servidor."); return; }
     setLogs(retryLogs);
-    setFailedEmails([]);
+    setFailedEmails([...new Set(retryLogs.filter((log) => log.status === "error").map((log) => log.email))]);
+    setUncertainEmails([...new Set(retryLogs.filter((log) => log.status === "uncertain").map((log) => log.email))]);
     setCampaignStatus("sending");
     setSending(true);
     setPaused(false);
@@ -641,9 +649,10 @@ const EmailMarketing = () => {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" /> 4. Resultado dos envios</CardTitle><CardDescription>O histórico fica salvo na campanha e continua disponível após sair ou atualizar a página.</CardDescription></CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Enviados</div><div className="text-2xl font-semibold text-green-600">{sentEmails.length}</div></div>
-            <div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Falhas</div><div className="text-2xl font-semibold text-destructive">{failedEmails.length}</div></div>
+            <div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Falhas confirmadas</div><div className="text-2xl font-semibold text-destructive">{failedEmails.length}</div></div>
+            <div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Resultado incerto</div><div className="text-2xl font-semibold text-amber-600">{uncertainEmails.length}</div></div>
             <div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Restantes selecionados</div><div className="text-2xl font-semibold">{Math.max(0, selectedContacts.length - sentEmails.length)}</div></div>
           </div>
           {logs.length > 0 ? <div className="max-h-72 overflow-auto rounded-md border"><table className="w-full text-sm"><thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">Status</th><th className="p-2 text-left">E-mail</th><th className="p-2 text-left">Detalhe</th><th className="p-2 text-left">Horário</th></tr></thead><tbody>{logs.map((log, index) => <tr key={`${log.email}-${log.at}-${index}`} className="border-t"><td className="p-2">{log.status === "sent" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertCircle className="h-4 w-4 text-destructive" />}</td><td className="p-2 break-all">{log.email}</td><td className="p-2">{log.message}</td><td className="p-2 whitespace-nowrap">{new Date(log.at).toLocaleTimeString("pt-BR")}</td></tr>)}</tbody></table></div> : <p className="text-sm text-muted-foreground">Nenhum envio iniciado nesta sessão.</p>}
