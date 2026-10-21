@@ -156,6 +156,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Para todos os demais usuários, o acesso é definido exclusivamente pelas
   // permissões salvas. Cargo Gestor/Atendimento não concede módulos implícitos.
   const canAccessModule = (moduleKey: string) => {
+    // Campanhas é um recurso liberado para todos os perfis autenticados.
+    if (moduleKey === 'campaigns') return !!user;
     if (user?.email?.toLowerCase() === OWNER_EMAIL) return true;
     if (modulePermissions === null) return false;
     return modulePermissions[moduleKey] === true;
