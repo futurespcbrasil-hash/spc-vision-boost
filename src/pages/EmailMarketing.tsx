@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type Contact = { email: string; selected: boolean };
+type CampaignButton = { id: string; text: string; kind: "whatsapp" | "website"; target: string; whatsappMessage: string };
 type SendLog = { email: string; status: "sent" | "error"; message: string; at: string };
 
 const PROJECT_ID = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split(".")[0];
@@ -33,12 +34,20 @@ Atenciosamente,
 Equipe Future Soluções`;
 
 const escapeHtml = (value: string) => value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char] || char));
-const makeHtml = (message: string, imageData?: string) => {
+const makeHtml = (message: string, imageData?: string, buttons: CampaignButton[] = []) => {
   const paragraphs = message.split(/\n{2,}/).map((part) => `<p style="margin:0 0 14px">${escapeHtml(part).replace(/\n/g, "<br>")}</p>`).join("");
   const image = imageData
     ? `<div style="margin:20px 0"><img src="${imageData}" alt="Imagem da Future Soluções" style="max-width:100%;height:auto"></div>`
     : "";
-  return `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#222;line-height:1.55"><div style="max-width:640px;margin:0 auto;padding:24px">${paragraphs}${image}<p style="margin-top:28px;font-size:12px;color:#666">Você recebeu este e-mail por se tratar de um contato comercial. Se não quiser receber novas mensagens da Future Soluções, responda com “não quero receber”.</p></div></body></html>`;
+  const buttonMarkup = buttons.map((button) => {
+    const target = button.kind === "whatsapp"
+      ? `https://wa.me/${button.target.replace(/\D/g, "")}${button.whatsappMessage.trim() ? `?text=${encodeURIComponent(button.whatsappMessage.trim())}` : ""}`
+      : button.target.trim();
+    if (!/^https?:\/\//i.test(target)) return "";
+    const label = escapeHtml(button.text.trim() || (button.kind === "whatsapp" ? "Fale conosco pelo WhatsApp" : "Saiba mais"));
+    return `<div style="margin:12px 0;text-align:center"><a href="${escapeHtml(target)}" style="display:inline-block;background:${button.kind === "whatsapp" ? "#168447" : "#6D28D9"};color:#fff;text-decoration:none;font-weight:bold;padding:13px 22px;border-radius:6px;min-width:180px;text-align:center">${label}</a></div>`;
+  }).join("");
+  return `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#222;line-height:1.55"><div style="max-width:640px;margin:0 auto;padding:24px">${paragraphs}${image}${buttonMarkup}<p style="margin-top:28px;font-size:12px;color:#666">Você recebeu este e-mail por se tratar de um contato comercial. Se não quiser receber novas mensagens da Future Soluções, responda com “não quero receber”.</p></div></body></html>`;
 };
 
 const EmailMarketing = () => {
@@ -51,6 +60,7 @@ const EmailMarketing = () => {
   const [imageData, setImageData] = useState("");
   const [imageName, setImageName] = useState("");
   const [imageMimeType, setImageMimeType] = useState("");
+  const [campaignButtons, setCampaignButtons] = useState<CampaignButton[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [delaySeconds, setDelaySeconds] = useState(60);
   const [dailyLimit, setDailyLimit] = useState(100);
@@ -65,7 +75,7 @@ const EmailMarketing = () => {
   const pauseRef = useRef(false);
 
   const selectedContacts = useMemo(() => contacts.filter((contact) => contact.selected), [contacts]);
-  const htmlPreview = useMemo(() => makeHtml(message, imageData || undefined), [message, imageData]);
+  const htmlPreview = useMemo(() => makeHtml(message, imageData || undefined, campaignButtons), [message, imageData, campaignButtons]);
   const sentToday = useMemo(() => {
     const today = new Date().toLocaleDateString("en-CA");
     return logs.filter((log) => log.status === "sent" && new Date(log.at).toLocaleDateString("en-CA") === today).length;
@@ -179,6 +189,8 @@ const EmailMarketing = () => {
   const startSending = async () => {
     if (!googleConnected && !(await checkGoogle(true))) return;
     if (!subject.trim() || !message.trim()) { toast.error("Preencha o assunto e a mensagem."); return; }
+    const invalidButton = campaignButtons.find((button) => button.kind === "whatsapp" ? button.target.replace(/\D/g, "").length < 8 : !/^https?:\/\//i.test(button.target.trim()));
+    if (invalidButton) { toast.error(invalidButton.kind === "whatsapp" ? "Informe o telefone do WhatsApp com DDI e DDD." : "Informe uma URL válida começando com https:// ou http://."); return; }
     if (!selectedContacts.length) { toast.error("Selecione pelo menos um e-mail."); return; }
     const alreadySent = new Set(sentEmails);
     const queue = selectedContacts.filter((contact) => !alreadySent.has(contact.email));
@@ -201,7 +213,7 @@ const EmailMarketing = () => {
         try {
           const headers = await authHeaders();
           const imageBase64 = imageData ? imageData.substring(imageData.indexOf(",") + 1) : "";
-          const html = makeHtml(message, imageData ? "cid:campaign-image" : undefined);
+          const html = makeHtml(message, imageData ? "cid:campaign-image" : undefined, campaignButtons);
           const response = await fetch(`${EDGE_BASE}?action=send-email`, {
             method: "POST",
             headers,
@@ -259,7 +271,7 @@ const EmailMarketing = () => {
   const clearCampaign = () => {
     if (sending) return;
     setContacts([]); setFileName(""); setLogs([]); setSentEmails([]); setFailedEmails([]);
-    setProgress(0); setCurrentEmail(""); setImageData(""); setImageName(""); setImageMimeType("");
+    setProgress(0); setCurrentEmail(""); setImageData(""); setImageName(""); setImageMimeType(""); setCampaignButtons([]);
     toast.success("Campanha limpa. Você pode importar uma nova lista.");
   };
 
@@ -322,6 +334,17 @@ const EmailMarketing = () => {
             {imageName && <><span className="text-sm text-muted-foreground">{imageName}</span><Button variant="ghost" size="sm" onClick={() => { setImageData(""); setImageName(""); setImageMimeType(""); }}>Remover imagem</Button></>}
           </div>
           {imageData && <img src={imageData} alt="Prévia da imagem da campanha" className="max-h-48 max-w-full rounded border object-contain" />}
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2"><div><Label>Botões e links da mensagem</Label><p className="text-xs text-muted-foreground mt-1">Adicione chamadas para ação clicáveis no corpo do e-mail.</p></div><Button type="button" variant="outline" size="sm" disabled={sending || campaignButtons.length >= 5} onClick={() => setCampaignButtons((previous) => [...previous, { id: crypto.randomUUID(), text: "Fale conosco pelo WhatsApp", kind: "whatsapp", target: "", whatsappMessage: "Olá! Gostaria de conhecer o emissor fiscal da Future Soluções." }])}>+ Adicionar botão</Button></div>
+            {campaignButtons.length === 0 && <p className="text-sm text-muted-foreground">Nenhum botão adicionado. Você pode incluir um botão de WhatsApp ou um link para seu site.</p>}
+            {campaignButtons.map((campaignButton, index) => <div key={campaignButton.id} className="grid gap-3 rounded-md bg-muted/40 p-3 sm:grid-cols-2">
+              <div className="space-y-2"><Label htmlFor={`campaign-button-text-${campaignButton.id}`}>Texto do botão {index + 1}</Label><Input id={`campaign-button-text-${campaignButton.id}`} value={campaignButton.text} maxLength={80} disabled={sending} onChange={(event) => setCampaignButtons((previous) => previous.map((item) => item.id === campaignButton.id ? { ...item, text: event.target.value } : item))} /></div>
+              <div className="space-y-2"><Label htmlFor={`campaign-button-kind-${campaignButton.id}`}>Tipo de link</Label><select id={`campaign-button-kind-${campaignButton.id}`} value={campaignButton.kind} disabled={sending} onChange={(event) => setCampaignButtons((previous) => previous.map((item) => item.id === campaignButton.id ? { ...item, kind: event.target.value as CampaignButton["kind"], target: "" } : item))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="whatsapp">WhatsApp</option><option value="website">Site / link</option></select></div>
+              <div className="space-y-2 sm:col-span-2"><Label htmlFor={`campaign-button-target-${campaignButton.id}`}>{campaignButton.kind === "whatsapp" ? "Telefone com DDI e DDD" : "Endereço do link (URL começando com https://)"}</Label><Input id={`campaign-button-target-${campaignButton.id}`} placeholder={campaignButton.kind === "whatsapp" ? "5554999999999" : "https://futuresolucoes.com.br"} value={campaignButton.target} disabled={sending} onChange={(event) => setCampaignButtons((previous) => previous.map((item) => item.id === campaignButton.id ? { ...item, target: event.target.value } : item))} /></div>
+              {campaignButton.kind === "whatsapp" && <div className="space-y-2 sm:col-span-2"><Label htmlFor={`campaign-button-message-${campaignButton.id}`}>Mensagem inicial do WhatsApp (opcional)</Label><Input id={`campaign-button-message-${campaignButton.id}`} value={campaignButton.whatsappMessage} maxLength={300} disabled={sending} onChange={(event) => setCampaignButtons((previous) => previous.map((item) => item.id === campaignButton.id ? { ...item, whatsappMessage: event.target.value } : item))} /></div>}
+              <div className="flex items-center justify-between gap-2 sm:col-span-2"><span className="text-xs text-muted-foreground">{campaignButton.kind === "whatsapp" ? "O link wa.me será montado automaticamente." : "O link será aberto ao clicar no botão do e-mail."}</span><Button type="button" size="sm" variant="ghost" disabled={sending} onClick={() => setCampaignButtons((previous) => previous.filter((item) => item.id !== campaignButton.id))}><Trash2 className="mr-1 h-4 w-4" /> Remover</Button></div>
+            </div>)}
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setPreviewOpen(!previewOpen)}><Eye className="h-4 w-4 mr-2" /> {previewOpen ? "Ocultar prévia" : "Visualizar mensagem"}</Button>
           </div>
