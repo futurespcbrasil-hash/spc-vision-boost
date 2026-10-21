@@ -81,30 +81,40 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
     const allowedSectors: string[] = roleData?.allowed_sectors || [];
 
     const ownRows = (data || []).filter((r: any) => r.user_id === user.id);
+    let rowsForDisplay = data || [];
+
     if (ownRows.length === 0) {
       const rows = DEFAULT_SECTORS.map((s, i) => ({
         user_id: user.id, key: s.key, label: s.label, position: i,
       }));
-      const { data: inserted } = await supabase.from('sectors').insert(rows).select();
-      const merged = [...(data || []), ...(inserted || [])];
-      const all = dedupeSectors(merged);
-      // Filter by permissions (gestores see all, atendentes see only allowed)
-      const filtered = userRole === 'gestor' || allowedSectors.length === 0
-        ? all
-        : all.filter(s => allowedSectors.includes(s.key));
-      setSectors(filtered);
-    } else {
-      const all = dedupeSectors(data || []);
-      // Filter by permissions (gestores see all, atendentes see only allowed)
-      const filtered = userRole === 'gestor' || allowedSectors.length === 0
-        ? all
-        : all.filter(s => allowedSectors.includes(s.key));
-      setSectors(filtered);
+      const { data: inserted, error: insertError } = await supabase.from('sectors').insert(rows).select();
+      if (insertError) {
+        console.error('Erro ao inicializar setores padrão', insertError);
+      }
+      rowsForDisplay = [...rowsForDisplay, ...(inserted || [])];
     }
+
+    const all = dedupeSectors(rowsForDisplay);
+    // Sellers only see their own custom sectors plus the two built-in sectors.
+    // Managers retain their existing team-wide sector view.
+    const visible = userRole === 'gestor'
+      ? all
+      : all.filter(s => s.key === 'spc' || s.key === 'comercial' || s.userId === user.id);
+    const filtered = userRole === 'gestor' || allowedSectors.length === 0
+      ? visible
+      : visible.filter(s => s.key === 'spc' || s.key === 'comercial' || allowedSectors.includes(s.key));
+    setSectors(filtered);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Avoid carrying a sector selection from another profile's browser session.
+  useEffect(() => {
+    if (!loading && sectors.length > 0 && !sectors.some(s => s.key === activeSector)) {
+      setActiveSector('spc');
+    }
+  }, [activeSector, loading, sectors]);
 
   const addSector = async (label: string) => {
     if (!label.trim()) return;
@@ -132,7 +142,7 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: 'Não permitido', description: 'Setores padrão não podem ser excluídos.', variant: 'destructive' });
       return;
     }
-    const { error } = await supabase.from('sectors').delete().eq('key', key);
+    const { error } = await supabase.from('sectors').delete().eq('key', key).eq('user_id', currentUserId);
     if (error) {
       toast({ title: 'Erro ao excluir setor', description: error.message, variant: 'destructive' });
       return;
