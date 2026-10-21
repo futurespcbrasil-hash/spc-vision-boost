@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
 
       return new Response(null, {
         status: 302,
-        headers: { ...corsHeaders, Location: `${redirectUri}${["/agenda", "/email-marketing"].includes(state.return_path) ? state.return_path : "/agenda"}?gcal=connected` },
+        headers: { ...corsHeaders, Location: `${redirectUri}${["/agenda", "/campanhas/email"].includes(state.return_path) ? state.return_path : "/agenda"}?gcal=connected` },
       });
     }
 
@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
     if (action === "auth-url") {
       const redirectUri = url.searchParams.get("redirect_uri") || url.origin;
       const requestedPath = url.searchParams.get("return_path") || "/agenda";
-      const returnPath = ["/agenda", "/email-marketing"].includes(requestedPath) ? requestedPath : "/agenda";
+      const returnPath = ["/agenda", "/campanhas/email"].includes(requestedPath) ? requestedPath : "/agenda";
       const includeGmail = url.searchParams.get("include_gmail") === "true";
       const state = JSON.stringify({ user_id: userId, redirect_uri: redirectUri, return_path: returnPath });
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -295,8 +295,7 @@ Deno.serve(async (req) => {
 
       const encodeBase64 = (value: string) => btoa(unescape(encodeURIComponent(value)));
       const encodeHeader = (value: string) => `=?UTF-8?B?${encodeBase64(value)}?=`;
-      const wrapBase64 = (value: string) => value.replace(/.{1,76}/g, "    // Check connection status
-    if (action === "status") {\r\n");
+      const wrapBase64 = (value: string) => value.match(/.{1,76}/g)?.join("\\r\\n") || "";
       const altBoundary = "future-alt-" + crypto.randomUUID();
       const relatedBoundary = "future-related-" + crypto.randomUUID();
       const safeSubject = encodeHeader(subject);
