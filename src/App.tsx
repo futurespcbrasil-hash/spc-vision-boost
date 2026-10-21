@@ -66,9 +66,6 @@ const Usuarios = lazyWithRetry(() => import("@/pages/Usuarios"));
 const Suporte = lazyWithRetry(() => import("@/pages/Suporte"));
 const SuporteRustDesk = lazyWithRetry(() => import("@/pages/SuporteRustDesk"));
 const FutureRemoteDashboard = lazyWithRetry(() => import("@/pages/remote/FutureRemoteDashboard"));
-const RemoteComputadores = lazyWithRetry(() => import("@/pages/remote/Computadores"));
-const RemoteHistorico = lazyWithRetry(() => import("@/pages/remote/Historico"));
-const RemoteConfiguracoes = lazyWithRetry(() => import("@/pages/remote/Configuracoes"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const BoletosWhatsApp = lazyWithRetry(() => import("@/pages/BoletosWhatsApp"));
 
@@ -135,10 +132,10 @@ const ProtectedRoutes = () => {
             <Route path="/financeiro/clientes" element={<AppLayout><BoletosWhatsApp initialTab="clientes" /></AppLayout>} />
             <Route path="/financeiro/boletos" element={<AppLayout><BoletosWhatsApp /></AppLayout>} />
             <Route path="/future-remote" element={<AppLayout><FutureRemoteDashboard /></AppLayout>} />
-            <Route path="/future-remote/solicitacoes" element={<Navigate to="/future-remote/computadores" replace />} />
-            <Route path="/future-remote/computadores" element={<AppLayout><RemoteComputadores /></AppLayout>} />
-            <Route path="/future-remote/historico" element={<AppLayout><RemoteHistorico /></AppLayout>} />
-            <Route path="/future-remote/configuracoes" element={<AppLayout><RemoteConfiguracoes /></AppLayout>} />
+            <Route path="/future-remote/solicitacoes" element={<Navigate to="/future-remote" replace />} />
+            <Route path="/future-remote/computadores" element={<Navigate to="/future-remote" replace />} />
+            <Route path="/future-remote/historico" element={<Navigate to="/future-remote" replace />} />
+            <Route path="/future-remote/configuracoes" element={<Navigate to="/future-remote" replace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
