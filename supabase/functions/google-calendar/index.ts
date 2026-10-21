@@ -91,11 +91,13 @@ Deno.serve(async (req) => {
       }
 
       const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+      const { data: previousTokens } = await supabase.from("google_calendar_tokens")
+        .select("refresh_token").eq("user_id", callbackUserId).maybeSingle();
 
       await supabase.from("google_calendar_tokens").upsert({
         user_id: callbackUserId,
         access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token || "",
+        refresh_token: tokens.refresh_token || previousTokens?.refresh_token || "",
         expires_at: expiresAt,
       }, { onConflict: "user_id" });
 
