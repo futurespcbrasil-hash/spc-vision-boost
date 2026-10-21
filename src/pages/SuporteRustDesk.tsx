@@ -1,13 +1,13 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowDownToLine, Laptop, Monitor, ShieldCheck, Apple, ExternalLink } from 'lucide-react';
+import { ArrowDownToLine, Laptop, Monitor, ShieldCheck, Apple, ExternalLink, Cpu, CircleHelp } from 'lucide-react';
 
 const CRM_PUBLIC_URL = 'https://crm.futuresolucoes.com.br';
 const WINDOWS_64_URL = 'https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86_64.exe';
 const WINDOWS_32_URL = 'https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86-sciter.exe';
-// O projeto não publica um único DMG universal na versão atual; a página oficial lista builds Intel e Apple Silicon.
-const MAC_DOWNLOADS_URL = 'https://github.com/rustdesk/rustdesk/releases/latest';
+const MAC_INTEL_URL = 'https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86_64.dmg';
+const MAC_APPLE_SILICON_URL = 'https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-aarch64.dmg';
 
 const DownloadButton = ({ href, children }: { href: string; children: ReactNode }) => (
   <Button asChild className="h-11 w-full justify-center gap-2 text-sm font-semibold">
@@ -18,7 +18,24 @@ const DownloadButton = ({ href, children }: { href: string; children: ReactNode 
   </Button>
 );
 
-const SuporteRustDesk = () => (
+type DetectionResult = 'windows' | 'mac' | 'other';
+
+const SuporteRustDesk = () => {
+  const [detection, setDetection] = useState<DetectionResult | null>(null);
+
+  const detectSystem = () => {
+    const userAgent = navigator.userAgent || '';
+    const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || '';
+    if (/mac/i.test(platform) || /Macintosh|Mac OS X/i.test(userAgent)) {
+      setDetection('mac');
+    } else if (/win/i.test(platform) || /Windows/i.test(userAgent)) {
+      setDetection('windows');
+    } else {
+      setDetection('other');
+    }
+  };
+
+  return (
   <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute -left-32 -top-36 h-96 w-96 rounded-full bg-violet-600/20 blur-3xl" />
@@ -54,7 +71,30 @@ const SuporteRustDesk = () => (
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3 md:gap-5">
+        <div className="mx-auto mb-7 max-w-2xl text-center">
+          <Button type="button" onClick={detectSystem} className="h-12 gap-2 px-6 text-sm font-semibold shadow-lg shadow-violet-950/30">
+            <Laptop size={18} />
+            Clique aqui para detectar a versão do seu sistema
+          </Button>
+          {detection && (
+            <div role="status" aria-live="polite" className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-left sm:p-5">
+              {detection === 'windows' && <>
+                <p className="font-semibold text-emerald-200">Detectamos Windows.</p>
+                <p className="mt-1 text-sm leading-6 text-slate-300">Use o botão correspondente a 64 ou 32 bits abaixo. Para confirmar, abra Configurações → Sistema → Sobre → Tipo de sistema.</p>
+              </>}
+              {detection === 'mac' && <>
+                <p className="font-semibold text-emerald-200">Detectamos um Mac (macOS).</p>
+                <p className="mt-1 text-sm leading-6 text-slate-300">A detecção identifica o macOS, mas não consegue confirmar com segurança o tipo de chip pelo navegador. Na seção Mac abaixo, siga o tutorial para escolher Intel ou Apple Silicon.</p>
+              </>}
+              {detection === 'other' && <>
+                <p className="font-semibold text-amber-200">Não foi possível identificar Windows ou macOS.</p>
+                <p className="mt-1 text-sm leading-6 text-slate-300">Esta página oferece instaladores para Windows e Mac. Confirme o sistema do seu computador antes de baixar.</p>
+              </>}
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 md:gap-5">
           <Card className="relative overflow-hidden border-violet-300/50 bg-white text-slate-900 shadow-2xl shadow-violet-950/25 md:-translate-y-1">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-500 to-indigo-500" />
             <CardHeader className="pb-3 pt-6">
@@ -87,22 +127,60 @@ const SuporteRustDesk = () => (
             </CardContent>
           </Card>
 
-          <Card className="border-white/10 bg-white/[0.06] text-white shadow-xl shadow-black/10 backdrop-blur-sm">
-            <CardHeader className="pb-3 pt-6">
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-slate-100">
-                <Apple size={24} />
-              </div>
-              <CardTitle className="text-xl text-white">Apple macOS</CardTitle>
-              <CardDescription className="min-h-10 text-slate-300">Escolha a versão adequada ao seu Mac: Intel ou Apple Silicon.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <DownloadButton href={MAC_DOWNLOADS_URL}>Abrir downloads oficiais para Mac</DownloadButton>
-              <p className="text-xs leading-5 text-slate-400">Na página oficial, escolha o arquivo DMG correspondente ao processador do Mac.</p>
-            </CardContent>
-          </Card>
         </div>
 
-        <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-white/10 bg-white/[0.05] p-5 text-sm leading-6 text-slate-300">
+        <section aria-labelledby="mac-downloads-title" className="mt-6 rounded-2xl border border-violet-300/25 bg-white/[0.05] p-5 sm:p-7">
+          <div className="mb-5 flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white">
+              <Apple size={25} />
+            </div>
+            <div>
+              <h2 id="mac-downloads-title" className="text-xl font-bold text-white sm:text-2xl">Downloads para Apple macOS</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-300">Escolha o instalador de acordo com o processador do seu Mac. Os dois botões levam aos arquivos oficiais do RustDesk.</p>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card className="border-white/10 bg-slate-900/80 text-white">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg text-white"><Cpu size={19} /> Mac com Intel</CardTitle>
+                <CardDescription className="text-slate-300">Para Macs com processador Intel.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <DownloadButton href={MAC_INTEL_URL}>Baixar para Mac Intel</DownloadButton>
+                <p className="text-xs leading-5 text-slate-400">Arquivo DMG x86_64 da versão oficial 1.5.0.</p>
+              </CardContent>
+            </Card>
+            <Card className="border-white/10 bg-slate-900/80 text-white">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg text-white"><Apple size={19} /> Apple Silicon</CardTitle>
+                <CardDescription className="text-slate-300">Para Macs com chip Apple M1, M2, M3, M4 ou posterior.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <DownloadButton href={MAC_APPLE_SILICON_URL}>Baixar para Apple Silicon</DownloadButton>
+                <p className="text-xs leading-5 text-slate-400">Arquivo DMG ARM64 (aarch64) da versão oficial 1.5.0.</p>
+              </CardContent>
+            </Card>
+          </div>
+          <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+            <h3 className="flex items-center gap-2 font-semibold text-white"><CircleHelp size={18} /> Como descobrir o processador do Mac</h3>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300">
+              <li>Clique no menu Apple <strong className="text-white"></strong>, no canto superior esquerdo da tela.</li>
+              <li>Selecione <strong className="text-white">Sobre Este Mac</strong> (ou <strong className="text-white">About This Mac</strong>).</li>
+              <li>Veja a informação exibida em “Chip” ou “Processador”:
+                <ul className="mt-1 list-disc pl-5">
+                  <li>Se aparecer <strong className="text-white">Apple M1, M2, M3, M4</strong> ou outro chip da série M, escolha <strong className="text-white">Apple Silicon</strong>.</li>
+                  <li>Se aparecer <strong className="text-white">Intel</strong> (por exemplo, Intel Core i5 ou i7), escolha <strong className="text-white">Mac Intel</strong>.</li>
+                </ul>
+              </li>
+            </ol>
+            <p className="mt-3 text-xs leading-5 text-slate-400">Se estiver em dúvida, não instale uma versão aleatória: confira essa informação em “Sobre Este Mac” ou peça ajuda à equipe de suporte.</p>
+            <a href="https://github.com/rustdesk/rustdesk/releases/tag/1.5.0" target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-xs text-violet-200 underline underline-offset-4 hover:text-white">
+              Conferir a versão oficial 1.5.0 no GitHub <ExternalLink size={12} />
+            </a>
+          </div>
+        </section>
+
+        <div className="mx-auto mt-8 max-w-3xl border border-white/10 bg-white/[0.05] p-5 text-sm leading-6 text-slate-300">
           <p className="font-semibold text-white">Como iniciar o suporte</p>
           <p className="mt-1">1. Baixe e abra o RustDesk oficial. 2. Informe à equipe da Future o ID que aparece na tela. 3. Confira a solicitação e autorize a conexão quando estiver pronto. Não compartilhe sua senha permanente nem permita acesso que você não reconheça.</p>
           <p className="mt-3 text-xs text-slate-400">Esta opção usa os servidores públicos do RustDesk. O RustDesk não é integrado ao cadastro ou ao controle de sessões do CRM da Future; o suporte é iniciado pelo ID informado pelo cliente.</p>
@@ -120,6 +198,7 @@ const SuporteRustDesk = () => (
       </footer>
     </div>
   </main>
-);
+  );
+};
 
 export default SuporteRustDesk;
