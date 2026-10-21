@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   Mail, LogIn, LogOut, Upload, ImagePlus, Eye, Send, Pause, Play, RotateCcw,
@@ -99,6 +99,8 @@ const EmailMarketing = () => {
       setCheckingGoogle(false);
     }
   }, [authHeaders]);
+
+  useEffect(() => { void checkGoogle(); }, [checkGoogle]);
 
   const connectGoogle = async () => {
     try {
