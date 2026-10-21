@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
       // through Google's tokeninfo endpoint instead of calling a Gmail read/profile API.
       const tokenInfoResponse = await fetch("https://oauth2.googleapis.com/tokeninfo?access_token=" + encodeURIComponent(accessToken));
       const tokenInfo = await tokenInfoResponse.json().catch(() => ({}));
-      const grantedScopes = String(tokenInfo.scope || "").split(/\\s+/).filter(Boolean);
+      const grantedScopes = String(tokenInfo.scope || "").split(/\s+/.filter(Boolean);
       const hasGmailSendScope = grantedScopes.includes("https://www.googleapis.com/auth/gmail.send");
       if (!tokenInfoResponse.ok || !hasGmailSendScope) {
         return new Response(JSON.stringify({
