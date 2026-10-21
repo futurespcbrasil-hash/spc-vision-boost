@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText, FileSpreadsheet,
-  Monitor, History, Cog, Wallet, Smartphone
+  Monitor, History, Cog, Wallet, Smartphone, Mail, Send
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +30,7 @@ const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
+  const [campaignsOpen, setCampaignsOpen] = useState(location.pathname.startsWith('/campanhas'));
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
   const [indicacoesOpen, setIndicacoesOpen] = useState(location.pathname.startsWith('/indicacoes'));
   const [consultasOpen, setConsultasOpen] = useState(location.pathname.startsWith('/consultas'));
@@ -69,6 +70,11 @@ const AppSidebar = () => {
     { to: '/whatsapp', icon: MessageSquare, label: 'Conversas', moduleKey: 'whatsapp' },
     { to: '/whatsapp/instancias', icon: Smartphone, label: 'Instâncias WAHA', moduleKey: 'whatsapp' },
     { to: '/whatsapp/ajustes', icon: Settings2, label: 'Ajustes', moduleKey: 'whatsapp' },
+  ];
+
+  const CAMPAIGNS_SUB = [
+    { to: '/campanhas/email', icon: Mail, label: 'E-mail Marketing' },
+    { to: '/campanhas/whatsapp', icon: MessageSquare, label: 'WhatsApp' },
   ];
 
 
@@ -152,6 +158,44 @@ const AppSidebar = () => {
         )}
 
 
+          </>
+        )}
+
+        {canAccessModule('agenda') && (
+          <>
+            <button
+              onClick={() => setCampaignsOpen(!campaignsOpen)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+                ${location.pathname.startsWith('/campanhas')
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+              title={collapsed ? 'Campanhas' : undefined}
+            >
+              <Send size={18} />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">Campanhas</span>
+                  <ChevronDown size={14} className={`transition-transform ${campaignsOpen ? 'rotate-180' : ''}`} />
+                </>
+              )}
+            </button>
+            {!collapsed && campaignsOpen && (
+              <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
+                {CAMPAIGNS_SUB.map((sub) => (
+                  <Link
+                    key={sub.to}
+                    to={sub.to}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
+                      ${location.pathname === sub.to
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}
+                  >
+                    <sub.icon size={14} />
+                    <span>{sub.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </>
         )}
 
