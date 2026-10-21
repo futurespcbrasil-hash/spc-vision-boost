@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowDownToLine, Laptop, Monitor, ShieldCheck, Apple, ExternalLink } from 'lucide-react';
 
 const CRM_PUBLIC_URL = 'https://crm.futuresolucoes.com.br';
-const WINDOWS_64_URL = 'https://github.com/rustdesk/rustdesk/releases/latest/download/rustdesk-1.5.0-x86_64.exe';
-const WINDOWS_32_URL = 'https://github.com/rustdesk/rustdesk/releases/latest/download/rustdesk-1.5.0-x86-sciter.exe';
+const WINDOWS_64_URL = 'https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86_64.exe';
+const WINDOWS_32_URL = 'https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86-sciter.exe';
 // O projeto não publica um único DMG universal na versão atual; a página oficial lista builds Intel e Apple Silicon.
 const MAC_DOWNLOADS_URL = 'https://github.com/rustdesk/rustdesk/releases/latest';
 
@@ -105,14 +105,9 @@ const SuporteRustDesk = () => (
         <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-white/10 bg-white/[0.05] p-5 text-sm leading-6 text-slate-300">
           <p className="font-semibold text-white">Como iniciar o suporte</p>
           <p className="mt-1">1. Baixe e abra o RustDesk oficial. 2. Informe à equipe da Future o ID que aparece na tela. 3. Confira a solicitação e autorize a conexão quando estiver pronto. Não compartilhe sua senha permanente nem permita acesso que você não reconheça.</p>
-          <p className="mt-3 text-xs text-slate-400">Esta página apenas direciona aos downloads oficiais. Não há cadastro de dispositivos ou controle de sessões pelo CRM nesta modalidade; o suporte é iniciado pelo ID do RustDesk.</p>
+          <p className="mt-3 text-xs text-slate-400">Esta opção usa os servidores públicos do RustDesk. O RustDesk não é integrado ao cadastro ou ao controle de sessões do CRM da Future; o suporte é iniciado pelo ID informado pelo cliente.</p>
         </div>
 
-        <div className="mt-8 text-center">
-          <a href={CRM_PUBLIC_URL + '/suporte'} className="text-sm font-medium text-violet-200 underline underline-offset-4 hover:text-white">
-            Ir para o suporte via MeshCentral
-          </a>
-        </div>
         <div className="mt-3 text-center">
           <a href="https://rustdesk.com/pt/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-slate-400 underline underline-offset-4 hover:text-white">
             Site oficial do RustDesk <ExternalLink size={12} />
