@@ -430,7 +430,8 @@ const EmailMarketing = () => {
       toast.info("Todos os e-mails selecionados já constam como enviados nesta campanha.");
       return;
     }
-    const retryLogs = logs.filter((log) => log.status !== "error");
+    // Preserve histórico de tentativas; remover falhas permitiria reenviar destinatários já tentados.
+    const retryLogs = logs;
     const saved = await persistCampaign({ createIfMissing: !campaignId, status: "sending", logs: retryLogs }, false);
     if (!saved) { toast.error("Não foi possível salvar a campanha antes de ativar o envio."); return; }
     let activeId = campaignId;
