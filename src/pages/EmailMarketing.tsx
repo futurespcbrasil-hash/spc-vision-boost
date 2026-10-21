@@ -113,11 +113,8 @@ const EmailMarketing = () => {
 
   // Keep the active campaign identity across Chrome tab discards/reloads.
   useEffect(() => {
-    if (campaignId) {
-      try { window.sessionStorage.setItem(CAMPAIGN_SESSION_KEY, campaignId); } catch { /* storage may be disabled */ }
-    } else if (!restoringCampaignRef.current) {
-      try { window.sessionStorage.removeItem(CAMPAIGN_SESSION_KEY); } catch { /* storage may be disabled */ }
-    }
+    if (!campaignId) return; // Preserve the previous ID until the restoration effect reads it.
+    try { window.sessionStorage.setItem(CAMPAIGN_SESSION_KEY, campaignId); } catch { /* storage may be disabled */ }
   }, [campaignId]);
 
   // On a fresh mount, reopen the last campaign from the server rather than showing an empty editor.
@@ -214,6 +211,7 @@ const EmailMarketing = () => {
 
   const newCampaign = () => {
     if (sending) return;
+    try { window.sessionStorage.removeItem(CAMPAIGN_SESSION_KEY); } catch { /* storage may be disabled */ }
     setCampaignId(null);
     setCampaignName(`Campanha ${new Date().toLocaleString("pt-BR")}`);
     setCampaignStatus("draft");
@@ -344,6 +342,7 @@ const EmailMarketing = () => {
       setFailedEmails([]);
       setProgress(0);
       const suggestedName = file.name.replace(/\\.(xlsx|xls|csv)$/i, "").trim() || `Campanha ${new Date().toLocaleString("pt-BR")}`;
+      try { window.sessionStorage.removeItem(CAMPAIGN_SESSION_KEY); } catch { /* storage may be disabled */ }
       setCampaignId(null);
       setCampaignName(suggestedName);
       setCampaignStatus("draft");
