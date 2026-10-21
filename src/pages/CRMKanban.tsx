@@ -18,7 +18,7 @@ const CRMKanban = () => {
   const { role, user, loading: authLoading } = useAuth();
   const { activeSector, sectors } = useSectors();
   const isGestor = !authLoading && role === 'gestor';
-  const funnel = isGestor ? activeSector : 'spc';
+  const funnel = activeSector;
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
@@ -308,7 +308,7 @@ const CRMKanban = () => {
           <p className="text-muted-foreground text-sm mt-1">Arraste os leads entre as colunas para atualizar o status</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {isGestor && <SectorSelector />}
+          <SectorSelector />
           <div className="relative">
             <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
