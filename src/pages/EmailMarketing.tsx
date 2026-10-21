@@ -357,7 +357,14 @@ const EmailMarketing = () => {
         toast.error("A coluna de e-mail foi encontrada, mas não há endereços válidos abaixo do cabeçalho.");
         return;
       }
-      const imported = [...unique].map((email) => ({ email, selected: true }));
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast.error("Sua sessão expirou. Entre novamente."); return; }
+      const { data: blockedRows, error: blockedError } = await db.from("email_marketing_suppressions")
+        .select("email").eq("user_id", user.id);
+      if (blockedError) throw blockedError;
+      const blocked = new Set((blockedRows || []).map((row: { email: string }) => row.email.trim().toLowerCase()));
+      const imported = [...unique].map((email) => ({ email, selected: !blocked.has(email) }));
+      const blockedCount = imported.filter((contact) => !contact.selected).length;
       setContacts(imported);
       setFileName(file.name);
       setLogs([]);
@@ -370,7 +377,7 @@ const EmailMarketing = () => {
       setCampaignStatus("draft");
       const saved = await persistCampaign({ createIfMissing: true, status: "draft", name: suggestedName, contacts: imported, logs: [] }, false);
       if (!saved) toast.error("A lista foi carregada, mas não foi possível salvar a campanha. Tente Salvar campanha.");
-      else toast.success(`${imported.length} e-mails importados. Campanha salva no CRM.`);
+      else toast.success(`${imported.length} e-mails importados; ${blockedCount} bloqueados por descadastro. Campanha salva no CRM.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível ler a planilha.");
     }
@@ -404,6 +411,18 @@ const EmailMarketing = () => {
     const invalidButton = campaignButtons.find((button) => button.kind === "whatsapp" ? button.target.replace(/\D/g, "").length < 8 : !/^https?:\/\//i.test(button.target.trim()));
     if (invalidButton) { toast.error(invalidButton.kind === "whatsapp" ? "Informe o telefone do WhatsApp com DDI e DDD." : "Informe uma URL válida começando com https:// ou http://."); return; }
     if (!selectedContacts.length) { toast.error("Selecione pelo menos um e-mail."); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { toast.error("Sua sessão expirou. Entre novamente."); return; }
+    const { data: blockedRows, error: blockedError } = await db.from("email_marketing_suppressions")
+      .select("email").eq("user_id", user.id);
+    if (blockedError) { toast.error("Não foi possível validar a lista de descadastros. Envio bloqueado por segurança."); return; }
+    const blocked = new Set((blockedRows || []).map((row: { email: string }) => row.email.trim().toLowerCase()));
+    const blockedSelected = selectedContacts.filter((contact) => blocked.has(contact.email.trim().toLowerCase()));
+    if (blockedSelected.length) {
+      setContacts((previous) => previous.map((contact) => blocked.has(contact.email.trim().toLowerCase()) ? { ...contact, selected: false } : contact));
+      toast.error(`${blockedSelected.length} contato(s) bloqueado(s) foram desmarcados. Confira a lista antes de continuar.`);
+      return;
+    }
     const alreadySent = new Set(sentEmails);
     if (selectedContacts.every((contact) => alreadySent.has(contact.email))) {
       setCampaignStatus("completed");
