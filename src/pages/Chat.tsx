@@ -209,7 +209,7 @@ const Chat = () => {
         <p className="text-muted-foreground text-sm mt-1">Converse com sua equipe em tempo real</p>
       </div>
 
-      <div className="grid lg:grid-cols-[300px_1fr] gap-4 bg-card rounded-xl border border-border overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
+      <div className="grid min-h-0 lg:grid-cols-[300px_1fr] gap-4 bg-card rounded-xl border border-border overflow-hidden" style={{ height: 'calc(100dvh - 180px)', minHeight: '420px' }}>
         {/* Users list */}
         <div className={`border-r border-border ${selected ? 'hidden lg:flex' : 'flex'} flex-col`}>
           <div className="p-3 border-b border-border">
@@ -251,14 +251,14 @@ const Chat = () => {
         </div>
 
         {/* Conversation */}
-        <div className={`${selected ? 'flex' : 'hidden lg:flex'} flex-col`}>
+        <div className={`${selected ? 'flex' : 'hidden lg:flex'} min-h-0 min-w-0 flex-col overflow-hidden`}>
           {!selected ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
               Selecione um usuário para começar
             </div>
           ) : (
             <>
-              <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+              <div className="shrink-0 px-4 py-3 border-b border-border flex items-center gap-3 bg-card">
                 <button onClick={() => setSelected(null)} className="lg:hidden text-muted-foreground">
                   <ArrowLeft size={18} />
                 </button>
@@ -271,7 +271,7 @@ const Chat = () => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-2 bg-muted/20">
                 {messages.length === 0 && (
                   <p className="text-center text-sm text-muted-foreground py-8">Sem mensagens ainda. Diga olá!</p>
                 )}
@@ -283,8 +283,8 @@ const Chat = () => {
                       <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${mine ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-card border border-border text-foreground rounded-bl-sm'}`}>
                         {media && m.mediaUrl ? (
                           <div className="space-y-2 min-w-0">
-                            {media.type === 'image' && <a href={m.mediaUrl} target="_blank" rel="noreferrer"><img src={m.mediaUrl} alt={media.name} className="max-w-full max-h-72 rounded-lg object-contain" /></a>}
-                            {media.type === 'video' && <video src={m.mediaUrl} controls preload="metadata" className="max-w-full max-h-72 rounded-lg" />}
+                            {media.type === 'image' && <a href={m.mediaUrl} target="_blank" rel="noreferrer"><img src={m.mediaUrl} alt={media.name} className="block w-auto max-w-full max-h-72 rounded-lg object-contain" /></a>}
+                            {media.type === 'video' && <video src={m.mediaUrl} controls preload="metadata" className="block w-auto max-w-full max-h-72 rounded-lg" />}
                             {media.type === 'audio' && <audio src={m.mediaUrl} controls preload="metadata" className="max-w-full" />}
                             {media.caption && <p className="whitespace-pre-wrap break-words">{media.caption}</p>}
                             <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="text-xs underline break-all">{media.name}</a>
@@ -300,7 +300,7 @@ const Chat = () => {
                 <div ref={endRef} />
               </div>
 
-              <div className="p-3 border-t border-border flex gap-2 items-center">
+              <div className="shrink-0 sticky bottom-0 z-10 p-3 border-t border-border bg-card flex gap-2 items-center shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
                 <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; void sendFile(file); }} />
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} title="Enviar imagem, vídeo ou áudio" className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50"><Paperclip size={17} /></button>
                 <input
@@ -308,7 +308,7 @@ const Chat = () => {
                   onChange={e => setText(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
                   placeholder="Digite uma mensagem..."
-                  className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                  className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border bg-background text-sm"
                 />
                 <button
                   onClick={send}
