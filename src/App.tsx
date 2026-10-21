@@ -68,6 +68,8 @@ const SuporteRustDesk = lazyWithRetry(() => import("@/pages/SuporteRustDesk"));
 const FutureRemoteDashboard = lazyWithRetry(() => import("@/pages/remote/FutureRemoteDashboard"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const BoletosWhatsApp = lazyWithRetry(() => import("@/pages/BoletosWhatsApp"));
+const EmailMarketing = lazyWithRetry(() => import("@/pages/EmailMarketing"));
+const CampanhasWhatsApp = lazyWithRetry(() => import("@/pages/CampanhasWhatsApp"));
 
 const queryClient = new QueryClient();
 
@@ -121,6 +123,8 @@ const ProtectedRoutes = () => {
             <Route path="/consultas/cnpj" element={<AppLayout><ConsultaCNPJ /></AppLayout>} />
             <Route path="/consultas/sintegra" element={<AppLayout><ConsultaSintegra /></AppLayout>} />
             <Route path="/consultas/cnpj-lote" element={<AppLayout><ConsultaCNPJLote /></AppLayout>} />
+            <Route path="/campanhas/email" element={<AppLayout><EmailMarketing /></AppLayout>} />
+            <Route path="/campanhas/whatsapp" element={<AppLayout><CampanhasWhatsApp /></AppLayout>} />
             <Route path="/whatsapp" element={<AppLayout noPadding><WhatsAppChat /></AppLayout>} />
             <Route path="/whatsapp/instancias" element={<AppLayout noPadding><WhatsAppInstancias /></AppLayout>} />
             <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
