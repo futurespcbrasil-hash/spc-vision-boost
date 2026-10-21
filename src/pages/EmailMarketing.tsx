@@ -110,7 +110,7 @@ const EmailMarketing = () => {
 
   const persistCampaign = useCallback(async (options: {
     createIfMissing?: boolean; status?: string; name?: string;
-    contacts?: Contact[]; logs?: SendLog[];
+    contacts?: Contact[]; logs?: SendLog[]; autoSave?: boolean;
   } = {}, showToast = false) => {
     setSavingCampaign(true);
     try {
@@ -119,14 +119,14 @@ const EmailMarketing = () => {
       const payload = {
         user_id: user.id,
         name: (options.name ?? campaignName).trim() || "Campanha sem nome",
-        status: options.status ?? campaignStatus,
+        ...(options.autoSave ? {} : { status: options.status ?? campaignStatus }),
         subject, message,
         image_data: imageData || null,
         image_name: imageName || null,
         image_mime_type: imageMimeType || null,
         campaign_buttons: campaignButtons,
         contacts: options.contacts ?? contacts,
-        logs: options.logs ?? logs,
+        ...(options.autoSave ? {} : { logs: options.logs ?? logs }),
         delay_seconds: delaySeconds,
         daily_limit: dailyLimit,
         updated_at: new Date().toISOString(),
@@ -229,10 +229,12 @@ const EmailMarketing = () => {
   }, [campaignId, sending, db, refreshSavedCampaigns]);
 
   useEffect(() => {
-    if (!campaignId || loadingCampaign || !contacts.length) return;
-    const timer = window.setTimeout(() => { void persistCampaign({}, false); }, 1200);
+    // Enquanto a fila do servidor está ativa, a tela nunca grava o estado de execução.
+    // No salvamento automático, status e logs são exclusivos do worker para evitar sobrescrita por estado React desatualizado.
+    if (!campaignId || loadingCampaign || sending || !contacts.length) return;
+    const timer = window.setTimeout(() => { void persistCampaign({ autoSave: true }, false); }, 1200);
     return () => window.clearTimeout(timer);
-  }, [campaignId, loadingCampaign, campaignName, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, logs, delaySeconds, dailyLimit, campaignStatus, persistCampaign]);
+  }, [campaignId, loadingCampaign, sending, campaignName, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, delaySeconds, dailyLimit, persistCampaign]);
 
   const authHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -532,7 +534,7 @@ const EmailMarketing = () => {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>3. Ritmo de envio</CardTitle><CardDescription>Envio individual, em sequência, para controlar o ritmo e identificar falhas. A fila roda enquanto esta página permanecer aberta; cada resultado é salvo no CRM para você retomar depois.</CardDescription></CardHeader>
+        <CardHeader><CardTitle>3. Ritmo de envio</CardTitle><CardDescription>Envio individual, em sequência, controlado pelo servidor. A fila pode continuar sem esta página aberta; status e resultados são atualizados pelo servidor e salvos no CRM.</CardDescription></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2"><Label htmlFor="delay">Intervalo entre e-mails (segundos)</Label><Input id="delay" type="number" min={30} max={600} value={delaySeconds} disabled={sending} onChange={(event) => setDelaySeconds(Math.max(30, Math.min(600, Number(event.target.value) || 60)))} /><p className="text-xs text-muted-foreground">Mínimo 30 segundos; recomendado começar com 60 segundos ou mais.</p></div>
