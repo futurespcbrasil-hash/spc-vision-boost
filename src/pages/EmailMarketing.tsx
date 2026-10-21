@@ -105,7 +105,7 @@ const EmailMarketing = () => {
   const connectGoogle = async () => {
     try {
       const headers = await authHeaders();
-      const response = await fetch(`${EDGE_BASE}?action=auth-url&include_gmail=true&return_path=%2Femail-marketing&redirect_uri=${encodeURIComponent(window.location.origin)}`, { headers });
+      const response = await fetch(`${EDGE_BASE}?action=auth-url&include_gmail=true&return_path=%2Fcampanhas%2Femail&redirect_uri=${encodeURIComponent(window.location.origin)}`, { headers });
       const data = await response.json();
       if (!response.ok || !data.url) throw new Error(data.error || "Não foi possível iniciar o login Google.");
       window.location.assign(data.url);
