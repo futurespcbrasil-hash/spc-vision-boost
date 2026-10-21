@@ -161,7 +161,7 @@ const AppSidebar = () => {
           </>
         )}
 
-        {canAccessModule('agenda') && (
+        {canAccessModule('campaigns') && (
           <>
             <button
               onClick={() => setCampaignsOpen(!campaignsOpen)}
