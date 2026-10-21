@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
-  Mail, LogIn, LogOut, Upload, ImagePlus, Eye, Send, Pause, Play, RotateCcw,
-  CheckCircle2, AlertCircle, FileSpreadsheet, Users, Clock, Trash2, Loader2
+  Mail, LogIn, Upload, ImagePlus, Eye, Send, Pause, Play, RotateCcw,
+  CheckCircle2, AlertCircle, FileSpreadsheet, Clock, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -111,18 +111,6 @@ const EmailMarketing = () => {
       window.location.assign(data.url);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao conectar Google.");
-    }
-  };
-
-  const disconnectGoogle = async () => {
-    try {
-      const headers = await authHeaders();
-      const response = await fetch(`${EDGE_BASE}?action=disconnect`, { method: "POST", headers });
-      if (!response.ok) throw new Error("Não foi possível desconectar a conta Google.");
-      setGoogleConnected(false);
-      toast.success("Conta Google desconectada do CRM.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao desconectar.");
     }
   };
 
@@ -285,7 +273,7 @@ const EmailMarketing = () => {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => void checkGoogle(true)} disabled={checkingGoogle}><RotateCcw className="h-4 w-4 mr-2" /> Verificar Gmail</Button>
           {googleConnected ? (
-            <Button variant="outline" onClick={() => void disconnectGoogle()}><LogOut className="h-4 w-4 mr-2" /> Desconectar Google</Button>
+            <Button variant="outline" onClick={() => void connectGoogle()}><RotateCcw className="h-4 w-4 mr-2" /> Reconectar Google</Button>
           ) : (
             <Button onClick={() => void connectGoogle()} disabled={checkingGoogle}><LogIn className="h-4 w-4 mr-2" /> Entrar com Google</Button>
           )}
