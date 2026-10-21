@@ -295,6 +295,83 @@ const Suporte = () => {
           </div>
         </section>
 
+        <section aria-labelledby="rustdesk-public-title" className="relative mx-auto w-full max-w-6xl border-t border-white/10 px-0 py-10 sm:py-14">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(124,58,237,0.10),transparent_60%)]" />
+          <div className="relative mx-auto max-w-4xl">
+            <div className="mx-auto mb-8 max-w-2xl text-center">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-300/10 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-violet-100">
+                RUSTDESK · SERVIDORES PÚBLICOS
+              </div>
+              <h2 id="rustdesk-public-title" className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                Prefere usar o RustDesk?
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
+                Você também pode baixar o RustDesk oficial. Basta instalar, abrir o programa e informar à equipe da Future o ID que aparece na tela. Não precisa configurar servidor ou chave.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card className="border-violet-300/40 bg-white text-slate-900">
+                <CardHeader className="pb-3 pt-5">
+                  <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+                    <Monitor size={23} />
+                  </div>
+                  <CardTitle className="text-lg">Windows 64 bits</CardTitle>
+                  <CardDescription className="text-slate-600">Para a maioria dos computadores atuais.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DownloadButton href="https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86_64.exe">Baixar RustDesk oficial</DownloadButton>
+                </CardContent>
+              </Card>
+
+              <Card className="border-white/10 bg-white/[0.06] text-white">
+                <CardHeader className="pb-3 pt-5">
+                  <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-slate-100">
+                    <Laptop size={23} />
+                  </div>
+                  <CardTitle className="text-lg text-white">Windows 32 bits</CardTitle>
+                  <CardDescription className="text-slate-300">Versão oficial legada para computadores compatíveis.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DownloadButton href="https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86-sciter.exe">Baixar RustDesk 32 bits</DownloadButton>
+                </CardContent>
+              </Card>
+
+              <Card className="border-white/10 bg-white/[0.06] text-white">
+                <CardHeader className="pb-3 pt-5">
+                  <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-slate-100">
+                    <Laptop size={23} />
+                  </div>
+                  <CardTitle className="text-lg text-white">Apple macOS</CardTitle>
+                  <CardDescription className="text-slate-300">Escolha o instalador correto para Mac Intel ou Apple Silicon.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DownloadButton href="https://github.com/rustdesk/rustdesk/releases/latest">Ver downloads oficiais para Mac</DownloadButton>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.06] p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <ShieldCheck size={21} className="mt-0.5 shrink-0 text-emerald-200" />
+                <div>
+                  <h3 className="font-semibold text-emerald-100">Acesso autorizado por você</h3>
+                  <p className="mt-1 text-sm leading-6 text-slate-300">
+                    Depois de abrir o RustDesk, informe o ID à pessoa da Future que está atendendo você. Confira a solicitação e autorize somente se reconhecer o atendimento. Não compartilhe senhas permanentes.
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">
+                    Esta opção usa os servidores públicos do RustDesk. O RustDesk não é integrado ao cadastro ou ao controle de sessões do CRM da Future; o suporte é iniciado pelo ID informado pelo cliente.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-5 text-center text-xs text-slate-500">
+              Downloads oficiais do projeto RustDesk. <a href="https://rustdesk.com/" target="_blank" rel="noopener noreferrer" className="text-violet-200 underline underline-offset-4 hover:text-white">Site oficial</a>
+            </p>
+          </div>
+        </section>
+
         <footer className="border-t border-white/10 pt-5 text-center text-xs text-slate-500">
           © {new Date().getFullYear()} Future Soluções <span className="mx-1.5 text-slate-700">•</span> Future Remote
         </footer>
