@@ -51,6 +51,13 @@ const makeHtml = (message: string, imageData?: string, buttons: CampaignButton[]
 };
 
 const EmailMarketing = () => {
+  const [campaignName, setCampaignName] = useState("Nova campanha");
+  const [campaignId, setCampaignId] = useState<string | null>(null);
+  const [savedCampaigns, setSavedCampaigns] = useState<any[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+  const [savingCampaign, setSavingCampaign] = useState(false);
+  const [campaignStatus, setCampaignStatus] = useState("draft");
+  const [loadingCampaign, setLoadingCampaign] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -80,6 +87,122 @@ const EmailMarketing = () => {
     const today = new Date().toLocaleDateString("en-CA");
     return logs.filter((log) => log.status === "sent" && new Date(log.at).toLocaleDateString("en-CA") === today).length;
   }, [logs]);
+
+  const db = supabase as any;
+
+  const refreshSavedCampaigns = useCallback(async () => {
+    setLoadingCampaigns(true);
+    try {
+      const { data, error } = await db.from("email_marketing_campaigns")
+        .select("id,name,status,updated_at,contacts,logs")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      setSavedCampaigns(data || []);
+    } catch (error) {
+      console.error("Falha ao carregar campanhas salvas", error);
+      toast.error("Não foi possível carregar as campanhas salvas.");
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  }, []);
+
+  useEffect(() => { void refreshSavedCampaigns(); }, [refreshSavedCampaigns]);
+
+  const persistCampaign = useCallback(async (options: {
+    createIfMissing?: boolean; status?: string; name?: string;
+    contacts?: Contact[]; logs?: SendLog[];
+  } = {}, showToast = false) => {
+    setSavingCampaign(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sua sessão do CRM expirou. Entre novamente.");
+      const payload = {
+        user_id: user.id,
+        name: (options.name ?? campaignName).trim() || "Campanha sem nome",
+        status: options.status ?? campaignStatus,
+        subject, message,
+        image_data: imageData || null,
+        image_name: imageName || null,
+        image_mime_type: imageMimeType || null,
+        campaign_buttons: campaignButtons,
+        contacts: options.contacts ?? contacts,
+        logs: options.logs ?? logs,
+        delay_seconds: delaySeconds,
+        daily_limit: dailyLimit,
+        updated_at: new Date().toISOString(),
+      };
+      let error: any = null;
+      if (campaignId && !options.createIfMissing) {
+        ({ error } = await db.from("email_marketing_campaigns").update(payload).eq("id", campaignId));
+      } else {
+        const { data, error: insertError } = await db.from("email_marketing_campaigns")
+          .insert(payload).select("id").single();
+        error = insertError;
+        if (!error && data?.id) setCampaignId(data.id);
+      }
+      if (error) throw error;
+      if (options.status) setCampaignStatus(options.status);
+      await refreshSavedCampaigns();
+      if (showToast) toast.success("Campanha salva no CRM.");
+      return true;
+    } catch (error) {
+      console.error("Falha ao salvar campanha", error);
+      if (showToast) toast.error(error instanceof Error ? error.message : "Não foi possível salvar a campanha.");
+      return false;
+    } finally {
+      setSavingCampaign(false);
+    }
+  }, [campaignName, campaignStatus, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, logs, delaySeconds, dailyLimit, campaignId, refreshSavedCampaigns]);
+
+  const openSavedCampaign = async (id: string) => {
+    setLoadingCampaign(true);
+    try {
+      const { data, error } = await db.from("email_marketing_campaigns").select("*").eq("id", id).single();
+      if (error) throw error;
+      setCampaignId(data.id);
+      setCampaignName(data.name || "Campanha sem nome");
+      setCampaignStatus(data.status || "draft");
+      setSubject(data.subject || "");
+      setMessage(data.message || "");
+      setImageData(data.image_data || "");
+      setImageName(data.image_name || "");
+      setImageMimeType(data.image_mime_type || "");
+      setCampaignButtons(Array.isArray(data.campaign_buttons) ? data.campaign_buttons : []);
+      const restoredContacts = Array.isArray(data.contacts) ? data.contacts : [];
+      const restoredLogs = Array.isArray(data.logs) ? data.logs : [];
+      setContacts(restoredContacts);
+      setLogs(restoredLogs);
+      setSentEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email))] as string[]);
+      setFailedEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email))] as string[]);
+      setFileName("Lista salva na campanha");
+      setDelaySeconds(data.delay_seconds || 60);
+      setDailyLimit(data.daily_limit || 100);
+      setProgress(restoredContacts.length ? Math.round((restoredContacts.filter((contact: Contact) => restoredLogs.some((log: SendLog) => log.email === contact.email && log.status === "sent")).length / restoredContacts.length) * 100) : 0);
+      setPreviewOpen(false);
+      toast.success(`Campanha "${data.name}" carregada.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível abrir a campanha.");
+    } finally {
+      setLoadingCampaign(false);
+    }
+  };
+
+  const newCampaign = () => {
+    if (sending) return;
+    setCampaignId(null);
+    setCampaignName(`Campanha ${new Date().toLocaleString("pt-BR")}`);
+    setCampaignStatus("draft");
+    setContacts([]); setFileName(""); setLogs([]); setSentEmails([]); setFailedEmails([]);
+    setProgress(0); setCurrentEmail(""); setImageData(""); setImageName(""); setImageMimeType("");
+    setCampaignButtons([]); setSubject("Conheça o emissor fiscal da Future Soluções"); setMessage(DEFAULT_MESSAGE);
+    setPreviewOpen(false);
+  };
+
+  useEffect(() => {
+    if (!campaignId || loadingCampaign || loadingCampaigns || !contacts.length) return;
+    const timer = window.setTimeout(() => { void persistCampaign({}, false); }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [campaignId, loadingCampaign, loadingCampaigns, campaignName, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, logs, delaySeconds, dailyLimit, campaignStatus, persistCampaign]);
 
   const authHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -158,7 +281,13 @@ const EmailMarketing = () => {
       setSentEmails([]);
       setFailedEmails([]);
       setProgress(0);
-      toast.success(`${imported.length} e-mails válidos importados e selecionados.`);
+      const suggestedName = file.name.replace(/\\.(xlsx|xls|csv)$/i, "").trim() || `Campanha ${new Date().toLocaleString("pt-BR")}`;
+      setCampaignId(null);
+      setCampaignName(suggestedName);
+      setCampaignStatus("draft");
+      const saved = await persistCampaign({ createIfMissing: !campaignId, status: "draft", name: suggestedName, contacts: imported, logs: [] }, false);
+      if (!saved) toast.error("A lista foi carregada, mas não foi possível salvar a campanha. Tente Salvar campanha.");
+      else toast.success(`${imported.length} e-mails importados. Campanha salva no CRM.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível ler a planilha.");
     }
@@ -189,21 +318,31 @@ const EmailMarketing = () => {
   const startSending = async () => {
     if (!googleConnected && !(await checkGoogle(true))) return;
     if (!subject.trim() || !message.trim()) { toast.error("Preencha o assunto e a mensagem."); return; }
-    const invalidButton = campaignButtons.find((button) => button.kind === "whatsapp" ? button.target.replace(/\D/g, "").length < 8 : !/^https?:\/\//i.test(button.target.trim()));
+    const invalidButton = campaignButtons.find((button) => button.kind === "whatsapp" ? button.target.replace(/\\D/g, "").length < 8 : !/^https?:\\/\\//i.test(button.target.trim()));
     if (invalidButton) { toast.error(invalidButton.kind === "whatsapp" ? "Informe o telefone do WhatsApp com DDI e DDD." : "Informe uma URL válida começando com https:// ou http://."); return; }
     if (!selectedContacts.length) { toast.error("Selecione pelo menos um e-mail."); return; }
     const alreadySent = new Set(sentEmails);
     const queue = selectedContacts.filter((contact) => !alreadySent.has(contact.email));
-    if (!queue.length) { toast.info("Todos os e-mails selecionados já constam como enviados nesta campanha."); return; }
-    if (queue.length + sentToday > dailyLimit) {
-      toast.error(`A fila tem ${queue.length} e-mails pendentes e hoje já foram enviados ${sentToday} nesta tela. Reduza a seleção para respeitar o limite de ${dailyLimit}/dia.`);
+    if (!queue.length) {
+      setCampaignStatus("completed");
+      await persistCampaign({ status: "completed" });
+      toast.info("Todos os e-mails selecionados já constam como enviados nesta campanha.");
       return;
     }
+    if (queue.length + sentToday > dailyLimit) {
+      toast.error(`A fila tem ${queue.length} e-mails pendentes e hoje já foram enviados ${sentToday} nesta campanha. Reduza a seleção para respeitar o limite de ${dailyLimit}/dia.`);
+      return;
+    }
+    const initiallySaved = await persistCampaign({ status: "sending" }, false);
+    if (!initiallySaved) { toast.error("Não foi possível salvar a campanha antes do envio. Nenhum e-mail foi enviado."); return; }
     stopRef.current = false;
     pauseRef.current = false;
     setPaused(false);
     setSending(true);
     let done = 0;
+    let workingLogs = [...logs];
+    let workingSent = [...sentEmails];
+    let hadFatalAuthError = false;
     try {
       for (const contact of queue) {
         if (stopRef.current) break;
@@ -217,28 +356,34 @@ const EmailMarketing = () => {
           const response = await fetch(`${EDGE_BASE}?action=send-email`, {
             method: "POST",
             headers,
-            body: JSON.stringify({
-              to: contact.email, subject: subject.trim(), html,
-              imageBase64, imageMimeType, imageName,
-            }),
+            body: JSON.stringify({ to: contact.email, subject: subject.trim(), html, imageBase64, imageMimeType, imageName }),
           });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || `Falha no envio (${response.status})`);
           const log: SendLog = { email: contact.email, status: "sent", message: result.message || "Enviado", at: new Date().toISOString() };
-          setLogs((previous) => [log, ...previous]);
-          setSentEmails((previous) => [...new Set([...previous, contact.email])]);
+          workingLogs = [log, ...workingLogs];
+          workingSent = [...new Set([...workingSent, contact.email])];
+          setLogs(workingLogs);
+          setSentEmails(workingSent);
         } catch (error) {
           const detail = error instanceof Error ? error.message : "Erro de envio";
           const log: SendLog = { email: contact.email, status: "error", message: detail, at: new Date().toISOString() };
-          setLogs((previous) => [log, ...previous]);
+          workingLogs = [log, ...workingLogs];
+          setLogs(workingLogs);
           setFailedEmails((previous) => [...new Set([...previous, contact.email])]);
           if (/insufficient|scope|permission|403/i.test(detail)) {
-            toast.error("O Google não autorizou o envio pelo Gmail. Clique em Entrar com Google novamente para conceder a permissão de envio.");
-            break;
+            toast.error("O Google não autorizou o envio pelo Gmail. Reconecte o Google e retome a campanha para enviar os pendentes.");
+            hadFatalAuthError = true;
           }
         }
         done += 1;
         setProgress(Math.round((done / queue.length) * 100));
+        const sentCount = workingSent.filter((email) => selectedContacts.some((contact) => contact.email === email)).length;
+        const allDone = selectedContacts.every((contact) => workingSent.includes(contact.email));
+        const nextStatus = allDone ? "completed" : "draft";
+        const persisted = await persistCampaign({ status: nextStatus, logs: workingLogs, contacts }, false);
+        if (!persisted) toast.error("O envio ocorreu, mas o histórico não foi salvo. Não atualize a página até tentar novamente.");
+        if (hadFatalAuthError) break;
         if (!stopRef.current && done < queue.length) {
           let remaining = Math.max(30, Math.min(600, Number(delaySeconds) || 60));
           while (remaining > 0 && !stopRef.current) {
@@ -254,25 +399,39 @@ const EmailMarketing = () => {
       setPaused(false);
       setCurrentEmail("");
       pauseRef.current = false;
-      if (stopRef.current) toast.info("Envio interrompido. Os resultados já registrados foram mantidos.");
-      else toast.success("Fila de envio finalizada. Confira os resultados abaixo.");
+      const allSelectedSent = selectedContacts.every((contact) => workingSent.includes(contact.email));
+      const finalStatus = allSelectedSent ? "completed" : stopRef.current ? "paused" : "draft";
+      setCampaignStatus(finalStatus);
+      await persistCampaign({ status: finalStatus, logs: workingLogs, contacts }, false);
+      if (stopRef.current) toast.info("Envio interrompido. A campanha e os resultados foram salvos; você pode retomá-la depois.");
+      else if (allSelectedSent) toast.success("Todos os e-mails da campanha foram enviados e a campanha foi concluída.");
+      else if (!hadFatalAuthError) toast.info("Envio pausado ou com pendências. A campanha ficou salva para continuar depois.");
     }
   };
 
   const pauseSending = () => {
     pauseRef.current = true;
     setPaused(true);
+    void persistCampaign({ status: "paused" });
   };
   const resumeSending = () => {
     pauseRef.current = false;
     setPaused(false);
+    void persistCampaign({ status: "sending" });
   };
   const stopSending = () => { stopRef.current = true; pauseRef.current = false; setPaused(false); };
   const clearCampaign = () => {
     if (sending) return;
-    setContacts([]); setFileName(""); setLogs([]); setSentEmails([]); setFailedEmails([]);
-    setProgress(0); setCurrentEmail(""); setImageData(""); setImageName(""); setImageMimeType(""); setCampaignButtons([]);
-    toast.success("Campanha limpa. Você pode importar uma nova lista.");
+    newCampaign();
+    toast.success("Editor limpo. As campanhas já salvas continuam disponíveis acima.");
+  };
+  const finishCampaign = async () => {
+    if (sending) return;
+    const allSent = selectedContacts.length > 0 && selectedContacts.every((contact) => sentEmails.includes(contact.email));
+    const status = allSent ? "completed" : "paused";
+    setCampaignStatus(status);
+    const ok = await persistCampaign({ status }, true);
+    if (ok && !allSent) toast.info("Campanha salva com pendências. Abra-a quando quiser enviar os e-mails restantes.");
   };
 
   return (
@@ -291,6 +450,44 @@ const EmailMarketing = () => {
           )}
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Campanhas salvas</CardTitle>
+          <CardDescription>As listas, mensagens e resultados ficam guardados no CRM. Abra uma campanha para conferir os enviados e retomar os pendentes.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex-1 space-y-1"><Label htmlFor="campaign-name">Nome da campanha atual</Label><Input id="campaign-name" value={campaignName} maxLength={120} disabled={sending} onChange={(event) => setCampaignName(event.target.value)} placeholder="Ex.: Emissor fiscal - CNPJJá outubro" /></div>
+            <div className="flex items-end gap-2">
+              <Button variant="outline" onClick={() => void persistCampaign({ createIfMissing: !campaignId }, true)} disabled={savingCampaign || sending || !contacts.length}>{savingCampaign ? "Salvando..." : "Salvar campanha"}</Button>
+              <Button onClick={newCampaign} disabled={sending}>Nova campanha</Button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Badge variant={campaignStatus === "completed" ? "default" : "secondary"}>{campaignStatus === "completed" ? "Concluída" : campaignStatus === "sending" ? "Em envio" : campaignStatus === "paused" ? "Pausada / com pendências" : "Rascunho / com pendências"}</Badge>
+            {savingCampaign && <span>Salvando alterações…</span>}
+          </div>
+          {loadingCampaigns ? <p className="text-sm text-muted-foreground">Carregando campanhas…</p> : savedCampaigns.length ? (
+            <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted"><tr><th className="p-2 text-left">Campanha</th><th className="p-2 text-left">Situação</th><th className="p-2 text-right">Enviados</th><th className="p-2 text-right">Falhas</th><th className="p-2 text-right">Pendentes</th><th className="p-2 text-left">Atualizada</th><th className="p-2">Ação</th></tr></thead><tbody>
+              {savedCampaigns.map((item) => {
+                const campaignContacts = Array.isArray(item.contacts) ? item.contacts : [];
+                const campaignLogs = Array.isArray(item.logs) ? item.logs : [];
+                const sent = new Set(campaignLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email));
+                const failed = new Set(campaignLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email));
+                const pending = campaignContacts.filter((contact: Contact) => contact.selected && !sent.has(contact.email)).length;
+                return <tr key={item.id} className="border-t">
+                  <td className="p-2 font-medium">{item.name}</td>
+                  <td className="p-2">{item.status === "completed" ? "Concluída" : item.status === "sending" ? "Em envio" : item.status === "paused" ? "Pausada" : "Com pendências"}</td>
+                  <td className="p-2 text-right">{sent.size}</td><td className="p-2 text-right">{failed.size}</td><td className="p-2 text-right">{pending}</td>
+                  <td className="p-2 whitespace-nowrap">{new Date(item.updated_at).toLocaleString("pt-BR")}</td>
+                  <td className="p-2 text-center"><Button size="sm" variant="outline" disabled={loadingCampaign || sending} onClick={() => void openSavedCampaign(item.id)}>{campaignId === item.id ? "Aberta" : "Abrir"}</Button></td>
+                </tr>;
+              })}
+            </tbody></table></div>
+          ) : <p className="text-sm text-muted-foreground">Nenhuma campanha salva ainda. Importe uma lista para criar a primeira.</p>}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -353,7 +550,7 @@ const EmailMarketing = () => {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>3. Ritmo de envio</CardTitle><CardDescription>Envio individual, em sequência, para controlar o ritmo e identificar falhas. A fila roda enquanto esta página permanecer aberta.</CardDescription></CardHeader>
+        <CardHeader><CardTitle>3. Ritmo de envio</CardTitle><CardDescription>Envio individual, em sequência, para controlar o ritmo e identificar falhas. A fila roda enquanto esta página permanecer aberta; cada resultado é salvo no CRM para você retomar depois.</CardDescription></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2"><Label htmlFor="delay">Intervalo entre e-mails (segundos)</Label><Input id="delay" type="number" min={30} max={600} value={delaySeconds} disabled={sending} onChange={(event) => setDelaySeconds(Math.max(30, Math.min(600, Number(event.target.value) || 60)))} /><p className="text-xs text-muted-foreground">Mínimo 30 segundos; recomendado começar com 60 segundos ou mais.</p></div>
@@ -364,13 +561,14 @@ const EmailMarketing = () => {
             <span className="text-sm text-muted-foreground">Hoje nesta tela: {sentToday} enviados</span>
           </div>
           {sending && <div className="space-y-2"><div className="flex justify-between text-sm"><span>{paused ? "Envio pausado" : "Enviando para"} {currentEmail}</span><span>{progress}%</span></div><Progress value={progress} /><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={paused ? resumeSending : pauseSending}>{paused ? <Play className="h-4 w-4 mr-2" /> : <Pause className="h-4 w-4 mr-2" />}{paused ? "Retomar" : "Pausar"}</Button><Button variant="destructive" onClick={stopSending}>Interromper fila</Button></div></div>}
-          {!sending && <Button onClick={() => void startSending()} disabled={!contacts.length || !selectedContacts.length || checkingGoogle}><Send className="h-4 w-4 mr-2" /> Iniciar envio para {selectedContacts.length} contatos</Button>}
+          {!sending && <Button onClick={() => void startSending()} disabled={!contacts.length || !selectedContacts.length || checkingGoogle || savingCampaign}><Send className="h-4 w-4 mr-2" /> {sentEmails.length ? "Retomar envio dos pendentes" : "Iniciar envio"} ({Math.max(0, selectedContacts.filter((contact) => !sentEmails.includes(contact.email)).length)} contatos)</Button>
+          <Button variant="outline" onClick={() => void finishCampaign()} disabled={!contacts.length || sending || savingCampaign}>Finalizar / salvar campanha</Button>}
           <p className="text-xs text-muted-foreground">Envie apenas para contatos com uma base legítima para contato comercial. Respeite pedidos de descadastro e não reenvie para quem pediu para não receber.</p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" /> 4. Resultado dos envios</CardTitle><CardDescription>O histórico desta sessão mostra sucesso e falhas por endereço.</CardDescription></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" /> 4. Resultado dos envios</CardTitle><CardDescription>O histórico fica salvo na campanha e continua disponível após sair ou atualizar a página.</CardDescription></CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border p-3"><div className="text-sm text-muted-foreground">Enviados</div><div className="text-2xl font-semibold text-green-600">{sentEmails.length}</div></div>
