@@ -3,6 +3,7 @@ export const USER_MODULES = [
   { key: 'crm', label: 'Funil comercial', description: 'Etapas e oportunidades' },
   { key: 'leads', label: 'Leads', description: 'Cadastro e acompanhamento de leads' },
   { key: 'agenda', label: 'Agenda', description: 'Compromissos e tarefas' },
+  { key: 'campaigns', label: 'Campanhas', description: 'E-mail Marketing e campanhas futuras de WhatsApp' },
   { key: 'relatorios', label: 'Relatórios', description: 'Relatórios comerciais' },
   { key: 'metas', label: 'Metas', description: 'Metas e desempenho' },
   { key: 'notas', label: 'Notas', description: 'Anotações internas' },
