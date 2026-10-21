@@ -561,8 +561,8 @@ const EmailMarketing = () => {
             <span className="text-sm text-muted-foreground">Hoje nesta tela: {sentToday} enviados</span>
           </div>
           {sending && <div className="space-y-2"><div className="flex justify-between text-sm"><span>{paused ? "Envio pausado" : "Enviando para"} {currentEmail}</span><span>{progress}%</span></div><Progress value={progress} /><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={paused ? resumeSending : pauseSending}>{paused ? <Play className="h-4 w-4 mr-2" /> : <Pause className="h-4 w-4 mr-2" />}{paused ? "Retomar" : "Pausar"}</Button><Button variant="destructive" onClick={stopSending}>Interromper fila</Button></div></div>}
-          {!sending && <Button onClick={() => void startSending()} disabled={!contacts.length || !selectedContacts.length || checkingGoogle || savingCampaign}><Send className="h-4 w-4 mr-2" /> {sentEmails.length ? "Retomar envio dos pendentes" : "Iniciar envio"} ({Math.max(0, selectedContacts.filter((contact) => !sentEmails.includes(contact.email)).length)} contatos)</Button>
-          <Button variant="outline" onClick={() => void finishCampaign()} disabled={!contacts.length || sending || savingCampaign}>Finalizar / salvar campanha</Button>}
+          {!sending && <Button onClick={() => void startSending()} disabled={!contacts.length || !selectedContacts.length || checkingGoogle || savingCampaign}><Send className="h-4 w-4 mr-2" /> {sentEmails.length ? "Retomar envio dos pendentes" : "Iniciar envio"} ({Math.max(0, selectedContacts.filter((contact) => !sentEmails.includes(contact.email)).length)} contatos)</Button>}
+          <Button variant="outline" onClick={() => void finishCampaign()} disabled={!contacts.length || sending || savingCampaign}>Finalizar / salvar campanha</Button>
           <p className="text-xs text-muted-foreground">Envie apenas para contatos com uma base legítima para contato comercial. Respeite pedidos de descadastro e não reenvie para quem pediu para não receber.</p>
         </CardContent>
       </Card>
