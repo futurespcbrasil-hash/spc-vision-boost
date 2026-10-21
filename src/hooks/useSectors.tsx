@@ -8,19 +8,12 @@ export interface Sector {
   userId?: string;
 }
 
-const DEFAULT_SECTORS: Sector[] = [
-  { key: 'spc', label: 'SPC Brasil' },
-  { key: 'comercial', label: 'Comercial' },
-];
+const STORAGE_KEY_PREFIX = 'active_sector_';
 
-const STORAGE_KEY = 'active_sector';
-
-const dedupeSectors = (rows: any[] = []): Sector[] => {
+const dedupeSectors = (rows: any[] = [], userId?: string): Sector[] => {
   const map = new Map<string, Sector>();
-  // defaults always first
-  DEFAULT_SECTORS.forEach(s => map.set(s.key, s));
   rows.forEach(row => {
-    if (!row?.key) return;
+    if (!row?.key || (userId && row.user_id !== userId)) return;
     if (!map.has(row.key)) {
       map.set(row.key, { key: row.key, label: row.label, userId: row.user_id });
     }
@@ -41,16 +34,14 @@ interface SectorsCtx {
 const SectorsContext = createContext<SectorsCtx | null>(null);
 
 export const SectorsProvider = ({ children }: { children: ReactNode }) => {
-  const [sectors, setSectors] = useState<Sector[]>(DEFAULT_SECTORS);
+  const [sectors, setSectors] = useState<Sector[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeSector, setActiveSectorState] = useState<string>(() => {
-    return localStorage.getItem(STORAGE_KEY) || 'spc';
-  });
+  const [activeSector, setActiveSectorState] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   const setActiveSector = (key: string) => {
     setActiveSectorState(key);
-    localStorage.setItem(STORAGE_KEY, key);
+    if (currentUserId) localStorage.setItem(`${STORAGE_KEY_PREFIX}${currentUserId}`, key);
   };
 
   const load = useCallback(async () => {
@@ -80,40 +71,25 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
     const userRole = roleData?.role || 'vendedor';
     const allowedSectors: string[] = roleData?.allowed_sectors || [];
 
-    const ownRows = (data || []).filter((r: any) => r.user_id === user.id);
-    let rowsForDisplay = data || [];
+    // Every profile sees only the sectors it owns. Do not auto-create SPC Brasil
+    // or Comercial: a sector appears only after that profile explicitly creates it.
+    const ownSectors = dedupeSectors(data || [], user.id);
+    setSectors(ownSectors);
 
-    if (ownRows.length === 0) {
-      const rows = DEFAULT_SECTORS.map((s, i) => ({
-        user_id: user.id, key: s.key, label: s.label, position: i,
-      }));
-      const { data: inserted, error: insertError } = await supabase.from('sectors').insert(rows).select();
-      if (insertError) {
-        console.error('Erro ao inicializar setores padrão', insertError);
-      }
-      rowsForDisplay = [...rowsForDisplay, ...(inserted || [])];
-    }
-
-    const all = dedupeSectors(rowsForDisplay);
-    // Sellers only see their own custom sectors plus the two built-in sectors.
-    // Managers retain their existing team-wide sector view.
-    const visible = userRole === 'gestor'
-      ? all
-      : all.filter(s => s.key === 'spc' || s.key === 'comercial' || s.userId === user.id);
-    const filtered = userRole === 'gestor' || allowedSectors.length === 0
-      ? visible
-      : visible.filter(s => s.key === 'spc' || s.key === 'comercial' || allowedSectors.includes(s.key));
-    setSectors(filtered);
+    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}${user.id}`);
+    setActiveSectorState(saved && ownSectors.some(s => s.key === saved) ? saved : (ownSectors[0]?.key || ''));
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Avoid carrying a sector selection from another profile's browser session.
+  // Keep the selected sector valid for this profile; empty means the profile has not created one yet.
   useEffect(() => {
-    if (!loading && sectors.length > 0 && !sectors.some(s => s.key === activeSector)) {
-      setActiveSector('spc');
+    if (loading) return;
+    if (activeSector && !sectors.some(s => s.key === activeSector)) {
+      setActiveSector(sectors[0]?.key || '');
     }
+    if (!activeSector && sectors.length > 0) setActiveSector(sectors[0].key);
   }, [activeSector, loading, sectors]);
 
   const addSector = async (label: string) => {
@@ -138,8 +114,9 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteSector = async (key: string) => {
-    if (key === 'spc' || key === 'comercial') {
-      toast({ title: 'Não permitido', description: 'Setores padrão não podem ser excluídos.', variant: 'destructive' });
+    const target = sectors.find(s => s.key === key);
+    if (!currentUserId || !target || target.userId !== currentUserId) {
+      toast({ title: 'Não permitido', description: 'Você só pode excluir setores criados pelo seu perfil.', variant: 'destructive' });
       return;
     }
     const { error } = await supabase.from('sectors').delete().eq('key', key).eq('user_id', currentUserId);
@@ -148,7 +125,10 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     setSectors(prev => prev.filter(s => s.key !== key));
-    if (activeSector === key) setActiveSector('spc');
+    if (activeSector === key) {
+      const next = sectors.find(s => s.key !== key)?.key || '';
+      setActiveSector(next);
+    }
   };
 
   return (
@@ -163,8 +143,8 @@ export const useSectors = (): SectorsCtx => {
   if (ctx) return ctx;
   // Fallback for components rendered outside provider — return safe defaults
   return {
-    sectors: DEFAULT_SECTORS,
-    activeSector: 'spc',
+    sectors: [],
+    activeSector: '',
     setActiveSector: () => {},
     addSector: async () => {},
     deleteSector: async () => {},
