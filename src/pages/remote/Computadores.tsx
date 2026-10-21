@@ -247,6 +247,38 @@ const Computadores = () => {
         </CardContent>
       </Card>
 
+      <Card className="border-violet-500/30 bg-violet-500/5">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-foreground">Página pública do RustDesk</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Link separado para clientes que vão usar o RustDesk, sem misturar com as instruções do MeshCentral.</p>
+            <a
+              href="https://crm.futuresolucoes.com.br/suporte-rustdesk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 block break-all text-sm font-medium text-primary underline underline-offset-4"
+            >
+              https://crm.futuresolucoes.com.br/suporte-rustdesk
+            </a>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button variant="outline" onClick={async () => {
+              try {
+                await navigator.clipboard.writeText('https://crm.futuresolucoes.com.br/suporte-rustdesk');
+                toast.success('Link público do RustDesk copiado');
+              } catch {
+                toast.error('Não foi possível copiar automaticamente. Selecione e copie o link exibido.');
+              }
+            }}>
+              <Copy size={16} className="mr-2" />Copiar link
+            </Button>
+            <Button onClick={() => window.open('https://crm.futuresolucoes.com.br/suporte-rustdesk', '_blank', 'noopener')}>
+              <ExternalLink size={16} className="mr-2" />Abrir página
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col gap-3 sm:flex-row">
