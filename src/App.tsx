@@ -64,6 +64,7 @@ const ComissoesIndicacoesSistema = lazyWithRetry(() => import("@/pages/Comissoes
 const CadastroVendedores = lazyWithRetry(() => import("@/pages/CadastroVendedores"));
 const Usuarios = lazyWithRetry(() => import("@/pages/Usuarios"));
 const Suporte = lazyWithRetry(() => import("@/pages/Suporte"));
+const SuporteRustDesk = lazyWithRetry(() => import("@/pages/SuporteRustDesk"));
 const FutureRemoteDashboard = lazyWithRetry(() => import("@/pages/remote/FutureRemoteDashboard"));
 const RemoteComputadores = lazyWithRetry(() => import("@/pages/remote/Computadores"));
 const RemoteHistorico = lazyWithRetry(() => import("@/pages/remote/Historico"));
@@ -160,6 +161,7 @@ const App = () => (
             <Routes>
               <Route path="/comparacao/:id" element={<PublicComparison />} />
               <Route path="/suporte" element={<Suporte />} />
+              <Route path="/suporte-rustdesk" element={<SuporteRustDesk />} />
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
           </Suspense>
