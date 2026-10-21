@@ -199,10 +199,10 @@ const EmailMarketing = () => {
   };
 
   useEffect(() => {
-    if (!campaignId || loadingCampaign || loadingCampaigns || !contacts.length) return;
+    if (!campaignId || loadingCampaign || !contacts.length) return;
     const timer = window.setTimeout(() => { void persistCampaign({}, false); }, 1200);
     return () => window.clearTimeout(timer);
-  }, [campaignId, loadingCampaign, loadingCampaigns, campaignName, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, logs, delaySeconds, dailyLimit, campaignStatus, persistCampaign]);
+  }, [campaignId, loadingCampaign, campaignName, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, logs, delaySeconds, dailyLimit, campaignStatus, persistCampaign]);
 
   const authHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -285,7 +285,7 @@ const EmailMarketing = () => {
       setCampaignId(null);
       setCampaignName(suggestedName);
       setCampaignStatus("draft");
-      const saved = await persistCampaign({ createIfMissing: !campaignId, status: "draft", name: suggestedName, contacts: imported, logs: [] }, false);
+      const saved = await persistCampaign({ createIfMissing: true, status: "draft", name: suggestedName, contacts: imported, logs: [] }, false);
       if (!saved) toast.error("A lista foi carregada, mas não foi possível salvar a campanha. Tente Salvar campanha.");
       else toast.success(`${imported.length} e-mails importados. Campanha salva no CRM.`);
     } catch (error) {
