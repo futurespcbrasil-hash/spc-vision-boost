@@ -180,13 +180,13 @@ const EmailMarketing = () => {
     if (!googleConnected && !(await checkGoogle(true))) return;
     if (!subject.trim() || !message.trim()) { toast.error("Preencha o assunto e a mensagem."); return; }
     if (!selectedContacts.length) { toast.error("Selecione pelo menos um e-mail."); return; }
-    if (selectedContacts.length + sentToday > dailyLimit) {
-      toast.error(`O limite configurado é ${dailyLimit} e-mails por dia. Hoje já foram enviados ${sentToday} nesta tela.`);
-      return;
-    }
     const alreadySent = new Set(sentEmails);
     const queue = selectedContacts.filter((contact) => !alreadySent.has(contact.email));
     if (!queue.length) { toast.info("Todos os e-mails selecionados já constam como enviados nesta campanha."); return; }
+    if (queue.length + sentToday > dailyLimit) {
+      toast.error(`A fila tem ${queue.length} e-mails pendentes e hoje já foram enviados ${sentToday} nesta tela. Reduza a seleção para respeitar o limite de ${dailyLimit}/dia.`);
+      return;
+    }
     stopRef.current = false;
     pauseRef.current = false;
     setPaused(false);
