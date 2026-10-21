@@ -94,7 +94,7 @@ const EmailMarketing = () => {
     setLoadingCampaigns(true);
     try {
       const { data, error } = await db.from("email_marketing_campaigns")
-        .select("id,name,status,updated_at,contacts,logs")
+        .select("id,name,status,updated_at,contacts,logs,automation_enabled")
         .order("updated_at", { ascending: false });
       if (error) throw error;
       setSavedCampaigns(data || []);
@@ -162,6 +162,8 @@ const EmailMarketing = () => {
       setCampaignId(data.id);
       setCampaignName(data.name || "Campanha sem nome");
       setCampaignStatus(data.status || "draft");
+      setSending(data.status === "sending" && data.automation_enabled === true);
+      setCurrentEmail(data.last_worker_email || "");
       setSubject(data.subject || "");
       setMessage(data.message || "");
       setImageData(data.image_data || "");
@@ -197,6 +199,34 @@ const EmailMarketing = () => {
     setCampaignButtons([]); setSubject("Conheça o emissor fiscal da Future Soluções"); setMessage(DEFAULT_MESSAGE);
     setPreviewOpen(false);
   };
+
+  useEffect(() => {
+    if (!campaignId || !sending) return;
+    let active = true;
+    const poll = async () => {
+      const { data, error } = await db.from("email_marketing_campaigns")
+        .select("status,automation_enabled,logs,contacts,last_worker_email")
+        .eq("id", campaignId).maybeSingle();
+      if (!active || error || !data) return;
+      const nextLogs = Array.isArray(data.logs) ? data.logs : [];
+      const nextContacts = Array.isArray(data.contacts) ? data.contacts : [];
+      setLogs(nextLogs);
+      setContacts(nextContacts);
+      setSentEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email))] as string[]);
+      setFailedEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email))] as string[]);
+      setCurrentEmail(data.last_worker_email || "");
+      setCampaignStatus(data.status || "draft");
+      const isRunning = data.status === "sending" && data.automation_enabled === true;
+      if (!isRunning) {
+        setSending(false);
+        setPaused(data.status === "paused");
+      }
+      await refreshSavedCampaigns();
+    };
+    const interval = window.setInterval(() => { void poll(); }, 15000);
+    void poll();
+    return () => { active = false; window.clearInterval(interval); };
+  }, [campaignId, sending, db, refreshSavedCampaigns]);
 
   useEffect(() => {
     if (!campaignId || loadingCampaign || !contacts.length) return;
@@ -322,104 +352,56 @@ const EmailMarketing = () => {
     if (invalidButton) { toast.error(invalidButton.kind === "whatsapp" ? "Informe o telefone do WhatsApp com DDI e DDD." : "Informe uma URL válida começando com https:// ou http://."); return; }
     if (!selectedContacts.length) { toast.error("Selecione pelo menos um e-mail."); return; }
     const alreadySent = new Set(sentEmails);
-    const queue = selectedContacts.filter((contact) => !alreadySent.has(contact.email));
-    if (!queue.length) {
+    if (selectedContacts.every((contact) => alreadySent.has(contact.email))) {
       setCampaignStatus("completed");
-      await persistCampaign({ status: "completed" });
+      await persistCampaign({ status: "completed" }, false);
       toast.info("Todos os e-mails selecionados já constam como enviados nesta campanha.");
       return;
     }
-    if (queue.length + sentToday > dailyLimit) {
-      toast.error(`A fila tem ${queue.length} e-mails pendentes e hoje já foram enviados ${sentToday} nesta campanha. Reduza a seleção para respeitar o limite de ${dailyLimit}/dia.`);
-      return;
+    const retryLogs = logs.filter((log) => log.status !== "error");
+    const saved = await persistCampaign({ createIfMissing: !campaignId, status: "sending", logs: retryLogs }, false);
+    if (!saved) { toast.error("Não foi possível salvar a campanha antes de ativar o envio."); return; }
+    let activeId = campaignId;
+    if (!activeId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast.error("Sua sessão expirou. Entre novamente."); return; }
+      const { data: row, error } = await db.from("email_marketing_campaigns")
+        .select("id").eq("user_id", user.id).eq("name", campaignName.trim() || "Campanha sem nome")
+        .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+      if (error || !row?.id) { toast.error("A campanha foi salva, mas não consegui localizar seu registro para ativar o envio."); return; }
+      activeId = row.id;
+      setCampaignId(activeId);
     }
-    const initiallySaved = await persistCampaign({ status: "sending" }, false);
-    if (!initiallySaved) { toast.error("Não foi possível salvar a campanha antes do envio. Nenhum e-mail foi enviado."); return; }
-    stopRef.current = false;
-    pauseRef.current = false;
-    setPaused(false);
+    const { error: activationError } = await db.from("email_marketing_campaigns").update({
+      status: "sending", automation_enabled: true, next_send_at: new Date().toISOString(),
+      worker_lock_until: null, completed_at: null, logs: retryLogs, updated_at: new Date().toISOString(),
+    }).eq("id", activeId);
+    if (activationError) { toast.error("Não foi possível ativar o envio automático no servidor."); return; }
+    setLogs(retryLogs);
+    setFailedEmails([]);
+    setCampaignStatus("sending");
     setSending(true);
-    let done = 0;
-    let workingLogs = [...logs];
-    let workingSent = [...sentEmails];
-    let hadFatalAuthError = false;
-    try {
-      for (const contact of queue) {
-        if (stopRef.current) break;
-        await waitWhilePaused();
-        if (stopRef.current) break;
-        setCurrentEmail(contact.email);
-        try {
-          const headers = await authHeaders();
-          const imageBase64 = imageData ? imageData.substring(imageData.indexOf(",") + 1) : "";
-          const html = makeHtml(message, imageData ? "cid:campaign-image" : undefined, campaignButtons);
-          const response = await fetch(`${EDGE_BASE}?action=send-email`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ to: contact.email, subject: subject.trim(), html, imageBase64, imageMimeType, imageName }),
-          });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || `Falha no envio (${response.status})`);
-          const log: SendLog = { email: contact.email, status: "sent", message: result.message || "Enviado", at: new Date().toISOString() };
-          workingLogs = [log, ...workingLogs];
-          workingSent = [...new Set([...workingSent, contact.email])];
-          setLogs(workingLogs);
-          setSentEmails(workingSent);
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : "Erro de envio";
-          const log: SendLog = { email: contact.email, status: "error", message: detail, at: new Date().toISOString() };
-          workingLogs = [log, ...workingLogs];
-          setLogs(workingLogs);
-          setFailedEmails((previous) => [...new Set([...previous, contact.email])]);
-          if (/insufficient|scope|permission|403/i.test(detail)) {
-            toast.error("O Google não autorizou o envio pelo Gmail. Reconecte o Google e retome a campanha para enviar os pendentes.");
-            hadFatalAuthError = true;
-          }
-        }
-        done += 1;
-        setProgress(Math.round((done / queue.length) * 100));
-        const sentCount = workingSent.filter((email) => selectedContacts.some((contact) => contact.email === email)).length;
-        const allDone = selectedContacts.every((contact) => workingSent.includes(contact.email));
-        const nextStatus = allDone ? "completed" : "draft";
-        const persisted = await persistCampaign({ status: nextStatus, logs: workingLogs, contacts }, false);
-        if (!persisted) toast.error("O envio ocorreu, mas o histórico não foi salvo. Não atualize a página até tentar novamente.");
-        if (hadFatalAuthError) break;
-        if (!stopRef.current && done < queue.length) {
-          let remaining = Math.max(30, Math.min(600, Number(delaySeconds) || 60));
-          while (remaining > 0 && !stopRef.current) {
-            await waitWhilePaused();
-            if (stopRef.current) break;
-            await new Promise((resolve) => window.setTimeout(resolve, 1000));
-            remaining -= 1;
-          }
-        }
-      }
-    } finally {
-      setSending(false);
-      setPaused(false);
-      setCurrentEmail("");
-      pauseRef.current = false;
-      const allSelectedSent = selectedContacts.every((contact) => workingSent.includes(contact.email));
-      const finalStatus = allSelectedSent ? "completed" : stopRef.current ? "paused" : "draft";
-      setCampaignStatus(finalStatus);
-      await persistCampaign({ status: finalStatus, logs: workingLogs, contacts }, false);
-      if (stopRef.current) toast.info("Envio interrompido. A campanha e os resultados foram salvos; você pode retomá-la depois.");
-      else if (allSelectedSent) toast.success("Todos os e-mails da campanha foram enviados e a campanha foi concluída.");
-      else if (!hadFatalAuthError) toast.info("Envio pausado ou com pendências. A campanha ficou salva para continuar depois.");
-    }
+    setPaused(false);
+    await refreshSavedCampaigns();
+    toast.success("Envio automático ativado no servidor. Um e-mail será processado por vez, conforme o intervalo configurado, mesmo que você feche esta tela.");
   };
 
-  const pauseSending = () => {
-    pauseRef.current = true;
+  const pauseSending = async () => {
+    if (!campaignId) return;
+    const { error } = await db.from("email_marketing_campaigns").update({
+      status: "paused", automation_enabled: false, next_send_at: null, updated_at: new Date().toISOString(),
+    }).eq("id", campaignId);
+    if (error) { toast.error("Não foi possível pausar a campanha no servidor."); return; }
+    setCampaignStatus("paused");
+    setSending(false);
     setPaused(true);
-    void persistCampaign({ status: "paused" });
+    await refreshSavedCampaigns();
+    toast.info("Campanha pausada. O envio pode terminar a mensagem que já estava em andamento.");
   };
-  const resumeSending = () => {
-    pauseRef.current = false;
-    setPaused(false);
-    void persistCampaign({ status: "sending" });
-  };
-  const stopSending = () => { stopRef.current = true; pauseRef.current = false; setPaused(false); };
+
+  const resumeSending = async () => { await startSending(); };
+
+  const stopSending = async () => { await pauseSending(); };
   const clearCampaign = () => {
     if (sending) return;
     newCampaign();
