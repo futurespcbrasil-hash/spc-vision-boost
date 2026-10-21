@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
 
       const encodeBase64 = (value: string) => btoa(unescape(encodeURIComponent(value)));
       const encodeHeader = (value: string) => `=?UTF-8?B?${encodeBase64(value)}?=`;
-      const wrapBase64 = (value: string) => value.match(/.{1,76}/g)?.join("\\r\\n") || "";
+      const wrapBase64 = (value: string) => value.match(/.{1,76}/g)?.join("\r\n") || "";
       const altBoundary = "future-alt-" + crypto.randomUUID();
       const relatedBoundary = "future-related-" + crypto.randomUUID();
       const safeSubject = encodeHeader(subject);
