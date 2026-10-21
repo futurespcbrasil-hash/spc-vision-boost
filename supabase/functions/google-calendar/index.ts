@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
 
       return new Response(null, {
         status: 302,
-        headers: { ...corsHeaders, Location: `${redirectUri}/agenda?gcal=connected` },
+        headers: { ...corsHeaders, Location: `${redirectUri}${["/agenda", "/email-marketing"].includes(state.return_path) ? state.return_path : "/agenda"}?gcal=connected` },
       });
     }
 
@@ -217,12 +217,15 @@ Deno.serve(async (req) => {
     // Generate OAuth URL
     if (action === "auth-url") {
       const redirectUri = url.searchParams.get("redirect_uri") || url.origin;
-      const state = JSON.stringify({ user_id: userId, redirect_uri: redirectUri });
+      const requestedPath = url.searchParams.get("return_path") || "/agenda";
+      const returnPath = ["/agenda", "/email-marketing"].includes(requestedPath) ? requestedPath : "/agenda";
+      const includeGmail = url.searchParams.get("include_gmail") === "true";
+      const state = JSON.stringify({ user_id: userId, redirect_uri: redirectUri, return_path: returnPath });
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
       authUrl.searchParams.set("redirect_uri", `${SUPABASE_URL}/functions/v1/google-calendar?action=callback`);
       authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("scope", "https://www.googleapis.com/auth/calendar");
+      authUrl.searchParams.set("scope", ["https://www.googleapis.com/auth/calendar", ...(includeGmail ? ["https://www.googleapis.com/auth/gmail.send"] : [])].join(" "));
       authUrl.searchParams.set("access_type", "offline");
       authUrl.searchParams.set("prompt", "consent");
       authUrl.searchParams.set("state", btoa(state));
@@ -233,6 +236,137 @@ Deno.serve(async (req) => {
     }
 
     // (callback already handled above)
+
+    // Check Gmail send permission without exposing Google tokens to the browser.
+    if (action === "gmail-status") {
+      const accessToken = await getValidAccessToken(userId);
+      if (!accessToken) {
+        return new Response(JSON.stringify({ connected: false, error: "Conecte novamente sua conta Google." }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const profileResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+        headers: { Authorization: "Bearer " + accessToken },
+      });
+      const profile = await profileResponse.json().catch(() => ({}));
+      if (!profileResponse.ok) {
+        return new Response(JSON.stringify({
+          connected: false,
+          error: profile.error?.message || "O Gmail ainda não autorizou o envio. Clique em Entrar com Google e aceite a permissão de envio.",
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ connected: true, emailAddress: profile.emailAddress || "" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Send exactly one message per authenticated request; the UI controls the gradual queue.
+    if (action === "send-email" && req.method === "POST") {
+      const accessToken = await getValidAccessToken(userId);
+      if (!accessToken) {
+        return new Response(JSON.stringify({ error: "Conta Google desconectada. Entre com Google novamente." }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const body = await req.json();
+      const to = String(body.to || "").trim();
+      const subject = String(body.subject || "").trim();
+      let html = String(body.html || "");
+      const imageBase64 = String(body.imageBase64 || "");
+      const imageMimeType = String(body.imageMimeType || "image/png");
+      const imageName = String(body.imageName || "imagem-campanha.png").replace(/[\r\n"]/g, "_");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || !subject || !html) {
+        return new Response(JSON.stringify({ error: "Informe destinatário, assunto e mensagem válidos." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (subject.length > 180 || html.length > 250_000 || imageBase64.length > 6_000_000) {
+        return new Response(JSON.stringify({ error: "A mensagem ou imagem excede o tamanho permitido." }), {
+          status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (imageBase64 && !/^image\/(png|jpeg|gif|webp)$/.test(imageMimeType)) {
+        return new Response(JSON.stringify({ error: "Formato de imagem não permitido. Use PNG, JPG, GIF ou WebP." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const encodeBase64 = (value: string) => btoa(unescape(encodeURIComponent(value)));
+      const encodeHeader = (value: string) => `=?UTF-8?B?${encodeBase64(value)}?=`;
+      const wrapBase64 = (value: string) => value.replace(/.{1,76}/g, "    // Check connection status
+    if (action === "status") {\r\n");
+      const altBoundary = "future-alt-" + crypto.randomUUID();
+      const relatedBoundary = "future-related-" + crypto.randomUUID();
+      const safeSubject = encodeHeader(subject);
+      const textBody = html.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+
+      let mimeBody = "";
+      if (imageBase64) {
+        mimeBody = [
+          `--${relatedBoundary}`,
+          `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+          "",
+          `--${altBoundary}`,
+          "Content-Type: text/plain; charset=UTF-8",
+          "Content-Transfer-Encoding: base64",
+          "",
+          wrapBase64(encodeBase64(textBody)),
+          `--${altBoundary}`,
+          "Content-Type: text/html; charset=UTF-8",
+          "Content-Transfer-Encoding: base64",
+          "",
+          wrapBase64(encodeBase64(html)),
+          `--${altBoundary}--`,
+          `--${relatedBoundary}`,
+          `Content-Type: ${imageMimeType}; name="${imageName}"`,
+          `Content-Disposition: inline; filename="${imageName}"`,
+          "Content-Transfer-Encoding: base64",
+          "Content-ID: <campaign-image>",
+          "",
+          wrapBase64(imageBase64),
+          `--${relatedBoundary}--`,
+        ].join("\r\n");
+      } else {
+        mimeBody = [
+          `--${altBoundary}`,
+          "Content-Type: text/plain; charset=UTF-8",
+          "Content-Transfer-Encoding: base64",
+          "",
+          wrapBase64(encodeBase64(textBody)),
+          `--${altBoundary}`,
+          "Content-Type: text/html; charset=UTF-8",
+          "Content-Transfer-Encoding: base64",
+          "",
+          wrapBase64(encodeBase64(html)),
+          `--${altBoundary}--`,
+        ].join("\r\n");
+      }
+      const topBoundary = imageBase64 ? relatedBoundary : altBoundary;
+      const rawMessage = [
+        `To: ${to}`,
+        `Subject: ${safeSubject}`,
+        "MIME-Version: 1.0",
+        `Content-Type: ${imageBase64 ? "multipart/related" : "multipart/alternative"}; boundary="${topBoundary}"`,
+        "",
+        mimeBody,
+      ].join("\r\n");
+      const raw = encodeBase64(rawMessage).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      const gmailResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ raw }),
+      });
+      const result = await gmailResponse.json().catch(() => ({}));
+      if (!gmailResponse.ok) {
+        const detail = result.error?.message || "Falha ao enviar pelo Gmail.";
+        return new Response(JSON.stringify({ error: detail }), {
+          status: gmailResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, message: "E-mail enviado pelo Gmail.", messageId: result.id || null }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Check connection status
     if (action === "status") {
