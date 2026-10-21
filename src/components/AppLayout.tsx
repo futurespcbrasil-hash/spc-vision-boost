@@ -17,6 +17,7 @@ const moduleForPath = (pathname: string): string | null => {
   if (pathname.startsWith('/metas')) return 'metas';
   if (pathname.startsWith('/notas')) return 'notas';
   if (pathname.startsWith('/chat')) return 'chat';
+  if (pathname.startsWith('/campanhas')) return 'campaigns';
   if (pathname.startsWith('/consultas/cnpj-lote')) return 'consulta_cnpj_lote';
   if (pathname.startsWith('/consultas/sintegra')) return 'consulta_sintegra';
   if (pathname.startsWith('/consultas/cnpj')) return 'consulta_cnpj';
