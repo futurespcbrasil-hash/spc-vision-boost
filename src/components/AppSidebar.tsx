@@ -38,10 +38,7 @@ const AppSidebar = () => {
   const [finOpen, setFinOpen] = useState(location.pathname.startsWith('/financeiro'));
 
   const REMOTE_SUB = [
-    { to: '/future-remote', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'future_remote' },
-    { to: '/future-remote/computadores', icon: Monitor, label: 'Computadores', moduleKey: 'future_remote' },
-    { to: '/future-remote/historico', icon: History, label: 'Histórico', moduleKey: 'future_remote' },
-    { to: '/future-remote/configuracoes', icon: Cog, label: 'Configurações', moduleKey: 'future_remote' },
+    { to: '/future-remote', icon: LayoutDashboard, label: 'Suporte RustDesk', moduleKey: 'future_remote' },
   ];
 
   const CONSULTAS_SUB = [
