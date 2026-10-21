@@ -80,6 +80,9 @@ const EmailMarketing = () => {
   const [failedEmails, setFailedEmails] = useState<string[]>([]);
   const stopRef = useRef(false);
   const pauseRef = useRef(false);
+  const restoringCampaignRef = useRef(false);
+  const campaignRestoreAttemptedRef = useRef(false);
+  const CAMPAIGN_SESSION_KEY = "spc-email-marketing-active-campaign";
 
   const selectedContacts = useMemo(() => contacts.filter((contact) => contact.selected), [contacts]);
   const htmlPreview = useMemo(() => makeHtml(message, imageData || undefined, campaignButtons), [message, imageData, campaignButtons]);
@@ -107,6 +110,26 @@ const EmailMarketing = () => {
   }, []);
 
   useEffect(() => { void refreshSavedCampaigns(); }, [refreshSavedCampaigns]);
+
+  // Keep the active campaign identity across Chrome tab discards/reloads.
+  useEffect(() => {
+    if (campaignId) {
+      try { window.sessionStorage.setItem(CAMPAIGN_SESSION_KEY, campaignId); } catch { /* storage may be disabled */ }
+    } else if (!restoringCampaignRef.current) {
+      try { window.sessionStorage.removeItem(CAMPAIGN_SESSION_KEY); } catch { /* storage may be disabled */ }
+    }
+  }, [campaignId]);
+
+  // On a fresh mount, reopen the last campaign from the server rather than showing an empty editor.
+  useEffect(() => {
+    if (campaignRestoreAttemptedRef.current || loadingCampaigns) return;
+    campaignRestoreAttemptedRef.current = true;
+    let savedId: string | null = null;
+    try { savedId = window.sessionStorage.getItem(CAMPAIGN_SESSION_KEY); } catch { /* storage may be disabled */ }
+    if (!savedId) return;
+    restoringCampaignRef.current = true;
+    void openSavedCampaign(savedId).finally(() => { restoringCampaignRef.current = false; });
+  }, [loadingCampaigns]);
 
   const persistCampaign = useCallback(async (options: {
     createIfMissing?: boolean; status?: string; name?: string;
@@ -230,11 +253,18 @@ const EmailMarketing = () => {
 
   useEffect(() => {
     // Enquanto a fila do servidor está ativa, a tela nunca grava o estado de execução.
-    // No salvamento automático, status e logs são exclusivos do worker para evitar sobrescrita por estado React desatualizado.
-    if (!campaignId || loadingCampaign || sending || !contacts.length) return;
-    const timer = window.setTimeout(() => { void persistCampaign({ autoSave: true }, false); }, 1200);
+    // Status e logs da campanha em execução pertencem ao worker; o autosave só grava o editor.
+    if (loadingCampaign || savingCampaign || sending) return;
+    const hasEditorContent = contacts.length > 0 || imageData || campaignButtons.length > 0
+      || campaignName !== "Nova campanha"
+      || subject !== "Conheça o emissor fiscal da Future Soluções"
+      || message !== DEFAULT_MESSAGE;
+    if (!hasEditorContent) return;
+    const timer = window.setTimeout(() => {
+      void persistCampaign({ createIfMissing: !campaignId, autoSave: true, status: "draft" }, false);
+    }, 1200);
     return () => window.clearTimeout(timer);
-  }, [campaignId, loadingCampaign, sending, campaignName, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, delaySeconds, dailyLimit, persistCampaign]);
+  }, [campaignId, loadingCampaign, savingCampaign, sending, campaignName, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, delaySeconds, dailyLimit, persistCampaign]);
 
   const authHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
