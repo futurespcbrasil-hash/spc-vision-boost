@@ -73,7 +73,8 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
 
     // Every profile sees only the sectors it owns. Do not auto-create SPC Brasil
     // or Comercial: a sector appears only after that profile explicitly creates it.
-    const ownSectors = dedupeSectors(data || [], user.id);
+    // Keep the existing SPC Brasil sector for this profile, but never auto-show the generic Comercial sector.
+    const ownSectors = dedupeSectors(data || [], user.id).filter(s => s.key !== 'comercial');
     setSectors(ownSectors);
 
     const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}${user.id}`);
