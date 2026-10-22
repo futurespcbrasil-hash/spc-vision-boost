@@ -5,6 +5,7 @@ import MobileBottomNav from './MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { ShieldAlert } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 const moduleForPath = (pathname: string): string | null => {
   if (pathname.startsWith('/manual')) return 'manual';
@@ -68,6 +69,32 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
     window.addEventListener('focus', onFocus);
     return () => { active = false; window.removeEventListener('focus', onFocus); supabase.removeChannel(channel); document.title = baseTitle; };
   }, [user]);
+  // Global lead/chat assignment notifications remain available while navigating the CRM.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const channel = supabase.channel(`crm-assignment-notifications-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, payload => {
+        if (!active || location.pathname.startsWith('/whatsapp')) return;
+        const item = payload.new as { id: string; title?: string; body?: string; chat_id?: string | null };
+        toast({ title: item.title || 'Nova notificação', description: item.body || 'Você recebeu uma nova atribuição.' });
+        if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+          const notification = new Notification(item.title || 'Future Soluções', {
+            body: item.body || 'Você recebeu uma nova atribuição.',
+            icon: '/favicon.ico',
+            tag: `crm-notification-${item.id}`,
+          });
+          notification.onclick = () => {
+            window.focus();
+            window.location.href = item.chat_id ? '/whatsapp' : '/crm';
+            notification.close();
+          };
+        }
+      })
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [user, location.pathname]);
+
   const moduleKey = moduleForPath(location.pathname);
   // User administration is owner-only; all other routes require an explicit saved module permission.
   const allowed = moduleKey !== null
