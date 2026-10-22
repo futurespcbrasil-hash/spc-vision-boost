@@ -60,7 +60,7 @@ const CRMKanban = () => {
   useEffect(() => {
     let active = true;
     const loadTeamMembers = async () => {
-      const { data, error } = await supabase.from('profiles').select('user_id, display_name, email').order('display_name');
+      const { data, error } = await supabase.rpc('get_assignable_users');
       if (!error && data && active) setTeamMembers(data);
       if (error) console.error('Erro ao carregar responsáveis:', error);
     };
