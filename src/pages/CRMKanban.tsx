@@ -170,7 +170,7 @@ const CRMKanban = () => {
       toast({ title: 'Informe o nome do lead', variant: 'destructive' });
       return;
     }
-    await addLead({
+    const created = await addLead({
       id: '',
       userId: user?.id,
       assignedTo: newLeadAssignee || undefined,
@@ -189,6 +189,10 @@ const CRMKanban = () => {
       createdAt: new Date().toISOString().slice(0, 10),
       funnel,
     });
+    if (!created) {
+      toast({ title: 'Erro ao cadastrar lead', description: 'O banco de dados não confirmou o cadastro. Revise os dados e tente novamente.', variant: 'destructive' });
+      return;
+    }
     setShowAddLead(false);
     setNewLeadName('');
     setNewLeadCompany('');
