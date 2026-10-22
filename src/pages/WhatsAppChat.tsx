@@ -922,11 +922,44 @@ const WhatsAppChat = () => {
 
   const handleOpenStatusDialog = async () => {
     if (!selected) return;
-    if (!selected.lead_id) {
-      toast({ title: 'Contato ainda não está no Kanban', description: 'Use “Lead no Funil” para cadastrar e vincular este contato antes de alterar sua coluna.', variant: 'destructive' });
-      return;
+    let leadId = selected.lead_id || null;
+
+    // Legacy chats may predate lead_id; link only when the phone matches one unique lead.
+    if (!leadId) {
+      const { data: leadsByPhone, error: searchError } = await supabase.from('leads')
+        .select('id,phone,whatsapp,status,funnel');
+      if (searchError) {
+        toast({ title: 'Não foi possível localizar o lead', description: searchError.message, variant: 'destructive' });
+        return;
+      }
+      const digits = onlyDigits(selected.contact_number);
+      const matches = (leadsByPhone || []).filter((lead: any) => {
+        const numbers = [onlyDigits(lead.phone || ''), onlyDigits(lead.whatsapp || '')].filter(Boolean);
+        return numbers.some(number => number === digits || (number.length >= 10 && digits.length >= 10 && number.slice(-11) === digits.slice(-11)));
+      });
+      const uniqueMatches = Array.from(new Map(matches.map((lead: any) => [lead.id, lead])).values()) as any[];
+      if (uniqueMatches.length > 1) {
+        toast({ title: 'Vínculo ambíguo', description: 'Há mais de um lead com este telefone. Revise os cadastros antes de alterar o status.', variant: 'destructive' });
+        return;
+      }
+      if (uniqueMatches.length === 0) {
+        toast({ title: 'Contato ainda não está no Kanban', description: 'Use “Lead no Funil” para cadastrar este contato antes de alterar sua coluna.', variant: 'destructive' });
+        return;
+      }
+      const matchedLead = uniqueMatches[0];
+      const { error: linkError } = await (supabase as any).from('whatsapp_chats')
+        .update({ lead_id: matchedLead.id, funnel_stage: matchedLead.status })
+        .eq('id', selected.id);
+      if (linkError) {
+        toast({ title: 'Não foi possível vincular o contato', description: linkError.message, variant: 'destructive' });
+        return;
+      }
+      leadId = matchedLead.id;
+      setSelected(prev => prev?.id === selected.id ? { ...prev, lead_id: matchedLead.id, funnel_stage: matchedLead.status } : prev);
+      setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, lead_id: matchedLead.id, funnel_stage: matchedLead.status } : chat));
     }
-    const { data, error } = await supabase.from('leads').select('id,status,funnel').eq('id', selected.lead_id).maybeSingle();
+
+    const { data, error } = await supabase.from('leads').select('id,status,funnel').eq('id', leadId).maybeSingle();
     if (error || !data) {
       toast({ title: 'Não foi possível carregar o status do lead', description: error?.message || 'Confira se o contato está vinculado ao Kanban.', variant: 'destructive' });
       return;
