@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -19,6 +19,7 @@ type CRMNotification = {
 const CRMNotificationBell = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState<CRMNotification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -77,7 +78,7 @@ const CRMNotificationBell = () => {
     setItems(previous => previous.map(item => unreadIds.includes(item.id) ? { ...item, read_at: readAt } : item));
   };
 
-  if (!user) return null;
+  if (!user || location.pathname.startsWith('/whatsapp')) return null;
 
   return (
     <div className="fixed right-4 top-3 z-[60]">
