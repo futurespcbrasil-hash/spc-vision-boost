@@ -78,6 +78,11 @@ UPDATE public.whatsapp_chats c
 SET lead_id = candidates.lead_id
 FROM candidates
 WHERE c.id = candidates.chat_id;
+UPDATE public.whatsapp_chats c
+SET funnel_stage = l.status
+FROM public.leads l
+WHERE l.id = c.lead_id
+  AND (c.funnel_stage IS NULL OR c.funnel_stage = '');
 
 CREATE OR REPLACE FUNCTION public.set_whatsapp_chat_kanban_status(
   p_chat_id uuid,
