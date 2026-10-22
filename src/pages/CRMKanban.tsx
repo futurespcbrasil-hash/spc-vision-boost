@@ -89,7 +89,11 @@ const CRMKanban = () => {
         }
       }
     };
-    load();
+    void load();
+    const channel = supabase.channel(`kanban-stages-${funnel}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_stages', filter: `funnel=eq.${funnel}` }, () => { void load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [funnel]);
 
   useEffect(() => {
