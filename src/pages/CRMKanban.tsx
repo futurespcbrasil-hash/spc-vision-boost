@@ -160,7 +160,7 @@ const CRMKanban = () => {
     setCustomStages([]);
   }, [funnel]);
 
-  const allStages = funnel === 'spc' ? [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))] : customStages.map(s => ({ ...s, key: s.key as KanbanStage }));
+  const allStages = customStages.map(s => ({ ...s, key: s.key as KanbanStage }));
   // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
   const canManageCustomStage = (key: string) =>
     isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
@@ -236,8 +236,12 @@ const CRMKanban = () => {
       toast({ title: 'Apenas visualização', description: 'Você pode visualizar colunas de outros perfis, mas só pode excluir as permitidas pela sua função.', variant: 'destructive' });
       return;
     }
-    const fallback = (baseStages[0]?.key as KanbanStage) || ('lead_novo' as KanbanStage);
-    if (confirm('Excluir esta coluna? Os leads serão movidos para a primeira coluna.')) {
+    const fallback = allStages.find(stage => stage.key !== key)?.key as KanbanStage | undefined;
+    if (!fallback) {
+      toast({ title: 'Não é possível excluir a última coluna', description: 'O funil precisa manter pelo menos uma etapa.', variant: 'destructive' });
+      return;
+    }
+    if (confirm('Excluir esta coluna? Os leads serão movidos para a primeira coluna disponível.')) {
       leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, fallback));
       const { error } = await supabase.from('kanban_stages').delete().eq('key', key).eq('funnel', funnel);
       if (error) {
