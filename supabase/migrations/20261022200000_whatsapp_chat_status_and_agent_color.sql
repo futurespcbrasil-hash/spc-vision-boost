@@ -91,7 +91,6 @@ AS $$
 DECLARE
   v_chat public.whatsapp_chats%ROWTYPE;
   v_lead public.leads%ROWTYPE;
-  v_owner uuid;
   v_user uuid := auth.uid();
   v_stage text := trim(COALESCE(p_stage, ''));
 BEGIN
@@ -102,8 +101,8 @@ BEGIN
     RAISE EXCEPTION 'Selecione uma coluna válida do Kanban.';
   END IF;
 
-  SELECT c.*, i.owner_id
-    INTO v_chat, v_owner
+  SELECT c.*
+    INTO v_chat
   FROM public.whatsapp_chats c
   JOIN public.whatsapp_instances i ON i.id = c.instance_id
   WHERE c.id = p_chat_id
