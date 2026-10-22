@@ -200,7 +200,7 @@ const WhatsAppChat = () => {
   useEffect(() => {
     let active = true;
     const loadAssignees = async () => {
-      const { data, error } = await supabase.from('profiles').select('user_id, display_name, email').order('display_name');
+      const { data, error } = await supabase.rpc('get_assignable_users');
       if (!error && data && active) setLeadAssignees(data);
       if (error) console.warn('[WhatsApp] Não foi possível carregar responsáveis:', error.message);
     };
