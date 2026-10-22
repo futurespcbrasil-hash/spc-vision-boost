@@ -18,6 +18,7 @@ const CRMKanban = () => {
   const { role, user, loading: authLoading } = useAuth();
   const { activeSector, sectors } = useSectors();
   const isGestor = !authLoading && role === 'gestor';
+  const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
   const funnel = activeSector;
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead, refreshLeads } = useAppState();
@@ -53,7 +54,7 @@ const CRMKanban = () => {
   const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
+  const canEditLead = (lead: Lead) => isOwner || isGestor || !lead.userId || lead.userId === user?.id;
 
   useEffect(() => {
     let active = true;
@@ -160,7 +161,6 @@ const CRMKanban = () => {
 
   const allStages = funnel === 'spc' ? [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))] : customStages.map(s => ({ ...s, key: s.key as KanbanStage }));
   // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
-  const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
   const canManageCustomStage = (key: string) =>
     isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
 
