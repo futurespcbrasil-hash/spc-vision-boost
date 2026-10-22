@@ -74,6 +74,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     Promise.all([fetchLeads(), fetchSchedule()]).finally(() => setLoading(false));
   }, [fetchLeads, fetchSchedule]);
 
+  // Keep all open Kanban/Leads screens synchronized across profiles without a full-page reload.
+  useEffect(() => {
+    let timer: number | undefined;
+    const channel = supabase.channel('shared-crm-leads-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(() => { void fetchLeads(); }, 180);
+      })
+      .subscribe();
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchLeads]);
+
   const moveLeadToStage = async (leadId: string, stage: KanbanStage) => {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: stage } : l));
     await supabase.from('leads').update({ status: stage }).eq('id', leadId);
