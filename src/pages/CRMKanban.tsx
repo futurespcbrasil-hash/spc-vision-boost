@@ -802,11 +802,11 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       {/* Lead age and last interaction */}
       {(() => {
         const interactions = Array.isArray(lead.interactions) ? lead.interactions : [];
-        const latestInteraction = Math.max(
+        const interactionTimes = [
           lead.lastInteractionAt ? new Date(lead.lastInteractionAt).getTime() : 0,
-          ...interactions.map(item => item?.date ? new Date(item.date).getTime() : 0)
-        )
-          .filter(value => Number.isFinite(value) && value > 0)[0];
+          ...interactions.map(item => item?.date ? new Date(item.date).getTime() : 0),
+        ].filter(value => Number.isFinite(value) && value > 0);
+        const latestInteraction = interactionTimes.length ? Math.max(...interactionTimes) : 0;
         const created = lead.createdAt ? new Date(lead.createdAt).getTime() : 0;
         const reference = latestInteraction > 0 ? latestInteraction : created;
         const daysSince = reference ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : null;
