@@ -37,6 +37,8 @@ export const waha = {
   registerWebhook: (instance_id: string) => invoke('register_webhook', { instance_id }),
   sendText: (instance_id: string, number: string, text: string) =>
     invoke('send_text', { instance_id, number, text }),
+  checkNumber: (instance_id: string, number: string) =>
+    invoke('check_number', { instance_id, number }),
   sendMedia: (instance_id: string, number: string, media_url: string, media_type: string, caption?: string, media_mime?: string, filename?: string) =>
     invoke('send_media', { instance_id, number, media_url, media_type, caption, media_mime, filename }),
   getChats: (instance_id: string) => invoke('get_chats', { instance_id }),

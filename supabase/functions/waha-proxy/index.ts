@@ -256,6 +256,20 @@ Deno.serve(async (req: Request) => {
         }] } });
         return json({ success: true });
       }
+      case "check_number": {
+        const inst = await getOwnedInstance();
+        const digits = number.replace(/\D/g, "");
+        if (digits.length < 10 || digits.length > 15) return json({ error: "Informe um número válido com DDD." }, 400);
+        const normalized = digits.startsWith("55") ? digits : `55${digits}`;
+        const params = new URLSearchParams({ phone: normalized, session: inst.provider_instance_name });
+        const result = await callWaha("/api/contacts/check-exists?" + params.toString());
+        return json({
+          number: normalized,
+          exists: result?.numberExists === true,
+          chat_id: typeof result?.chatId === "string" ? result.chatId : null,
+          result,
+        });
+      }
       case "send_text": {
         const inst = await getOwnedInstance();
         if (!number || typeof body.text !== "string" || !body.text.trim()) return json({ error: "Número e texto são obrigatórios." }, 400);
