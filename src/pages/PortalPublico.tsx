@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, BookOpen, Search, Copy, Check, ShieldCheck,
-  FileText, Building2, ReceiptText, MonitorSmartphone, CircleHelp,
+  FileText, Building2, MonitorSmartphone,
   ChevronDown, ExternalLink, Sparkles, BadgeCheck, Menu, X
 } from 'lucide-react';
 
