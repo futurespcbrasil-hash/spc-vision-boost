@@ -940,6 +940,16 @@ const WhatsAppChat = () => {
     try {
       const { error } = await (supabase as any).rpc('take_over_whatsapp_chat', { p_chat_id: selected.id });
       if (error) throw error;
+      if (selected.lead_id) {
+        const { error: leadAssignmentError } = await supabase.rpc('assign_lead_to_user', {
+          p_lead_id: selected.lead_id,
+          p_assignee: user.id,
+        });
+        if (leadAssignmentError) {
+          toast({ title: 'Atendimento assumido, mas o lead não foi sincronizado', description: leadAssignmentError.message, variant: 'destructive' });
+          return;
+        }
+      }
       setSelected(prev => prev?.id === selected.id ? { ...prev, assigned_to: user.id } : prev);
       setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: user.id } : chat));
       toast({ title: 'Atendimento assumido', description: 'A responsabilidade foi atualizada e registrada no histórico.' });
