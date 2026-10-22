@@ -41,7 +41,7 @@ const CRMKanban = () => {
   const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
+  const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
 
   // Load custom stages from database (with localStorage migration fallback)
   useEffect(() => {
