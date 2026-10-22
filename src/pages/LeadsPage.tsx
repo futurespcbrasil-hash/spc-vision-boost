@@ -25,7 +25,7 @@ const LeadsPage = () => {
   const selectedSector = activeSector;
   const sectorLabel = sectors.find(s => s.key === selectedSector)?.label || selectedSector;
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === selectedSector);
-  const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
+  const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
