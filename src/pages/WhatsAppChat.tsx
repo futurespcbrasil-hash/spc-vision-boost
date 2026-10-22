@@ -21,12 +21,13 @@ import { waha } from '@/services/ryzeService';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { KANBAN_STAGES } from '@/data/spcData';
 
 interface Instance { id: string; name: string; status: string; }
 interface Chat {
   id: string; instance_id: string; wa_chat_id: string; contact_number: string;
   contact_name: string | null; last_message: string | null; last_message_at: string | null;
-  unread_count: number; assigned_to: string | null; funnel_stage: string | null; is_group?: boolean;
+  unread_count: number; assigned_to: string | null; funnel_stage: string | null; lead_id?: string | null; is_group?: boolean;
   avatar_url?: string | null; is_pinned?: boolean;
 }
 interface Message {
@@ -188,10 +189,20 @@ const WhatsAppChat = () => {
   const [leadDialog, setLeadDialog] = useState(false);
   const [leadName, setLeadName] = useState('');
   const [leadPhone, setLeadPhone] = useState('');
-  const [leadFunnel, setLeadFunnel] = useState('comercial');
-  const [leadStage, setLeadStage] = useState('novo');
+  const [leadFunnel, setLeadFunnel] = useState('spc');
+  const [leadStage, setLeadStage] = useState('lead_novo');
   const [kanbanStages, setKanbanStages] = useState<{key: string; label: string; funnel: string}[]>([]);
+  const [kanbanFunnels, setKanbanFunnels] = useState<{key: string; label: string}[]>([]);
   const [savingLead, setSavingLead] = useState(false);
+
+  // Atualização do status do lead diretamente pela conversa.
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusFunnel, setStatusFunnel] = useState('spc');
+  const [statusStage, setStatusStage] = useState('lead_novo');
+  const [savingStatus, setSavingStatus] = useState(false);
+
+  // Cores pessoais dos responsáveis, visíveis para todos os usuários autenticados.
+  const [agentColors, setAgentColors] = useState<Record<string, { display_name: string; color: string }>>({});
   const [activeFilter, setActiveFilter] = useState<'todos' | 'grupos' | 'aguardando' | 'resolvidos'>('todos');
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -731,11 +742,53 @@ const WhatsAppChat = () => {
     }
   };
 
-  // Load kanban stages on mount
+  // Carrega funis compartilhados e colunas personalizadas; as colunas padrão vêm do CRM.
   useEffect(() => {
-    supabase.from('kanban_stages').select('key, label, funnel').order('position').then(({ data }) => {
-      setKanbanStages((data as any[]) || []);
-    });
+    let cancelled = false;
+    Promise.all([
+      supabase.from('kanban_stages').select('key, label, funnel').order('position'),
+      supabase.from('sectors').select('key, label').order('position'),
+    ]).then(([stageResult, funnelResult]) => {
+      if (cancelled) return;
+      setKanbanStages((stageResult.data as any[]) || []);
+      const funnels = (funnelResult.data as any[] || []).map(f => ({ key: String(f.key), label: String(f.label || f.key) }));
+      const known = new Map<string, { key: string; label: string }>();
+      [{ key: 'spc', label: 'SPC Brasil' }, ...funnels].forEach(f => { if (!known.has(f.key)) known.set(f.key, f); });
+      setKanbanFunnels(Array.from(known.values()).filter(f => f.key !== 'comercial'));
+    }).catch((error) => console.error('[WhatsApp] Falha ao carregar funis/colunas:', error));
+    return () => { cancelled = true; };
+  }, []);
+
+  const getStagesForFunnel = (funnel: string) => {
+    const stages = [
+      ...KANBAN_STAGES.map(stage => ({ key: stage.key, label: stage.label, funnel })),
+      ...kanbanStages.filter(stage => stage.funnel === funnel),
+    ];
+    const unique = new Map<string, { key: string; label: string; funnel: string }>();
+    stages.forEach(stage => { if (!unique.has(stage.key)) unique.set(stage.key, stage); });
+    return Array.from(unique.values());
+  };
+
+  // Cores dos responsáveis são compartilhadas, mas cada usuário só edita a própria.
+  useEffect(() => {
+    let cancelled = false;
+    const loadAgentColors = async () => {
+      const { data, error } = await supabase.from('whatsapp_agent_preferences').select('user_id,display_name,color');
+      if (error) {
+        console.warn('[WhatsApp] Preferências de cor ainda indisponíveis:', error.message);
+        return;
+      }
+      if (!cancelled) {
+        const map: Record<string, { display_name: string; color: string }> = {};
+        (data || []).forEach((item: any) => { map[item.user_id] = { display_name: item.display_name, color: item.color }; });
+        setAgentColors(map);
+      }
+    };
+    void loadAgentColors();
+    const channel = supabase.channel('whatsapp-agent-preferences')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_agent_preferences' }, () => { void loadAgentColors(); })
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, []);
 
   // Open lead registration modal pre-filled with contact info
@@ -743,8 +796,9 @@ const WhatsAppChat = () => {
     if (!selected) return;
     setLeadName(selected.contact_name || '');
     setLeadPhone(selected.contact_number.replace('@s.whatsapp.net', '').replace('@c.us', ''));
-    setLeadFunnel('comercial');
-    setLeadStage(kanbanStages.find(s => s.funnel === 'comercial')?.key || 'novo');
+    const preferredFunnel = kanbanFunnels.find(f => f.key === 'spc')?.key || kanbanFunnels[0]?.key || 'spc';
+    setLeadFunnel(preferredFunnel);
+    setLeadStage('lead_novo');
     setLeadDialog(true);
   };
 
@@ -753,17 +807,26 @@ const WhatsAppChat = () => {
     if (!leadName.trim() || !user) return;
     setSavingLead(true);
     try {
-      const { error } = await supabase.from('leads').insert({
+      const { data: newLead, error } = await supabase.from('leads').insert({
         user_id: user.id,
         name: leadName.trim(),
         phone: leadPhone.trim(),
         whatsapp: leadPhone.trim(),
         status: leadStage,
         funnel: leadFunnel,
-        type: 'comercial',
+        type: 'PJ',
         origin: 'WhatsApp',
-      });
+      }).select('id').single();
       if (error) throw error;
+      if (!newLead?.id || !selected) throw new Error('Lead criado, mas não foi possível identificar a conversa para vincular.');
+      const { error: linkError } = await supabase.from('whatsapp_chats').update({
+        lead_id: newLead.id,
+        funnel_stage: leadStage,
+        assigned_to: selected.assigned_to || user.id,
+      }).eq('id', selected.id);
+      if (linkError) throw linkError;
+      setSelected(prev => prev?.id === selected.id ? { ...prev, lead_id: newLead.id, funnel_stage: leadStage, assigned_to: prev.assigned_to || user.id } : prev);
+      setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, lead_id: newLead.id, funnel_stage: leadStage, assigned_to: chat.assigned_to || user.id } : chat));
       toast({
         title: '✅ Lead cadastrado!',
         description: `${leadName} adicionado ao funil. Redirecionando...`,
@@ -773,6 +836,42 @@ const WhatsAppChat = () => {
     } catch (e: any) {
       toast({ title: 'Erro ao cadastrar lead', description: e.message, variant: 'destructive' });
     } finally { setSavingLead(false); }
+  };
+
+  const handleOpenStatusDialog = async () => {
+    if (!selected) return;
+    if (!selected.lead_id) {
+      toast({ title: 'Contato ainda não está no Kanban', description: 'Use “Lead no Funil” para cadastrar e vincular este contato antes de alterar sua coluna.', variant: 'destructive' });
+      return;
+    }
+    const { data, error } = await supabase.from('leads').select('id,status,funnel').eq('id', selected.lead_id).maybeSingle();
+    if (error || !data) {
+      toast({ title: 'Não foi possível carregar o status do lead', description: error?.message || 'Confira se o contato está vinculado ao Kanban.', variant: 'destructive' });
+      return;
+    }
+    const funnel = data.funnel || 'spc';
+    setStatusFunnel(funnel);
+    setStatusStage(data.status || selected.funnel_stage || 'lead_novo');
+    setStatusDialogOpen(true);
+  };
+
+  const handleSaveKanbanStatus = async () => {
+    if (!selected || !statusStage || savingStatus) return;
+    setSavingStatus(true);
+    try {
+      const { data, error } = await supabase.rpc('set_whatsapp_chat_kanban_status', {
+        p_chat_id: selected.id,
+        p_stage: statusStage,
+      });
+      if (error) throw error;
+      const savedStage = (data as any)?.status || statusStage;
+      setSelected(prev => prev?.id === selected.id ? { ...prev, funnel_stage: savedStage } : prev);
+      setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, funnel_stage: savedStage } : chat));
+      setStatusDialogOpen(false);
+      toast({ title: 'Status do Kanban atualizado', description: 'A coluna da conversa e do lead foi atualizada.' });
+    } catch (e: any) {
+      toast({ title: 'Não foi possível alterar o status', description: e.message || 'Tente novamente.', variant: 'destructive' });
+    } finally { setSavingStatus(false); }
   };
 
   // Grupos vão exclusivamente para a aba "Grupos"
@@ -964,6 +1063,7 @@ const WhatsAppChat = () => {
                 // Left border indicator colors
                 const indicatorColors = ['bg-amber-400', 'bg-emerald-500', 'bg-blue-500', 'bg-purple-500', 'bg-pink-500'];
                 const indicatorColor = indicatorColors[idx % indicatorColors.length];
+                const assignedAgent = c.assigned_to ? agentColors[c.assigned_to] : undefined;
 
                 return (
                   <div key={c.id} className="group relative">
@@ -983,7 +1083,7 @@ const WhatsAppChat = () => {
                       }`}
                     >
                       {/* Left vertical color bar */}
-                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${indicatorColor}`} />
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${assignedAgent ? '' : indicatorColor}`} style={assignedAgent ? { backgroundColor: assignedAgent.color } : undefined} />
 
                       {/* Avatar Circle */}
                       <div className="relative flex-shrink-0">
@@ -1006,6 +1106,7 @@ const WhatsAppChat = () => {
                           <div className="flex items-center gap-1.5 min-w-0">
                             {c.is_pinned && <Pin size={10} className="text-purple-600 fill-current flex-shrink-0" />}
                             <span className="font-semibold text-xs text-foreground truncate">{name}</span>
+                            {assignedAgent && <span title={`Responsável: ${assignedAgent.display_name}`} className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium bg-muted text-muted-foreground flex-shrink-0"><span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: assignedAgent.color }} />{assignedAgent.display_name}</span>}
                           </div>
                           {timeStr && <span className="text-[10px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
                         </div>
@@ -1110,6 +1211,7 @@ const WhatsAppChat = () => {
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{instances.find(i => i.id === instanceId)?.name || 'Instância'}</span>
+                      {selected.assigned_to && agentColors[selected.assigned_to] && <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: agentColors[selected.assigned_to].color }} />{agentColors[selected.assigned_to].display_name}</span>}
                       {!isGroupChat(selected) && hasRealName(selected) && (
                         <span className="font-mono">{formatNumber(selected.contact_number)}</span>
                       )}
@@ -1125,10 +1227,20 @@ const WhatsAppChat = () => {
                     size="sm"
                     onClick={handleOpenLeadDialog}
                     title="Cadastrar como Lead no Funil"
-                    className="h-8 gap-1 text-xs border-purple-300 text-purple-700 hover:bg-purple-50 hidden sm:flex"
+                    className="h-8 gap-1 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
                   >
                     <GitBranch size={13}/>
                     <span>Lead no Funil</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenStatusDialog}
+                    title="Alterar coluna do Kanban"
+                    className="h-8 gap-1 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <GitBranch size={13}/>
+                    <span>Status do Kanban</span>
                   </Button>
                   <Button variant="ghost" size="icon" onClick={handleSyncMessages} title="Atualizar mensagens" className="h-9 w-9 text-muted-foreground hover:text-foreground">
                     <RefreshCw size={17} />
@@ -1587,10 +1699,9 @@ const WhatsAppChat = () => {
               <Select value={leadFunnel} onValueChange={v => { setLeadFunnel(v); setLeadStage(''); }}>
                 <SelectTrigger><SelectValue placeholder="Selecionar funil" /></SelectTrigger>
                 <SelectContent>
-                  {Array.from(new Set(kanbanStages.map(s => s.funnel))).map(f => (
-                    <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>
+                  {kanbanFunnels.map(f => (
+                    <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
                   ))}
-                  <SelectItem value="comercial">comercial</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1599,13 +1710,7 @@ const WhatsAppChat = () => {
               <Select value={leadStage} onValueChange={setLeadStage}>
                 <SelectTrigger><SelectValue placeholder="Selecionar etapa" /></SelectTrigger>
                 <SelectContent>
-                  {kanbanStages
-                    .filter(s => s.funnel === leadFunnel)
-                    .map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)
-                  }
-                  {kanbanStages.filter(s => s.funnel === leadFunnel).length === 0 && (
-                    <SelectItem value="novo">Novo</SelectItem>
-                  )}
+                  {getStagesForFunnel(leadFunnel).map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -1616,6 +1721,37 @@ const WhatsAppChat = () => {
           <Button onClick={handleRegisterLead} disabled={savingLead || !leadName.trim()} className="gap-2">
             <UserPlus size={14} />
             {savingLead ? 'Salvando...' : 'Cadastrar e Ir ao Funil'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* ─── Alterar status do Kanban a partir da conversa ─── */}
+    <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><GitBranch size={18} className="text-emerald-600" />Status do Kanban</DialogTitle>
+          <p className="text-sm text-muted-foreground">Altere a coluna do lead sem sair da conversa do WhatsApp.</p>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="space-y-1">
+            <Label>Funil</Label>
+            <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">{kanbanFunnels.find(f => f.key === statusFunnel)?.label || statusFunnel}</div>
+          </div>
+          <div className="space-y-1">
+            <Label>Nova coluna</Label>
+            <Select value={statusStage} onValueChange={setStatusStage}>
+              <SelectTrigger><SelectValue placeholder="Selecionar coluna" /></SelectTrigger>
+              <SelectContent>{getStagesForFunnel(statusFunnel).map(stage => <SelectItem key={stage.key} value={stage.key}>{stage.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-muted-foreground">A mudança será salva no lead vinculado e refletida no Kanban.</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setStatusDialogOpen(false)} disabled={savingStatus}>Cancelar</Button>
+          <Button onClick={handleSaveKanbanStatus} disabled={savingStatus || !statusStage} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+            {savingStatus ? <Loader2 size={14} className="animate-spin" /> : <GitBranch size={14} />}
+            {savingStatus ? 'Salvando...' : 'Salvar status'}
           </Button>
         </DialogFooter>
       </DialogContent>
