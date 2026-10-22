@@ -33,7 +33,7 @@ const onlyDigits = (value: string) => value.replace(/\D/g, '');
 const normalizeBrazilNumber = (value: string) => {
   const digits = onlyDigits(value);
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) return digits;
-  if (digits.length === 10 || digits.length === 11) return \`55\${digits}\`;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return digits;
 };
 const isPhoneNumber = (value: string) => {
@@ -49,10 +49,10 @@ const renderMessageText = (text: string, onPhoneClick: (number: string) => void)
     const index = match.index ?? 0;
     if (index > lastIndex) nodes.push(text.slice(lastIndex, index));
     if (/^(https?:\/\/|www\.)/i.test(token)) {
-      const href = token.startsWith('http') ? token : \`https://\${token}\`;
-      nodes.push(<a key={\`url-\${index}\`} href={href} target="_blank" rel="noreferrer" className="underline break-all text-blue-600 dark:text-blue-400">{token}</a>);
+      const href = token.startsWith('http') ? token : `https://${token}`;
+      nodes.push(<a key={`url-${index}`} href={href} target="_blank" rel="noreferrer" className="underline break-all text-blue-600 dark:text-blue-400">{token}</a>);
     } else if (isPhoneNumber(token)) {
-      nodes.push(<button key={\`phone-\${index}\`} type="button" onClick={() => onPhoneClick(onlyDigits(token))} className="inline underline decoration-dotted text-blue-600 dark:text-blue-400 hover:opacity-80">{token}</button>);
+      nodes.push(<button key={`phone-${index}`} type="button" onClick={() => onPhoneClick(onlyDigits(token))} className="inline underline decoration-dotted text-blue-600 dark:text-blue-400 hover:opacity-80">{token}</button>);
     } else {
       nodes.push(token);
     }
