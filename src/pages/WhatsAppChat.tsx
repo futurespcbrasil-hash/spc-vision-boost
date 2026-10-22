@@ -857,7 +857,7 @@ const WhatsAppChat = () => {
           [onlyDigits(lead.phone || ''), onlyDigits(lead.whatsapp || '')].filter(Boolean)
             .some(number => number === digits || (number.length >= 10 && number.slice(-11) === digits.slice(-11)))
         );
-        const uniqueMatches = Array.from(new Map(matches.map((lead: any) => [lead.id, lead])).values()) as any[];
+        const uniqueMatches = Array.from(new Map<string, any>(matches.map((lead: any) => [lead.id, lead] as [string, any])).values());
         if (uniqueMatches.length > 1) throw new Error('Há mais de um lead com este telefone. Revise os cadastros antes de vincular.');
         if (uniqueMatches.length === 1) {
           const existing = uniqueMatches[0];
@@ -962,7 +962,7 @@ const WhatsAppChat = () => {
         const numbers = [onlyDigits(lead.phone || ''), onlyDigits(lead.whatsapp || '')].filter(Boolean);
         return numbers.some(number => number === digits || (number.length >= 10 && digits.length >= 10 && number.slice(-11) === digits.slice(-11)));
       });
-      const uniqueMatches = Array.from(new Map(matches.map((lead: any) => [lead.id, lead])).values()) as any[];
+      const uniqueMatches = Array.from(new Map<string, any>(matches.map((lead: any) => [lead.id, lead] as [string, any])).values());
       if (uniqueMatches.length > 1) {
         toast({ title: 'Vínculo ambíguo', description: 'Há mais de um lead com este telefone. Revise os cadastros antes de alterar o status.', variant: 'destructive' });
         return;
