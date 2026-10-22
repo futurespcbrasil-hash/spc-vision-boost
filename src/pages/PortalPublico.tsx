@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowRight, BookOpen, Search, Copy, Check, ShieldCheck,
+  ArrowLeft, ArrowRight, BookOpen, Search, ShieldCheck,
   FileText, Building2, MonitorSmartphone,
   ChevronDown, ExternalLink, Sparkles, BadgeCheck, Menu, X
 } from 'lucide-react';
@@ -64,32 +64,207 @@ const products = [
   { icon: Building2, title: 'SPC Brasil para empresas', description: 'Consultas e soluções para apoiar análise cadastral, acompanhamento e cobrança.', tag: 'Soluções empresariais' },
 ];
 
+const articles = [
+  {
+    slug: 'nfe-nota-fiscal-eletronica',
+    title: 'NF-e: o que é a Nota Fiscal Eletrônica e quando usar',
+    category: 'Documentos fiscais', readTime: '5 min',
+    description: 'Entenda para que serve a NF-e, quais dados revisar antes da emissão e como reduzir erros em operações com produtos.',
+    image: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Documentos e planejamento financeiro sobre uma mesa de trabalho',
+    keywords: 'NF-e, nota fiscal eletrônica, emitir NF-e, nota fiscal de produto',
+    intro: 'A Nota Fiscal Eletrônica (NF-e) documenta operações com mercadorias e é utilizada em diferentes operações comerciais, conforme as regras fiscais aplicáveis.',
+    sections: [
+      ['O que conferir antes de emitir', 'Confira os dados da empresa, destinatário, produtos, quantidades, valores, natureza da operação e informações fiscais com o contador ou responsável fiscal.'],
+      ['Como evitar retrabalho', 'Mantenha os cadastros atualizados, revise os dados antes de transmitir e leia a mensagem de retorno quando o documento for rejeitado. Não repita a emissão sem verificar a situação anterior.'],
+      ['Como a Future pode ajudar', 'O Emissor Fiscal reúne recursos para organizar cadastros e acompanhar documentos conforme os módulos habilitados. Consulte o manual e fale com a equipe para conhecer a solução.']
+    ]
+  },
+  {
+    slug: 'nfce-nota-fiscal-consumidor',
+    title: 'NFC-e: como organizar as vendas no varejo',
+    category: 'Documentos fiscais', readTime: '4 min',
+    description: 'Veja os cuidados essenciais com produtos, quantidades, pagamentos e conferência de uma Nota Fiscal de Consumidor Eletrônica.',
+    image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Atendimento e pagamento em um ponto de venda',
+    keywords: 'NFC-e, nota fiscal de consumidor, PDV, emissão NFC-e',
+    intro: 'A NFC-e é usada em operações de venda ao consumidor final, de acordo com as regras estaduais e o enquadramento do estabelecimento.',
+    sections: [
+      ['Revise os itens da venda', 'Confira os produtos, quantidades, preços, descontos e total antes de concluir a operação. Mantenha o cadastro de produtos consistente.'],
+      ['Confira o pagamento e o resultado', 'Revise a forma de pagamento e acompanhe a situação retornada pelo sistema. Uma tentativa rejeitada não deve ser tratada como documento autorizado.'],
+      ['Prepare a equipe', 'Defina um procedimento simples de conferência no caixa e oriente os operadores a registrar a mensagem de erro para que a causa seja corrigida.']
+    ]
+  },
+  {
+    slug: 'nfse-nota-fiscal-servico',
+    title: 'NFS-e: pontos importantes na emissão de nota de serviço',
+    category: 'Documentos fiscais', readTime: '5 min',
+    description: 'Saiba o que revisar na Nota Fiscal de Serviço Eletrônica: tomador, descrição, competência, município e informações tributárias.',
+    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Profissional revisando documentos em ambiente de escritório',
+    keywords: 'NFS-e, nota fiscal de serviço, emitir nota de serviço, prestador de serviço',
+    intro: 'A NFS-e registra a prestação de serviços. Os campos, regras e integrações podem variar conforme o município e o padrão utilizado.',
+    sections: [
+      ['Identifique corretamente o tomador', 'Confira CPF/CNPJ, nome ou razão social e demais dados solicitados antes de prosseguir.'],
+      ['Descreva o serviço com clareza', 'Revise descrição, competência, valor, município e retenções aplicáveis. Confirme código de serviço e tributação com o contador.'],
+      ['Acompanhe a situação', 'Depois de enviar, confira o retorno e guarde os dados do documento. Se houver rejeição, corrija a causa antes de tentar novamente.']
+    ]
+  },
+  {
+    slug: 'cte-conhecimento-transporte',
+    title: 'CT-e: para que serve o Conhecimento de Transporte Eletrônico',
+    category: 'Documentos fiscais', readTime: '4 min',
+    description: 'Conheça a finalidade do CT-e e os dados que empresas de transporte precisam validar com seu responsável fiscal.',
+    image: 'https://images.unsplash.com/photo-1494412519320-aa613dfb7738?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Caminhão de carga em operação logística',
+    keywords: 'CT-e, Conhecimento de Transporte Eletrônico, transporte de cargas, documento fiscal transporte',
+    intro: 'O CT-e documenta prestações de serviço de transporte em situações previstas na legislação. Sua aplicação depende da operação e do enquadramento da empresa.',
+    sections: [
+      ['Quando é relevante', 'É associado a prestações de transporte de cargas e deve refletir a operação efetivamente realizada. Confirme a obrigatoriedade e o modelo aplicável com o contador.'],
+      ['Informações que merecem atenção', 'Dados dos participantes, origem e destino, carga, valores e informações fiscais devem ser revisados com cuidado.'],
+      ['Atenção sobre o sistema', 'O fluxo de emissão de CT-e no sistema de referência ainda precisa de validação funcional. Este artigo é informativo e não afirma que a emissão esteja disponível.']
+    ]
+  },
+  {
+    slug: 'cte-os-transporte-passageiros',
+    title: 'CT-e OS: conheça o documento para outros serviços de transporte',
+    category: 'Documentos fiscais', readTime: '4 min',
+    description: 'Entenda em linhas gerais o CT-e OS, sua finalidade e por que é importante validar a operação antes de emitir documentos de transporte.',
+    image: 'https://images.unsplash.com/photo-1509740966872-6eecf7c8d9a1?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Ônibus de transporte rodoviário em uma estrada',
+    keywords: 'CT-e OS, transporte de passageiros, documento fiscal transporte, transporte rodoviário',
+    intro: 'O CT-e OS é um modelo de documento fiscal eletrônico relacionado a determinadas prestações de transporte não enquadradas no CT-e de carga tradicional.',
+    sections: [
+      ['Identifique a operação', 'A natureza do serviço e as regras aplicáveis determinam o documento adequado. Não escolha o modelo apenas pelo nome da atividade.'],
+      ['Valide os dados', 'Confirme com o contador os dados do prestador, tomador, percurso, valores e demais informações exigidas para a operação.'],
+      ['Limite deste conteúdo', 'A emissão do CT-e OS no sistema de referência não foi validada como funcional. Use este texto como orientação geral, não como confirmação de disponibilidade no software.']
+    ]
+  },
+  {
+    slug: 'mdfe-manifesto-documentos-fiscais',
+    title: 'MDF-e: o que é o Manifesto Eletrônico de Documentos Fiscais',
+    category: 'Documentos fiscais', readTime: '4 min',
+    description: 'Entenda a função do MDF-e no transporte de cargas e quais informações devem ser conferidas com o responsável fiscal.',
+    image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Armazém logístico com mercadorias organizadas',
+    keywords: 'MDF-e, Manifesto Eletrônico de Documentos Fiscais, transporte de cargas, logística fiscal',
+    intro: 'O MDF-e reúne informações de documentos fiscais vinculados a determinadas operações de transporte, conforme a legislação aplicável.',
+    sections: [
+      ['Por que existe', 'O manifesto apoia o registro e o acompanhamento de informações relacionadas à carga e ao transporte em situações previstas nas regras fiscais.'],
+      ['Antes de qualquer emissão', 'Confirme a necessidade do MDF-e, os documentos vinculados, dados do veículo, condutor e percurso com o responsável pela operação e o contador.'],
+      ['Limite deste conteúdo', 'A emissão do MDF-e no sistema de referência ainda não foi validada funcionalmente. Não considere este artigo uma confirmação de que o módulo está pronto para uso.']
+    ]
+  },
+  {
+    slug: 'certificado-digital-empresa',
+    title: 'Certificado Digital: por que sua empresa precisa cuidar da validade',
+    category: 'Certificado Digital', readTime: '5 min',
+    description: 'Descubra para que serve o certificado digital, como acompanhar o vencimento e como se preparar para renovar sem correria.',
+    image: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Notebook e recursos de segurança digital em ambiente de trabalho',
+    keywords: 'certificado digital, certificado digital A1, renovar certificado digital, e-CNPJ',
+    intro: 'O certificado digital funciona como uma identidade eletrônica e pode ser utilizado para autenticação e assinatura em serviços que o aceitam, incluindo rotinas empresariais específicas.',
+    sections: [
+      ['Acompanhe a validade', 'Registre a data de vencimento e inicie o processo de renovação com antecedência para reduzir o risco de interrupções.'],
+      ['Escolha o certificado adequado', 'A necessidade de e-CPF, e-CNPJ ou outro tipo depende do titular e da finalidade. Confirme requisitos, documentos e modalidade com um atendimento especializado.'],
+      ['Proteja seus dados', 'Nunca compartilhe senhas ou arquivos privados por canais inseguros. O uso e o armazenamento devem seguir boas práticas de segurança.']
+    ]
+  },
+  {
+    slug: 'spc-brasil-consulta-cpf-cnpj',
+    title: 'SPC Brasil: como consultas cadastrais podem apoiar decisões comerciais',
+    category: 'SPC Brasil', readTime: '5 min',
+    description: 'Conheça o papel das consultas de CPF e CNPJ na análise cadastral e saiba como usar informações de forma responsável.',
+    image: 'https://images.unsplash.com/photo-1554224154-26032ffc0d07?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Relatórios financeiros e análise de dados empresariais',
+    keywords: 'SPC Brasil, consulta CPF, consulta CNPJ, análise de crédito empresarial',
+    intro: 'Consultas cadastrais e de crédito podem ajudar empresas a complementar sua análise comercial, respeitando as regras de acesso, finalidade e proteção de dados.',
+    sections: [
+      ['Use a informação como apoio', 'Considere os resultados junto com políticas internas, histórico comercial e demais critérios relevantes. Uma consulta isolada não substitui uma análise responsável.'],
+      ['Respeite a finalidade e a privacidade', 'Acesse dados somente quando houver base e finalidade legítimas, mantenha controles de acesso e evite compartilhar resultados com pessoas não autorizadas.'],
+      ['Conheça as opções disponíveis', 'A Future Soluções oferece atendimento para apresentar soluções SPC Brasil conforme o perfil e a necessidade da empresa. Recursos e condições dependem do plano contratado.']
+    ]
+  },
+  {
+    slug: 'prevencao-inadimplencia-empresas',
+    title: 'Como reduzir riscos de inadimplência na sua empresa',
+    category: 'Gestão empresarial', readTime: '5 min',
+    description: 'Boas práticas para organizar análise de clientes, prazos, cobrança e acompanhamento de recebíveis com mais previsibilidade.',
+    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Painel de dados e indicadores usados na gestão de negócios',
+    keywords: 'prevenção à inadimplência, gestão de crédito, cobrança empresarial, SPC Brasil empresas',
+    intro: 'Uma política de crédito clara, combinada com acompanhamento frequente dos recebíveis, ajuda a empresa a identificar riscos e agir com organização.',
+    sections: [
+      ['Defina critérios antes da venda', 'Estabeleça regras proporcionais ao tipo de cliente, valor e prazo. Documente as condições comerciais e mantenha os dados cadastrais atualizados.'],
+      ['Acompanhe vencimentos', 'Use lembretes, conciliação e uma rotina de contato respeitosa para identificar atrasos cedo e registrar cada tratativa.'],
+      ['Avalie ferramentas de apoio', 'Soluções de consulta e monitoramento podem complementar a análise, desde que usadas de forma legítima e de acordo com as regras aplicáveis.']
+    ]
+  },
+  {
+    slug: 'cobranca-negativacao-responsavel',
+    title: 'Cobrança empresarial: organização, registro e responsabilidade',
+    category: 'Gestão empresarial', readTime: '5 min',
+    description: 'Veja como estruturar uma rotina de cobrança, documentar contatos e avaliar soluções de recuperação de crédito de forma responsável.',
+    image: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Profissional analisando números e documentos financeiros',
+    keywords: 'cobrança empresarial, recuperação de crédito, negativação, SPC Brasil',
+    intro: 'Uma rotina de cobrança bem organizada combina comunicação clara, histórico das tratativas e respeito às regras legais e de proteção de dados.',
+    sections: [
+      ['Registre cada etapa', 'Mantenha contrato, faturas, vencimentos, contatos e acordos organizados. Isso ajuda a equipe a dar continuidade ao atendimento.'],
+      ['Comunique com clareza', 'Informe valores, origem do débito e canais de negociação de maneira objetiva e respeitosa. Evite exposição indevida de informações.'],
+      ['Confirme os requisitos', 'Negativação e outros procedimentos de recuperação de crédito têm regras próprias. Valide documentação, prazos e requisitos antes de realizar qualquer ação.']
+    ]
+  }
+];
+
+const manualSteps: Record<string, string[]> = {
+  'Empresa ativa': ['Entre no sistema com seu usuário autorizado.', 'Confira o nome da empresa exibido no topo da tela.', 'Se houver mais de uma empresa, selecione a correta antes de cadastrar ou emitir.', 'Após trocar de empresa, confirme novamente o contexto antes de continuar.'],
+  'Dashboard': ['Abra a Dashboard pelo menu principal.', 'Localize o card do documento ou cadastro desejado.', 'Use o ícone para abrir a listagem quando esse comportamento estiver disponível.', 'Use o botão de ação do card para iniciar o fluxo correspondente e revise os dados antes de confirmar.'],
+  'Clientes': ['Acesse Cadastros → Clientes.', 'Clique em Novo Cliente e preencha os campos solicitados.', 'Confira CPF/CNPJ, nome, endereço e contatos.', 'Salve e confirme se o registro aparece na listagem.'],
+  'Produtos': ['Acesse Cadastros → Produtos e escolha a opção de novo cadastro.', 'Preencha identificação, código, unidade e preço.', 'Revise as informações fiscais com o responsável fiscal.', 'Salve e confira o cadastro antes de utilizá-lo em uma nota.'],
+  'Abrir a listagem': ['Acesse a área de documentos fiscais e abra a listagem de NF-e.', 'Use pesquisa e filtros para localizar o registro.', 'Confira destinatário, número, data, valor e situação.', 'Abra os detalhes para revisar o retorno antes de executar outra ação.'],
+  'Preparar uma emissão': ['Inicie a opção Emitir NF-e.', 'Selecione e confira o destinatário.', 'Adicione os itens e revise quantidades, valores e natureza da operação.', 'Confirme os dados fiscais com o responsável e só então transmita.'],
+  'Abrir o PDV': ['Abra o card ou menu da NFC-e/PDV.', 'Adicione os produtos da venda.', 'Revise quantidades, preços, descontos e total.', 'Confira pagamento e dados do consumidor, quando aplicável, antes de concluir.'],
+  'Iniciar a emissão': ['Abra a área de Nota de Serviço e escolha Emitir NFS-e.', 'Selecione o tomador correto.', 'Preencha descrição, competência, valores e informações solicitadas.', 'Revise os dados tributários com o responsável fiscal e acompanhe o retorno.'],
+  'Certificado A1': ['Abra Configurações → Empresa e localize a aba Certificado Digital.', 'Selecione o arquivo de certificado fornecido para a empresa.', 'Informe a senha apenas no ambiente autorizado do sistema.', 'Use Validar certificado e confira titular e validade; não compartilhe o arquivo nem a senha.'],
+  'Documento rejeitado': ['Abra o documento que retornou rejeição.', 'Leia a mensagem completa do sistema autorizador.', 'Confira os campos e cadastros relacionados ao erro.', 'Corrija a causa e verifique a situação antes de tentar transmitir novamente.']
+};
+
 const PortalPublico = () => {
   const location = useLocation();
   const [search, setSearch] = useState('');
+  const blogSlug = location.pathname.split('/').filter(Boolean)[2] || '';
+  const selectedArticle = articles.find(article => article.slug === blogSlug);
+  useEffect(() => {
+    const title = selectedArticle ? selectedArticle.title + ' | Future Soluções' : isBlog ? 'Conteúdos para empresas | Future Soluções' : isManual ? 'Manual do Emissor Fiscal | Future Soluções' : isManualIndex ? 'Manuais e guias | Future Soluções' : 'Future Soluções | Manuais e soluções empresariais';
+    document.title = title;
+    let description = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+    if (!description) {
+      description = document.createElement('meta');
+      description.name = 'description';
+      document.head.appendChild(description);
+    }
+    description.content = selectedArticle?.description || (isBlog ? 'Artigos sobre documentos fiscais, certificado digital, SPC Brasil e gestão empresarial da Future Soluções.' : 'Acesse manuais e conheça soluções empresariais da Future Soluções em documentos fiscais, certificado digital e SPC Brasil.');
+    let keywords = document.querySelector('meta[name="keywords"]') as HTMLMetaElement | null;
+    if (!keywords) {
+      keywords = document.createElement('meta');
+      keywords.name = 'keywords';
+      document.head.appendChild(keywords);
+    }
+    keywords.content = selectedArticle?.keywords || 'Future Soluções, manual emissor fiscal, certificado digital, SPC Brasil, documentos fiscais';
+  }, [selectedArticle, isBlog, isManual, isManualIndex]);
+
   const [openChapter, setOpenChapter] = useState<number | null>(0);
-  const [copied, setCopied] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const isManual = location.pathname.startsWith('/portal/manuais/emissor-fiscal');
   const isManualIndex = location.pathname.startsWith('/portal/manuais');
   const isServices = location.pathname.startsWith('/portal/servicos');
   const isBlog = location.pathname.startsWith('/portal/blog');
-  const publicUrl = typeof window !== 'undefined' ? window.location.origin + '/portal' : 'https://crm.futuresolucoes.com.br/portal';
   const filteredManuals = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return manuals;
     return manuals.filter(m => (m.title + ' ' + m.description + ' ' + m.category + ' ' + m.terms).toLowerCase().includes(term));
   }, [search]);
-
-  const copyPublicLink = async () => {
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2200);
-    } catch {
-      window.prompt('Copie o link público da Central Future Soluções:', publicUrl);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-[#080914] text-white">
@@ -105,14 +280,9 @@ const PortalPublico = () => {
             <Link className="transition hover:text-white" to="/portal/servicos">Soluções para empresas</Link>
             <Link className="transition hover:text-white" to="/portal/blog">Conteúdos</Link>
           </nav>
-          <div className="hidden md:block">
-            <button onClick={copyPublicLink} className="inline-flex items-center gap-2 rounded-xl border border-violet-300/30 bg-violet-400/10 px-4 py-2.5 text-sm font-semibold text-violet-100 hover:bg-violet-400/20">
-              {copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'Link copiado' : 'Copiar link público'}
-            </button>
-          </div>
           <button className="rounded-lg border border-white/10 p-2 md:hidden" onClick={() => setMobileMenu(v => !v)} aria-label="Abrir menu">{mobileMenu ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
-        {mobileMenu && <div className="grid gap-1 border-t border-white/10 px-5 py-3 md:hidden"><Link className="rounded-lg px-3 py-2 hover:bg-white/5" to="/portal">Início</Link><Link className="rounded-lg px-3 py-2 hover:bg-white/5" to="/portal/manuais">Manuais</Link><Link className="rounded-lg px-3 py-2 hover:bg-white/5" to="/portal/servicos">Soluções para empresas</Link><Link className="rounded-lg px-3 py-2 hover:bg-white/5" to="/portal/blog">Conteúdos</Link><button onClick={copyPublicLink} className="mt-2 rounded-lg bg-violet-500 px-3 py-2 text-left font-semibold">{copied ? 'Link copiado' : 'Copiar link público'}</button></div>}
+        {mobileMenu && <div className="grid gap-1 border-t border-white/10 px-5 py-3 md:hidden"><Link className="rounded-lg px-3 py-2 hover:bg-white/5" to="/portal">Início</Link><Link className="rounded-lg px-3 py-2 hover:bg-white/5" to="/portal/manuais">Manuais</Link><Link className="rounded-lg px-3 py-2 hover:bg-white/5" to="/portal/servicos">Soluções para empresas</Link><Link className="rounded-lg px-3 py-2 hover:bg-white/5" to="/portal/blog">Conteúdos</Link></div>}
       </header>
 
       <main>
@@ -147,14 +317,37 @@ const PortalPublico = () => {
 
         {isManualIndex && !isManual && <section className="mx-auto max-w-7xl px-5 py-14 lg:px-8"><Link to="/portal" className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft size={16} /> Início</Link><p className="text-xs font-bold uppercase tracking-[.2em] text-violet-300">Central de ajuda</p><h1 className="mt-3 text-4xl font-black">Manuais e guias</h1><p className="mt-4 max-w-2xl leading-7 text-slate-400">Encontre instruções para navegar no sistema, organizar cadastros e acompanhar documentos fiscais.</p><label className="mt-8 flex max-w-2xl items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"><Search size={18} className="text-slate-400" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por assunto, tela ou documento..." className="w-full bg-transparent outline-none placeholder:text-slate-500" /></label><div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{filteredManuals.map((item, i) => <Link key={item.title} to="/portal/manuais/emissor-fiscal" className="rounded-2xl border border-white/10 bg-white/[.035] p-5 transition hover:border-violet-300/30 hover:bg-white/[.06]"><div className="flex items-center justify-between"><span className="rounded-full bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-200">{item.category}</span><span className="text-xs text-slate-500">Guia {String(i + 1).padStart(2, '0')}</span></div><h2 className="mt-4 text-lg font-bold">{item.title}</h2><p className="mt-2 text-sm leading-6 text-slate-400">{item.description}</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-violet-200">Abrir guia <ArrowRight size={15} /></span></Link>)}</div><p className="mt-8 rounded-xl border border-amber-200/15 bg-amber-200/5 p-4 text-sm leading-6 text-amber-100/80">Observação: CT-e, CT-e OS e MDF-e aparecem na navegação do sistema de referência, mas seus fluxos ainda precisam de validação funcional. Por isso, não há aqui instruções de emissão desses documentos.</p></section>}
 
-        {isManual && <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8"><Link to="/portal/manuais" className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft size={16} /> Todos os manuais</Link><div className="grid gap-8 lg:grid-cols-[270px_1fr]"><aside className="h-fit rounded-2xl border border-white/10 bg-white/[.035] p-5 lg:sticky lg:top-24"><div className="flex items-center gap-3"><div className="rounded-xl bg-violet-400/15 p-3 text-violet-200"><BookOpen size={23} /></div><div><p className="text-xs font-semibold uppercase tracking-wider text-violet-200">Guia do usuário</p><h2 className="font-bold">Emissor Fiscal</h2></div></div><p className="mt-3 text-sm leading-6 text-slate-400">Manual de referência para os fluxos identificados no sistema.</p><div className="mt-5 space-y-1">{chapters.map((c, i) => <button key={c.title} onClick={() => { setOpenChapter(i); document.getElementById('chapter-' + i)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white">{c.title}</button>)}</div></aside><div><div className="rounded-2xl border border-violet-300/20 bg-gradient-to-r from-violet-500/15 to-sky-500/10 p-6 md:p-8"><p className="text-xs font-bold uppercase tracking-[.2em] text-violet-200">Manual público</p><h1 className="mt-3 text-3xl font-black sm:text-4xl">Manual do Emissor Fiscal</h1><p className="mt-4 max-w-3xl leading-7 text-slate-300">Guia para entender os menus, manter cadastros, revisar emissões e resolver dúvidas comuns. As opções podem variar conforme a empresa, as permissões e os módulos liberados.</p><div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-300"><span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Future Soluções</span><span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Atualizado em outubro de 2026</span></div></div><div className="mt-5 rounded-xl border border-sky-200/15 bg-sky-200/5 p-4 text-sm leading-6 text-sky-100/90"><strong>Importante:</strong> este manual descreve os fluxos identificados no código de referência. Antes de realizar operações fiscais, confirme os dados com o responsável fiscal. CT-e, CT-e OS e MDF-e não são documentados como fluxos prontos, pois precisam de validação funcional.</div><div className="mt-6 space-y-4">{chapters.map((chapter, i) => <section id={'chapter-' + i} key={chapter.title} className="scroll-mt-24 overflow-hidden rounded-2xl border border-white/10 bg-white/[.035]"><button onClick={() => setOpenChapter(openChapter === i ? null : i)} className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left md:px-6"><span className="text-lg font-bold">{chapter.title}</span><ChevronDown className={'shrink-0 text-violet-200 transition ' + (openChapter === i ? 'rotate-180' : '')} size={19} /></button>{openChapter === i && <div className="space-y-5 border-t border-white/10 px-5 py-5 md:px-6">{chapter.items.map(([title, body]) => <div key={title}><h3 className="font-semibold text-violet-100">{title}</h3><p className="mt-2 text-sm leading-7 text-slate-300">{body}</p></div>)}</div>}</section>)}</div><div className="mt-6 rounded-2xl border border-white/10 p-5"><h2 className="font-bold">Precisa de suporte?</h2><p className="mt-2 text-sm leading-6 text-slate-400">Ao solicitar ajuda, informe a tela, a etapa realizada e a mensagem de erro. Não envie senhas nem o arquivo do certificado por canais inseguros.</p><a href="https://futuresolucoes.com.br/" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-violet-200 hover:text-white">Site da Future Soluções <ExternalLink size={15} /></a></div></div></div></section>}
+        {isManual && <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8"><Link to="/portal/manuais" className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft size={16} /> Todos os manuais</Link><div className="grid gap-8 lg:grid-cols-[270px_1fr]"><aside className="h-fit rounded-2xl border border-white/10 bg-white/[.035] p-5 lg:sticky lg:top-24"><div className="flex items-center gap-3"><div className="rounded-xl bg-violet-400/15 p-3 text-violet-200"><BookOpen size={23} /></div><div><p className="text-xs font-semibold uppercase tracking-wider text-violet-200">Guia do usuário</p><h2 className="font-bold">Emissor Fiscal</h2></div></div><p className="mt-3 text-sm leading-6 text-slate-400">Manual de referência para os fluxos identificados no sistema.</p><div className="mt-5 space-y-1">{chapters.map((c, i) => <button key={c.title} onClick={() => { setOpenChapter(i); document.getElementById('chapter-' + i)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-300 transition hover:bg-white/5 hover:text-white">{c.title}</button>)}</div></aside><div><div className="rounded-2xl border border-violet-300/20 bg-gradient-to-r from-violet-500/15 to-sky-500/10 p-6 md:p-8"><p className="text-xs font-bold uppercase tracking-[.2em] text-violet-200">Manual público</p><h1 className="mt-3 text-3xl font-black sm:text-4xl">Manual do Emissor Fiscal</h1><p className="mt-4 max-w-3xl leading-7 text-slate-300">Guia para entender os menus, manter cadastros, revisar emissões e resolver dúvidas comuns. As opções podem variar conforme a empresa, as permissões e os módulos liberados.</p><div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-300"><span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Future Soluções</span><span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Atualizado em outubro de 2026</span></div></div><div className="mt-5 rounded-xl border border-sky-200/15 bg-sky-200/5 p-4 text-sm leading-6 text-sky-100/90"><strong>Importante:</strong> este manual descreve os fluxos identificados no código de referência. Antes de realizar operações fiscais, confirme os dados com o responsável fiscal. CT-e, CT-e OS e MDF-e não são documentados como fluxos prontos, pois precisam de validação funcional.</div><div className="mt-6 space-y-4">{chapters.map((chapter, i) => <section id={'chapter-' + i} key={chapter.title} className="scroll-mt-24 overflow-hidden rounded-2xl border border-white/10 bg-white/[.035]"><button onClick={() => setOpenChapter(openChapter === i ? null : i)} className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left md:px-6"><span className="text-lg font-bold">{chapter.title}</span><ChevronDown className={'shrink-0 text-violet-200 transition ' + (openChapter === i ? 'rotate-180' : '')} size={19} /></button>{openChapter === i && <div className="space-y-5 border-t border-white/10 px-5 py-5 md:px-6">{chapter.items.map(([title, body]) => <div key={title}><h3 className="font-semibold text-violet-100">{title}</h3><p className="mt-2 text-sm leading-7 text-slate-300">{body}</p>{manualSteps[title] && <div className="mt-3 rounded-xl border border-violet-300/15 bg-violet-300/[.04] p-4"><p className="text-xs font-bold uppercase tracking-wider text-violet-200">Passo a passo</p><ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300">{manualSteps[title].map((step, stepIndex) => <li key={stepIndex}>{step}</li>)}</ol></div>}</div>)}</div>}</section>)}</div><div className="mt-6 rounded-2xl border border-white/10 p-5"><h2 className="font-bold">Precisa de suporte?</h2><p className="mt-2 text-sm leading-6 text-slate-400">Ao solicitar ajuda, informe a tela, a etapa realizada e a mensagem de erro. Não envie senhas nem o arquivo do certificado por canais inseguros.</p><a href="https://futuresolucoes.com.br/" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-violet-200 hover:text-white">Site da Future Soluções <ExternalLink size={15} /></a></div></div></div></section>}
 
         {isServices && <section className="mx-auto max-w-7xl px-5 py-14 lg:px-8"><Link to="/portal" className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft size={16} /> Início</Link><p className="text-xs font-bold uppercase tracking-[.2em] text-violet-300">Para sua empresa</p><h1 className="mt-3 text-4xl font-black">Soluções Future Soluções</h1><p className="mt-4 max-w-2xl leading-7 text-slate-400">Conheça nossas frentes de atendimento. As condições comerciais e a disponibilidade devem ser confirmadas diretamente com nossa equipe.</p><div className="mt-9 grid gap-5 md:grid-cols-3">{products.map(p => <article key={p.title} className="rounded-2xl border border-white/10 bg-white/[.035] p-6"><p.icon size={28} className="text-violet-200" /><h2 className="mt-4 text-xl font-bold">{p.title}</h2><p className="mt-3 text-sm leading-7 text-slate-400">{p.description}</p><span className="mt-5 inline-block rounded-full bg-white/5 px-3 py-1.5 text-xs text-violet-100">{p.tag}</span></article>)}</div><div className="mt-9 rounded-2xl border border-violet-300/20 bg-violet-400/10 p-6"><h2 className="text-xl font-bold">Vamos encontrar a solução adequada?</h2><p className="mt-2 text-sm leading-6 text-slate-300">Entre em contato pelos canais oficiais publicados no site da Future Soluções para confirmar escopo, valores e disponibilidade.</p><a href="https://futuresolucoes.com.br/" target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-500 px-4 py-3 font-semibold hover:bg-violet-400">Visitar site oficial <ExternalLink size={16} /></a></div></section>}
 
-        {isBlog && <section className="mx-auto max-w-7xl px-5 py-14 lg:px-8"><Link to="/portal" className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft size={16} /> Início</Link><p className="text-xs font-bold uppercase tracking-[.2em] text-violet-300">Conteúdo e orientação</p><h1 className="mt-3 text-4xl font-black">Conteúdos para sua empresa</h1><p className="mt-4 max-w-2xl leading-7 text-slate-400">Uma área preparada para reunir dicas práticas, orientações e novidades da Future Soluções.</p><div className="mt-8 grid gap-4 md:grid-cols-2"><Link to="/portal/manuais/emissor-fiscal" className="rounded-2xl border border-white/10 bg-white/[.035] p-6 hover:border-violet-300/30"><p className="text-xs font-bold uppercase tracking-wider text-violet-200">Guia prático</p><h2 className="mt-3 text-xl font-bold">Cuidados antes de emitir um documento fiscal</h2><p className="mt-2 text-sm leading-6 text-slate-400">Confira empresa, cadastros, informações tributárias e certificado antes de iniciar uma emissão.</p><span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-violet-200">Ler no manual <ArrowRight size={15} /></span></Link><Link to="/portal/servicos" className="rounded-2xl border border-white/10 bg-white/[.035] p-6 hover:border-violet-300/30"><p className="text-xs font-bold uppercase tracking-wider text-violet-200">Gestão empresarial</p><h2 className="mt-3 text-xl font-bold">Conheça as soluções para apoiar sua operação</h2><p className="mt-2 text-sm leading-6 text-slate-400">Veja as frentes de atendimento em certificado digital, documentos fiscais e soluções SPC Brasil.</p><span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-violet-200">Conhecer soluções <ArrowRight size={15} /></span></Link></div><p className="mt-8 text-sm text-slate-500">Novos artigos poderão ser adicionados nesta área conforme a produção de conteúdo da Future Soluções.</p></section>}
+        {isBlog && <section className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
+          <Link to="/portal" className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft size={16} /> Início</Link>
+          {selectedArticle ? <article className="mx-auto max-w-4xl">
+            <Link to="/portal/blog" className="inline-flex items-center gap-2 text-sm text-violet-200 hover:text-white"><ArrowLeft size={15} /> Todos os conteúdos</Link>
+            <div className="mt-6 overflow-hidden rounded-3xl border border-white/10"><img src={selectedArticle.image} alt={selectedArticle.imageAlt} className="h-64 w-full object-cover sm:h-96" loading="lazy" /><div className="bg-white/[.035] p-6 sm:p-10">
+              <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-wider text-violet-200"><span>{selectedArticle.category}</span><span className="text-slate-500">•</span><span>{selectedArticle.readTime} de leitura</span></div>
+              <h1 className="mt-4 text-3xl font-black leading-tight sm:text-5xl">{selectedArticle.title}</h1>
+              <p className="mt-5 text-lg leading-8 text-slate-300">{selectedArticle.description}</p>
+              <p className="mt-6 leading-8 text-slate-300">{selectedArticle.intro}</p>
+              <div className="mt-8 space-y-7">{selectedArticle.sections.map(([heading, paragraph]) => <section key={heading}><h2 className="text-xl font-bold text-white sm:text-2xl">{heading}</h2><p className="mt-3 leading-8 text-slate-300">{paragraph}</p></section>)}</div>
+              <div className="mt-10 rounded-2xl border border-violet-300/20 bg-violet-400/[.07] p-5"><h2 className="text-lg font-bold">Quer conhecer as soluções da Future?</h2><p className="mt-2 text-sm leading-6 text-slate-300">Fale com nossa equipe para entender as opções adequadas à realidade da sua empresa.</p><Link to="/portal/servicos" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-500 px-4 py-3 text-sm font-bold hover:bg-violet-400">Conhecer soluções <ArrowRight size={16} /></Link></div>
+            </div></div>
+          </article> : <>
+            <p className="text-xs font-bold uppercase tracking-[.2em] text-violet-300">Conteúdo e orientação</p>
+            <h1 className="mt-3 text-4xl font-black sm:text-5xl">10 conteúdos para sua empresa</h1>
+            <p className="mt-4 max-w-3xl leading-7 text-slate-400">Artigos práticos sobre NF-e, NFC-e, NFS-e, documentos de transporte, certificado digital, SPC Brasil e gestão de crédito. Cada conteúdo tem imagem, descrição e palavras-chave para facilitar a descoberta nos mecanismos de busca.</p>
+            <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{articles.map((article, index) => <article key={article.slug} className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[.035] transition hover:-translate-y-1 hover:border-violet-300/30">
+              <Link to={'/portal/blog/' + article.slug} className="block h-full">
+                <div className="relative overflow-hidden"><img src={article.image} alt={article.imageAlt} loading="lazy" className="h-48 w-full object-cover transition duration-500 group-hover:scale-105" /><span className="absolute left-3 top-3 rounded-full border border-white/15 bg-[#080914]/85 px-3 py-1 text-xs font-semibold text-violet-100">{article.category}</span></div>
+                <div className="p-5"><p className="text-xs text-slate-500">Artigo {String(index + 1).padStart(2, '0')} · {article.readTime}</p><h2 className="mt-3 text-xl font-bold leading-snug">{article.title}</h2><p className="mt-3 text-sm leading-6 text-slate-400">{article.description}</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-violet-200">Ler artigo <ArrowRight size={15} /></span></div>
+              </Link>
+            </article>)}</div>
+          </>}
+        </section>}
       </main>
 
-      <footer className="border-t border-white/10 bg-black/20"><div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm text-slate-500 md:flex-row md:items-center md:justify-between lg:px-8"><div><p className="font-semibold text-slate-300">Future Soluções</p><p className="mt-1">Tecnologia, orientação e soluções para empresas.</p></div><div className="flex flex-wrap gap-5"><Link to="/portal/manuais" className="hover:text-white">Manuais</Link><Link to="/portal/servicos" className="hover:text-white">Soluções</Link><button onClick={copyPublicLink} className="inline-flex items-center gap-2 hover:text-white">{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? 'Link copiado' : 'Compartilhar portal'}</button></div><p>© {new Date().getFullYear()} Future Soluções</p></div></footer>
+      <footer className="border-t border-white/10 bg-black/20"><div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm text-slate-500 md:flex-row md:items-center md:justify-between lg:px-8"><div><p className="font-semibold text-slate-300">Future Soluções</p><p className="mt-1">Tecnologia, orientação e soluções para empresas.</p></div><div className="flex flex-wrap gap-5"><Link to="/portal/manuais" className="hover:text-white">Manuais</Link><Link to="/portal/servicos" className="hover:text-white">Soluções</Link></div><p>© {new Date().getFullYear()} Future Soluções</p></div></footer>
     </div>
   );
 };
