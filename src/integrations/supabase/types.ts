@@ -822,6 +822,8 @@ export type Database = {
       }
       leads: {
         Row: {
+          assigned_to: string | null
+          last_interaction_at: string | null
           company: string | null
           cpf_cnpj: string | null
           created_at: string
@@ -841,6 +843,8 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          assigned_to?: string | null
+          last_interaction_at?: string | null
           company?: string | null
           cpf_cnpj?: string | null
           created_at?: string
@@ -860,6 +864,8 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          assigned_to?: string | null
+          last_interaction_at?: string | null
           company?: string | null
           cpf_cnpj?: string | null
           created_at?: string
@@ -1809,6 +1815,29 @@ export type Database = {
           p_device_id: string
         }
         Returns: undefined
+      },
+      assign_lead_to_user: {
+        Args: {
+          p_lead_id: string
+          p_assignee: string | null
+        }
+        Returns: undefined
+      },
+      delete_kanban_stage: {
+        Args: {
+          p_funnel: string
+          p_stage_key: string
+          p_fallback_key: string
+        }
+        Returns: undefined
+      },
+      get_assignable_users: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          display_name: string
+          email: string | null
+        }[]
       }
     }
     Enums: {

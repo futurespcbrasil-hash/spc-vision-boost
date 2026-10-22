@@ -7,7 +7,7 @@ interface AppState {
   schedule: ScheduleEvent[];
   loading: boolean;
   moveLeadToStage: (leadId: string, stage: KanbanStage) => void;
-  addLead: (lead: Lead) => void;
+  addLead: (lead: Lead) => Promise<boolean>;
   updateLead: (lead: Lead) => void;
   deleteLead: (leadId: string) => void;
   toggleScheduleDone: (eventId: string) => void;
@@ -27,6 +27,8 @@ export const useAppState = () => {
 const dbToLead = (row: any): Lead => ({
   id: row.id,
   userId: row.user_id || '',
+  assignedTo: row.assigned_to || '',
+  lastInteractionAt: row.last_interaction_at || '',
   name: row.name,
   company: row.company || '',
   phone: row.phone || '',
@@ -96,7 +98,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addLead = async (lead: Lead) => {
     const { data: { user } } = await supabase.auth.getUser();
-    const { data } = await supabase.from('leads').insert({
+    const { data, error } = await supabase.from('leads').insert({
       name: lead.name,
       company: lead.company,
       phone: lead.phone,
@@ -110,9 +112,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       observations: lead.observations,
       interactions: lead.interactions as any,
       user_id: user?.id,
+      assigned_to: lead.assignedTo || null,
+      last_interaction_at: lead.lastInteractionAt || null,
       funnel: (lead as any).funnel || 'spc',
     }).select().single();
-    if (data) setLeads(prev => [dbToLead(data), ...prev]);
+    if (error || !data) {
+      console.error('[CRM] Falha ao cadastrar lead:', error);
+      return false;
+    }
+    setLeads(prev => [dbToLead(data), ...prev]);
+    return true;
   };
 
   const updateLead = async (lead: Lead) => {
@@ -130,6 +139,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       status: lead.status,
       observations: lead.observations,
       interactions: lead.interactions as any,
+      assigned_to: lead.assignedTo || null,
       funnel: (lead as any).funnel || 'spc',
     }).eq('id', lead.id);
   };

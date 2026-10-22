@@ -21,7 +21,6 @@ import { waha } from '@/services/ryzeService';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { KANBAN_STAGES } from '@/data/spcData';
 
 interface Instance { id: string; name: string; status: string; }
 interface Chat {
@@ -192,9 +191,22 @@ const WhatsAppChat = () => {
   const [leadPhone, setLeadPhone] = useState('');
   const [leadFunnel, setLeadFunnel] = useState('spc');
   const [leadStage, setLeadStage] = useState('lead_novo');
+  const [leadAssignee, setLeadAssignee] = useState('');
+  const [leadAssignees, setLeadAssignees] = useState<{user_id: string; display_name: string; email: string | null}[]>([]);
   const [kanbanStages, setKanbanStages] = useState<{key: string; label: string; funnel: string}[]>([]);
   const [kanbanFunnels, setKanbanFunnels] = useState<{key: string; label: string}[]>([]);
   const [savingLead, setSavingLead] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const loadAssignees = async () => {
+      const { data, error } = await supabase.rpc('get_assignable_users');
+      if (!error && data && active) setLeadAssignees(data);
+      if (error) console.warn('[WhatsApp] Não foi possível carregar responsáveis:', error.message);
+    };
+    void loadAssignees();
+    return () => { active = false; };
+  }, []);
 
   // Atualização do status do lead diretamente pela conversa.
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
@@ -752,30 +764,36 @@ const WhatsAppChat = () => {
     }
   };
 
-  // Carrega funis compartilhados e colunas personalizadas; as colunas padrão vêm do CRM.
+  // Funis e etapas vêm do banco; atualize a lista em tempo real quando o Kanban mudar.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      supabase.from('kanban_stages').select('key, label, funnel').order('position'),
-      supabase.from('sectors').select('key, label').order('position'),
-    ]).then(([stageResult, funnelResult]) => {
+    const loadKanbanMetadata = async () => {
+      const [stageResult, funnelResult] = await Promise.all([
+        supabase.from('kanban_stages').select('key, label, funnel').order('position'),
+        supabase.from('sectors').select('key, label').order('position'),
+      ]);
       if (cancelled) return;
+      if (stageResult.error) console.error('[WhatsApp] Falha ao carregar etapas:', stageResult.error.message);
+      if (funnelResult.error) console.error('[WhatsApp] Falha ao carregar funis:', funnelResult.error.message);
       setKanbanStages((stageResult.data as any[]) || []);
       const funnels = (funnelResult.data as any[] || []).map(f => ({ key: String(f.key), label: String(f.label || f.key) }));
       const known = new Map<string, { key: string; label: string }>();
       [{ key: 'spc', label: 'SPC Brasil' }, ...funnels].forEach(f => { if (!known.has(f.key)) known.set(f.key, f); });
       setKanbanFunnels(Array.from(known.values()).filter(f => f.key !== 'comercial'));
-    }).catch((error) => console.error('[WhatsApp] Falha ao carregar funis/colunas:', error));
-    return () => { cancelled = true; };
+    };
+    void loadKanbanMetadata();
+    const channel = supabase.channel('whatsapp-kanban-metadata')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_stages' }, () => { void loadKanbanMetadata(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sectors' }, () => { void loadKanbanMetadata(); })
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, []);
 
   const getStagesForFunnel = (funnel: string) => {
-    const stages = [
-      ...KANBAN_STAGES.map(stage => ({ key: stage.key, label: stage.label, funnel })),
-      ...kanbanStages.filter(stage => stage.funnel === funnel),
-    ];
     const unique = new Map<string, { key: string; label: string; funnel: string }>();
-    stages.forEach(stage => { if (!unique.has(stage.key)) unique.set(stage.key, stage); });
+    kanbanStages
+      .filter(stage => stage.funnel === funnel)
+      .forEach(stage => { if (!unique.has(stage.key)) unique.set(stage.key, stage); });
     return Array.from(unique.values());
   };
 
@@ -841,6 +859,7 @@ const WhatsAppChat = () => {
     const preferredFunnel = kanbanFunnels.find(f => f.key === 'spc')?.key || kanbanFunnels[0]?.key || 'spc';
     setLeadFunnel(preferredFunnel);
     setLeadStage('lead_novo');
+    setLeadAssignee(selected.assigned_to || user?.id || '');
     setLeadDialog(true);
   };
 
@@ -851,7 +870,7 @@ const WhatsAppChat = () => {
     try {
       const digits = onlyDigits(leadPhone);
       if (digits.length >= 10 && selected) {
-        const { data: existingLeads, error: lookupError } = await supabase.from('leads').select('id,phone,whatsapp,status,funnel');
+        const { data: existingLeads, error: lookupError } = await supabase.from('leads').select('id,phone,whatsapp,status,funnel,assigned_to');
         if (lookupError) throw lookupError;
         const matches = (existingLeads || []).filter((lead: any) =>
           [onlyDigits(lead.phone || ''), onlyDigits(lead.whatsapp || '')].filter(Boolean)
@@ -861,6 +880,10 @@ const WhatsAppChat = () => {
         if (uniqueMatches.length > 1) throw new Error('Há mais de um lead com este telefone. Revise os cadastros antes de vincular.');
         if (uniqueMatches.length === 1) {
           const existing = uniqueMatches[0];
+          if (leadAssignee && leadAssignee !== existing.assigned_to) {
+            const { error: assignError } = await supabase.rpc('assign_lead_to_user', { p_lead_id: existing.id, p_assignee: leadAssignee });
+            if (assignError) throw assignError;
+          }
           const { error: linkError } = await (supabase as any).from('whatsapp_chats').update({ lead_id: existing.id, funnel_stage: existing.status }).eq('id', selected.id);
           if (linkError) throw linkError;
           setSelected(prev => prev?.id === selected.id ? { ...prev, lead_id: existing.id, funnel_stage: existing.status } : prev);
@@ -877,6 +900,7 @@ const WhatsAppChat = () => {
         whatsapp: leadPhone.trim(),
         status: leadStage,
         funnel: leadFunnel,
+        assigned_to: leadAssignee || user.id,
         type: 'PJ',
         origin: 'WhatsApp',
       }).select('id').single();
@@ -921,6 +945,16 @@ const WhatsAppChat = () => {
     try {
       const { error } = await (supabase as any).rpc('take_over_whatsapp_chat', { p_chat_id: selected.id });
       if (error) throw error;
+      if (selected.lead_id) {
+        const { error: leadAssignmentError } = await supabase.rpc('assign_lead_to_user', {
+          p_lead_id: selected.lead_id,
+          p_assignee: user.id,
+        });
+        if (leadAssignmentError) {
+          toast({ title: 'Atendimento assumido, mas o lead não foi sincronizado', description: leadAssignmentError.message, variant: 'destructive' });
+          return;
+        }
+      }
       setSelected(prev => prev?.id === selected.id ? { ...prev, assigned_to: user.id } : prev);
       setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: user.id } : chat));
       toast({ title: 'Atendimento assumido', description: 'A responsabilidade foi atualizada e registrada no histórico.' });
@@ -1883,10 +1917,19 @@ const WhatsAppChat = () => {
               </Select>
             </div>
           </div>
+          <div className="space-y-1">
+            <Label>Responsável pelo lead</Label>
+            <Select value={leadAssignee} onValueChange={setLeadAssignee}>
+              <SelectTrigger><SelectValue placeholder="Selecionar responsável" /></SelectTrigger>
+              <SelectContent>
+                {leadAssignees.map(member => <SelectItem key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setLeadDialog(false)}>Cancelar</Button>
-          <Button onClick={handleRegisterLead} disabled={savingLead || !leadName.trim()} className="gap-2">
+          <Button onClick={handleRegisterLead} disabled={savingLead || !leadName.trim() || !leadStage} className="gap-2">
             <UserPlus size={14} />
             {savingLead ? 'Salvando...' : 'Cadastrar e Ir ao Funil'}
           </Button>

@@ -4,7 +4,7 @@ import { KANBAN_STAGES, KanbanStage, Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { 
-  GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, 
+  GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, UserPlus, Clock, History,
   Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search, FileDown
 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -18,9 +18,10 @@ const CRMKanban = () => {
   const { role, user, loading: authLoading } = useAuth();
   const { activeSector, sectors } = useSectors();
   const isGestor = !authLoading && role === 'gestor';
+  const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
   const funnel = activeSector;
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
-  const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
+  const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead, refreshLeads } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
   const baseStages = KANBAN_STAGES;
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
@@ -30,8 +31,21 @@ const CRMKanban = () => {
   const [editData, setEditData] = useState<Lead | null>(null);
   const [expandedStages, setExpandedStages] = useState<Set<KanbanStage>>(new Set());
   const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string; userId?: string }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ user_id: string; display_name: string; email: string | null }[]>([]);
+  const [historyLead, setHistoryLead] = useState<Lead | null>(null);
+  const [leadAssignmentHistory, setLeadAssignmentHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadCompany, setNewLeadCompany] = useState('');
+  const [newLeadPhone, setNewLeadPhone] = useState('');
+  const [newLeadWhatsapp, setNewLeadWhatsapp] = useState('');
+  const [newLeadEmail, setNewLeadEmail] = useState('');
+  const [newLeadProduct, setNewLeadProduct] = useState('');
+  const [newLeadOrigin, setNewLeadOrigin] = useState('Kanban');
+  const [newLeadStage, setNewLeadStage] = useState<string>('lead_novo');
+  const [newLeadAssignee, setNewLeadAssignee] = useState('');
   const [showAddColumn, setShowAddColumn] = useState(false);
-  const [showManageColumns, setShowManageColumns] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editColLabel, setEditColLabel] = useState('');
@@ -41,7 +55,52 @@ const CRMKanban = () => {
   const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
+  const canEditLead = (lead: Lead) => isOwner || isGestor || !lead.userId || lead.userId === user?.id;
+
+  useEffect(() => {
+    let active = true;
+    const loadTeamMembers = async () => {
+      const { data, error } = await supabase.rpc('get_assignable_users');
+      if (!error && data && active) setTeamMembers(data);
+      if (error) console.error('Erro ao carregar responsáveis:', error);
+    };
+    void loadTeamMembers();
+    return () => { active = false; };
+  }, []);
+
+  const handleOpenLeadHistory = async (lead: Lead) => {
+    setHistoryLead(lead);
+    setHistoryLoading(true);
+    try {
+      const { data, error } = await (supabase as any).from('lead_assignment_history')
+        .select('id,previous_assignee,new_assignee,changed_by,changed_at')
+        .eq('lead_id', lead.id)
+        .order('changed_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setLeadAssignmentHistory(data || []);
+    } catch (error: any) {
+      toast({ title: 'Não foi possível carregar o histórico', description: error.message, variant: 'destructive' });
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleAssignLead = async (lead: Lead, assigneeId: string) => {
+    const { error } = await supabase.rpc('assign_lead_to_user', {
+      p_lead_id: lead.id,
+      p_assignee: assigneeId || null,
+    });
+    if (error) {
+      toast({ title: 'Não foi possível atribuir o lead', description: error.message, variant: 'destructive' });
+      return;
+    }
+    await refreshLeads();
+    toast({
+      title: assigneeId ? 'Lead atribuído' : 'Responsável removido',
+      description: assigneeId ? `O lead foi direcionado para ${teamMembers.find(member => member.user_id === assigneeId)?.display_name || 'o usuário selecionado'}.` : 'O lead ficou sem responsável.',
+    });
+  };
 
   // Load custom stages from database (with localStorage migration fallback)
   useEffect(() => {
@@ -101,9 +160,53 @@ const CRMKanban = () => {
     setCustomStages([]);
   }, [funnel]);
 
-  const allStages = [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
+  const allStages = customStages.length >= baseStages.length
+    ? customStages.map(s => ({ ...s, key: s.key as KanbanStage }))
+    : [...baseStages, ...customStages.filter(s => !baseStages.some(base => base.key === s.key)).map(s => ({ ...s, key: s.key as KanbanStage }))];
+  // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
   const canManageCustomStage = (key: string) =>
-    isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
+    isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
+
+  const handleCreateLead = async () => {
+    if (!newLeadName.trim()) {
+      toast({ title: 'Informe o nome do lead', variant: 'destructive' });
+      return;
+    }
+    const created = await addLead({
+      id: '',
+      userId: user?.id,
+      assignedTo: newLeadAssignee || undefined,
+      name: newLeadName.trim(),
+      company: newLeadCompany.trim(),
+      phone: newLeadPhone.trim(),
+      whatsapp: newLeadWhatsapp.trim() || newLeadPhone.trim(),
+      email: newLeadEmail.trim(),
+      cpfCnpj: '',
+      type: 'PJ',
+      origin: newLeadOrigin.trim() || 'Kanban',
+      product: newLeadProduct.trim(),
+      status: newLeadStage as KanbanStage,
+      observations: '',
+      interactions: [],
+      createdAt: new Date().toISOString().slice(0, 10),
+      funnel,
+    });
+    if (!created) {
+      toast({ title: 'Erro ao cadastrar lead', description: 'O banco de dados não confirmou o cadastro. Revise os dados e tente novamente.', variant: 'destructive' });
+      return;
+    }
+    setShowAddLead(false);
+    setNewLeadName('');
+    setNewLeadCompany('');
+    setNewLeadPhone('');
+    setNewLeadWhatsapp('');
+    setNewLeadEmail('');
+    setNewLeadProduct('');
+    setNewLeadOrigin('Kanban');
+    setNewLeadStage('lead_novo');
+    setNewLeadAssignee(user?.id || '');
+    toast({ title: 'Lead cadastrado', description: 'O lead foi adicionado ao funil selecionado.' });
+  };
 
   const handleAddColumn = async () => {
     if (!newColLabel.trim()) return;
@@ -135,15 +238,24 @@ const CRMKanban = () => {
       toast({ title: 'Apenas visualização', description: 'Você pode visualizar colunas de outros perfis, mas só pode excluir as permitidas pela sua função.', variant: 'destructive' });
       return;
     }
-    const fallback = (baseStages[0]?.key as KanbanStage) || ('lead_novo' as KanbanStage);
-    if (confirm('Excluir esta coluna? Os leads serão movidos para a primeira coluna.')) {
-      leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, fallback));
-      const { error } = await supabase.from('kanban_stages').delete().eq('key', key).eq('funnel', funnel);
+    const fallback = allStages.find(stage => stage.key !== key)?.key as KanbanStage | undefined;
+    if (!fallback) {
+      toast({ title: 'Não é possível excluir a última coluna', description: 'O funil precisa manter pelo menos uma etapa.', variant: 'destructive' });
+      return;
+    }
+    if (confirm('Excluir esta coluna? Os leads serão movidos para a primeira coluna disponível.')) {
+      const { error } = await supabase.rpc('delete_kanban_stage', {
+        p_funnel: funnel,
+        p_stage_key: key,
+        p_fallback_key: fallback,
+      });
       if (error) {
         toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
         return;
       }
       setCustomStages(customStages.filter(s => s.key !== key));
+      await refreshLeads();
+      toast({ title: 'Coluna excluída', description: 'Os leads foram movidos para outra etapa do mesmo funil.' });
     }
   };
 
@@ -353,11 +465,10 @@ const CRMKanban = () => {
             <FileDown size={16} /> Exportar PDF
           </button>
           <button
-            onClick={() => setShowManageColumns(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition"
-            title="Editar ou excluir colunas personalizadas"
+            onClick={() => { setNewLeadAssignee(user?.id || ''); setShowAddLead(true); }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
           >
-            <Edit3 size={16} /> Gerenciar Colunas
+            <Plus size={16} /> Novo Lead
           </button>
           <button
             onClick={() => setShowAddColumn(true)}
@@ -422,54 +533,60 @@ const CRMKanban = () => {
         </div>
       )}
 
-      {/* Manage columns modal */}
-      {showManageColumns && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowManageColumns(false); setEditingColumn(null); setEditColLabel(''); }}>
-          <div className="bg-card rounded-xl border border-border max-w-md w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      {/* Lead assignment history */}
+      {historyLead && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setHistoryLead(null)}>
+          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-6 space-y-4 animate-slide-in max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-foreground flex items-center gap-2"><Edit3 size={18} /> Gerenciar colunas</h3>
-              <button onClick={() => { setShowManageColumns(false); setEditingColumn(null); setEditColLabel(''); }} className="text-muted-foreground hover:text-foreground" title="Fechar"><X size={18} /></button>
+              <h3 className="font-bold text-foreground flex items-center gap-2"><History size={18} /> Histórico de responsáveis</h3>
+              <button onClick={() => setHistoryLead(null)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar"><X size={18} /></button>
             </div>
-            <p className="text-sm text-muted-foreground">Edite o nome ou exclua as colunas personalizadas deste setor. As colunas padrão do sistema não podem ser alteradas aqui.</p>
-            {customStages.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border p-5 text-center space-y-2">
-                <p className="text-sm text-muted-foreground">Você ainda não criou colunas personalizadas neste setor.</p>
-                <button onClick={() => { setShowManageColumns(false); setShowAddColumn(true); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"><Plus size={15} /> Adicionar coluna</button>
-              </div>
+            <p className="text-sm text-muted-foreground">{historyLead.name}</p>
+            {historyLoading ? <p className="text-sm text-muted-foreground">Carregando histórico...</p> : leadAssignmentHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4 text-center">Ainda não há transferências registradas para este lead.</p>
             ) : (
               <div className="space-y-2">
-                {customStages.map(stage => (
-                  <div key={stage.key} className="flex items-center gap-2 rounded-lg border border-border p-3">
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${stage.color}`} />
-                    {editingColumn === stage.key ? (
-                      <input
-                        className="flex-1 min-w-0 px-2 py-1 rounded border border-border bg-background text-foreground text-sm"
-                        value={editColLabel}
-                        onChange={e => setEditColLabel(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleRenameColumn(stage.key)}
-                        autoFocus
-                        aria-label="Nome da coluna"
-                      />
-                    ) : (
-                      <span className="flex-1 min-w-0 text-sm text-foreground truncate">{stage.label}</span>
-                    )}
-                    {canManageCustomStage(stage.key) ? (editingColumn === stage.key ? (
-                      <>
-                        <button onClick={() => handleRenameColumn(stage.key)} className="p-1.5 rounded hover:bg-muted text-primary" title="Salvar nome"><Save size={16} /></button>
-                        <button onClick={() => { setEditingColumn(null); setEditColLabel(''); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground" title="Cancelar edição"><X size={16} /></button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => { setEditingColumn(stage.key); setEditColLabel(stage.label); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-primary" title={`Editar ${stage.label}`}><Edit3 size={16} /></button>
-                        <button onClick={() => handleDeleteColumn(stage.key)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title={`Excluir ${stage.label}`}><Trash2 size={16} /></button>
-                      </>
-                    )) : <span className="text-xs text-muted-foreground">Somente visualização</span>}
-                  </div>
-                ))}
+                {leadAssignmentHistory.map(item => {
+                  const previous = teamMembers.find(member => member.user_id === item.previous_assignee);
+                  const next = teamMembers.find(member => member.user_id === item.new_assignee);
+                  const actor = teamMembers.find(member => member.user_id === item.changed_by);
+                  return (
+                    <div key={item.id} className="rounded-lg border border-border p-3 space-y-1">
+                      <p className="text-sm text-foreground">{previous?.display_name || 'Sem responsável'} → <span className="font-medium">{next?.display_name || 'Sem responsável'}</span></p>
+                      <p className="text-xs text-muted-foreground">Alterado por {actor?.display_name || 'Usuário'} · {new Date(item.changed_at).toLocaleString('pt-BR')}</p>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <div className="flex justify-end pt-1">
-              <button onClick={() => { setShowManageColumns(false); setEditingColumn(null); setEditColLabel(''); }} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Fechar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Create lead modal */}
+      {showAddLead && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddLead(false)}>
+          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-foreground">Novo lead — {sectorLabel}</h3>
+              <button onClick={() => setShowAddLead(false)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar"><X size={18} /></button>
+            </div>
+            <div><label className="text-xs text-muted-foreground">Nome *</label><input autoFocus value={newLeadName} onChange={e => setNewLeadName(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Nome do contato" /></div>
+            <div><label className="text-xs text-muted-foreground">Empresa</label><input value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Empresa" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><label className="text-xs text-muted-foreground">Telefone</label><input value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Telefone" /></div>
+              <div><label className="text-xs text-muted-foreground">WhatsApp</label><input value={newLeadWhatsapp} onChange={e => setNewLeadWhatsapp(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Se vazio, usa o telefone" /></div>
+            </div>
+            <div><label className="text-xs text-muted-foreground">E-mail</label><input type="email" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="E-mail" /></div>
+            <div><label className="text-xs text-muted-foreground">Produto / serviço</label><input value={newLeadProduct} onChange={e => setNewLeadProduct(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Ex.: SPC Brasil, certificado digital" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><label className="text-xs text-muted-foreground">Etapa inicial</label><select value={newLeadStage} onChange={e => setNewLeadStage(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm">{allStages.map(stage => <option key={stage.key} value={stage.key}>{stage.label}</option>)}</select></div>
+              <div><label className="text-xs text-muted-foreground">Origem</label><input value={newLeadOrigin} onChange={e => setNewLeadOrigin(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" /></div>
+            </div>
+            <div><label className="text-xs text-muted-foreground">Responsável</label><select value={newLeadAssignee} onChange={e => setNewLeadAssignee(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"><option value="">Sem responsável</option>{teamMembers.map(member => <option key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</option>)}</select></div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button onClick={() => setShowAddLead(false)} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
+              <button onClick={() => void handleCreateLead()} disabled={!newLeadName.trim()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50">Cadastrar lead</button>
             </div>
           </div>
         </div>
@@ -604,6 +721,10 @@ const CRMKanban = () => {
                   onClick={() => setSelectedLead(lead)}
                   onStatusChange={handleCardStatusChange}
                   onObsChange={handleCardObsChange}
+                  teamMembers={teamMembers}
+                  currentUserId={user?.id || ''}
+                  onAssign={handleAssignLead}
+                  onOpenHistory={handleOpenLeadHistory}
                   onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
                   onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                 />
@@ -687,6 +808,10 @@ const CRMKanban = () => {
                       onClick={() => setSelectedLead(lead)}
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
+                      teamMembers={teamMembers}
+                      currentUserId={user?.id || ''}
+                      onAssign={handleAssignLead}
+                      onOpenHistory={handleOpenLeadHistory}
                       onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
                       onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                     />
@@ -718,11 +843,15 @@ interface LeadCardProps {
   onClick: () => void;
   onStatusChange: (lead: Lead, status: string) => void;
   onObsChange: (lead: Lead, obs: string) => void;
+  teamMembers: { user_id: string; display_name: string; email: string | null }[];
+  currentUserId: string;
+  onAssign: (lead: Lead, assigneeId: string) => void;
+  onOpenHistory: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
 }
 
-const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, onDelete, onEdit }: LeadCardProps) => {
+const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, currentUserId, onAssign, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
 
@@ -745,6 +874,25 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       </div>
       
       <div className="spc-badge mb-1.5">{lead.product}</div>
+
+      {/* Lead age and last interaction */}
+      {(() => {
+        const interactions = Array.isArray(lead.interactions) ? lead.interactions : [];
+        const interactionTimes = [
+          lead.lastInteractionAt ? new Date(lead.lastInteractionAt).getTime() : 0,
+          ...interactions.map(item => item?.date ? new Date(item.date).getTime() : 0),
+        ].filter(value => Number.isFinite(value) && value > 0);
+        const latestInteraction = interactionTimes.length ? Math.max(...interactionTimes) : 0;
+        const reference = latestInteraction > 0 ? latestInteraction : 0;
+        const daysSince = reference ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : null;
+        return (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1.5" title={`Criado em ${lead.createdAt || 'data indisponível'}; última interação ${daysSince === null ? 'não registrada' : `há ${daysSince} dia(s)`}`}>
+            <Clock size={11} />
+            <span>Criado: {lead.createdAt || '—'}</span>
+            <span className="ml-auto">Último contato: {daysSince === null ? '—' : daysSince === 0 ? 'hoje' : `há ${daysSince}d`}</span>
+          </div>
+        );
+      })()}
 
       {/* Status selector */}
       <div className="mb-1.5" onClick={e => e.stopPropagation()}>
@@ -791,7 +939,29 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
         <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition"><Phone size={13} /></a>
         <a href={`https://wa.me/${lead.whatsapp}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-success transition"><MessageCircle size={13} /></a>
         {lead.email && <a href={`mailto:${lead.email}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition"><Mail size={13} /></a>}
+        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()} title="Atribuir responsável">
+          <UserPlus size={13} className="text-muted-foreground shrink-0" />
+          <select
+            aria-label={`Responsável pelo lead ${lead.name}`}
+            value={lead.assignedTo || ''}
+            onChange={e => onAssign(lead, e.target.value)}
+            className="max-w-[110px] text-[10px] px-1 py-1 rounded border border-border bg-background text-foreground"
+          >
+            <option value="">Sem responsável</option>
+            {teamMembers.map(member => <option key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</option>)}
+          </select>
+          {currentUserId && lead.assignedTo !== currentUserId && (
+            <button
+              type="button"
+              onClick={() => onAssign(lead, currentUserId)}
+              className="text-muted-foreground hover:text-primary transition"
+              title="Assumir este lead"
+              aria-label="Assumir este lead"
+            ><User2 size={13} /></button>
+          )}
+        </div>
         <div className="ml-auto flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          <button onClick={() => onOpenHistory(lead)} className="text-muted-foreground hover:text-primary transition" title="Histórico de responsáveis" aria-label="Histórico de responsáveis"><History size={12} /></button>
           <button onClick={() => onEdit(lead)} className="text-muted-foreground hover:text-primary transition"><Edit3 size={12} /></button>
           <button onClick={() => onDelete(lead)} className="text-muted-foreground hover:text-destructive transition"><Trash2 size={12} /></button>
         </div>
