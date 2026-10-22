@@ -260,10 +260,10 @@ Deno.serve(async (req: Request) => {
         const inst = await getOwnedInstance();
         const digits = number.replace(/\D/g, "");
         if (digits.length < 10 || digits.length > 15) return json({ error: "Informe um número válido com DDD." }, 400);
-        const normalized = digits.startsWith("55") ? digits : \`55\${digits}\`;
+        const normalized = digits.startsWith("55") ? digits : `55${digits}`;
         const result = await callWaha("/api/contacts/check-exists", "POST", {
           session: inst.provider_instance_name,
-          contacts: [\`\${normalized}@c.us\`],
+          contacts: [`${normalized}@c.us`],
         });
         const entries = Array.isArray(result) ? result : Array.isArray(result?.results) ? result.results : [];
         const match = entries.find((item: any) => {
