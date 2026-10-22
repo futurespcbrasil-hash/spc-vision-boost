@@ -10,12 +10,18 @@ export interface Sector {
 
 const STORAGE_KEY_PREFIX = 'active_sector_';
 
-const dedupeSectors = (rows: any[] = [], userId?: string): Sector[] => {
+const dedupeSectors = (rows: any[] = []): Sector[] => {
   const map = new Map<string, Sector>();
   rows.forEach(row => {
-    if (!row?.key || (userId && row.user_id !== userId)) return;
-    if (!map.has(row.key)) {
+    if (!row?.key) return;
+    const existing = map.get(row.key);
+    if (!existing) {
       map.set(row.key, { key: row.key, label: row.label, userId: row.user_id });
+      return;
+    }
+    // A key owned by more than one profile is shared; never expose it as deletable.
+    if (existing.userId !== row.user_id) {
+      map.set(row.key, { ...existing, userId: undefined });
     }
   });
   return Array.from(map.values());
@@ -61,14 +67,13 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Every profile sees only the sectors it owns. Do not auto-create SPC Brasil
-    // or Comercial: a sector appears only after that profile explicitly creates it.
-    // Keep the existing SPC Brasil sector for this profile, but never auto-show the generic Comercial sector.
-    const ownSectors = dedupeSectors(data || [], user.id).filter(s => s.key !== 'comercial');
-    setSectors(ownSectors);
+    // All profiles can browse every sector/funnel to collaborate on shared leads.
+    // Keep the legacy generic "Comercial" funnel hidden; never create sectors automatically.
+    const sharedSectors = dedupeSectors(data || []).filter(s => s.key !== 'comercial');
+    setSectors(sharedSectors);
 
     const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}${user.id}`);
-    setActiveSectorState(saved && ownSectors.some(s => s.key === saved) ? saved : (ownSectors[0]?.key || ''));
+    setActiveSectorState(saved && sharedSectors.some(s => s.key === saved) ? saved : (sharedSectors[0]?.key || ''));
     setLoading(false);
   }, []);
 
