@@ -1,6 +1,8 @@
 export interface Lead {
   id: string;
   userId?: string;
+  assignedTo?: string;
+  lastInteractionAt?: string;
   name: string;
   company: string;
   phone: string;
