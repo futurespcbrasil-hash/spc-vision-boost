@@ -4,7 +4,7 @@ import { KANBAN_STAGES, KanbanStage, Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { 
-  GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, UserPlus, Clock,
+  GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, UserPlus, Clock, History,
   Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search, FileDown
 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -31,6 +31,9 @@ const CRMKanban = () => {
   const [expandedStages, setExpandedStages] = useState<Set<KanbanStage>>(new Set());
   const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string; userId?: string }[]>([]);
   const [teamMembers, setTeamMembers] = useState<{ user_id: string; display_name: string; email: string | null }[]>([]);
+  const [historyLead, setHistoryLead] = useState<Lead | null>(null);
+  const [leadAssignmentHistory, setLeadAssignmentHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [showAddLead, setShowAddLead] = useState(false);
   const [newLeadName, setNewLeadName] = useState('');
   const [newLeadCompany, setNewLeadCompany] = useState('');
@@ -62,6 +65,24 @@ const CRMKanban = () => {
     void loadTeamMembers();
     return () => { active = false; };
   }, []);
+
+  const handleOpenLeadHistory = async (lead: Lead) => {
+    setHistoryLead(lead);
+    setHistoryLoading(true);
+    try {
+      const { data, error } = await (supabase as any).from('lead_assignment_history')
+        .select('id,previous_assignee,new_assignee,changed_by,changed_at')
+        .eq('lead_id', lead.id)
+        .order('changed_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setLeadAssignmentHistory(data || []);
+    } catch (error: any) {
+      toast({ title: 'Não foi possível carregar o histórico', description: error.message, variant: 'destructive' });
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const handleAssignLead = async (lead: Lead, assigneeId: string) => {
     const { error } = await supabase.rpc('assign_lead_to_user', {
@@ -494,6 +515,36 @@ const CRMKanban = () => {
         </div>
       )}
 
+      {/* Lead assignment history */}
+      {historyLead && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setHistoryLead(null)}>
+          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-6 space-y-4 animate-slide-in max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-foreground flex items-center gap-2"><History size={18} /> Histórico de responsáveis</h3>
+              <button onClick={() => setHistoryLead(null)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar"><X size={18} /></button>
+            </div>
+            <p className="text-sm text-muted-foreground">{historyLead.name}</p>
+            {historyLoading ? <p className="text-sm text-muted-foreground">Carregando histórico...</p> : leadAssignmentHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4 text-center">Ainda não há transferências registradas para este lead.</p>
+            ) : (
+              <div className="space-y-2">
+                {leadAssignmentHistory.map(item => {
+                  const previous = teamMembers.find(member => member.user_id === item.previous_assignee);
+                  const next = teamMembers.find(member => member.user_id === item.new_assignee);
+                  const actor = teamMembers.find(member => member.user_id === item.changed_by);
+                  return (
+                    <div key={item.id} className="rounded-lg border border-border p-3 space-y-1">
+                      <p className="text-sm text-foreground">{previous?.display_name || 'Sem responsável'} → <span className="font-medium">{next?.display_name || 'Sem responsável'}</span></p>
+                      <p className="text-xs text-muted-foreground">Alterado por {actor?.display_name || 'Usuário'} · {new Date(item.changed_at).toLocaleString('pt-BR')}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Create lead modal */}
       {showAddLead && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddLead(false)}>
@@ -653,6 +704,7 @@ const CRMKanban = () => {
                   onObsChange={handleCardObsChange}
                   teamMembers={teamMembers}
                   onAssign={handleAssignLead}
+                  onOpenHistory={handleOpenLeadHistory}
                   onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
                   onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                 />
@@ -738,6 +790,7 @@ const CRMKanban = () => {
                       onObsChange={handleCardObsChange}
                       teamMembers={teamMembers}
                       onAssign={handleAssignLead}
+                      onOpenHistory={handleOpenLeadHistory}
                       onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
                       onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                     />
@@ -771,11 +824,12 @@ interface LeadCardProps {
   onObsChange: (lead: Lead, obs: string) => void;
   teamMembers: { user_id: string; display_name: string; email: string | null }[];
   onAssign: (lead: Lead, assigneeId: string) => void;
+  onOpenHistory: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
 }
 
-const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, onAssign, onDelete, onEdit }: LeadCardProps) => {
+const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, onAssign, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
 
@@ -877,6 +931,7 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
           </select>
         </div>
         <div className="ml-auto flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          <button onClick={() => onOpenHistory(lead)} className="text-muted-foreground hover:text-primary transition" title="Histórico de responsáveis" aria-label="Histórico de responsáveis"><History size={12} /></button>
           <button onClick={() => onEdit(lead)} className="text-muted-foreground hover:text-primary transition"><Edit3 size={12} /></button>
           <button onClick={() => onDelete(lead)} className="text-muted-foreground hover:text-destructive transition"><Trash2 size={12} /></button>
         </div>
