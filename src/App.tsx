@@ -35,7 +35,7 @@ const lazyWithRetry = (importer: () => Promise<{ default: ComponentType<any> }>)
   });
 
 // Rotas carregadas sob demanda (app mais leve e inicialização mais rápida)
-const ManualEmissor = lazyWithRetry(() => import("@/pages/ManualEmissor"));
+const ManualEmissor = lazyWithRetry(() => import("@/pages/ManualEmissor"));\nconst PortalPublico = lazyWithRetry(() => import("@/pages/PortalPublico"));
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const GestorDashboard = lazyWithRetry(() => import("@/pages/GestorDashboard"));
 const CRMKanban = lazyWithRetry(() => import("@/pages/CRMKanban"));
