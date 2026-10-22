@@ -37,7 +37,16 @@ GRANT SELECT, INSERT, UPDATE ON public.whatsapp_agent_preferences TO authenticat
 
 -- Seed preferences for existing profiles; no private profile fields are exposed.
 INSERT INTO public.whatsapp_agent_preferences (user_id, display_name, color)
-SELECT p.user_id, COALESCE(NULLIF(trim(p.display_name), ''), 'Atendimento'), '#8B5CF6'
+SELECT p.user_id, COALESCE(NULLIF(trim(p.display_name), ''), 'Atendimento'), CASE (ascii(substr(md5(p.user_id::text), 1, 1)) % 8)
+  WHEN 0 THEN '#8B5CF6'
+  WHEN 1 THEN '#10B981'
+  WHEN 2 THEN '#3B82F6'
+  WHEN 3 THEN '#F59E0B'
+  WHEN 4 THEN '#EF4444'
+  WHEN 5 THEN '#EC4899'
+  WHEN 6 THEN '#6366F1'
+  ELSE '#14B8A6'
+END
 FROM public.profiles p
 ON CONFLICT (user_id) DO UPDATE
 SET display_name = EXCLUDED.display_name;
@@ -50,7 +59,16 @@ SET search_path = public, pg_temp
 AS $$
 BEGIN
   INSERT INTO public.whatsapp_agent_preferences (user_id, display_name, color)
-  VALUES (NEW.user_id, COALESCE(NULLIF(trim(NEW.display_name), ''), 'Atendimento'), '#8B5CF6')
+  VALUES (NEW.user_id, COALESCE(NULLIF(trim(NEW.display_name), ''), 'Atendimento'), CASE (ascii(substr(md5(NEW.user_id::text), 1, 1)) % 8)
+  WHEN 0 THEN '#8B5CF6'
+  WHEN 1 THEN '#10B981'
+  WHEN 2 THEN '#3B82F6'
+  WHEN 3 THEN '#F59E0B'
+  WHEN 4 THEN '#EF4444'
+  WHEN 5 THEN '#EC4899'
+  WHEN 6 THEN '#6366F1'
+  ELSE '#14B8A6'
+END)
   ON CONFLICT (user_id) DO UPDATE
     SET display_name = EXCLUDED.display_name;
   RETURN NEW;
