@@ -64,8 +64,8 @@ const CRMNotificationBell = () => {
       if (!error) setItems(previous => previous.map(old => old.id === item.id ? { ...old, read_at: readAt } : old));
     }
     setOpen(false);
-    if (item.chat_id) navigate('/whatsapp');
-    else if (item.lead_id) navigate('/crm');
+    if (item.lead_id) navigate(`/crm?leadId=${encodeURIComponent(item.lead_id)}`);
+    else if (item.chat_id) navigate('/whatsapp');
   };
 
   const markAllRead = async () => {
