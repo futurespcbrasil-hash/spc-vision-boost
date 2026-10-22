@@ -599,6 +599,8 @@ const CRMKanban = () => {
                   allStages={allStages}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+
+                  isDragging={draggedLead === lead.id}
                   onClick={() => setSelectedLead(lead)}
                   onStatusChange={handleCardStatusChange}
                   onObsChange={handleCardObsChange}
@@ -641,7 +643,7 @@ const CRMKanban = () => {
             return (
               <div
                 key={stage.key}
-                className={`kanban-column transition-all duration-200 ${isDragOver ? 'ring-2 ring-primary/40 bg-primary/5' : ''}`}
+                className={`kanban-column transition-all duration-200 ${isDragOver ? 'kanban-column-drop-active ring-2 ring-primary/50 bg-primary/10' : ''}`}
                 onDragOver={(e) => handleDragOver(e, stage.key as KanbanStage)}
                 onDrop={() => handleDrop(stage.key as KanbanStage)}
                 onDragLeave={() => setDragOverStage(null)}
@@ -680,6 +682,8 @@ const CRMKanban = () => {
                       allStages={allStages}
                       onDragStart={handleDragStart}
                       onDragEnd={handleDragEnd}
+
+                      isDragging={draggedLead === lead.id}
                       onClick={() => setSelectedLead(lead)}
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
@@ -710,6 +714,7 @@ interface LeadCardProps {
   allStages: { key: string; label: string; color: string }[];
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
+  isDragging: boolean;
   onClick: () => void;
   onStatusChange: (lead: Lead, status: string) => void;
   onObsChange: (lead: Lead, obs: string) => void;
@@ -717,7 +722,7 @@ interface LeadCardProps {
   onEdit: (lead: Lead) => void;
 }
 
-const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, onClick, onStatusChange, onObsChange, onDelete, onEdit }: LeadCardProps) => {
+const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
 
@@ -727,7 +732,7 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, onClick, onStatusCh
       onDragStart={() => onDragStart(lead.id)}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className="kanban-card animate-slide-in cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all"
+      className={`kanban-card animate-slide-in cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all ${isDragging ? 'kanban-card-dragging' : ''}`}
     >
       <div className="flex items-start justify-between mb-1.5">
         <span className="font-medium text-sm text-foreground">{lead.name}</span>
