@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   MoreHorizontal, UserCog, LogOut, MessageCircle, MessageSquare, X, Target, Handshake, Building2, StickyNote, Search, FileText,
-  Monitor, History, Cog, Wallet
+  Monitor, History, Cog, Wallet, BookOpen
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,6 +20,7 @@ const MobileBottomNav = () => {
   ];
 
   const more = [
+    { to: '/manual', icon: BookOpen, label: 'Manual do Emissor', moduleKey: 'manual' },
     { to: '/whatsapp', icon: MessageSquare, label: 'WhatsApp', moduleKey: 'whatsapp' },
     { to: '/whatsapp/instancias', icon: MessageSquare, label: '— Instâncias WA', moduleKey: 'whatsapp' },
     { to: '/consultas', icon: Search, label: 'Consultas SPC', moduleKey: 'consultas_spc' },
