@@ -50,15 +50,20 @@ const ClientesIndicadosAtendimento = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any).from('atendimento_indicacoes')
+    let query = (supabase as any).from('atendimento_indicacoes')
       .select('id,user_id,nome,razao_social,cnpj,responsavel,telefone,email,cidade,observacoes,created_at')
       .order('created_at', { ascending: false });
+
+    // Usuários comuns, incluindo dalprapf1, visualizam somente os próprios cadastros.
+    // Apenas o perfil gestor mantém a visão consolidada de todas as indicações.
+    if (user && role !== 'gestor') query = query.eq('user_id', user.id);
+    const { data, error } = await query;
     if (error) {
       toast.error('Não foi possível carregar as indicações: ' + error.message);
       setRows([]);
     } else setRows((data ?? []) as Indicacao[]);
     setLoading(false);
-  }, []);
+  }, [user?.id, role]);
   useEffect(() => { void load(); }, [load]);
 
   const filteredRows = useMemo(() => {
