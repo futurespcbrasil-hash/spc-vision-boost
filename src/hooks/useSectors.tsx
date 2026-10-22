@@ -79,6 +79,14 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => { load(); }, [load]);
 
+  // New sectors created by another profile appear in the selector without reloading the app.
+  useEffect(() => {
+    const channel = supabase.channel('shared-sectors-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sectors' }, () => { void load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load]);
+
   // Keep the selected sector valid for this profile; empty means the profile has not created one yet.
   useEffect(() => {
     if (loading) return;
