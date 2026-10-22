@@ -1830,6 +1830,14 @@ export type Database = {
           p_fallback_key: string
         }
         Returns: undefined
+      },
+      get_assignable_users: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          display_name: string
+          email: string | null
+        }[]
       }
     }
     Enums: {
