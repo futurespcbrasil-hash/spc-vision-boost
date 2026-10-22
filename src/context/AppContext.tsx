@@ -7,7 +7,7 @@ interface AppState {
   schedule: ScheduleEvent[];
   loading: boolean;
   moveLeadToStage: (leadId: string, stage: KanbanStage) => void;
-  addLead: (lead: Lead) => void;
+  addLead: (lead: Lead) => Promise<boolean>;
   updateLead: (lead: Lead) => void;
   deleteLead: (leadId: string) => void;
   toggleScheduleDone: (eventId: string) => void;
@@ -98,7 +98,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const addLead = async (lead: Lead) => {
     const { data: { user } } = await supabase.auth.getUser();
-    const { data } = await supabase.from('leads').insert({
+    const { data, error } = await supabase.from('leads').insert({
       name: lead.name,
       company: lead.company,
       phone: lead.phone,
@@ -116,7 +116,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       last_interaction_at: lead.lastInteractionAt || null,
       funnel: (lead as any).funnel || 'spc',
     }).select().single();
-    if (data) setLeads(prev => [dbToLead(data), ...prev]);
+    if (error || !data) {
+      console.error('[CRM] Falha ao cadastrar lead:', error);
+      return false;
+    }
+    setLeads(prev => [dbToLead(data), ...prev]);
+    return true;
   };
 
   const updateLead = async (lead: Lead) => {
