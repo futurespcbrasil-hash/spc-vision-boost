@@ -27,6 +27,8 @@ export const useAppState = () => {
 const dbToLead = (row: any): Lead => ({
   id: row.id,
   userId: row.user_id || '',
+  assignedTo: row.assigned_to || '',
+  lastInteractionAt: row.last_interaction_at || '',
   name: row.name,
   company: row.company || '',
   phone: row.phone || '',
@@ -110,6 +112,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       observations: lead.observations,
       interactions: lead.interactions as any,
       user_id: user?.id,
+      assigned_to: lead.assignedTo || null,
+      last_interaction_at: lead.lastInteractionAt || null,
       funnel: (lead as any).funnel || 'spc',
     }).select().single();
     if (data) setLeads(prev => [dbToLead(data), ...prev]);
@@ -130,6 +134,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       status: lead.status,
       observations: lead.observations,
       interactions: lead.interactions as any,
+      assigned_to: lead.assignedTo || null,
+      last_interaction_at: lead.lastInteractionAt || null,
       funnel: (lead as any).funnel || 'spc',
     }).eq('id', lead.id);
   };
