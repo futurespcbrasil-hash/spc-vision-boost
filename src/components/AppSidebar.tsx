@@ -63,6 +63,7 @@ const AppSidebar = () => {
   const COMISSOES_SUB = [
     { to: '/relatorios-comissoes', icon: FileBarChart, label: 'Relatórios', moduleKey: 'comissoes' },
     { to: '/cadastro-vendedores', icon: UserPlus, label: 'Cadastro Vendedores', moduleKey: 'comissoes' },
+    { to: '/indicacoes/clientes', icon: Building2, label: 'Clientes Indicados — Emissor de Notas', moduleKey: 'indicacoes_atendimento' },
     { to: '/comissoes/indicacoes-sistema', icon: Building2, label: 'Indicações — Sistema de Notas', moduleKey: 'comissoes' },
   ];
 
