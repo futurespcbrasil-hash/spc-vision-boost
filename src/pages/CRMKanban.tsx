@@ -160,7 +160,9 @@ const CRMKanban = () => {
     setCustomStages([]);
   }, [funnel]);
 
-  const allStages = customStages.map(s => ({ ...s, key: s.key as KanbanStage }));
+  const allStages = customStages.length >= baseStages.length
+    ? customStages.map(s => ({ ...s, key: s.key as KanbanStage }))
+    : [...baseStages, ...customStages.filter(s => !baseStages.some(base => base.key === s.key)).map(s => ({ ...s, key: s.key as KanbanStage }))];
   // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
   const canManageCustomStage = (key: string) =>
     isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
