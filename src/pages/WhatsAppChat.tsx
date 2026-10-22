@@ -192,9 +192,22 @@ const WhatsAppChat = () => {
   const [leadPhone, setLeadPhone] = useState('');
   const [leadFunnel, setLeadFunnel] = useState('spc');
   const [leadStage, setLeadStage] = useState('lead_novo');
+  const [leadAssignee, setLeadAssignee] = useState('');
+  const [leadAssignees, setLeadAssignees] = useState<{user_id: string; display_name: string; email: string | null}[]>([]);
   const [kanbanStages, setKanbanStages] = useState<{key: string; label: string; funnel: string}[]>([]);
   const [kanbanFunnels, setKanbanFunnels] = useState<{key: string; label: string}[]>([]);
   const [savingLead, setSavingLead] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const loadAssignees = async () => {
+      const { data, error } = await supabase.from('profiles').select('user_id, display_name, email').order('display_name');
+      if (!error && data && active) setLeadAssignees(data);
+      if (error) console.warn('[WhatsApp] Não foi possível carregar responsáveis:', error.message);
+    };
+    void loadAssignees();
+    return () => { active = false; };
+  }, []);
 
   // Atualização do status do lead diretamente pela conversa.
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
@@ -771,7 +784,7 @@ const WhatsAppChat = () => {
 
   const getStagesForFunnel = (funnel: string) => {
     const stages = [
-      ...KANBAN_STAGES.map(stage => ({ key: stage.key, label: stage.label, funnel })),
+      ...(funnel === 'spc' ? KANBAN_STAGES.map(stage => ({ key: stage.key, label: stage.label, funnel })) : []),
       ...kanbanStages.filter(stage => stage.funnel === funnel),
     ];
     const unique = new Map<string, { key: string; label: string; funnel: string }>();
@@ -841,6 +854,7 @@ const WhatsAppChat = () => {
     const preferredFunnel = kanbanFunnels.find(f => f.key === 'spc')?.key || kanbanFunnels[0]?.key || 'spc';
     setLeadFunnel(preferredFunnel);
     setLeadStage('lead_novo');
+    setLeadAssignee(selected.assigned_to || user?.id || '');
     setLeadDialog(true);
   };
 
@@ -851,7 +865,7 @@ const WhatsAppChat = () => {
     try {
       const digits = onlyDigits(leadPhone);
       if (digits.length >= 10 && selected) {
-        const { data: existingLeads, error: lookupError } = await supabase.from('leads').select('id,phone,whatsapp,status,funnel');
+        const { data: existingLeads, error: lookupError } = await supabase.from('leads').select('id,phone,whatsapp,status,funnel,assigned_to');
         if (lookupError) throw lookupError;
         const matches = (existingLeads || []).filter((lead: any) =>
           [onlyDigits(lead.phone || ''), onlyDigits(lead.whatsapp || '')].filter(Boolean)
@@ -861,6 +875,10 @@ const WhatsAppChat = () => {
         if (uniqueMatches.length > 1) throw new Error('Há mais de um lead com este telefone. Revise os cadastros antes de vincular.');
         if (uniqueMatches.length === 1) {
           const existing = uniqueMatches[0];
+          if (leadAssignee && leadAssignee !== existing.assigned_to) {
+            const { error: assignError } = await supabase.rpc('assign_lead_to_user', { p_lead_id: existing.id, p_assignee: leadAssignee });
+            if (assignError) throw assignError;
+          }
           const { error: linkError } = await (supabase as any).from('whatsapp_chats').update({ lead_id: existing.id, funnel_stage: existing.status }).eq('id', selected.id);
           if (linkError) throw linkError;
           setSelected(prev => prev?.id === selected.id ? { ...prev, lead_id: existing.id, funnel_stage: existing.status } : prev);
@@ -877,6 +895,7 @@ const WhatsAppChat = () => {
         whatsapp: leadPhone.trim(),
         status: leadStage,
         funnel: leadFunnel,
+        assigned_to: leadAssignee || user.id,
         type: 'PJ',
         origin: 'WhatsApp',
       }).select('id').single();
@@ -1883,10 +1902,19 @@ const WhatsAppChat = () => {
               </Select>
             </div>
           </div>
+          <div className="space-y-1">
+            <Label>Responsável pelo lead</Label>
+            <Select value={leadAssignee} onValueChange={setLeadAssignee}>
+              <SelectTrigger><SelectValue placeholder="Selecionar responsável" /></SelectTrigger>
+              <SelectContent>
+                {leadAssignees.map(member => <SelectItem key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setLeadDialog(false)}>Cancelar</Button>
-          <Button onClick={handleRegisterLead} disabled={savingLead || !leadName.trim()} className="gap-2">
+          <Button onClick={handleRegisterLead} disabled={savingLead || !leadName.trim() || !leadStage} className="gap-2">
             <UserPlus size={14} />
             {savingLead ? 'Salvando...' : 'Cadastrar e Ir ao Funil'}
           </Button>
