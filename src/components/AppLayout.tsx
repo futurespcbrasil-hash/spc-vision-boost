@@ -7,6 +7,7 @@ import { ShieldAlert } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const moduleForPath = (pathname: string): string | null => {
+  if (pathname.startsWith('/manual')) return 'manual';
   if (pathname === '/') return 'dashboard';
   if (pathname.startsWith('/crm')) return 'crm';
   if (pathname.startsWith('/leads')) return 'leads';
