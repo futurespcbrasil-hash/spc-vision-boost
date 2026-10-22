@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Send, Paperclip, Search, User, RefreshCw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -61,7 +60,7 @@ export default function WhatsAppConversas() {
     setInstances(available);
     setInstanceId((current) => {
       if (current && available.some((item) => item.id === current)) return current;
-      const saved = localStorage.getItem('whatsapp_conversas_instance');
+      const saved = localStorage.getItem(`whatsapp_conversas_instance:${user.id}`);
       if (saved && available.some((item) => item.id === saved)) return saved;
       return available.find((item) => item.provider_instance_name && item.status === 'connected')?.id
         || available.find((item) => item.provider_instance_name)?.id || available[0]?.id || '';
@@ -110,10 +109,34 @@ export default function WhatsAppConversas() {
   }, []);
 
   useEffect(() => { void loadInstances().catch((e) => toast.error('Falha ao carregar instâncias: ' + errorText(e))); }, [loadInstances]);
+  useEffect(() => { void loadChats(false); }, [instanceId, loadChats]);
+
   useEffect(() => {
-    if (instanceId) localStorage.setItem('whatsapp_conversas_instance', instanceId);
-    void loadChats(false);
-  }, [instanceId, loadChats]);
+    if (instanceId && user) localStorage.setItem(`whatsapp_conversas_instance:${user.id}`, instanceId);
+  }, [instanceId, user?.id]);
+
+  // Atualização em tempo real; as políticas RLS limitam os eventos às conversas do proprietário.
+  useEffect(() => {
+    if (!instanceId || !user) return;
+    const channel = supabase.channel(`whatsapp-conversas-${user.id}-${instanceId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
+        () => { void loadChats(false); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages', filter: `instance_id=eq.${instanceId}` },
+        () => { if (selectedChat) void loadMessages(selectedChat, false); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [instanceId, user?.id, selectedChat, loadChats, loadMessages]);
+
+  // Fallback para buscar atualizações da WAHA caso um webhook/evento Realtime se perca.
+  useEffect(() => {
+    if (!instanceId) return;
+    const interval = window.setInterval(() => {
+      void loadChats(true);
+      if (selectedChat) void loadMessages(selectedChat, true);
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, [instanceId, selectedChat, loadChats, loadMessages]);
+
   useEffect(() => { if (selectedChat) void loadMessages(selectedChat, true); else setMessages([]); }, [selectedChatId, selectedChat, loadMessages]);
 
   const refresh = async () => {
@@ -163,13 +186,8 @@ export default function WhatsAppConversas() {
           <p className="text-sm text-muted-foreground">Mensagens reais sincronizadas com a WAHA.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={instanceId} onValueChange={setInstanceId}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="Selecione uma conta" /></SelectTrigger>
-            <SelectContent>
-              {instances.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}{item.status === 'connected' ? ' · Conectada' : ''}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={refresh} disabled={loading} aria-label="Atualizar conversas">
+          {selectedInstance && <Badge variant="outline">{selectedInstance.name}{selectedInstance.status === 'connected' ? ' · Conectada' : ''}</Badge>}
+          <Button variant="outline" onClick={refresh} disabled={loading} aria-label="Atualizar conversas" title="Atualizar agora">
             {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
           </Button>
         </div>
@@ -186,7 +204,7 @@ export default function WhatsAppConversas() {
             </div>
           </div>
           <ScrollArea className="flex-1">
-            {!loading && filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">Nenhuma conversa sincronizada. Clique em atualizar para consultar a WAHA.</p>}
+            {!loading && filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">Nenhuma conversa sincronizada. A lista será atualizada automaticamente quando houver novas conversas.</p>}
             {filtered.map((chat) => (
               <button key={chat.id} onClick={() => setSelectedChatId(chat.id)}
                 className={'w-full flex items-start gap-3 p-3 text-left border-b transition-colors hover:bg-muted/50 ' + (selectedChatId === chat.id ? 'bg-muted' : '')}>
