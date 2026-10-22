@@ -1822,6 +1822,14 @@ export type Database = {
           p_assignee: string | null
         }
         Returns: undefined
+      },
+      delete_kanban_stage: {
+        Args: {
+          p_funnel: string
+          p_stage_key: string
+          p_fallback_key: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
