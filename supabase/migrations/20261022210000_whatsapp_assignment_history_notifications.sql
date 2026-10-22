@@ -142,3 +142,10 @@ REVOKE ALL ON FUNCTION public.take_over_whatsapp_chat(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.take_over_whatsapp_chat(uuid) TO authenticated;
 
 -- Keep notification inserts restricted to the security-definer transfer function.
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'whatsapp_notifications') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.whatsapp_notifications;
+  END IF;
+END $$;
