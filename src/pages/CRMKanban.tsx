@@ -44,6 +44,7 @@ const CRMKanban = () => {
   const [newLeadProduct, setNewLeadProduct] = useState('');
   const [newLeadOrigin, setNewLeadOrigin] = useState('Kanban');
   const [newLeadStage, setNewLeadStage] = useState<string>('lead_novo');
+  const [newLeadAssignee, setNewLeadAssignee] = useState('');
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
@@ -172,6 +173,7 @@ const CRMKanban = () => {
     await addLead({
       id: '',
       userId: user?.id,
+      assignedTo: newLeadAssignee || undefined,
       name: newLeadName.trim(),
       company: newLeadCompany.trim(),
       phone: newLeadPhone.trim(),
@@ -196,6 +198,7 @@ const CRMKanban = () => {
     setNewLeadProduct('');
     setNewLeadOrigin('Kanban');
     setNewLeadStage('lead_novo');
+    setNewLeadAssignee(user?.id || '');
     toast({ title: 'Lead cadastrado', description: 'O lead foi adicionado ao funil selecionado.' });
   };
 
@@ -447,7 +450,7 @@ const CRMKanban = () => {
             <FileDown size={16} /> Exportar PDF
           </button>
           <button
-            onClick={() => setShowAddLead(true)}
+            onClick={() => { setNewLeadAssignee(user?.id || ''); setShowAddLead(true); }}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
           >
             <Plus size={16} /> Novo Lead
@@ -565,6 +568,7 @@ const CRMKanban = () => {
               <div><label className="text-xs text-muted-foreground">Etapa inicial</label><select value={newLeadStage} onChange={e => setNewLeadStage(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm">{allStages.map(stage => <option key={stage.key} value={stage.key}>{stage.label}</option>)}</select></div>
               <div><label className="text-xs text-muted-foreground">Origem</label><input value={newLeadOrigin} onChange={e => setNewLeadOrigin(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" /></div>
             </div>
+            <div><label className="text-xs text-muted-foreground">Responsável</label><select value={newLeadAssignee} onChange={e => setNewLeadAssignee(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"><option value="">Sem responsável</option>{teamMembers.map(member => <option key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</option>)}</select></div>
             <div className="flex gap-2 justify-end pt-2">
               <button onClick={() => setShowAddLead(false)} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
               <button onClick={() => void handleCreateLead()} disabled={!newLeadName.trim()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50">Cadastrar lead</button>
