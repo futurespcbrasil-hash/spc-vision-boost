@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ShieldAlert } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import CRMNotificationBell from '@/components/CRMNotificationBell';
 
 const moduleForPath = (pathname: string): string | null => {
   if (pathname.startsWith('/manual')) return 'manual';
@@ -103,6 +104,7 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
 
   return (
     <div className="flex min-h-screen bg-background">
+      <CRMNotificationBell />
       <div className="hidden md:block"><AppSidebar /></div>
       <main className={`flex-1 overflow-hidden ${noPadding ? 'pb-16 md:pb-0' : 'pb-20 md:pb-0'}`}>
         <div className={noPadding ? 'h-full' : 'p-4 md:p-6 max-w-[1400px] mx-auto'}>
