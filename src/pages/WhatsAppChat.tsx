@@ -21,7 +21,6 @@ import { waha } from '@/services/ryzeService';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { KANBAN_STAGES } from '@/data/spcData';
 
 interface Instance { id: string; name: string; status: string; }
 interface Chat {
@@ -783,12 +782,10 @@ const WhatsAppChat = () => {
   }, []);
 
   const getStagesForFunnel = (funnel: string) => {
-    const stages = [
-      ...(funnel === 'spc' ? KANBAN_STAGES.map(stage => ({ key: stage.key, label: stage.label, funnel })) : []),
-      ...kanbanStages.filter(stage => stage.funnel === funnel),
-    ];
     const unique = new Map<string, { key: string; label: string; funnel: string }>();
-    stages.forEach(stage => { if (!unique.has(stage.key)) unique.set(stage.key, stage); });
+    kanbanStages
+      .filter(stage => stage.funnel === funnel)
+      .forEach(stage => { if (!unique.has(stage.key)) unique.set(stage.key, stage); });
     return Array.from(unique.values());
   };
 
