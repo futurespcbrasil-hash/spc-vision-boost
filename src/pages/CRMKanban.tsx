@@ -881,8 +881,7 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
           ...interactions.map(item => item?.date ? new Date(item.date).getTime() : 0),
         ].filter(value => Number.isFinite(value) && value > 0);
         const latestInteraction = interactionTimes.length ? Math.max(...interactionTimes) : 0;
-        const created = lead.createdAt ? new Date(lead.createdAt).getTime() : 0;
-        const reference = latestInteraction > 0 ? latestInteraction : created;
+        const reference = latestInteraction > 0 ? latestInteraction : 0;
         const daysSince = reference ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : null;
         return (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1.5" title={`Criado em ${lead.createdAt || 'data indisponível'}; última interação ${daysSince === null ? 'não registrada' : `há ${daysSince} dia(s)`}`}>
