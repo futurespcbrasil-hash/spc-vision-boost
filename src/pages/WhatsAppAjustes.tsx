@@ -48,6 +48,7 @@ const WhatsAppAjustes = () => {
 
   /* ── Personal agent color ── */
   const [agentColor, setAgentColor] = useState('#8B5CF6');
+  const [agentDisplayName, setAgentDisplayName] = useState('');
   const [savingAgentColor, setSavingAgentColor] = useState(false);
 
   /* ── Instances ── */
@@ -110,10 +111,11 @@ const WhatsAppAjustes = () => {
 
   useEffect(() => {
     if (!user) return;
-    (supabase as any).from('whatsapp_agent_preferences').select('color').eq('user_id', user.id).maybeSingle()
+    (supabase as any).from('whatsapp_agent_preferences').select('color,display_name').eq('user_id', user.id).maybeSingle()
       .then(({ data, error }: any) => {
         if (error) console.warn('[WhatsAppAjustes] Não foi possível carregar a cor pessoal:', error.message);
         if (data?.color) setAgentColor(data.color);
+        if (data?.display_name) setAgentDisplayName(data.display_name);
       });
   }, [user?.id]);
 
@@ -121,7 +123,7 @@ const WhatsAppAjustes = () => {
     if (!user) return;
     setSavingAgentColor(true);
     try {
-      const displayName = String(user.user_metadata?.display_name || user.email?.split('@')[0] || 'Atendimento').trim();
+      const displayName = String(agentDisplayName || user.user_metadata?.display_name || user.email?.split('@')[0] || 'Atendimento').trim();
       const { error } = await (supabase as any).from('whatsapp_agent_preferences').upsert({
         user_id: user.id,
         display_name: displayName || 'Atendimento',
@@ -352,7 +354,7 @@ const WhatsAppAjustes = () => {
               <div className="flex items-center gap-4 rounded-lg border p-4">
                 <div className="h-12 w-12 rounded-full border-4 border-background shadow-sm" style={{ backgroundColor: agentColor }} />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Meu usuário'}</p>
+                  <p className="font-semibold">{agentDisplayName || user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Meu usuário'}</p>
                   <p className="text-xs text-muted-foreground">Prévia da identificação no WhatsApp</p>
                 </div>
                 <Badge style={{ backgroundColor: agentColor, color: '#FFFFFF' }}>Responsável</Badge>
