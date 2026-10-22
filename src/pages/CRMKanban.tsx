@@ -4,7 +4,7 @@ import { KANBAN_STAGES, KanbanStage, Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { 
-  GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, Clock,
+  GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, UserPlus, Clock,
   Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search, FileDown
 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -20,7 +20,7 @@ const CRMKanban = () => {
   const isGestor = !authLoading && role === 'gestor';
   const funnel = activeSector;
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
-  const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead } = useAppState();
+  const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead, refreshLeads } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
   const baseStages = KANBAN_STAGES;
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
@@ -30,6 +30,7 @@ const CRMKanban = () => {
   const [editData, setEditData] = useState<Lead | null>(null);
   const [expandedStages, setExpandedStages] = useState<Set<KanbanStage>>(new Set());
   const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string; userId?: string }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ user_id: string; display_name: string; email: string | null }[]>([]);
   const [showAddLead, setShowAddLead] = useState(false);
   const [newLeadName, setNewLeadName] = useState('');
   const [newLeadCompany, setNewLeadCompany] = useState('');
@@ -50,6 +51,33 @@ const CRMKanban = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
+
+  useEffect(() => {
+    let active = true;
+    const loadTeamMembers = async () => {
+      const { data, error } = await supabase.from('profiles').select('user_id, display_name, email').order('display_name');
+      if (!error && data && active) setTeamMembers(data);
+      if (error) console.error('Erro ao carregar responsáveis:', error);
+    };
+    void loadTeamMembers();
+    return () => { active = false; };
+  }, []);
+
+  const handleAssignLead = async (lead: Lead, assigneeId: string) => {
+    const { error } = await supabase.rpc('assign_lead_to_user', {
+      p_lead_id: lead.id,
+      p_assignee: assigneeId || null,
+    });
+    if (error) {
+      toast({ title: 'Não foi possível atribuir o lead', description: error.message, variant: 'destructive' });
+      return;
+    }
+    await refreshLeads();
+    toast({
+      title: assigneeId ? 'Lead atribuído' : 'Responsável removido',
+      description: assigneeId ? `O lead foi direcionado para ${teamMembers.find(member => member.user_id === assigneeId)?.display_name || 'o usuário selecionado'}.` : 'O lead ficou sem responsável.',
+    });
+  };
 
   // Load custom stages from database (with localStorage migration fallback)
   useEffect(() => {
@@ -623,6 +651,8 @@ const CRMKanban = () => {
                   onClick={() => setSelectedLead(lead)}
                   onStatusChange={handleCardStatusChange}
                   onObsChange={handleCardObsChange}
+                  teamMembers={teamMembers}
+                  onAssign={handleAssignLead}
                   onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
                   onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                 />
@@ -706,6 +736,8 @@ const CRMKanban = () => {
                       onClick={() => setSelectedLead(lead)}
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
+                      teamMembers={teamMembers}
+                      onAssign={handleAssignLead}
                       onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
                       onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
                     />
@@ -737,11 +769,13 @@ interface LeadCardProps {
   onClick: () => void;
   onStatusChange: (lead: Lead, status: string) => void;
   onObsChange: (lead: Lead, obs: string) => void;
+  teamMembers: { user_id: string; display_name: string; email: string | null }[];
+  onAssign: (lead: Lead, assigneeId: string) => void;
   onDelete: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
 }
 
-const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, onDelete, onEdit }: LeadCardProps) => {
+const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, onAssign, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
 
@@ -829,6 +863,18 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
         <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition"><Phone size={13} /></a>
         <a href={`https://wa.me/${lead.whatsapp}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-success transition"><MessageCircle size={13} /></a>
         {lead.email && <a href={`mailto:${lead.email}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition"><Mail size={13} /></a>}
+        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()} title="Atribuir responsável">
+          <UserPlus size={13} className="text-muted-foreground shrink-0" />
+          <select
+            aria-label={`Responsável pelo lead ${lead.name}`}
+            value={lead.assignedTo || ''}
+            onChange={e => onAssign(lead, e.target.value)}
+            className="max-w-[110px] text-[10px] px-1 py-1 rounded border border-border bg-background text-foreground"
+          >
+            <option value="">Sem responsável</option>
+            {teamMembers.map(member => <option key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</option>)}
+          </select>
+        </div>
         <div className="ml-auto flex items-center gap-1" onClick={e => e.stopPropagation()}>
           <button onClick={() => onEdit(lead)} className="text-muted-foreground hover:text-primary transition"><Edit3 size={12} /></button>
           <button onClick={() => onDelete(lead)} className="text-muted-foreground hover:text-destructive transition"><Trash2 size={12} /></button>
