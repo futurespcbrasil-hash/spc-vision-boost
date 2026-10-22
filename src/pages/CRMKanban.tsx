@@ -703,6 +703,7 @@ const CRMKanban = () => {
                   onStatusChange={handleCardStatusChange}
                   onObsChange={handleCardObsChange}
                   teamMembers={teamMembers}
+                  currentUserId={user?.id || ''}
                   onAssign={handleAssignLead}
                   onOpenHistory={handleOpenLeadHistory}
                   onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
@@ -789,6 +790,7 @@ const CRMKanban = () => {
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
                       teamMembers={teamMembers}
+                      currentUserId={user?.id || ''}
                       onAssign={handleAssignLead}
                       onOpenHistory={handleOpenLeadHistory}
                       onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
@@ -823,13 +825,14 @@ interface LeadCardProps {
   onStatusChange: (lead: Lead, status: string) => void;
   onObsChange: (lead: Lead, obs: string) => void;
   teamMembers: { user_id: string; display_name: string; email: string | null }[];
+  currentUserId: string;
   onAssign: (lead: Lead, assigneeId: string) => void;
   onOpenHistory: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
 }
 
-const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, onAssign, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
+const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, currentUserId, onAssign, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
 
@@ -929,6 +932,15 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
             <option value="">Sem responsável</option>
             {teamMembers.map(member => <option key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</option>)}
           </select>
+          {currentUserId && lead.assignedTo !== currentUserId && (
+            <button
+              type="button"
+              onClick={() => onAssign(lead, currentUserId)}
+              className="text-muted-foreground hover:text-primary transition"
+              title="Assumir este lead"
+              aria-label="Assumir este lead"
+            ><User2 size={13} /></button>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-1" onClick={e => e.stopPropagation()}>
           <button onClick={() => onOpenHistory(lead)} className="text-muted-foreground hover:text-primary transition" title="Histórico de responsáveis" aria-label="Histórico de responsáveis"><History size={12} /></button>
