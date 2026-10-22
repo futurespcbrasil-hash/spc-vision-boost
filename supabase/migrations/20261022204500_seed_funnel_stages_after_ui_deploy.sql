@@ -1,6 +1,6 @@
 -- Apply only after the DB-driven Kanban bundle is deployed to production.
 WITH funnels(funnel) AS (
-  VALUES ('spc'), ('sector_1792593091797'), ('sector_1778269924785')
+  VALUES ('spc'), ('comercial'), ('sector_1792593091797'), ('sector_1778269924785')
 ), defaults(key,label,color,position) AS (
   VALUES
     ('lead_novo','Lead Novo','bg-kanban-lead',0),
