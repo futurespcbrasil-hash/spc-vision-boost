@@ -13,7 +13,7 @@ import {
   Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
   CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
   Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
-  Pin, PinOff, Eye
+  Pin, PinOff, Eye, Bell
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -37,6 +37,7 @@ interface Message {
   media_mime?: string | null;
 }
 interface QuickReply { id: string; shortcut: string; text: string; }
+interface WhatsAppNotification { id: string; title: string; body: string; chat_id: string | null; created_at: string; read_at: string | null; }
 
 // Palette for contact avatars
 const AVATAR_COLORS = [
@@ -203,6 +204,9 @@ const WhatsAppChat = () => {
 
   // Cores pessoais dos responsáveis, visíveis para todos os usuários autenticados.
   const [agentColors, setAgentColors] = useState<Record<string, { display_name: string; color: string }>>({});
+  const [notifications, setNotifications] = useState<WhatsAppNotification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const unreadNotifications = notifications.filter(item => !item.read_at).length;
   const [activeFilter, setActiveFilter] = useState<'todos' | 'grupos' | 'aguardando' | 'resolvidos'>('todos');
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -599,10 +603,13 @@ const WhatsAppChat = () => {
       if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, 100);
     try {
-      await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, msg);
       if (!selected.assigned_to && user) {
-        await supabase.from('whatsapp_chats').update({ assigned_to: user.id }).eq('id', selected.id);
+        const { error: assignError } = await (supabase as any).rpc('take_over_whatsapp_chat', { p_chat_id: selected.id });
+        if (assignError) throw assignError;
+        setSelected(prev => prev?.id === selected.id ? { ...prev, assigned_to: user.id } : prev);
+        setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: user.id } : chat));
       }
+      await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, msg);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
 
     } catch (e: any) {
@@ -769,6 +776,34 @@ const WhatsAppChat = () => {
     return Array.from(unique.values());
   };
 
+  // Notificações de atendimento transferido: persistidas no banco e entregues em tempo real.
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    const loadNotifications = async () => {
+      const { data, error } = await (supabase as any).from('whatsapp_notifications')
+        .select('id,title,body,chat_id,created_at,read_at').eq('user_id', user.id)
+        .order('created_at', { ascending: false }).limit(20);
+      if (error) {
+        console.warn('[WhatsApp] Não foi possível carregar notificações:', error.message);
+        return;
+      }
+      if (!cancelled) setNotifications((data || []) as WhatsAppNotification[]);
+    };
+    void loadNotifications();
+    const channel = supabase.channel(`whatsapp-notifications-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, payload => {
+        const item = payload.new as WhatsAppNotification;
+        setNotifications(prev => [item, ...prev.filter(old => old.id !== item.id)].slice(0, 20));
+        toast({ title: item.title, description: item.body });
+        if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification(item.title, { body: item.body, icon: '/favicon.ico' });
+        }
+      })
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [user?.id]);
+
   // Cores dos responsáveis são compartilhadas, mas cada usuário só edita a própria.
   useEffect(() => {
     let cancelled = false;
@@ -836,6 +871,35 @@ const WhatsAppChat = () => {
     } catch (e: any) {
       toast({ title: 'Erro ao cadastrar lead', description: e.message, variant: 'destructive' });
     } finally { setSavingLead(false); }
+  };
+
+  const handleTakeOver = async () => {
+    if (!selected || !user) return;
+    try {
+      const { error } = await (supabase as any).rpc('take_over_whatsapp_chat', { p_chat_id: selected.id });
+      if (error) throw error;
+      setSelected(prev => prev?.id === selected.id ? { ...prev, assigned_to: user.id } : prev);
+      setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: user.id } : chat));
+      toast({ title: 'Atendimento assumido', description: 'A responsabilidade foi atualizada e registrada no histórico.' });
+    } catch (e: any) {
+      toast({ title: 'Não foi possível assumir o atendimento', description: e.message || 'Tente novamente.', variant: 'destructive' });
+    }
+  };
+
+  const handleMarkNotificationRead = async (item: WhatsAppNotification) => {
+    if (item.read_at) return;
+    const readAt = new Date().toISOString();
+    const { error } = await (supabase as any).from('whatsapp_notifications').update({ read_at: readAt }).eq('id', item.id);
+    if (error) {
+      toast({ title: 'Não foi possível marcar como lida', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setNotifications(prev => prev.map(old => old.id === item.id ? { ...old, read_at: readAt } : old));
+    if (item.chat_id) {
+      const chat = chats.find(old => old.id === item.chat_id);
+      if (chat) { setInstanceId(chat.instance_id); setSelected(chat); }
+    }
+    setNotificationsOpen(false);
   };
 
   const handleOpenStatusDialog = async () => {
@@ -978,6 +1042,23 @@ const WhatsAppChat = () => {
               </span>
             )}
           </div>
+          <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+            <PopoverTrigger asChild>
+              <Button size="icon" variant="outline" className="relative h-9 w-9" aria-label="Notificações de atendimento">
+                <Bell size={16} />
+                {unreadNotifications > 0 && <span className="absolute -right-1 -top-1 min-w-[17px] h-[17px] rounded-full bg-red-600 px-1 text-[10px] font-bold text-white flex items-center justify-center">{unreadNotifications}</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-0">
+              <div className="border-b p-3 flex items-center justify-between"><p className="font-semibold text-sm">Notificações</p><Badge variant="secondary">{unreadNotifications} não lidas</Badge></div>
+              <div className="max-h-80 overflow-y-auto divide-y">
+                {notifications.map(item => <button key={item.id} onClick={() => void handleMarkNotificationRead(item)} className={`w-full text-left p-3 hover:bg-muted/60 ${item.read_at ? 'opacity-70' : 'bg-purple-50/60 dark:bg-purple-950/20'}`}>
+                  <p className="text-sm font-medium">{item.title}</p><p className="text-xs text-muted-foreground mt-1">{item.body}</p><p className="text-[10px] text-muted-foreground mt-2">{new Date(item.created_at).toLocaleString('pt-BR')}</p>
+                </button>)}
+                {notifications.length === 0 && <p className="p-4 text-xs text-muted-foreground text-center">Nenhuma notificação ainda.</p>}
+              </div>
+            </PopoverContent>
+          </Popover>
           <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="h-9 gap-1 text-xs">
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
             Sincronizar
@@ -1222,6 +1303,13 @@ const WhatsAppChat = () => {
 
 
                 <div className="flex items-center gap-1">
+                  {selected.assigned_to !== user?.id && <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTakeOver}
+                    title="Assumir responsabilidade por esta conversa"
+                    className="h-8 gap-1 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                  ><UserPlus size={13}/><span className="hidden sm:inline">Assumir</span></Button>}
                   <Button
                     variant="outline"
                     size="sm"
