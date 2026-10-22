@@ -85,8 +85,10 @@ WITH candidates AS (
   SELECT c.id AS chat_id, min(l.id::text)::uuid AS lead_id
   FROM public.whatsapp_chats c
   JOIN public.leads l
-    ON regexp_replace(COALESCE(NULLIF(l.whatsapp, ''), NULLIF(l.phone, ''), ''), '\D', '', 'g')
-       = regexp_replace(COALESCE(c.contact_number, ''), '\D', '', 'g')
+    ON (
+      regexp_replace(COALESCE(l.whatsapp, ''), '\D', '', 'g') = regexp_replace(COALESCE(c.contact_number, ''), '\D', '', 'g')
+      OR regexp_replace(COALESCE(l.phone, ''), '\D', '', 'g') = regexp_replace(COALESCE(c.contact_number, ''), '\D', '', 'g')
+    )
   WHERE c.lead_id IS NULL
     AND length(regexp_replace(COALESCE(c.contact_number, ''), '\D', '', 'g')) >= 10
   GROUP BY c.id
