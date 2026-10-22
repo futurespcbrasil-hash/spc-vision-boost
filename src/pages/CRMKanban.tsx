@@ -20,7 +20,7 @@ const CRMKanban = () => {
   const isGestor = !authLoading && role === 'gestor';
   const funnel = activeSector;
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
-  const { leads: allLeads, moveLeadToStage, updateLead, deleteLead } = useAppState();
+  const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
   const baseStages = KANBAN_STAGES;
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
@@ -30,6 +30,15 @@ const CRMKanban = () => {
   const [editData, setEditData] = useState<Lead | null>(null);
   const [expandedStages, setExpandedStages] = useState<Set<KanbanStage>>(new Set());
   const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string; userId?: string }[]>([]);
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadCompany, setNewLeadCompany] = useState('');
+  const [newLeadPhone, setNewLeadPhone] = useState('');
+  const [newLeadWhatsapp, setNewLeadWhatsapp] = useState('');
+  const [newLeadEmail, setNewLeadEmail] = useState('');
+  const [newLeadProduct, setNewLeadProduct] = useState('');
+  const [newLeadOrigin, setNewLeadOrigin] = useState('Kanban');
+  const [newLeadStage, setNewLeadStage] = useState<string>('lead_novo');
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
@@ -105,6 +114,41 @@ const CRMKanban = () => {
   const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
   const canManageCustomStage = (key: string) =>
     isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
+
+  const handleCreateLead = async () => {
+    if (!newLeadName.trim()) {
+      toast({ title: 'Informe o nome do lead', variant: 'destructive' });
+      return;
+    }
+    await addLead({
+      id: '',
+      userId: user?.id,
+      name: newLeadName.trim(),
+      company: newLeadCompany.trim(),
+      phone: newLeadPhone.trim(),
+      whatsapp: newLeadWhatsapp.trim() || newLeadPhone.trim(),
+      email: newLeadEmail.trim(),
+      cpfCnpj: '',
+      type: 'PJ',
+      origin: newLeadOrigin.trim() || 'Kanban',
+      product: newLeadProduct.trim(),
+      status: newLeadStage as KanbanStage,
+      observations: '',
+      interactions: [],
+      createdAt: new Date().toISOString().slice(0, 10),
+      funnel,
+    });
+    setShowAddLead(false);
+    setNewLeadName('');
+    setNewLeadCompany('');
+    setNewLeadPhone('');
+    setNewLeadWhatsapp('');
+    setNewLeadEmail('');
+    setNewLeadProduct('');
+    setNewLeadOrigin('Kanban');
+    setNewLeadStage('lead_novo');
+    toast({ title: 'Lead cadastrado', description: 'O lead foi adicionado ao funil selecionado.' });
+  };
 
   const handleAddColumn = async () => {
     if (!newColLabel.trim()) return;
@@ -354,6 +398,12 @@ const CRMKanban = () => {
             <FileDown size={16} /> Exportar PDF
           </button>
           <button
+            onClick={() => setShowAddLead(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
+          >
+            <Plus size={16} /> Novo Lead
+          </button>
+          <button
             onClick={() => setShowAddColumn(true)}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
           >
@@ -411,6 +461,34 @@ const CRMKanban = () => {
                 disabled={(selectedStageKeys ?? allStages).length === 0}
                 className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
               >Gerar PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create lead modal */}
+      {showAddLead && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddLead(false)}>
+          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-foreground">Novo lead — {sectorLabel}</h3>
+              <button onClick={() => setShowAddLead(false)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar"><X size={18} /></button>
+            </div>
+            <div><label className="text-xs text-muted-foreground">Nome *</label><input autoFocus value={newLeadName} onChange={e => setNewLeadName(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Nome do contato" /></div>
+            <div><label className="text-xs text-muted-foreground">Empresa</label><input value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Empresa" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><label className="text-xs text-muted-foreground">Telefone</label><input value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Telefone" /></div>
+              <div><label className="text-xs text-muted-foreground">WhatsApp</label><input value={newLeadWhatsapp} onChange={e => setNewLeadWhatsapp(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Se vazio, usa o telefone" /></div>
+            </div>
+            <div><label className="text-xs text-muted-foreground">E-mail</label><input type="email" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="E-mail" /></div>
+            <div><label className="text-xs text-muted-foreground">Produto / serviço</label><input value={newLeadProduct} onChange={e => setNewLeadProduct(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Ex.: SPC Brasil, certificado digital" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><label className="text-xs text-muted-foreground">Etapa inicial</label><select value={newLeadStage} onChange={e => setNewLeadStage(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm">{allStages.map(stage => <option key={stage.key} value={stage.key}>{stage.label}</option>)}</select></div>
+              <div><label className="text-xs text-muted-foreground">Origem</label><input value={newLeadOrigin} onChange={e => setNewLeadOrigin(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" /></div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button onClick={() => setShowAddLead(false)} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
+              <button onClick={() => void handleCreateLead()} disabled={!newLeadName.trim()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50">Cadastrar lead</button>
             </div>
           </div>
         </div>
