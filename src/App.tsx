@@ -35,6 +35,7 @@ const lazyWithRetry = (importer: () => Promise<{ default: ComponentType<any> }>)
   });
 
 // Rotas carregadas sob demanda (app mais leve e inicialização mais rápida)
+const ManualEmissor = lazyWithRetry(() => import("@/pages/ManualEmissor"));
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const GestorDashboard = lazyWithRetry(() => import("@/pages/GestorDashboard"));
 const CRMKanban = lazyWithRetry(() => import("@/pages/CRMKanban"));
@@ -99,6 +100,7 @@ const ProtectedRoutes = () => {
           <Suspense fallback={<PageLoader />}>
           <Routes>
 
+            <Route path="/manual" element={<AppLayout><ManualEmissor /></AppLayout>} />
             <Route path="/comparacao/:id" element={<PublicComparison />} />
             <Route path="/" element={<AppLayout>{role === 'gestor' ? <GestorDashboard /> : <Dashboard />}</AppLayout>} />
             <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
