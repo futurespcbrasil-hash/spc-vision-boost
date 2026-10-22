@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppState } from '@/context/AppContext';
 import { KANBAN_STAGES, KanbanStage, Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const CRMKanban = () => {
   const { role, user, loading: authLoading } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { activeSector, sectors } = useSectors();
   const isGestor = !authLoading && role === 'gestor';
   const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
@@ -32,6 +34,7 @@ const CRMKanban = () => {
   const [expandedStages, setExpandedStages] = useState<Set<KanbanStage>>(new Set());
   const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string; userId?: string }[]>([]);
   const [teamMembers, setTeamMembers] = useState<{ user_id: string; display_name: string; email: string | null }[]>([]);
+  const [agentColors, setAgentColors] = useState<Record<string, { display_name: string; color: string }>>({});
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
   const [leadAssignmentHistory, setLeadAssignmentHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -56,6 +59,37 @@ const CRMKanban = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const canEditLead = (lead: Lead) => isOwner || isGestor || !lead.userId || lead.userId === user?.id;
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAgentColors = async () => {
+      const { data, error } = await (supabase as any).from('whatsapp_agent_preferences').select('user_id,display_name,color');
+      if (error) { console.warn('[Kanban] Não foi possível carregar cores dos responsáveis:', error.message); return; }
+      if (!cancelled) {
+        const map: Record<string, { display_name: string; color: string }> = {};
+        (data || []).forEach((item: any) => { map[item.user_id] = { display_name: item.display_name, color: item.color }; });
+        setAgentColors(map);
+      }
+    };
+    void loadAgentColors();
+    const channel = supabase.channel('kanban-agent-colors')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_agent_preferences' }, () => { void loadAgentColors(); })
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, []);
+
+  useEffect(() => {
+    const targetId = searchParams.get('leadId');
+    if (!targetId) return;
+    const target = allLeads.find(lead => lead.id === targetId);
+    if (!target) return;
+    setSelectedLead(target);
+    setEditMode(false);
+    setEditData(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete('leadId');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, allLeads]);
 
   useEffect(() => {
     let active = true;
@@ -723,6 +757,8 @@ const CRMKanban = () => {
                   onObsChange={handleCardObsChange}
                   teamMembers={teamMembers}
                   currentUserId={user?.id || ''}
+                  assigneeColor={lead.assignedTo ? agentColors[lead.assignedTo]?.color : undefined}
+                  assigneeName={lead.assignedTo ? (agentColors[lead.assignedTo]?.display_name || teamMembers.find(member => member.user_id === lead.assignedTo)?.display_name) : undefined}
                   onAssign={handleAssignLead}
                   onOpenHistory={handleOpenLeadHistory}
                   onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
@@ -782,7 +818,7 @@ const CRMKanban = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    {isCustom && canManageCustomStage(stage.key) && (
+                    {(isCustom || customStages.length === 0) && canManageCustomStage(stage.key) && (
                       <>
                         <button onClick={() => { setEditingColumn(stage.key); setEditColLabel(stage.label); }} className="text-muted-foreground hover:text-primary transition p-0.5" title="Renomear"><Edit3 size={11} /></button>
                         <button onClick={() => handleDeleteColumn(stage.key)} className="text-muted-foreground hover:text-destructive transition p-0.5" title="Excluir coluna"><Trash2 size={11} /></button>
@@ -845,13 +881,15 @@ interface LeadCardProps {
   onObsChange: (lead: Lead, obs: string) => void;
   teamMembers: { user_id: string; display_name: string; email: string | null }[];
   currentUserId: string;
+  assigneeColor?: string;
+  assigneeName?: string;
   onAssign: (lead: Lead, assigneeId: string) => void;
   onOpenHistory: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
 }
 
-const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, currentUserId, onAssign, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
+const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, currentUserId, assigneeColor, assigneeName, onAssign, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
 
@@ -966,6 +1004,7 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
           <button onClick={() => onDelete(lead)} className="text-muted-foreground hover:text-destructive transition"><Trash2 size={12} /></button>
         </div>
       </div>
+      {lead.assignedTo && <div className="mt-2 h-1.5 w-full rounded-full" style={{ backgroundColor: assigneeColor || '#64748b' }} title={`Responsável: ${assigneeName || 'usuário atribuído'}`} aria-label={`Responsável: ${assigneeName || 'usuário atribuído'}`} />}
     </div>
   );
 };
