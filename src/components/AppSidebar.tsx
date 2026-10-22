@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText, FileSpreadsheet,
-  Monitor, History, Cog, Wallet, Smartphone, Mail, Send
+  Monitor, History, Cog, Wallet, Smartphone, Mail, Send, BookOpen
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,6 +50,7 @@ const AppSidebar = () => {
   ];
 
   const NAV_ITEMS = [
+    { to: '/manual', icon: BookOpen, label: 'Manual do Emissor', moduleKey: 'manual' },
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'dashboard' },
     { to: '/crm', icon: GitBranch, label: 'Kanban', moduleKey: 'crm' },
     { to: '/leads', icon: Users, label: 'Leads', moduleKey: 'leads' },
