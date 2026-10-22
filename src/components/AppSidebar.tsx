@@ -12,6 +12,7 @@ const AppSidebar = () => {
   const location = useLocation();
   const { user, profile, role, signOut, canManageUsers, canAccessModule } = useAuth();
   const [chatUnread, setChatUnread] = useState(0);
+  const [kanbanUnread, setKanbanUnread] = useState(0);
 
   useEffect(() => {
     if (!user) { setChatUnread(0); return; }
@@ -24,6 +25,20 @@ const AppSidebar = () => {
     const channel = supabase.channel(`sidebar-chat-unread-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `recipient_id=eq.${user.id}` }, () => { void refresh(); })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `recipient_id=eq.${user.id}` }, () => { void refresh(); })
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [user]);
+  useEffect(() => {
+    if (!user) { setKanbanUnread(0); return; }
+    let active = true;
+    const refresh = async () => {
+      const { count, error } = await (supabase as any).from('whatsapp_notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('read_at', null).not('lead_id', 'is', null);
+      if (active && !error) setKanbanUnread(count || 0);
+    };
+    void refresh();
+    const channel = supabase.channel(`sidebar-kanban-notifications-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, () => { void refresh(); })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, () => { void refresh(); })
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
@@ -101,6 +116,7 @@ const AppSidebar = () => {
       <item.icon size={18} />
       {!collapsed && <span className="flex-1">{item.label}</span>}
       {item.moduleKey === 'chat' && chatUnread > 0 && <span className="ml-auto inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" aria-label={`${chatUnread} mensagens não lidas`}>{chatUnread > 99 ? '99+' : chatUnread}</span>}
+      {item.moduleKey === 'crm' && kanbanUnread > 0 && <span className="ml-auto inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" aria-label={`${kanbanUnread} notificações de leads não lidas`}>{kanbanUnread > 99 ? '99+' : kanbanUnread}</span>}
     </Link>
   );
 
