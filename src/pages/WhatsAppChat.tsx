@@ -1230,7 +1230,7 @@ const WhatsAppChat = () => {
                     className="h-8 gap-1 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
                   >
                     <GitBranch size={13}/>
-                    <span>Lead no Funil</span>
+                    <span className="hidden sm:inline">Lead no Funil</span>
                   </Button>
                   <Button
                     variant="outline"
@@ -1240,7 +1240,7 @@ const WhatsAppChat = () => {
                     className="h-8 gap-1 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                   >
                     <GitBranch size={13}/>
-                    <span>Status do Kanban</span>
+                    <span className="hidden sm:inline">Status do Kanban</span>
                   </Button>
                   <Button variant="ghost" size="icon" onClick={handleSyncMessages} title="Atualizar mensagens" className="h-9 w-9 text-muted-foreground hover:text-foreground">
                     <RefreshCw size={17} />
