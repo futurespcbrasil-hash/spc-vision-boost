@@ -207,6 +207,9 @@ const WhatsAppChat = () => {
   const [notifications, setNotifications] = useState<WhatsAppNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const unreadNotifications = notifications.filter(item => !item.read_at).length;
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'todos' | 'grupos' | 'aguardando' | 'resolvidos'>('todos');
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -873,6 +876,21 @@ const WhatsAppChat = () => {
     } finally { setSavingLead(false); }
   };
 
+  const handleOpenAssignmentHistory = async () => {
+    if (!selected) return;
+    setLoadingHistory(true);
+    try {
+      const { data, error } = await (supabase as any).from('whatsapp_chat_assignment_history')
+        .select('id,previous_assignee,new_assignee,changed_by,changed_at')
+        .eq('chat_id', selected.id).order('changed_at', { ascending: false }).limit(50);
+      if (error) throw error;
+      setAssignmentHistory(data || []);
+      setHistoryDialogOpen(true);
+    } catch (e: any) {
+      toast({ title: 'Não foi possível carregar o histórico', description: e.message || 'Tente novamente.', variant: 'destructive' });
+    } finally { setLoadingHistory(false); }
+  };
+
   const handleTakeOver = async () => {
     if (!selected || !user) return;
     try {
@@ -1303,6 +1321,9 @@ const WhatsAppChat = () => {
 
 
                 <div className="flex items-center gap-1">
+                  <Button size="icon" variant="outline" onClick={handleOpenAssignmentHistory} disabled={loadingHistory} title="Histórico de responsáveis" aria-label="Histórico de responsáveis" className="h-8 w-8">
+                    {loadingHistory ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
+                  </Button>
                   {selected.assigned_to !== user?.id && <Button
                     variant="outline"
                     size="sm"
@@ -1842,6 +1863,35 @@ const WhatsAppChat = () => {
             {savingStatus ? 'Salvando...' : 'Salvar status'}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* ─── Histórico de responsáveis ─── */}
+    <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Clock size={18} className="text-purple-600" />Histórico de responsáveis</DialogTitle>
+          <p className="text-sm text-muted-foreground">{selected ? chatTitle(selected) : 'Conversa selecionada'}</p>
+        </DialogHeader>
+        <div className="max-h-[55vh] overflow-y-auto space-y-3 py-2">
+          {assignmentHistory.map(item => {
+            const previous = item.previous_assignee ? agentColors[item.previous_assignee] : null;
+            const next = agentColors[item.new_assignee];
+            return <div key={item.id} className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">De</span>
+                <span className="inline-flex items-center gap-2 font-medium">{previous && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: previous.color }} />}{previous?.display_name || (item.previous_assignee ? 'Usuário anterior' : 'Sem responsável')}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Para</span>
+                <span className="inline-flex items-center gap-2 font-medium">{next && <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: next.color }} />}{next?.display_name || 'Usuário responsável'}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">{new Date(item.changed_at).toLocaleString('pt-BR')}</p>
+            </div>;
+          })}
+          {assignmentHistory.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Ainda não há transferências registradas para esta conversa.</p>}
+        </div>
+        <DialogFooter><Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>Fechar</Button></DialogFooter>
       </DialogContent>
     </Dialog>
 
