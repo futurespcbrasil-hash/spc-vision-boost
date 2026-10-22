@@ -162,6 +162,7 @@ const App = () => (
         <BrowserRouter>
           <Suspense fallback={<PageLoader />}>
             <Routes>
+              <Route path="/portal/*" element={<PortalPublico />} />
               <Route path="/comparacao/:id" element={<PublicComparison />} />
               <Route path="/suporte" element={<Suporte />} />
               <Route path="/suporte-rustdesk" element={<SuporteRustDesk />} />
