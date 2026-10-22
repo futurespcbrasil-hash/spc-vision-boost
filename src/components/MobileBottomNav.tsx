@@ -20,7 +20,7 @@ const MobileBottomNav = () => {
   ];
 
   const more = [
-    { to: '/manual', icon: BookOpen, label: 'Manual do Emissor', moduleKey: 'manual' },
+    { to: '/portal', icon: BookOpen, label: 'Manuais', moduleKey: 'manual' },
     { to: '/whatsapp', icon: MessageSquare, label: 'WhatsApp', moduleKey: 'whatsapp' },
     { to: '/whatsapp/instancias', icon: MessageSquare, label: '— Instâncias WA', moduleKey: 'whatsapp' },
     { to: '/consultas', icon: Search, label: 'Consultas SPC', moduleKey: 'consultas_spc' },
