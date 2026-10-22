@@ -284,13 +284,37 @@ const WhatsAppChat = () => {
 
   // Load instances
   useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
     (async () => {
-      const { data } = await supabase.from('whatsapp_instances').select('id,name,status').order('created_at');
+      const { data, error } = await supabase.from('whatsapp_instances')
+        .select('id,name,status').order('created_at');
+      if (error) {
+        console.error('[WhatsApp] Falha ao carregar instâncias:', error);
+        return;
+      }
+      if (cancelled) return;
       const list = (data as Instance[]) || [];
       setInstances(list);
-      if (!instanceId && list[0]) setInstanceId(list[0].id);
+
+      // A instância escolhida é individual por usuário e deve sobreviver
+      // ao sair do menu, voltar ou recarregar a página.
+      const storageKey = `whatsapp_chat_instance_${user.id}`;
+      const savedId = localStorage.getItem(storageKey);
+      const savedInstance = list.find((item) => item.id === savedId);
+      const defaultInstance = savedInstance?.id
+        || list.find((item) => item.status === 'connected')?.id
+        || list[0]?.id
+        || '';
+      setInstanceId(defaultInstance);
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !instanceId) return;
+    localStorage.setItem(`whatsapp_chat_instance_${user.id}`, instanceId);
+  }, [instanceId, user?.id]);
 
   // Load quick replies
   useEffect(() => {
