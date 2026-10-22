@@ -822,6 +822,8 @@ export type Database = {
       }
       leads: {
         Row: {
+          assigned_to: string | null
+          last_interaction_at: string | null
           company: string | null
           cpf_cnpj: string | null
           created_at: string
@@ -841,6 +843,8 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          assigned_to?: string | null
+          last_interaction_at?: string | null
           company?: string | null
           cpf_cnpj?: string | null
           created_at?: string
@@ -860,6 +864,8 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          assigned_to?: string | null
+          last_interaction_at?: string | null
           company?: string | null
           cpf_cnpj?: string | null
           created_at?: string
@@ -1807,6 +1813,13 @@ export type Database = {
         Args: {
           p_request_id: string
           p_device_id: string
+        }
+        Returns: undefined
+      },
+      assign_lead_to_user: {
+        Args: {
+          p_lead_id: string
+          p_assignee: string | null
         }
         Returns: undefined
       }
