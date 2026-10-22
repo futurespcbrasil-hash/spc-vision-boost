@@ -77,7 +77,7 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
     const channel = supabase.channel(`crm-assignment-notifications-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, payload => {
         if (!active || location.pathname.startsWith('/whatsapp')) return;
-        const item = payload.new as { id: string; title?: string; body?: string; chat_id?: string | null };
+        const item = payload.new as { id: string; title?: string; body?: string; chat_id?: string | null; lead_id?: string | null };
         toast({ title: item.title || 'Nova notificação', description: item.body || 'Você recebeu uma nova atribuição.' });
         if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
           const notification = new Notification(item.title || 'Future Soluções', {
@@ -87,7 +87,7 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
           });
           notification.onclick = () => {
             window.focus();
-            window.location.href = item.chat_id ? '/whatsapp' : '/crm';
+            window.location.href = item.lead_id ? `/crm?leadId=${encodeURIComponent(item.lead_id)}` : (item.chat_id ? '/whatsapp' : '/crm');
             notification.close();
           };
         }
