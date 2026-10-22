@@ -764,21 +764,29 @@ const WhatsAppChat = () => {
     }
   };
 
-  // Carrega funis compartilhados e colunas personalizadas; as colunas padrão vêm do CRM.
+  // Funis e etapas vêm do banco; atualize a lista em tempo real quando o Kanban mudar.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      supabase.from('kanban_stages').select('key, label, funnel').order('position'),
-      supabase.from('sectors').select('key, label').order('position'),
-    ]).then(([stageResult, funnelResult]) => {
+    const loadKanbanMetadata = async () => {
+      const [stageResult, funnelResult] = await Promise.all([
+        supabase.from('kanban_stages').select('key, label, funnel').order('position'),
+        supabase.from('sectors').select('key, label').order('position'),
+      ]);
       if (cancelled) return;
+      if (stageResult.error) console.error('[WhatsApp] Falha ao carregar etapas:', stageResult.error.message);
+      if (funnelResult.error) console.error('[WhatsApp] Falha ao carregar funis:', funnelResult.error.message);
       setKanbanStages((stageResult.data as any[]) || []);
       const funnels = (funnelResult.data as any[] || []).map(f => ({ key: String(f.key), label: String(f.label || f.key) }));
       const known = new Map<string, { key: string; label: string }>();
       [{ key: 'spc', label: 'SPC Brasil' }, ...funnels].forEach(f => { if (!known.has(f.key)) known.set(f.key, f); });
       setKanbanFunnels(Array.from(known.values()).filter(f => f.key !== 'comercial'));
-    }).catch((error) => console.error('[WhatsApp] Falha ao carregar funis/colunas:', error));
-    return () => { cancelled = true; };
+    };
+    void loadKanbanMetadata();
+    const channel = supabase.channel('whatsapp-kanban-metadata')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_stages' }, () => { void loadKanbanMetadata(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sectors' }, () => { void loadKanbanMetadata(); })
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, []);
 
   const getStagesForFunnel = (funnel: string) => {
