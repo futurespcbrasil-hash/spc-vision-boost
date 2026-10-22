@@ -4,7 +4,7 @@ import { KANBAN_STAGES, KanbanStage, Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { 
-  GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, 
+  GripVertical, Phone, MessageCircle, Building2, Mail, X, User2, Clock,
   Edit3, Trash2, Save, ChevronDown, ChevronUp, Plus, Settings, FileText, Search, FileDown
 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -686,6 +686,25 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       </div>
       
       <div className="spc-badge mb-1.5">{lead.product}</div>
+
+      {/* Lead age and last interaction */}
+      {(() => {
+        const interactions = Array.isArray(lead.interactions) ? lead.interactions : [];
+        const latestInteraction = interactions
+          .map(item => item?.date ? new Date(item.date).getTime() : 0)
+          .filter(value => Number.isFinite(value) && value > 0)
+          .sort((a, b) => b - a)[0];
+        const created = lead.createdAt ? new Date(lead.createdAt).getTime() : 0;
+        const reference = latestInteraction || created;
+        const daysSince = reference ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : null;
+        return (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1.5" title={`Criado em ${lead.createdAt || 'data indisponível'}; última interação ${daysSince === null ? 'não registrada' : `há ${daysSince} dia(s)`}`}>
+            <Clock size={11} />
+            <span>Criado: {lead.createdAt || '—'}</span>
+            <span className="ml-auto">Último contato: {daysSince === null ? '—' : daysSince === 0 ? 'hoje' : `há ${daysSince}d`}</span>
+          </div>
+        );
+      })()}
 
       {/* Status selector */}
       <div className="mb-1.5" onClick={e => e.stopPropagation()}>
