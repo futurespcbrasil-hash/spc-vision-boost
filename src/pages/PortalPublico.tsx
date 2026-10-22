@@ -130,7 +130,7 @@ const articles = [
     title: 'CT-e OS: conheça o documento para outros serviços de transporte',
     category: 'Documentos fiscais', readTime: '4 min',
     description: 'Entenda em linhas gerais o CT-e OS, sua finalidade e por que é importante validar a operação antes de emitir documentos de transporte.',
-    image: 'https://images.unsplash.com/photo-1509740966872-6eecf7c8d9a1?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80',
     imageAlt: 'Ônibus de transporte rodoviário em uma estrada',
     keywords: 'CT-e OS, transporte de passageiros, documento fiscal transporte, transporte rodoviário',
     intro: 'O CT-e OS é um modelo de documento fiscal eletrônico relacionado a determinadas prestações de transporte não enquadradas no CT-e de carga tradicional.',
