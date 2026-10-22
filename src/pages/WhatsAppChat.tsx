@@ -773,7 +773,7 @@ const WhatsAppChat = () => {
   useEffect(() => {
     let cancelled = false;
     const loadAgentColors = async () => {
-      const { data, error } = await supabase.from('whatsapp_agent_preferences').select('user_id,display_name,color');
+      const { data, error } = await (supabase as any).from('whatsapp_agent_preferences').select('user_id,display_name,color');
       if (error) {
         console.warn('[WhatsApp] Preferências de cor ainda indisponíveis:', error.message);
         return;
@@ -819,7 +819,7 @@ const WhatsAppChat = () => {
       }).select('id').single();
       if (error) throw error;
       if (!newLead?.id || !selected) throw new Error('Lead criado, mas não foi possível identificar a conversa para vincular.');
-      const { error: linkError } = await supabase.from('whatsapp_chats').update({
+      const { error: linkError } = await (supabase as any).from('whatsapp_chats').update({
         lead_id: newLead.id,
         funnel_stage: leadStage,
         assigned_to: selected.assigned_to || user.id,
@@ -859,7 +859,7 @@ const WhatsAppChat = () => {
     if (!selected || !statusStage || savingStatus) return;
     setSavingStatus(true);
     try {
-      const { data, error } = await supabase.rpc('set_whatsapp_chat_kanban_status', {
+      const { data, error } = await (supabase as any).rpc('set_whatsapp_chat_kanban_status', {
         p_chat_id: selected.id,
         p_stage: statusStage,
       });
