@@ -235,6 +235,12 @@ const PortalPublico = () => {
   const [search, setSearch] = useState('');
   const blogSlug = location.pathname.split('/').filter(Boolean)[2] || '';
   const selectedArticle = articles.find(article => article.slug === blogSlug);
+  const [openChapter, setOpenChapter] = useState<number | null>(0);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const isManual = location.pathname.startsWith('/portal/manuais/emissor-fiscal');
+  const isManualIndex = location.pathname.startsWith('/portal/manuais');
+  const isServices = location.pathname.startsWith('/portal/servicos');
+  const isBlog = location.pathname.startsWith('/portal/blog');
   useEffect(() => {
     const title = selectedArticle ? selectedArticle.title + ' | Future Soluções' : isBlog ? 'Conteúdos para empresas | Future Soluções' : isManual ? 'Manual do Emissor Fiscal | Future Soluções' : isManualIndex ? 'Manuais e guias | Future Soluções' : 'Future Soluções | Manuais e soluções empresariais';
     document.title = title;
@@ -253,13 +259,6 @@ const PortalPublico = () => {
     }
     keywords.content = selectedArticle?.keywords || 'Future Soluções, manual emissor fiscal, certificado digital, SPC Brasil, documentos fiscais';
   }, [selectedArticle, isBlog, isManual, isManualIndex]);
-
-  const [openChapter, setOpenChapter] = useState<number | null>(0);
-  const [mobileMenu, setMobileMenu] = useState(false);
-  const isManual = location.pathname.startsWith('/portal/manuais/emissor-fiscal');
-  const isManualIndex = location.pathname.startsWith('/portal/manuais');
-  const isServices = location.pathname.startsWith('/portal/servicos');
-  const isBlog = location.pathname.startsWith('/portal/blog');
   const filteredManuals = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return manuals;
