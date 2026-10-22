@@ -137,7 +137,7 @@ const CRMKanban = () => {
     setCustomStages([]);
   }, [funnel]);
 
-  const allStages = [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
+  const allStages = funnel === 'spc' ? [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))] : customStages.map(s => ({ ...s, key: s.key as KanbanStage }));
   // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
   const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
   const canManageCustomStage = (key: string) =>
@@ -802,12 +802,13 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       {/* Lead age and last interaction */}
       {(() => {
         const interactions = Array.isArray(lead.interactions) ? lead.interactions : [];
-        const latestInteraction = interactions
-          .map(item => item?.date ? new Date(item.date).getTime() : 0)
-          .filter(value => Number.isFinite(value) && value > 0)
-          .sort((a, b) => b - a)[0];
+        const latestInteraction = Math.max(
+          lead.lastInteractionAt ? new Date(lead.lastInteractionAt).getTime() : 0,
+          ...interactions.map(item => item?.date ? new Date(item.date).getTime() : 0)
+        )
+          .filter(value => Number.isFinite(value) && value > 0)[0];
         const created = lead.createdAt ? new Date(lead.createdAt).getTime() : 0;
-        const reference = latestInteraction || created;
+        const reference = latestInteraction > 0 ? latestInteraction : created;
         const daysSince = reference ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : null;
         return (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1.5" title={`Criado em ${lead.createdAt || 'data indisponível'}; última interação ${daysSince === null ? 'não registrada' : `há ${daysSince} dia(s)`}`}>
