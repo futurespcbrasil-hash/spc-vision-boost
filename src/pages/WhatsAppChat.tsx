@@ -832,6 +832,10 @@ const WhatsAppChat = () => {
   // Open lead registration modal pre-filled with contact info
   const handleOpenLeadDialog = () => {
     if (!selected) return;
+    if (selected.lead_id) {
+      toast({ title: 'Lead já cadastrado', description: 'Este contato já está vinculado ao Kanban. Use “Status do Kanban” para mover sua coluna.' });
+      return;
+    }
     setLeadName(selected.contact_name || '');
     setLeadPhone(selected.contact_number.replace('@s.whatsapp.net', '').replace('@c.us', ''));
     const preferredFunnel = kanbanFunnels.find(f => f.key === 'spc')?.key || kanbanFunnels[0]?.key || 'spc';
@@ -845,6 +849,27 @@ const WhatsAppChat = () => {
     if (!leadName.trim() || !user) return;
     setSavingLead(true);
     try {
+      const digits = onlyDigits(leadPhone);
+      if (digits.length >= 10 && selected) {
+        const { data: existingLeads, error: lookupError } = await supabase.from('leads').select('id,phone,whatsapp,status,funnel');
+        if (lookupError) throw lookupError;
+        const matches = (existingLeads || []).filter((lead: any) =>
+          [onlyDigits(lead.phone || ''), onlyDigits(lead.whatsapp || '')].filter(Boolean)
+            .some(number => number === digits || (number.length >= 10 && number.slice(-11) === digits.slice(-11)))
+        );
+        const uniqueMatches = Array.from(new Map(matches.map((lead: any) => [lead.id, lead])).values()) as any[];
+        if (uniqueMatches.length > 1) throw new Error('Há mais de um lead com este telefone. Revise os cadastros antes de vincular.');
+        if (uniqueMatches.length === 1) {
+          const existing = uniqueMatches[0];
+          const { error: linkError } = await (supabase as any).from('whatsapp_chats').update({ lead_id: existing.id, funnel_stage: existing.status }).eq('id', selected.id);
+          if (linkError) throw linkError;
+          setSelected(prev => prev?.id === selected.id ? { ...prev, lead_id: existing.id, funnel_stage: existing.status } : prev);
+          setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, lead_id: existing.id, funnel_stage: existing.status } : chat));
+          setLeadDialog(false);
+          toast({ title: 'Lead existente vinculado', description: 'O contato já estava cadastrado e agora está vinculado à conversa.' });
+          return;
+        }
+      }
       const { data: newLead, error } = await supabase.from('leads').insert({
         user_id: user.id,
         name: leadName.trim(),
@@ -1368,11 +1393,12 @@ const WhatsAppChat = () => {
                     variant="outline"
                     size="sm"
                     onClick={handleOpenLeadDialog}
-                    title="Cadastrar como Lead no Funil"
+                    disabled={!!selected.lead_id}
+                    title={selected.lead_id ? "Lead já cadastrado" : "Cadastrar como Lead no Funil"}
                     className="h-8 gap-1 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
                   >
                     <GitBranch size={13}/>
-                    <span className="hidden sm:inline">Lead no Funil</span>
+                    <span className="hidden sm:inline">{selected.lead_id ? 'Lead cadastrado' : 'Lead no Funil'}</span>
                   </Button>
                   <Button
                     variant="outline"
