@@ -20,3 +20,12 @@ CREATE POLICY "Authenticated users view all sectors"
   FOR SELECT
   TO authenticated
   USING (auth.uid() IS NOT NULL);
+
+-- Managers retain their existing team-management capability in the UI and database.
+DROP POLICY IF EXISTS "Managers manage all kanban stages" ON public.kanban_stages;
+CREATE POLICY "Managers manage all kanban stages"
+  ON public.kanban_stages
+  FOR ALL
+  TO authenticated
+  USING (public.has_role((SELECT auth.uid()), 'gestor'::public.app_role))
+  WITH CHECK (public.has_role((SELECT auth.uid()), 'gestor'::public.app_role));
