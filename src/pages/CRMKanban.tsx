@@ -242,13 +242,18 @@ const CRMKanban = () => {
       return;
     }
     if (confirm('Excluir esta coluna? Os leads serão movidos para a primeira coluna disponível.')) {
-      leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, fallback));
-      const { error } = await supabase.from('kanban_stages').delete().eq('key', key).eq('funnel', funnel);
+      const { error } = await supabase.rpc('delete_kanban_stage', {
+        p_funnel: funnel,
+        p_stage_key: key,
+        p_fallback_key: fallback,
+      });
       if (error) {
         toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
         return;
       }
       setCustomStages(customStages.filter(s => s.key !== key));
+      await refreshLeads();
+      toast({ title: 'Coluna excluída', description: 'Os leads foram movidos para outra etapa do mesmo funil.' });
     }
   };
 
