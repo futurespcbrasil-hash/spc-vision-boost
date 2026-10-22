@@ -25,7 +25,7 @@ const LeadsPage = () => {
   const selectedSector = activeSector;
   const sectorLabel = sectors.find(s => s.key === selectedSector)?.label || selectedSector;
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === selectedSector);
-  const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
+  const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -277,7 +277,7 @@ const LeadsPage = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><User2 size={20} /> {editMode ? 'Editar Lead' : selectedLead.name}</h2>
               <div className="flex items-center gap-2">
-                {!editMode && (
+                {!editMode && canEditLead(selectedLead) && (
                   <>
                     <button onClick={() => handleEdit(selectedLead)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition" title="Editar">
                       <Edit3 size={16} />

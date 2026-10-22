@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Plus, Trash2, Zap, Tag, Smartphone, QrCode, RefreshCcw, LogOut,
-  Webhook, Users, Settings, Layers, Shield, UserPlus, Edit2, Eye, EyeOff, Check
+  Webhook, Users, Settings, Layers, Shield, UserPlus, Edit2, Eye, EyeOff, Check, Palette
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { waha } from '@/services/ryzeService';
@@ -45,6 +45,11 @@ const WhatsAppAjustes = () => {
   const [labelName, setLabelName] = useState('');
   const [labelColor, setLabelColor] = useState('#8B5CF6');
   const [labels, setLabels] = useState<any[]>([]);
+
+  /* ── Personal agent color ── */
+  const [agentColor, setAgentColor] = useState('#8B5CF6');
+  const [agentDisplayName, setAgentDisplayName] = useState('');
+  const [savingAgentColor, setSavingAgentColor] = useState(false);
 
   /* ── Instances ── */
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -103,6 +108,33 @@ const WhatsAppAjustes = () => {
   };
 
   useEffect(() => { loadAll(); }, [isGestor]);
+
+  useEffect(() => {
+    if (!user) return;
+    (supabase as any).from('whatsapp_agent_preferences').select('color,display_name').eq('user_id', user.id).maybeSingle()
+      .then(({ data, error }: any) => {
+        if (error) console.warn('[WhatsAppAjustes] Não foi possível carregar a cor pessoal:', error.message);
+        if (data?.color) setAgentColor(data.color);
+        if (data?.display_name) setAgentDisplayName(data.display_name);
+      });
+  }, [user?.id]);
+
+  const saveAgentColor = async () => {
+    if (!user) return;
+    setSavingAgentColor(true);
+    try {
+      const displayName = String(agentDisplayName || user.user_metadata?.display_name || user.email?.split('@')[0] || 'Atendimento').trim();
+      const { error } = await (supabase as any).from('whatsapp_agent_preferences').upsert({
+        user_id: user.id,
+        display_name: displayName || 'Atendimento',
+        color: agentColor,
+      }, { onConflict: 'user_id' });
+      if (error) throw error;
+      toast({ title: 'Cor de identificação salva', description: 'Sua cor aparecerá nas conversas em que você for o responsável.' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao salvar cor', description: e.message || 'Tente novamente.', variant: 'destructive' });
+    } finally { setSavingAgentColor(false); }
+  };
 
   /* ─── Quick Replies ─── */
   const addReply = async () => {
@@ -302,13 +334,57 @@ const WhatsAppAjustes = () => {
       </div>
 
       <Tabs defaultValue="instancias" className="space-y-4">
-        <TabsList className={`grid w-full ${isGestor ? 'grid-cols-5' : 'grid-cols-3'}`}>
+        <TabsList className={`grid w-full ${isGestor ? 'grid-cols-6' : 'grid-cols-4'}`}>
           <TabsTrigger value="instancias" className="gap-1 text-xs"><Smartphone size={14}/>Instância</TabsTrigger>
           <TabsTrigger value="respostas" className="gap-1 text-xs"><Zap size={14}/>Respostas</TabsTrigger>
           <TabsTrigger value="etiquetas" className="gap-1 text-xs"><Tag size={14}/>Etiquetas</TabsTrigger>
+          <TabsTrigger value="minha-cor" className="gap-1 text-xs"><Palette size={14}/>Minha cor</TabsTrigger>
           {isGestor && <TabsTrigger value="usuarios" className="gap-1 text-xs"><Users size={14}/>Usuários</TabsTrigger>}
           {isGestor && <TabsTrigger value="setores" className="gap-1 text-xs"><Layers size={14}/>Setores</TabsTrigger>}
         </TabsList>
+
+        {/* ── TAB: COR PESSOAL ── */}
+        <TabsContent value="minha-cor">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Palette size={16}/>Minha cor de identificação</CardTitle>
+              <p className="text-sm text-muted-foreground">Escolha uma cor exclusiva para facilitar a identificação do responsável nas conversas compartilhadas.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4 rounded-lg border p-4">
+                <div className="h-12 w-12 rounded-full border-4 border-background shadow-sm" style={{ backgroundColor: agentColor }} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{agentDisplayName || user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Meu usuário'}</p>
+                  <p className="text-xs text-muted-foreground">Prévia da identificação no WhatsApp</p>
+                </div>
+                <Badge style={{ backgroundColor: agentColor, color: '#FFFFFF' }}>Responsável</Badge>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_100px] items-end">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium" htmlFor="whatsapp-agent-color">Cor personalizada</label>
+                  <Input id="whatsapp-agent-color" value={agentColor} onChange={e => setAgentColor(e.target.value)} placeholder="#8B5CF6" maxLength={7} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium" htmlFor="whatsapp-agent-color-picker">Seletor</label>
+                  <input id="whatsapp-agent-color-picker" type="color" value={/^#[0-9A-Fa-f]{6}$/.test(agentColor) ? agentColor : '#8B5CF6'} onChange={e => setAgentColor(e.target.value)} className="h-10 w-full cursor-pointer rounded-md border bg-background p-1" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Cores rápidas</p>
+                <div className="flex flex-wrap gap-2">
+                  {SECTOR_COLORS.map(color => (
+                    <button key={color} type="button" onClick={() => setAgentColor(color)} title={color} aria-label={`Selecionar cor ${color}`} className={`h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 ${agentColor.toLowerCase() === color.toLowerCase() ? 'border-foreground ring-2 ring-ring ring-offset-2' : 'border-transparent'}`} style={{ backgroundColor: color }} />
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={saveAgentColor} disabled={savingAgentColor || !/^#[0-9A-Fa-f]{6}$/.test(agentColor)} className="gap-2">
+                  {savingAgentColor ? <RefreshCcw size={14} className="animate-spin"/> : <Check size={14}/>}Salvar minha cor
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* ── TAB: INSTÂNCIAS ── */}
         <TabsContent value="instancias" className="space-y-4">

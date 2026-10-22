@@ -29,7 +29,7 @@ const CRMKanban = () => {
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<Lead | null>(null);
   const [expandedStages, setExpandedStages] = useState<Set<KanbanStage>>(new Set());
-  const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string }[]>([]);
+  const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string; userId?: string }[]>([]);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
@@ -41,7 +41,7 @@ const CRMKanban = () => {
   const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const canEditLead = (lead: Lead) => !lead.userId || lead.userId === user?.id;
+  const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
 
   // Load custom stages from database (with localStorage migration fallback)
   useEffect(() => {
@@ -61,7 +61,7 @@ const CRMKanban = () => {
       }
 
       if (data && data.length > 0) {
-        setCustomStages(data.map(d => ({ key: d.key, label: d.label, color: d.color })));
+        setCustomStages(data.map(d => ({ key: d.key, label: d.label, color: d.color, userId: d.user_id })));
       } else {
         // Migrate from localStorage if exists (only for SPC funnel)
         if (funnel === 'spc') {
@@ -80,7 +80,7 @@ const CRMKanban = () => {
                 }));
                 const { data: inserted } = await supabase.from('kanban_stages').insert(rows).select();
                 if (inserted) {
-                  setCustomStages(inserted.map(d => ({ key: d.key, label: d.label, color: d.color })));
+                  setCustomStages(inserted.map(d => ({ key: d.key, label: d.label, color: d.color, userId: d.user_id })));
                   localStorage.removeItem('custom_kanban_stages');
                 }
               }
@@ -89,7 +89,11 @@ const CRMKanban = () => {
         }
       }
     };
-    load();
+    void load();
+    const channel = supabase.channel(`kanban-stages-${funnel}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_stages', filter: `funnel=eq.${funnel}` }, () => { void load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [funnel]);
 
   useEffect(() => {
@@ -98,6 +102,8 @@ const CRMKanban = () => {
   }, [funnel]);
 
   const allStages = [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
+  const canManageCustomStage = (key: string) =>
+    isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
 
   const handleAddColumn = async () => {
     if (!newColLabel.trim()) return;
@@ -118,13 +124,17 @@ const CRMKanban = () => {
       toast({ title: 'Erro ao criar coluna', description: error?.message, variant: 'destructive' });
       return;
     }
-    setCustomStages([...customStages, { key: data.key, label: data.label, color: data.color }]);
+    setCustomStages([...customStages, { key: data.key, label: data.label, color: data.color, userId: user.id }]);
     setNewColLabel('');
     setShowAddColumn(false);
     toast({ title: 'Coluna criada', description: `"${data.label}" foi salva.` });
   };
 
   const handleDeleteColumn = async (key: string) => {
+    if (!canManageCustomStage(key)) {
+      toast({ title: 'Apenas visualização', description: 'Você pode visualizar colunas de outros perfis, mas só pode excluir as permitidas pela sua função.', variant: 'destructive' });
+      return;
+    }
     const fallback = (baseStages[0]?.key as KanbanStage) || ('lead_novo' as KanbanStage);
     if (confirm('Excluir esta coluna? Os leads serão movidos para a primeira coluna.')) {
       leads.filter(l => l.status === key).forEach(l => moveLeadToStage(l.id, fallback));
@@ -138,6 +148,10 @@ const CRMKanban = () => {
   };
 
   const handleRenameColumn = async (key: string) => {
+    if (!canManageCustomStage(key)) {
+      toast({ title: 'Apenas visualização', description: 'Você pode visualizar colunas de outros perfis, mas só pode editar as permitidas pela sua função.', variant: 'destructive' });
+      return;
+    }
     if (!editColLabel.trim()) return;
     const newLabel = editColLabel.trim();
     const { error } = await supabase.from('kanban_stages').update({ label: newLabel }).eq('key', key).eq('funnel', funnel);
@@ -175,7 +189,14 @@ const CRMKanban = () => {
   const handleDragStart = (leadId: string) => setDraggedLead(leadId);
   const handleDragOver = (e: React.DragEvent, stage: KanbanStage) => { e.preventDefault(); setDragOverStage(stage); };
   const handleDrop = (stage: KanbanStage) => {
-    if (draggedLead) moveLeadToStage(draggedLead, stage);
+    if (draggedLead) {
+      const lead = allLeads.find(item => item.id === draggedLead);
+      if (lead && !canEditLead(lead)) {
+        toast({ title: 'Apenas visualização', description: 'Você pode visualizar leads de todos os perfis, mas só pode mover leads conforme suas permissões.', variant: 'destructive' });
+      } else {
+        moveLeadToStage(draggedLead, stage);
+      }
+    }
     setDraggedLead(null); setDragOverStage(null);
   };
   const handleDragEnd = () => { setDraggedLead(null); setDragOverStage(null); };
@@ -432,7 +453,7 @@ const CRMKanban = () => {
                     ) : (
                       <span className="flex-1 min-w-0 text-sm text-foreground truncate">{stage.label}</span>
                     )}
-                    {editingColumn === stage.key ? (
+                    {canManageCustomStage(stage.key) ? (editingColumn === stage.key ? (
                       <>
                         <button onClick={() => handleRenameColumn(stage.key)} className="p-1.5 rounded hover:bg-muted text-primary" title="Salvar nome"><Save size={16} /></button>
                         <button onClick={() => { setEditingColumn(null); setEditColLabel(''); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground" title="Cancelar edição"><X size={16} /></button>
@@ -442,7 +463,7 @@ const CRMKanban = () => {
                         <button onClick={() => { setEditingColumn(stage.key); setEditColLabel(stage.label); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-primary" title={`Editar ${stage.label}`}><Edit3 size={16} /></button>
                         <button onClick={() => handleDeleteColumn(stage.key)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title={`Excluir ${stage.label}`}><Trash2 size={16} /></button>
                       </>
-                    )}
+                    )) : <span className="text-xs text-muted-foreground">Somente visualização</span>}
                   </div>
                 ))}
               </div>
@@ -481,7 +502,7 @@ const CRMKanban = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><User2 size={20} /> {editMode ? 'Editar Lead' : selectedLead.name}</h2>
               <div className="flex items-center gap-2">
-                {!editMode && (
+                {!editMode && canEditLead(selectedLead) && (
                   <>
                     <button onClick={handleEdit} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition" title="Editar"><Edit3 size={16} /></button>
                     <button onClick={handleDelete} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition" title="Excluir"><Trash2 size={16} /></button>
@@ -638,7 +659,7 @@ const CRMKanban = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    {isCustom && (
+                    {isCustom && canManageCustomStage(stage.key) && (
                       <>
                         <button onClick={() => { setEditingColumn(stage.key); setEditColLabel(stage.label); }} className="text-muted-foreground hover:text-primary transition p-0.5" title="Renomear"><Edit3 size={11} /></button>
                         <button onClick={() => handleDeleteColumn(stage.key)} className="text-muted-foreground hover:text-destructive transition p-0.5" title="Excluir coluna"><Trash2 size={11} /></button>
