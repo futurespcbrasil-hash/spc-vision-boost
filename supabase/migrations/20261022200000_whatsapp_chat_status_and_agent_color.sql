@@ -185,3 +185,10 @@ $$;
 
 REVOKE ALL ON FUNCTION public.set_whatsapp_chat_kanban_status(uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.set_whatsapp_chat_kanban_status(uuid, text) TO authenticated;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'whatsapp_agent_preferences') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.whatsapp_agent_preferences;
+  END IF;
+END $$;
