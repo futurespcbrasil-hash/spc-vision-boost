@@ -31,7 +31,6 @@ const CRMKanban = () => {
   const [expandedStages, setExpandedStages] = useState<Set<KanbanStage>>(new Set());
   const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string; userId?: string }[]>([]);
   const [showAddColumn, setShowAddColumn] = useState(false);
-  const [showManageColumns, setShowManageColumns] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editColLabel, setEditColLabel] = useState('');
@@ -102,8 +101,10 @@ const CRMKanban = () => {
   }, [funnel]);
 
   const allStages = [...baseStages, ...customStages.map(s => ({ ...s, key: s.key as KanbanStage }))];
+  // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
+  const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
   const canManageCustomStage = (key: string) =>
-    isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
+    isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
 
   const handleAddColumn = async () => {
     if (!newColLabel.trim()) return;
@@ -353,13 +354,6 @@ const CRMKanban = () => {
             <FileDown size={16} /> Exportar PDF
           </button>
           <button
-            onClick={() => setShowManageColumns(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition"
-            title="Editar ou excluir colunas personalizadas"
-          >
-            <Edit3 size={16} /> Gerenciar Colunas
-          </button>
-          <button
             onClick={() => setShowAddColumn(true)}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"
           >
@@ -417,59 +411,6 @@ const CRMKanban = () => {
                 disabled={(selectedStageKeys ?? allStages).length === 0}
                 className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
               >Gerar PDF</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Manage columns modal */}
-      {showManageColumns && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowManageColumns(false); setEditingColumn(null); setEditColLabel(''); }}>
-          <div className="bg-card rounded-xl border border-border max-w-md w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-foreground flex items-center gap-2"><Edit3 size={18} /> Gerenciar colunas</h3>
-              <button onClick={() => { setShowManageColumns(false); setEditingColumn(null); setEditColLabel(''); }} className="text-muted-foreground hover:text-foreground" title="Fechar"><X size={18} /></button>
-            </div>
-            <p className="text-sm text-muted-foreground">Edite o nome ou exclua as colunas personalizadas deste setor. As colunas padrão do sistema não podem ser alteradas aqui.</p>
-            {customStages.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border p-5 text-center space-y-2">
-                <p className="text-sm text-muted-foreground">Você ainda não criou colunas personalizadas neste setor.</p>
-                <button onClick={() => { setShowManageColumns(false); setShowAddColumn(true); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"><Plus size={15} /> Adicionar coluna</button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {customStages.map(stage => (
-                  <div key={stage.key} className="flex items-center gap-2 rounded-lg border border-border p-3">
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${stage.color}`} />
-                    {editingColumn === stage.key ? (
-                      <input
-                        className="flex-1 min-w-0 px-2 py-1 rounded border border-border bg-background text-foreground text-sm"
-                        value={editColLabel}
-                        onChange={e => setEditColLabel(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleRenameColumn(stage.key)}
-                        autoFocus
-                        aria-label="Nome da coluna"
-                      />
-                    ) : (
-                      <span className="flex-1 min-w-0 text-sm text-foreground truncate">{stage.label}</span>
-                    )}
-                    {canManageCustomStage(stage.key) ? (editingColumn === stage.key ? (
-                      <>
-                        <button onClick={() => handleRenameColumn(stage.key)} className="p-1.5 rounded hover:bg-muted text-primary" title="Salvar nome"><Save size={16} /></button>
-                        <button onClick={() => { setEditingColumn(null); setEditColLabel(''); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground" title="Cancelar edição"><X size={16} /></button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => { setEditingColumn(stage.key); setEditColLabel(stage.label); }} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-primary" title={`Editar ${stage.label}`}><Edit3 size={16} /></button>
-                        <button onClick={() => handleDeleteColumn(stage.key)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" title={`Excluir ${stage.label}`}><Trash2 size={16} /></button>
-                      </>
-                    )) : <span className="text-xs text-muted-foreground">Somente visualização</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex justify-end pt-1">
-              <button onClick={() => { setShowManageColumns(false); setEditingColumn(null); setEditColLabel(''); }} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Fechar</button>
             </div>
           </div>
         </div>
