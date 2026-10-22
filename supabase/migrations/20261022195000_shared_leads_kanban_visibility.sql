@@ -29,3 +29,17 @@ CREATE POLICY "Managers manage all kanban stages"
   TO authenticated
   USING (public.has_role((SELECT auth.uid()), 'gestor'::public.app_role))
   WITH CHECK (public.has_role((SELECT auth.uid()), 'gestor'::public.app_role));
+
+-- Publish shared CRM data so open tabs receive changes without a manual reload.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'leads') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.leads;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'kanban_stages') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.kanban_stages;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'sectors') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.sectors;
+  END IF;
+END $$;
