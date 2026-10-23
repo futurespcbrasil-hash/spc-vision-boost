@@ -709,3 +709,52 @@ html.theme-future aside.gradient-spc a[href="/perfil"]:not([class*="bg-sidebar-a
   background-color: hsl(0 0% 100% / 0.10) !important;
   color: hsl(var(--sidebar-foreground)) !important;
 }
+
+
+/* Ajuste preciso da navegação principal: sem contornos decorativos em nenhum tema. */
+html.theme-future aside.gradient-spc nav > a,
+html.theme-light aside.gradient-spc nav > a,
+html.theme-dark aside.gradient-spc nav > a,
+html.theme-transparent aside.gradient-spc nav > a,
+html.theme-future aside.gradient-spc nav > button,
+html.theme-light aside.gradient-spc nav > button,
+html.theme-dark aside.gradient-spc nav > button,
+html.theme-transparent aside.gradient-spc nav > button {
+  border: 0 !important;
+  outline: 0;
+  box-shadow: none !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+
+/* Transparente significa sem película: deixa o papel de parede aparecer por trás da barra lateral. */
+html.theme-transparent aside.gradient-spc {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-right: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html.theme-transparent aside.gradient-spc > div:first-child {
+  border-bottom-color: transparent !important;
+}
+
+html.theme-transparent aside.gradient-spc nav > a,
+html.theme-transparent aside.gradient-spc nav > button {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html.theme-transparent aside.gradient-spc nav > a:hover,
+html.theme-transparent aside.gradient-spc nav > button:hover,
+html.theme-transparent aside.gradient-spc nav > a[class*="bg-sidebar-accent"],
+html.theme-transparent aside.gradient-spc nav > button[class*="bg-sidebar-accent"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
