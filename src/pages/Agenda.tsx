@@ -669,7 +669,16 @@ const Agenda = () => {
 
       {/* Schedule form (simple) */}
       {showForm && (
-        <ScheduleForm draftKey={scheduleDraftKey} onAdd={(e) => { addScheduleEvent(e); setShowForm(false); try { if (scheduleDraftKey) localStorage.removeItem(scheduleDraftKey); } catch { /* armazenamento indisponível */ } }} onCancel={() => { setShowForm(false); try { if (scheduleDraftKey) localStorage.removeItem(scheduleDraftKey); } catch { /* armazenamento indisponível */ } }} />
+        <ScheduleForm draftKey={scheduleDraftKey} onAdd={async (e) => {
+          const saved = await addScheduleEvent(e);
+          if (saved) {
+            setShowForm(false);
+            try { if (scheduleDraftKey) localStorage.removeItem(scheduleDraftKey); } catch { /* armazenamento indisponível */ }
+            toast.success('Compromisso salvo com sucesso.');
+          } else {
+            toast.error('Não foi possível salvar o compromisso. O rascunho foi mantido; tente novamente.');
+          }
+        }} onCancel={() => { setShowForm(false); try { if (scheduleDraftKey) localStorage.removeItem(scheduleDraftKey); } catch { /* armazenamento indisponível */ } }} />
       )}
 
       {/* Event form (Google Calendar + Meet) */}
@@ -888,7 +897,7 @@ const Agenda = () => {
 };
 
 // Simple schedule form (existing)
-const ScheduleForm = ({ onAdd, onCancel, draftKey }: { onAdd: (e: any) => void; onCancel: () => void; draftKey?: string }) => {
+const ScheduleForm = ({ onAdd, onCancel, draftKey }: { onAdd: (e: any) => void | Promise<void>; onCancel: () => void; draftKey?: string }) => {
   const [form, setForm] = useState(() => {
     const initial = { leadName: '', date: '', time: '', note: '' };
     try { const saved = draftKey ? localStorage.getItem(draftKey) : null; return saved ? { ...initial, ...JSON.parse(saved) } : initial; } catch { return initial; }
