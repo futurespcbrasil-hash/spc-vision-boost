@@ -385,7 +385,7 @@ return (
         </div>
       </div>
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 lg:gap-5">
+      <div className="dashboard-stat-grid grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 lg:gap-5">
         {stats.map(s => (
           <div key={s.label} className="stat-card group relative overflow-hidden">
             <div className="absolute -right-5 -top-6 h-20 w-20 rounded-full bg-primary/5 transition-transform duration-300 group-hover:scale-125" />
