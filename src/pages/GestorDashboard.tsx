@@ -154,7 +154,7 @@ const GestorDashboard = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 lg:gap-5">
         <StatCard icon={Users} label="Leads Totais" value={totalLeads} desc="Total de oportunidades geradas pela equipe" color="text-primary" />
         <StatCard icon={Handshake} label="Em Negociação" value={emNegociacao} desc="Leads em fase ativa de fechamento" color="text-accent" />
         <StatCard icon={CheckCircle2} label="Vendas Fechadas" value={vendasFechadas} desc="Negócios concluídos com sucesso" color="text-success" />
@@ -271,13 +271,15 @@ const GestorDashboard = () => {
 };
 
 const StatCard = ({ icon: Icon, label, value, desc, color }: { icon: any; label: string; value: any; desc: string; color: string }) => (
-  <div className="stat-card">
-    <div className="flex items-center justify-between mb-3">
-      <span className="text-muted-foreground text-sm">{label}</span>
-      <Icon size={20} className={color} />
+  <div className="stat-card group relative overflow-hidden">
+    <div className="absolute -right-5 -top-6 h-20 w-20 rounded-full bg-primary/5 transition-transform duration-300 group-hover:scale-125" />
+    <div className="relative flex items-center justify-between gap-3 mb-4">
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/8 ring-1 ring-primary/10"><Icon size={19} className={color} /></span>
     </div>
-    <div className="text-3xl font-bold text-foreground">{value}</div>
-    <p className="text-xs text-muted-foreground mt-1">{desc}</p>
+    <div className="relative text-3xl font-bold tracking-tight text-foreground tabular-nums">{value}</div>
+    <p className="relative text-xs text-muted-foreground mt-2 leading-5">{desc}</p>
+    <div className="relative mt-3 h-1 w-10 rounded-full bg-primary/20 transition-all duration-300 group-hover:w-16 group-hover:bg-primary/50" />
   </div>
 );
 
