@@ -204,8 +204,14 @@ const WhatsAppChat = () => {
       setSelected(target);
       setSearch('');
       if (isMobile) setMobileShowChat(true);
+      if (searchParams.get('compose') === '1') window.setTimeout(() => inputRef.current?.focus(), 250);
     } else {
       setSearch(digits);
+      if (searchParams.get('compose') === '1') {
+        setNewChatNumber(digits);
+        setNewChatMessage('');
+        setNewChatOpen(true);
+      }
     }
   }, [searchParams, chats, isMobile]);
 
@@ -213,6 +219,8 @@ const WhatsAppChat = () => {
   const [leadDialog, setLeadDialog] = useState(false);
   const [leadName, setLeadName] = useState('');
   const [leadPhone, setLeadPhone] = useState('');
+  const [leadPlanValue, setLeadPlanValue] = useState('');
+  const [leadBiro, setLeadBiro] = useState('');
   const [leadFunnel, setLeadFunnel] = useState('spc');
   const [leadStage, setLeadStage] = useState('lead_novo');
   const [leadAssignee, setLeadAssignee] = useState('');
@@ -984,6 +992,8 @@ const WhatsAppChat = () => {
         whatsapp: leadPhone.trim(),
         status: leadStage,
         funnel: leadFunnel,
+        plan_value: leadFunnel === 'spc' && leadPlanValue.trim() ? Number(leadPlanValue.replace(',', '.')) : null,
+        biro: leadFunnel === 'spc' ? (leadBiro.trim() || null) : null,
         assigned_to: leadAssignee || user.id,
         type: 'PJ',
         origin: 'WhatsApp',
@@ -1003,6 +1013,8 @@ const WhatsAppChat = () => {
         description: `${leadName} adicionado ao funil. Redirecionando...`,
       });
       setLeadDialog(false);
+      setLeadPlanValue('');
+      setLeadBiro('');
       setTimeout(() => navigate('/crm'), 1200);
     } catch (e: any) {
       toast({ title: 'Erro ao cadastrar lead', description: e.message, variant: 'destructive' });
@@ -1979,6 +1991,18 @@ const WhatsAppChat = () => {
             <Label htmlFor="lead-phone">WhatsApp / Telefone</Label>
             <Input id="lead-phone" placeholder="Número" value={leadPhone} onChange={e => setLeadPhone(e.target.value)} />
           </div>
+          {leadFunnel === 'spc' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="lead-plan-value">Valor do plano (R$)</Label>
+                <Input id="lead-plan-value" placeholder="1000,00" value={leadPlanValue} onChange={e => setLeadPlanValue(e.target.value)} inputMode="decimal" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="lead-biro">Birô que utiliza</Label>
+                <Input id="lead-biro" placeholder="Serasa, Boa Vista..." value={leadBiro} onChange={e => setLeadBiro(e.target.value)} />
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Funil</Label>
