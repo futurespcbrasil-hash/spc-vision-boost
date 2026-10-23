@@ -29,12 +29,21 @@ const emptyForm = { titulo: '', conteudo: '', cor: 'amarelo', data_lembrete: '',
 
 const Notas = () => {
   const { user } = useAuth();
+  const draftKey = user ? `crm_note_draft_${user.id}` : undefined;
+  const readDraft = () => {
+    try { const saved = draftKey ? localStorage.getItem(draftKey) : null; return saved ? { ...emptyForm, ...JSON.parse(saved) } : emptyForm; } catch { return emptyForm; }
+  };
   const [notas, setNotas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<'pendentes' | 'concluidos' | 'todos'>('pendentes');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => { try { return !!(user && localStorage.getItem(`crm_note_draft_${user.id}`)); } catch { return false; } });
   const [editing, setEditing] = useState<any | null>(null);
-  const [form, setForm] = useState<any>(emptyForm);
+  const [form, setForm] = useState<any>(readDraft);
+
+  useEffect(() => {
+    if (!draftKey || editing) return;
+    try { localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* armazenamento indisponível */ }
+  }, [form, draftKey, editing]);
 
   const load = async () => {
     setLoading(true);
@@ -45,7 +54,7 @@ const Notas = () => {
 
   useEffect(() => { load(); }, []);
 
-  const openNew = () => { setEditing(null); setForm(emptyForm); setOpen(true); };
+  const openNew = () => { setEditing(null); setForm(readDraft()); setOpen(true); };
   const openEdit = (n: any) => {
     setEditing(n);
     setForm({ ...n, data_lembrete: n.data_lembrete ?? '' });
@@ -68,7 +77,10 @@ const Notas = () => {
       : await supabase.from('notas').insert(payload);
     if (error) { toast.error(error.message); return; }
     toast.success(editing ? 'Post-it atualizado' : 'Post-it criado');
-    setOpen(false); load();
+    setOpen(false);
+    try { if (draftKey) localStorage.removeItem(draftKey); } catch { /* armazenamento indisponível */ }
+    setForm(emptyForm);
+    load();
   };
 
   const toggleConcluido = async (n: any) => {
@@ -193,7 +205,7 @@ const Notas = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setOpen(false); if (!editing) { try { if (draftKey) localStorage.removeItem(draftKey); } catch { /* armazenamento indisponível */ } setForm(emptyForm); } }}>Cancelar</Button>
             <Button onClick={save}>{editing ? 'Salvar' : 'Criar'}</Button>
           </DialogFooter>
         </DialogContent>
