@@ -1,6 +1,7 @@
 import { useAppState } from '@/context/AppContext';
 import { Calendar as CalIcon, Check, Clock, Plus, Link, Unlink, Loader2, AlertCircle, CheckCircle2, Info, Video, Pencil, Trash2, ExternalLink, Search } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -87,7 +88,12 @@ const googleCompletionKey = (event: GCalEvent) => `${event.calendar_id || 'prima
 
 const Agenda = () => {
   const { schedule, toggleScheduleDone, addScheduleEvent } = useAppState();
-  const [showForm, setShowForm] = useState(false);
+  const { user } = useAuth();
+  const scheduleDraftKey = user ? `agenda_schedule_draft_${user.id}` : undefined;
+  const eventDraftKey = user ? `agenda_event_draft_${user.id}` : undefined;
+  const [showForm, setShowForm] = useState(() => {
+    try { return !!(user && localStorage.getItem(`agenda_schedule_draft_${user.id}`)); } catch { return false; }
+  });
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [eventSearch, setEventSearch] = useState('');
   const [completionMap, setCompletionMap] = useState<Record<string, boolean>>({});
@@ -105,7 +111,9 @@ const Agenda = () => {
   // App events state
   const [appEvents, setAppEvents] = useState<AppEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
-  const [showEventForm, setShowEventForm] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(() => {
+    try { return !!(user && localStorage.getItem(`agenda_event_draft_${user.id}`)); } catch { return false; }
+  });
   const [editingEvent, setEditingEvent] = useState<AppEvent | null>(null);
   const [editingGoogleEvent, setEditingGoogleEvent] = useState<GCalEvent | null>(null);
   const [selectedGoogleEvent, setSelectedGoogleEvent] = useState<GCalEvent | null>(null);
@@ -381,6 +389,7 @@ const Agenda = () => {
         toast.success(data.synced ? 'Evento criado e sincronizado com Google Calendar + Meet!' : 'Evento salvo (Google Calendar não conectado)');
         addLog(data.synced ? 'Evento criado com Meet link' : 'Evento salvo localmente', data.synced ? 'success' : 'info');
         setShowEventForm(false);
+        try { if (eventDraftKey) localStorage.removeItem(eventDraftKey); } catch { /* armazenamento indisponível */ }
         fetchAppEvents();
       } else {
         toast.error(data.error || 'Erro ao criar evento');
@@ -660,7 +669,7 @@ const Agenda = () => {
 
       {/* Schedule form (simple) */}
       {showForm && (
-        <ScheduleForm onAdd={(e) => { addScheduleEvent(e); setShowForm(false); }} onCancel={() => setShowForm(false)} />
+        <ScheduleForm draftKey={scheduleDraftKey} onAdd={(e) => { addScheduleEvent(e); setShowForm(false); try { if (scheduleDraftKey) localStorage.removeItem(scheduleDraftKey); } catch { /* armazenamento indisponível */ } }} onCancel={() => { setShowForm(false); try { if (scheduleDraftKey) localStorage.removeItem(scheduleDraftKey); } catch { /* armazenamento indisponível */ } }} />
       )}
 
       {/* Event form (Google Calendar + Meet) */}
@@ -670,13 +679,14 @@ const Agenda = () => {
             initialData={editingGoogleEvent}
             loading={creatingEvent}
             onSubmit={handleUpdateGoogleEvent}
-            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); }}
+            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); try { if (!editingEvent && eventDraftKey) localStorage.removeItem(eventDraftKey); } catch { /* armazenamento indisponível */ } }}
           />
         ) : (
           <EventForm
             initialData={editingEvent}
             loading={creatingEvent}
             onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
+            draftKey={!editingEvent ? eventDraftKey : undefined}
             onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); }}
           />
         )
@@ -878,8 +888,14 @@ const Agenda = () => {
 };
 
 // Simple schedule form (existing)
-const ScheduleForm = ({ onAdd, onCancel }: { onAdd: (e: any) => void; onCancel: () => void }) => {
-  const [form, setForm] = useState({ leadName: '', date: '', time: '', note: '' });
+const ScheduleForm = ({ onAdd, onCancel, draftKey }: { onAdd: (e: any) => void; onCancel: () => void; draftKey?: string }) => {
+  const [form, setForm] = useState(() => {
+    const initial = { leadName: '', date: '', time: '', note: '' };
+    try { const saved = draftKey ? localStorage.getItem(draftKey) : null; return saved ? { ...initial, ...JSON.parse(saved) } : initial; } catch { return initial; }
+  });
+  useEffect(() => {
+    try { if (draftKey) localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* armazenamento indisponível */ }
+  }, [form, draftKey]);
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -921,11 +937,13 @@ const EventForm = ({
   loading,
   onSubmit,
   onCancel,
+  draftKey,
 }: {
   initialData?: AppEvent | null;
   loading: boolean;
   onSubmit: (data: EventFormData) => void;
   onCancel: () => void;
+  draftKey?: string;
 }) => {
   const formatForInput = (dt: string) => {
     if (!dt) return '';
@@ -935,15 +953,21 @@ const EventForm = ({
     return local.toISOString().slice(0, 16);
   };
 
-  const [form, setForm] = useState<EventFormData>({
-    title: initialData?.title || '',
-    description: initialData?.description || '',
-    start_datetime: initialData ? formatForInput(initialData.start_datetime) : '',
-    end_datetime: initialData ? formatForInput(initialData.end_datetime) : '',
-    client_email: initialData?.client_email || '',
-    location: '',
-    with_meet: !!initialData?.meet_link,
+  const [form, setForm] = useState<EventFormData>(() => {
+    const initial: EventFormData = {
+      title: initialData?.title || '', description: initialData?.description || '',
+      start_datetime: initialData ? formatForInput(initialData.start_datetime) : '',
+      end_datetime: initialData ? formatForInput(initialData.end_datetime) : '',
+      client_email: initialData?.client_email || '', location: '', with_meet: !!initialData?.meet_link,
+    };
+    if (initialData || !draftKey) return initial;
+    try { const saved = localStorage.getItem(draftKey); return saved ? { ...initial, ...JSON.parse(saved) } : initial; } catch { return initial; }
   });
+
+  useEffect(() => {
+    if (initialData || !draftKey) return;
+    try { localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* armazenamento indisponível */ }
+  }, [form, draftKey, initialData]);
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
 
