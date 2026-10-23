@@ -108,11 +108,7 @@ const ProtectedRoutes = () => {
             <Route path="/manual" element={<ManualEmissor />} />
             <Route path="/" element={role === 'gestor' ? <GestorDashboard /> : <Dashboard />} />
             <Route path="/crm" element={<CRMKanban />} />
-            <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
             <Route path="/leads" element={<LeadsPage />} />
-            <Route path="/produtos" element={<Navigate to="/" replace />} />
-            <Route path="/comparador" element={<Navigate to="/" replace />} />
-            <Route path="/gerar-link" element={<Navigate to="/" replace />} />
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/argumentos" element={<Argumentos />} />
             <Route path="/relatorios" element={<Relatorios />} />
@@ -139,16 +135,20 @@ const ProtectedRoutes = () => {
             <Route path="/comissoes/indicacoes-sistema" element={<ComissoesIndicacoesSistema />} />
             <Route path="/cadastro-vendedores" element={<CadastroVendedores />} />
             <Route path="/usuarios" element={<Usuarios />} />
-            <Route path="/revendas" element={<Navigate to="/" replace />} />
             <Route path="/financeiro/clientes" element={<BoletosWhatsApp initialTab="clientes" />} />
             <Route path="/financeiro/boletos" element={<BoletosWhatsApp />} />
             <Route path="/future-remote" element={<FutureRemoteDashboard />} />
+            </Route>
+            <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
+            <Route path="/produtos" element={<Navigate to="/" replace />} />
+            <Route path="/comparador" element={<Navigate to="/" replace />} />
+            <Route path="/gerar-link" element={<Navigate to="/" replace />} />
+            <Route path="/revendas" element={<Navigate to="/" replace />} />
             <Route path="/future-remote/solicitacoes" element={<Navigate to="/future-remote" replace />} />
             <Route path="/future-remote/computadores" element={<Navigate to="/future-remote" replace />} />
             <Route path="/future-remote/historico" element={<Navigate to="/future-remote" replace />} />
             <Route path="/future-remote/configuracoes" element={<Navigate to="/future-remote" replace />} />
             <Route path="*" element={<NotFound />} />
-            </Route>
           </Routes>
           </Suspense>
         </ErrorBoundary>
