@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck } from 'lucide-react';
+import { Bell, CheckCheck, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,7 +64,7 @@ const CRMNotificationBell = () => {
       if (!error) setItems(previous => previous.map(old => old.id === item.id ? { ...old, read_at: readAt } : old));
     }
     setOpen(false);
-    if (item.lead_id) navigate(`/crm?leadId=${encodeURIComponent(item.lead_id)}`);
+    if (item.lead_id) navigate(`/crm?leadId=${encodeURIComponent(item.lead_id)}&focus=card`);
     else if (item.chat_id) navigate('/whatsapp');
   };
 
@@ -76,6 +76,13 @@ const CRMNotificationBell = () => {
       .update({ read_at: readAt }).eq('user_id', user.id).is('read_at', null);
     if (error) return;
     setItems(previous => previous.map(item => unreadIds.includes(item.id) ? { ...item, read_at: readAt } : item));
+  };
+
+  const clearHistory = async () => {
+    if (!user?.id || items.length === 0) return;
+    const { error } = await (supabase as any).from('whatsapp_notifications').delete().eq('user_id', user.id);
+    if (error) return;
+    setItems([]);
   };
 
   if (!user || location.pathname.startsWith('/whatsapp')) return null;
@@ -95,7 +102,10 @@ const CRMNotificationBell = () => {
               <p className="font-semibold text-sm">Notificações do CRM</p>
               <p className="text-xs text-muted-foreground">{unreadCount} não lidas</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => void markAllRead()} disabled={unreadCount === 0} className="gap-1 text-xs"><CheckCheck size={14} /> Marcar lidas</Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={() => void markAllRead()} disabled={unreadCount === 0} className="gap-1 text-xs"><CheckCheck size={14} /> Lidas</Button>
+              <Button variant="ghost" size="sm" onClick={() => void clearHistory()} disabled={items.length === 0} className="gap-1 text-xs text-destructive"><Trash2 size={14} /> Limpar</Button>
+            </div>
           </div>
           <div className="max-h-[65vh] overflow-y-auto">
             {loading ? <p className="p-4 text-sm text-muted-foreground">Carregando...</p> : items.length === 0 ? (
