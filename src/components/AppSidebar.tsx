@@ -185,8 +185,16 @@ const AppSidebar = () => {
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80">
         {!collapsed && (
           <div className="flex items-center animate-fade-in px-1 py-1">
-            <img src="/logo-future-white.svg" alt="Future Soluções" className="crm-logo-white h-8 w-auto max-w-full object-contain" />
-            <img src="/logo-future-black.svg" alt="" aria-hidden="true" className="crm-logo-black h-8 w-auto max-w-full object-contain" />
+            <svg className="crm-logo-white h-8 w-auto max-w-full" viewBox="0 0 300 72" role="img" aria-label="Future Soluções">
+              <g transform="translate(2 5)"><path d="M10 9h36v31L28 53 10 40z" fill="#fff"/><path d="M18 17h20v7H18zM18 29h13v7H18z" fill="#a6ce39"/></g>
+              <text x="58" y="37" fontFamily="Inter,Arial,sans-serif" fontSize="25" fontWeight="800" letterSpacing="2" fill="#fff">FUTURE</text>
+              <text x="60" y="53" fontFamily="Inter,Arial,sans-serif" fontSize="8" fontWeight="600" letterSpacing="2" fill="#fff">SOLUÇÕES</text>
+            </svg>
+            <svg className="crm-logo-black h-8 w-auto max-w-full" viewBox="0 0 300 72" aria-hidden="true">
+              <g transform="translate(2 5)"><path d="M10 9h36v31L28 53 10 40z" fill="#17131d"/><path d="M18 17h20v7H18zM18 29h13v7H18z" fill="#a6ce39"/></g>
+              <text x="58" y="37" fontFamily="Inter,Arial,sans-serif" fontSize="25" fontWeight="800" letterSpacing="2" fill="#17131d">FUTURE</text>
+              <text x="60" y="53" fontFamily="Inter,Arial,sans-serif" fontSize="8" fontWeight="600" letterSpacing="2" fill="#17131d">SOLUÇÕES</text>
+            </svg>
           </div>
         )}
         <button 
