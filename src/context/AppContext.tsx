@@ -11,7 +11,7 @@ interface AppState {
   updateLead: (lead: Lead) => void;
   deleteLead: (leadId: string) => void;
   toggleScheduleDone: (eventId: string) => void;
-  addScheduleEvent: (event: ScheduleEvent) => void;
+  addScheduleEvent: (event: ScheduleEvent) => Promise<boolean>;
   refreshLeads: () => void;
   refreshSchedule: () => void;
 }
@@ -157,18 +157,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     await supabase.from('schedule_events').update({ done: newDone }).eq('id', eventId);
   };
 
-  const addScheduleEvent = async (event: ScheduleEvent) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data } = await supabase.from('schedule_events').insert({
-      lead_id: event.leadId,
-      lead_name: event.leadName,
-      date: event.date,
-      time: event.time,
-      note: event.note,
-      done: event.done,
-      user_id: user?.id,
-    }).select().single();
-    if (data) setSchedule(prev => [dbToEvent(data), ...prev]);
+  const addScheduleEvent = async (event: ScheduleEvent): Promise<boolean> => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) return false;
+      const { data, error } = await supabase.from('schedule_events').insert({
+        lead_id: event.leadId || null,
+        lead_name: event.leadName,
+        date: event.date,
+        time: event.time,
+        note: event.note,
+        done: event.done,
+        user_id: user.id,
+      }).select().single();
+      if (error || !data) {
+        console.error('[CRM] Falha ao salvar compromisso:', error);
+        return false;
+      }
+      setSchedule(prev => [dbToEvent(data), ...prev]);
+      return true;
+    } catch (error) {
+      console.error('[CRM] Erro inesperado ao salvar compromisso:', error);
+      return false;
+    }
   };
 
   return (
