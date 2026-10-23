@@ -519,12 +519,22 @@ const WhatsAppChat = () => {
   }, [instanceId]);
 
 
-  // Rola até a última mensagem (o viewport real do ScrollArea do Radix)
-  const scrollToBottom = (smooth = false) => {
+  // Trabalha diretamente no viewport do chat para não mover a página inteira.
+  const getMessagesViewport = () => {
     const root = scrollRef.current as unknown as HTMLElement | null;
-    const vp = (root?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null) || root;
-    if (!vp) return;
-    vp.scrollTo({ top: vp.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    return (root?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null) || root;
+  };
+
+  const isMessagesViewportNearBottom = (threshold = 120) => {
+    const viewport = getMessagesViewport();
+    if (!viewport) return true;
+    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= threshold;
+  };
+
+  const scrollToBottom = (smooth = false) => {
+    const viewport = getMessagesViewport();
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   };
 
   // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
@@ -540,22 +550,19 @@ const WhatsAppChat = () => {
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
+    // Em atualizações silenciosas, preserve a posição se a pessoa estiver lendo mensagens antigas.
+    const shouldFollowLatest = !silent || isMessagesViewportNearBottom();
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
-    let changed = true;
     setMessages(prev => {
       const merged = dropConfirmedTemps(list, prev);
-      changed = prev.length !== merged.length || prev[prev.length - 1]?.id !== merged[merged.length - 1]?.id;
+      const changed = prev.length !== merged.length || prev[prev.length - 1]?.id !== merged[merged.length - 1]?.id;
       return changed ? merged : prev;
     });
-    if (!silent || changed) {
-      setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: !silent ? 'auto' : 'smooth', block: 'end' });
-        }
-      }, 100);
+    if (shouldFollowLatest) {
+      window.setTimeout(() => scrollToBottom(!silent), 100);
     }
   }, []);
 
@@ -603,7 +610,8 @@ const WhatsAppChat = () => {
               (x.text || '').trim() === (m.text || '').trim()));
             return [...cleaned, m];
           });
-          requestAnimationFrame(() => scrollToBottom(true));
+          const shouldFollowLatest = isMessagesViewportNearBottom();
+          if (shouldFollowLatest) requestAnimationFrame(() => scrollToBottom(true));
 
           // Notificação Push se não for minha e a janela estiver oculta ou outro chat selecionado
           if (!m.from_me && (document.hidden || selectedRef.current?.id !== chatId)) {
