@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppState } from '@/context/AppContext';
 import { KANBAN_STAGES, KanbanStage, Lead } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 const CRMKanban = () => {
   const { role, user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { activeSector, sectors } = useSectors();
   const isGestor = !authLoading && role === 'gestor';
   const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
@@ -59,6 +60,33 @@ const CRMKanban = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const canEditLead = (lead: Lead) => isOwner || isGestor || !lead.userId || lead.userId === user?.id;
+
+  // Resolve a preferência de cor pelo ID e, como compatibilidade, pelo nome
+  // do responsável retornado pelo diretório de usuários atribuíveis.
+  const getLeadAssigneePreference = (assignedTo?: string) => {
+    if (!assignedTo) return undefined;
+    const direct = agentColors[assignedTo];
+    if (direct?.color) return direct;
+    const member = teamMembers.find(item => item.user_id === assignedTo);
+    const normalizedName = member?.display_name?.trim().toLocaleLowerCase('pt-BR');
+    if (!normalizedName) return undefined;
+    return Object.values(agentColors).find(item =>
+      item.display_name?.trim().toLocaleLowerCase('pt-BR') === normalizedName && !!item.color
+    );
+  };
+
+  const handleStartConversation = (lead: Lead) => {
+    const rawNumber = lead.whatsapp || lead.phone || '';
+    const digits = rawNumber.replace(/\D/g, '');
+    if (digits.length < 10) {
+      toast({ title: 'WhatsApp não informado', description: 'Cadastre um número com DDD neste lead antes de iniciar a conversa.', variant: 'destructive' });
+      return;
+    }
+    const internationalNumber = digits.startsWith('55') ? digits : `55${digits}`;
+    // Abrir o WhatsApp Web de forma síncrona no clique evita bloqueio de popup.
+    window.open(`https://wa.me/${internationalNumber}`, '_blank', 'noopener,noreferrer');
+    navigate(`/whatsapp?phone=${encodeURIComponent(internationalNumber)}`);
+  };
 
   useEffect(() => {
     const channel = supabase.channel(`kanban-lead-assignment-live-${user?.id || 'anonymous'}`)
@@ -768,9 +796,10 @@ const CRMKanban = () => {
                   onObsChange={handleCardObsChange}
                   teamMembers={teamMembers}
                   currentUserId={user?.id || ''}
-                  assigneeColor={lead.assignedTo ? agentColors[lead.assignedTo]?.color : undefined}
-                  assigneeName={lead.assignedTo ? (agentColors[lead.assignedTo]?.display_name || teamMembers.find(member => member.user_id === lead.assignedTo)?.display_name) : undefined}
+                  assigneeColor={getLeadAssigneePreference(lead.assignedTo)?.color}
+                  assigneeName={getLeadAssigneePreference(lead.assignedTo)?.display_name || teamMembers.find(member => member.user_id === lead.assignedTo)?.display_name}
                   onAssign={handleAssignLead}
+                  onStartConversation={handleStartConversation}
                   onOpenHistory={handleOpenLeadHistory}
                   onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
                   onEdit={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não editam leads de vendedores.', variant: 'destructive' }); setSelectedLead(l); setEditData({ ...l }); setEditMode(true); }}
@@ -895,13 +924,15 @@ interface LeadCardProps {
   assigneeColor?: string;
   assigneeName?: string;
   onAssign: (lead: Lead, assigneeId: string) => void;
+  onStartConversation: (lead: Lead) => void;
   onOpenHistory: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
   onEdit: (lead: Lead) => void;
 }
 
-const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, currentUserId, assigneeColor, assigneeName, onAssign, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
+const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, currentUserId, assigneeColor, assigneeName, onAssign, onStartConversation, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
+  const [showWhatsappOptions, setShowWhatsappOptions] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
 
   return (
@@ -985,8 +1016,49 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       </div>
       
       <div className="flex items-center gap-2 mt-1">
-        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition"><Phone size={13} /></a>
-        <a href={`https://wa.me/${lead.whatsapp}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-success transition"><MessageCircle size={13} /></a>
+        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition" title="Ligar"><Phone size={13} /></a>
+        <div className="relative" onClick={e => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setShowWhatsappOptions(value => !value)}
+            className="text-muted-foreground hover:text-success transition"
+            title="Opções do WhatsApp"
+            aria-label={`Opções do WhatsApp para ${lead.name}`}
+            aria-expanded={showWhatsappOptions}
+          >
+            <MessageCircle size={13} />
+          </button>
+          {showWhatsappOptions && (
+            <div className="absolute left-0 top-full z-50 mt-1 min-w-[190px] rounded-lg border border-border bg-popover p-1 shadow-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  const digits = (lead.whatsapp || lead.phone || '').replace(/\D/g, '');
+                  if (digits.length < 10) {
+                    setShowWhatsappOptions(false);
+                    return;
+                  }
+                  const number = digits.startsWith('55') ? digits : `55${digits}`;
+                  window.open(`https://wa.me/${number}`, '_blank', 'noopener,noreferrer');
+                  setShowWhatsappOptions(false);
+                }}
+                className="w-full rounded-md px-3 py-2 text-left text-xs text-popover-foreground hover:bg-muted"
+              >
+                Chamar no WhatsApp Web
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWhatsappOptions(false);
+                  onStartConversation(lead);
+                }}
+                className="w-full rounded-md px-3 py-2 text-left text-xs text-popover-foreground hover:bg-muted"
+              >
+                Iniciar conversa
+              </button>
+            </div>
+          )}
+        </div>
         {lead.email && <a href={`mailto:${lead.email}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition"><Mail size={13} /></a>}
         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()} title="Atribuir responsável">
           <UserPlus size={13} className="text-muted-foreground shrink-0" />
