@@ -168,8 +168,8 @@ const AppSidebar = () => {
       }}
       className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
         ${isActive 
-          ? 'bg-white/14 text-white shadow-sm ring-1 ring-white/10' 
-          : 'text-sidebar-foreground/75 hover:text-white hover:bg-white/10'
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border' 
+          : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
         }`}
       title={collapsed ? item.label : undefined}
     >
@@ -227,7 +227,7 @@ const AppSidebar = () => {
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/65 hover:text-white hover:bg-white/10'}`}>
+                    : 'text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
                 <sub.icon size={14} />
                 <span>{sub.label}</span>
               </Link>
@@ -525,7 +525,7 @@ const AppSidebar = () => {
           <div className="space-y-1">
             <Link
               to="/perfil"
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm w-full transition-all duration-200 ${collapsed ? 'justify-center' : ''} ${location.pathname === '/perfil' ? 'bg-white/14 text-white shadow-sm ring-1 ring-white/10' : 'text-sidebar-foreground/75 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm w-full transition-all duration-200 ${collapsed ? 'justify-center' : ''} ${location.pathname === '/perfil' ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border' : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
               title="Meu Perfil"
             >
               <UserCog size={16} />
@@ -534,7 +534,7 @@ const AppSidebar = () => {
             {!collapsed && (
               <Link
                 to="/perfil/personalizacao"
-                className={`ml-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-all duration-200 ${location.pathname === '/perfil/personalizacao' ? 'bg-white/12 text-white' : 'text-sidebar-foreground/65 hover:bg-white/10 hover:text-white'}`}
+                className={`ml-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-all duration-200 ${location.pathname === '/perfil/personalizacao' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground'}`}
                 title="Personalização"
               >
                 <Palette size={14} />
