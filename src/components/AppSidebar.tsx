@@ -4,7 +4,7 @@ import {
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText, FileSpreadsheet,
   Monitor, History, Cog, Wallet, Smartphone, Mail, Send, BookOpen
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -12,6 +12,7 @@ const AppSidebar = () => {
   const location = useLocation();
   const { user, profile, role, signOut, canManageUsers, canAccessModule } = useAuth();
   const [chatUnread, setChatUnread] = useState(0);
+  const [whatsappUnread, setWhatsappUnread] = useState(0);
   const [kanbanUnread, setKanbanUnread] = useState(0);
 
   useEffect(() => {
@@ -28,6 +29,40 @@ const AppSidebar = () => {
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
+  const markWhatsAppUnreadAsRead = useCallback(async () => {
+    if (!user?.id) return;
+    setWhatsappUnread(0);
+    const { data: ownedInstances, error } = await (supabase as any).from('whatsapp_instances').select('id').eq('owner_id', user.id);
+    if (error) { console.warn('[Sidebar] Não foi possível carregar instâncias WhatsApp:', error.message); return; }
+    const ids = (ownedInstances || []).map((item: { id: string }) => item.id);
+    if (!ids.length) return;
+    const { error: updateError } = await (supabase as any).from('whatsapp_chats').update({ unread_count: 0 }).in('instance_id', ids).gt('unread_count', 0);
+    if (updateError) console.warn('[Sidebar] Não foi possível marcar mensagens WhatsApp como lidas:', updateError.message);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) { setWhatsappUnread(0); return; }
+    let active = true;
+    const refresh = async () => {
+      const { data: ownedInstances, error: instanceError } = await (supabase as any).from('whatsapp_instances').select('id').eq('owner_id', user.id);
+      if (instanceError || !active) return;
+      const ids = (ownedInstances || []).map((item: { id: string }) => item.id);
+      if (!ids.length) { setWhatsappUnread(0); return; }
+      const { data: unreadChats, error } = await (supabase as any).from('whatsapp_chats').select('unread_count').in('instance_id', ids).gt('unread_count', 0);
+      if (active && !error) setWhatsappUnread((unreadChats || []).reduce((total: number, chat: { unread_count?: number }) => total + Number(chat.unread_count || 0), 0));
+    };
+    void refresh();
+    const channel = supabase.channel('sidebar-whatsapp-unread-' + user.id)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats' }, () => { void refresh(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_instances', filter: 'owner_id=eq.' + user.id }, () => { void refresh(); })
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [user]);
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/whatsapp')) void markWhatsAppUnreadAsRead();
+  }, [location.pathname, markWhatsAppUnreadAsRead]);
+
   useEffect(() => {
     if (!user) { setKanbanUnread(0); return; }
     let active = true;
@@ -234,7 +269,7 @@ const AppSidebar = () => {
         {canAccessModule('whatsapp') && (
           <>
         <button
-          onClick={() => setWhatsappOpen(!whatsappOpen)}
+          onClick={() => { setWhatsappOpen(!whatsappOpen); void markWhatsAppUnreadAsRead(); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/whatsapp')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -242,6 +277,7 @@ const AppSidebar = () => {
           title={collapsed ? 'WhatsApp' : undefined}
         >
           <MessageSquare size={18} />
+          {whatsappUnread > 0 && <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" aria-label={`${whatsappUnread} mensagens WhatsApp não lidas`}>{whatsappUnread > 99 ? '99+' : whatsappUnread}</span>}
           {!collapsed && (
             <>
               <span className="flex-1 text-left">WhatsApp</span>
