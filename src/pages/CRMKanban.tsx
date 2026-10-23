@@ -45,6 +45,7 @@ const CRMKanban = () => {
   const [editData, setEditData] = useState<Lead | null>(null);
   const [expandedStages, setExpandedStages] = useState<Set<KanbanStage>>(new Set());
   const [customStages, setCustomStages] = useState<{ key: string; label: string; color: string; userId?: string }[]>([]);
+  const [editFunnelStages, setEditFunnelStages] = useState<{ key: string; label: string }[]>([]);
   const [teamMembers, setTeamMembers] = useState<{ user_id: string; display_name: string; email: string | null }[]>([]);
   const [agentColors, setAgentColors] = useState<Record<string, { display_name: string; color: string }>>({});
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
@@ -220,6 +221,38 @@ const CRMKanban = () => {
     return () => { active = false; };
   }, []);
 
+  // Carrega as etapas do funil escolhido no formulário de edição e evita salvar
+  // um status que não exista no funil de destino.
+  useEffect(() => {
+    if (!editMode || !editData) return;
+    let active = true;
+    const funnelKey = String((editData as any).funnel || 'spc');
+    const loadStages = async () => {
+      const { data, error } = await supabase
+        .from('kanban_stages')
+        .select('key,label')
+        .eq('funnel', funnelKey)
+        .order('position', { ascending: true });
+      if (!active) return;
+      if (error) {
+        console.error('Erro ao carregar etapas para edição:', error);
+        setEditFunnelStages(baseStages.map(stage => ({ key: stage.key, label: stage.label })));
+        return;
+      }
+      const options = data?.length
+        ? data.map(stage => ({ key: stage.key, label: stage.label }))
+        : baseStages.map(stage => ({ key: stage.key, label: stage.label }));
+      setEditFunnelStages(options);
+      setEditData(current => {
+        if (!current || String((current as any).funnel || 'spc') !== funnelKey) return current;
+        if (options.some(stage => stage.key === current.status)) return current;
+        return { ...current, status: (options[0]?.key || 'lead_novo') as KanbanStage };
+      });
+    };
+    void loadStages();
+    return () => { active = false; };
+  }, [editMode, (editData as any)?.funnel]);
+
   const handleOpenLeadHistory = async (lead: Lead) => {
     setHistoryLead(lead);
     setHistoryLoading(true);
@@ -313,9 +346,7 @@ const CRMKanban = () => {
   }, [funnel]);
 
   // O banco é a fonte da verdade: não reintroduzir etapas padrão que foram excluídas.
-  const allStages = customStages.length > 0
-    ? customStages.map(s => ({ ...s, key: s.key as KanbanStage }))
-    : baseStages;
+  const allStages = customStages.map(s => ({ ...s, key: s.key as KanbanStage }));
   // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
   const canManageCustomStage = (key: string) =>
     isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
@@ -791,6 +822,10 @@ const CRMKanban = () => {
               <div className="space-y-3">
                 <div><label className="text-xs text-muted-foreground">Nome</label><input className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} /></div>
                 <div><label className="text-xs text-muted-foreground">Empresa</label><input className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="text-xs text-muted-foreground">Funil / Kanban</label><select className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" value={String((editData as any).funnel || 'spc')} onChange={e => setEditData({ ...editData, funnel: e.target.value } as Lead)}>{sectors.map(sector => <option key={sector.key} value={sector.key}>{sector.label}</option>)}</select></div>
+                  <div><label className="text-xs text-muted-foreground">Etapa</label><select className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" value={editData.status} onChange={e => setEditData({ ...editData, status: e.target.value as KanbanStage })}>{editFunnelStages.map(stage => <option key={stage.key} value={stage.key}>{stage.label}</option>)}</select></div>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="text-xs text-muted-foreground">Telefone</label><input className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} /></div>
                   <div><label className="text-xs text-muted-foreground">WhatsApp</label><input className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" value={editData.whatsapp} onChange={e => setEditData({ ...editData, whatsapp: e.target.value })} /></div>
