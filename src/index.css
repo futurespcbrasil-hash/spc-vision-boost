@@ -1004,3 +1004,14 @@ html.theme-future aside.gradient-spc { --crm-brand-logo: url('/logo-future-white
 html.theme-light aside.gradient-spc { --crm-brand-logo: url('/logo-future-black.svg'); }
 html.theme-dark aside.gradient-spc { --crm-brand-logo: url('/logo-future-white.svg'); }
 html.theme-transparent aside.gradient-spc { --crm-brand-logo: url('/logo-future-white.svg'); }
+
+html.theme-future aside.gradient-spc .crm-logo-white,
+html.theme-dark aside.gradient-spc .crm-logo-white,
+html.theme-transparent aside.gradient-spc .crm-logo-white { display: block; }
+html.theme-future aside.gradient-spc .crm-logo-black,
+html.theme-dark aside.gradient-spc .crm-logo-black,
+html.theme-transparent aside.gradient-spc .crm-logo-black { display: none; }
+html.theme-light aside.gradient-spc .crm-logo-white { display: none; }
+html.theme-light aside.gradient-spc .crm-logo-black { display: block; }
+html.theme-transparent aside.gradient-spc[style*="--crm-wallpaper-nav-text: #17131d"] .crm-logo-white { display: none; }
+html.theme-transparent aside.gradient-spc[style*="--crm-wallpaper-nav-text: #17131d"] .crm-logo-black { display: block; }
