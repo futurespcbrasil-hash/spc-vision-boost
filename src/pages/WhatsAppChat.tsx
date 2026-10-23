@@ -326,6 +326,7 @@ const WhatsAppChat = () => {
       for (const file of clipboardFiles) {
         const url = await uploadMedia(file, file.name || 'clipboard-image.png', user.id);
         await waha.sendMedia(instanceId, selected.wa_chat_id || selected.contact_number, url, 'image', text.trim() || undefined, file.type || 'image/png', file.name || 'imagem.png');
+        await touchLeadInteraction(selected);
       }
       setClipboardFiles([]);
       setText('');
@@ -745,6 +746,7 @@ const WhatsAppChat = () => {
     try {
       const url = await uploadMedia(file, file.name, user.id);
       await waha.sendMedia(instanceId, selected.wa_chat_id || selected.contact_number, url, mediaType, text.trim() || undefined, file.type, file.name);
+        await touchLeadInteraction(selected);
       setText('');
       loadMessages(selected.id);
       loadChats();
@@ -780,6 +782,7 @@ const WhatsAppChat = () => {
           const ext = mime.includes('webm') ? 'webm' : 'm4a';
           const url = await uploadMedia(blob, `audio.${ext}`, user!.id);
           await waha.sendMedia(instanceId, selected.wa_chat_id || selected.contact_number, url, 'audio', undefined, mime, `audio.${ext}`);
+        await touchLeadInteraction(selected);
           loadMessages(selected.id);
           loadChats();
         } catch (err: any) {
