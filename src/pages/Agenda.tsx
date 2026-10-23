@@ -679,7 +679,7 @@ const Agenda = () => {
             initialData={editingGoogleEvent}
             loading={creatingEvent}
             onSubmit={handleUpdateGoogleEvent}
-            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); try { if (!editingEvent && eventDraftKey) localStorage.removeItem(eventDraftKey); } catch { /* armazenamento indisponível */ } }}
+            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); try { if (!editingEvent && !editingGoogleEvent && eventDraftKey) localStorage.removeItem(eventDraftKey); } catch { /* armazenamento indisponível */ } }}
           />
         ) : (
           <EventForm
@@ -687,7 +687,7 @@ const Agenda = () => {
             loading={creatingEvent}
             onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
             draftKey={!editingEvent ? eventDraftKey : undefined}
-            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); }}
+            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); try { if (!editingEvent && eventDraftKey) localStorage.removeItem(eventDraftKey); } catch { /* armazenamento indisponível */ } }}
           />
         )
       )}
