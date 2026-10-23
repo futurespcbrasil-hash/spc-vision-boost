@@ -908,8 +908,10 @@ const CRMKanban = () => {
           className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm text-foreground"
         >
           {allStages.map(s => {
-            const count = leads.filter(l => l.status === s.key).length;
-            return <option key={s.key} value={s.key}>{s.label} ({count})</option>;
+            const stageLeads = leads.filter(l => l.status === s.key);
+            const count = stageLeads.length;
+            const total = stageLeads.reduce((sum, lead) => sum + (Number.isFinite(Number(lead.planValue)) ? Number(lead.planValue || 0) : 0), 0);
+            return <option key={s.key} value={s.key}>{s.label} ({count} · R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</option>;
           })}
         </select>
       </div>
