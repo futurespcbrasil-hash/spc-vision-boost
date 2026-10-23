@@ -160,12 +160,16 @@ export default function WhatsAppConversas() {
         const response: any = await waha.getMessages(chat.instance_id, chat.wa_chat_id);
         if (response?.error) throw new Error(String(response.error));
       }
+      // Buscar as 500 mensagens MAIS RECENTES. Limitar depois de ordenar ascendente
+      // trazia as 500 mais antigas e fazia o chat parecer começar no início do histórico.
       const { data, error } = await (supabase as any).from('whatsapp_messages').select('*')
-        .eq('instance_id', chat.instance_id).eq('chat_id', chat.id).order('timestamp', { ascending: true }).limit(500);
+        .eq('instance_id', chat.instance_id).eq('chat_id', chat.id)
+        .order('timestamp', { ascending: false }).order('id', { ascending: false }).limit(500);
       if (error) throw error;
       // Uma resposta atrasada de outra conversa não pode substituir o chat atualmente aberto.
       if (loadSequence !== messageLoadSequenceRef.current || activeChatIdRef.current !== chat.id) return;
-      setMessages((data || []) as Message[]);
+      // A consulta vem do mais recente para o mais antigo; renderizar em ordem cronológica.
+      setMessages(((data || []) as Message[]).reverse());
       await (supabase as any).from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chat.id);
       setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread_count: 0 } : item));
     } catch (e) {
