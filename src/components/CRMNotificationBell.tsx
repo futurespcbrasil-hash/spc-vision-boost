@@ -6,6 +6,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
+type CRMReminder = { id: string; titulo: string; conteudo?: string | null; data_lembrete?: string | null; };
+type CRMScheduleReminder = { id: string; lead_name?: string | null; date: string; time?: string | null; note?: string | null; };
+
 type CRMNotification = {
   id: string;
   title: string;
@@ -21,9 +24,11 @@ const CRMNotificationBell = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [items, setItems] = useState<CRMNotification[]>([]);
+  const [notes, setNotes] = useState<CRMReminder[]>([]);
+  const [appointments, setAppointments] = useState<CRMScheduleReminder[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const unreadCount = useMemo(() => items.filter(item => !item.read_at).length, [items]);
+  const unreadCount = useMemo(() => items.filter(item => !item.read_at).length + notes.length + appointments.length, [items, notes, appointments]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -41,6 +46,18 @@ const CRMNotificationBell = () => {
       setLoading(false);
     };
     void load();
+    const loadReminders = async () => {
+      const [{ data: noteData, error: noteError }, { data: appointmentData, error: appointmentError }] = await Promise.all([
+        (supabase as any).from('notas').select('id,titulo,conteudo,data_lembrete').eq('concluido', false).order('data_lembrete', { ascending: true, nullsFirst: false }).limit(10),
+        (supabase as any).from('schedule_events').select('id,lead_name,date,time,note').eq('done', false).order('date', { ascending: true }).limit(10),
+      ]);
+      if (!active) return;
+      if (noteError) console.warn('[CRM notifications] Falha ao carregar notas:', noteError.message);
+      else setNotes((noteData || []).map((note: any) => ({ ...note, titulo: note.titulo || 'Nota pendente' })));
+      if (appointmentError) console.warn('[CRM notifications] Falha ao carregar compromissos:', appointmentError.message);
+      else setAppointments((appointmentData || []) as CRMScheduleReminder[]);
+    };
+    void loadReminders();
     const channel = supabase.channel(`crm-bell-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, payload => {
         if (!active) return;
@@ -108,9 +125,9 @@ const CRMNotificationBell = () => {
             </div>
           </div>
           <div className="max-h-[65vh] overflow-y-auto">
-            {loading ? <p className="p-4 text-sm text-muted-foreground">Carregando...</p> : items.length === 0 ? (
-              <p className="p-5 text-sm text-muted-foreground text-center">Você não tem notificações.</p>
-            ) : items.map(item => (
+            {loading && <p className="p-4 text-sm text-muted-foreground">Carregando...</p>}
+            {!loading && items.length === 0 && notes.length === 0 && appointments.length === 0 && <p className="p-5 text-sm text-muted-foreground text-center">Você não tem notificações ou lembretes.</p>}
+            {items.map(item => (
               <button key={item.id} type="button" onClick={() => void openNotification(item)} className={`w-full text-left p-3 border-b border-border/70 hover:bg-muted/60 transition ${item.read_at ? '' : 'bg-primary/5'}`}>
                 <span className="flex items-start gap-2">
                   {!item.read_at && <span className="mt-1.5 w-2 h-2 rounded-full bg-primary shrink-0" />}
@@ -122,6 +139,21 @@ const CRMNotificationBell = () => {
                 </span>
               </button>
             ))}
+            {notes.length > 0 && <>
+              <div className="p-3 border-y border-border bg-muted/30 text-xs font-semibold">📝 Post-its pendentes</div>
+              {notes.map(note => <button key={note.id} type="button" onClick={() => { setOpen(false); navigate('/notas'); }} className="w-full text-left p-3 border-b border-border/70 hover:bg-muted/60 transition">
+                <span className="block text-sm font-medium">{note.titulo}</span>
+                {note.conteudo && <span className="block text-xs text-muted-foreground mt-1 line-clamp-2">{note.conteudo}</span>}
+                <span className="block text-[10px] text-muted-foreground mt-1">{note.data_lembrete || 'Sem data de lembrete'}</span>
+              </button>)}
+            </>}
+            {appointments.length > 0 && <>
+              <div className="p-3 border-y border-border bg-muted/30 text-xs font-semibold">📅 Próximos compromissos</div>
+              {appointments.map(event => <button key={event.id} type="button" onClick={() => { setOpen(false); navigate('/agenda'); }} className="w-full text-left p-3 border-b border-border/70 hover:bg-muted/60 transition">
+                <span className="block text-sm font-medium">{event.lead_name || 'Compromisso'}</span>
+                <span className="block text-xs text-muted-foreground mt-1">{event.date} {event.time || ''}{event.note ? ` · ${event.note}` : ''}</span>
+              </button>)}
+            </>}
           </div>
         </PopoverContent>
       </Popover>
