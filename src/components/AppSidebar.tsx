@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   UserCog, LogOut, MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText, FileSpreadsheet,
-  Monitor, History, Cog, Wallet, Smartphone, Mail, Send, BookOpen
+  Monitor, History, Cog, Wallet, Smartphone, Mail, Send, BookOpen, Palette
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -522,14 +522,26 @@ const AppSidebar = () => {
           </Link>
         )}
         {canAccessModule('perfil') && (
-          <Link
-            to="/perfil"
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition text-sm w-full ${collapsed ? 'justify-center' : ''} ${location.pathname === '/perfil' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
-            title="Meu Perfil"
-          >
-            <UserCog size={16} />
-            {!collapsed && <span>Meu Perfil</span>}
-          </Link>
+          <div className="space-y-1">
+            <Link
+              to="/perfil"
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm w-full transition-all duration-200 ${collapsed ? 'justify-center' : ''} ${location.pathname === '/perfil' ? 'bg-white/14 text-white shadow-sm ring-1 ring-white/10' : 'text-sidebar-foreground/75 hover:text-white hover:bg-white/10'}`}
+              title="Meu Perfil"
+            >
+              <UserCog size={16} />
+              {!collapsed && <span>Meu Perfil</span>}
+            </Link>
+            {!collapsed && (
+              <Link
+                to="/perfil/personalizacao"
+                className={`ml-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-all duration-200 ${location.pathname === '/perfil/personalizacao' ? 'bg-white/12 text-white' : 'text-sidebar-foreground/65 hover:bg-white/10 hover:text-white'}`}
+                title="Personalização"
+              >
+                <Palette size={14} />
+                <span>Personalização</span>
+              </Link>
+            )}
+          </div>
         )}
         <button
           onClick={signOut}
