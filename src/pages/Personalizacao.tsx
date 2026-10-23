@@ -5,9 +5,9 @@ import { useThemePreference, type CRMTheme } from '@/components/ThemePreferenceP
 
 const options: { id: CRMTheme; title: string; description: string; icon: typeof Sun; swatches: string[] }[] = [
  { id:'future', title:'Padrão Future', description:'Identidade roxa da Future, com contraste elegante e detalhes da marca.', icon:Palette, swatches:['#5423B8','#7C3AED','#F8F6FC','#FFFFFF'] },
- { id:'light', title:'Claro', description:'Interface clara e arejada para ambientes bem iluminados.', icon:Sun, swatches:['#6D35D4','#F4F2F8','#FFFFFF','#DCD6E8'] },
- { id:'dark', title:'Escuro', description:'Tons escuros para trabalhar com conforto em ambientes de pouca luz.', icon:Moon, swatches:['#A78BFA','#11101A','#1C1A27','#383447'] },
- { id:'transparent', title:'Transparente', description:'Superfícies translúcidas com efeito de vidro e papel de parede próprio.', icon:Wallpaper, swatches:['#6D35D4','#FFFFFFB8','#EDE7FA99','#B8A7D966'] },
+ { id:'light', title:'Claro', description:'Interface clara e arejada para ambientes bem iluminados.', icon:Sun, swatches:['#FFFFFF','#111111','#F4F4F4','#DCDCDC'] },
+ { id:'dark', title:'Escuro', description:'Tons escuros para trabalhar com conforto em ambientes de pouca luz.', icon:Moon, swatches:['#FFFFFF','#050505','#161616','#303030'] },
+ { id:'transparent', title:'Transparente', description:'Superfícies translúcidas com efeito de vidro e papel de parede próprio.', icon:Wallpaper, swatches:['#FFFFFF80','#FFFFFFB8','#EDE7FA66','#B8A7D966'] },
 ];
 const ThemePreview = ({theme}:{theme:CRMTheme}) => <div className={`theme-preview theme-preview-${theme}`} aria-hidden="true"><div className="theme-preview-sidebar"><span/><span/><span/><span/></div><div className="theme-preview-main"><div className="theme-preview-topbar"><span/><span/></div><div className="theme-preview-cards"><span/><span/><span/></div><div className="theme-preview-panel"><i/><i/><i/><i/></div></div></div>;
 
