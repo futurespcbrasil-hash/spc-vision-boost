@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSectors } from '@/hooks/useSectors';
 import SectorSelector from '@/components/SectorSelector';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface SearchedLead {
   name: string;
@@ -188,7 +189,16 @@ const LeadsPage = () => {
         </div>
       </div>
 
-      {showForm && <LeadForm draftKey={leadDraftKey} onAdd={(lead) => { addLead({ ...lead, funnel: selectedSector } as any); clearLeadDraft(); setShowForm(false); }} onCancel={() => { clearLeadDraft(); setShowForm(false); }} />}
+      {showForm && <LeadForm draftKey={leadDraftKey} onAdd={async (lead) => {
+        const saved = await addLead({ ...lead, funnel: selectedSector } as any);
+        if (saved) {
+          clearLeadDraft();
+          setShowForm(false);
+          toast.success('Lead cadastrado com sucesso.');
+        } else {
+          toast.error('Não foi possível salvar o lead. O formulário foi mantido para você tentar novamente.');
+        }
+      }} onCancel={() => { clearLeadDraft(); setShowForm(false); }} />}
 
       {/* Internet Search Modal */}
       {showSearchModal && (
