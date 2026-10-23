@@ -203,14 +203,41 @@ export const ThemePreferenceProvider = ({ children }: { children: ReactNode }) =
   useEffect(() => {
     let cancelled = false;
     const loadWallpaper = async () => {
-      setWallpaperUrl(null);
-      setWallpaperStyle(null);
       if (!user?.id || !wallpaperKey) return;
+
+      // Exibe a última URL assinada imediatamente para evitar o flash sem wallpaper
+      // durante o refresh. A URL é renovada em segundo plano logo depois.
+      const cachedUrlKey = `${wallpaperKey}:signed-url`;
       let path: string | null = null;
-      try { path = window.localStorage.getItem(wallpaperKey); } catch { /* storage indisponível */ }
-      if (!path || !path.startsWith(`${user.id}/`)) return;
+      let cachedUrl: string | null = null;
+      try {
+        path = window.localStorage.getItem(wallpaperKey);
+        cachedUrl = window.localStorage.getItem(cachedUrlKey);
+      } catch { /* armazenamento local indisponível */ }
+
+      if (!path || !path.startsWith(`${user.id}/`)) {
+        setWallpaperUrl(null);
+        setWallpaperStyle(null);
+        return;
+      }
+
+      if (cachedUrl) {
+        setWallpaperUrl(cachedUrl);
+        setWallpaperStyle(cachedUrl);
+      }
+
       const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 24);
-      if (cancelled || error || !data?.signedUrl) return;
+      if (cancelled) return;
+      if (error || !data?.signedUrl) {
+        // Mantém a imagem em cache visível se a renovação falhar temporariamente.
+        if (!cachedUrl) {
+          setWallpaperUrl(null);
+          setWallpaperStyle(null);
+        }
+        return;
+      }
+
+      try { window.localStorage.setItem(cachedUrlKey, data.signedUrl); } catch { /* cache opcional */ }
       setWallpaperUrl(data.signedUrl);
       setWallpaperStyle(data.signedUrl);
     };
@@ -242,7 +269,10 @@ export const ThemePreferenceProvider = ({ children }: { children: ReactNode }) =
       if (uploadError) throw uploadError;
       const { data, error: signedError } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 24);
       if (signedError || !data?.signedUrl) throw signedError ?? new Error('Não foi possível preparar a visualização da imagem.');
-      try { window.localStorage.setItem(wallpaperKey, path); } catch {
+      try {
+        window.localStorage.setItem(wallpaperKey, path);
+        window.localStorage.setItem(`${wallpaperKey}:signed-url`, data.signedUrl);
+      } catch {
         await supabase.storage.from(BUCKET).remove([path]);
         throw new Error('O navegador bloqueou o armazenamento local. Ative o armazenamento para salvar seu papel de parede.');
       }
@@ -262,7 +292,10 @@ export const ThemePreferenceProvider = ({ children }: { children: ReactNode }) =
       const { error } = await supabase.storage.from(BUCKET).remove([path]);
       if (error) throw error;
     }
-    try { window.localStorage.removeItem(wallpaperKey); } catch { /* storage indisponível */ }
+    try {
+      window.localStorage.removeItem(wallpaperKey);
+      window.localStorage.removeItem(`${wallpaperKey}:signed-url`);
+    } catch { /* storage indisponível */ }
     setWallpaperUrl(null);
     setWallpaperStyle(null);
   }, [user?.id, wallpaperKey]);
