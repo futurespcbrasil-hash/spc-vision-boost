@@ -1,4 +1,5 @@
 import { ReactNode, useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
@@ -35,7 +36,7 @@ const moduleForPath = (pathname: string): string | null => {
   return null;
 };
 
-const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: boolean }) => {
+const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: boolean }) => {
   const location = useLocation();
   const { user, canAccessModule, canManageUsers } = useAuth();
 
@@ -97,18 +98,20 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
   }, [user, location.pathname]);
 
   const moduleKey = moduleForPath(location.pathname);
+  const useNoPadding = noPadding ?? location.pathname.startsWith('/whatsapp');
   // User administration is owner-only; all other routes require an explicit saved module permission.
-  const allowed = moduleKey !== null
-    && canAccessModule(moduleKey)
-    && (location.pathname !== '/usuarios' || canManageUsers);
+  const allowed = moduleKey === null || (
+    canAccessModule(moduleKey)
+    && (location.pathname !== '/usuarios' || canManageUsers)
+  );
 
   return (
     <div className="flex min-h-screen bg-background">
       <CRMNotificationBell />
       <div className="hidden md:block"><AppSidebar /></div>
-      <main className={`flex-1 overflow-hidden ${noPadding ? 'pb-16 md:pb-0' : 'pb-20 md:pb-0'}`}>
-        <div className={noPadding ? 'h-full' : 'p-4 md:p-6 max-w-[1400px] mx-auto'}>
-          {allowed ? children : (
+      <main className={`flex-1 overflow-hidden ${useNoPadding ? 'pb-16 md:pb-0' : 'pb-20 md:pb-0'}`}>
+        <div className={useNoPadding ? 'h-full' : 'p-4 md:p-6 max-w-[1400px] mx-auto'}>
+          {allowed ? (children ?? <Outlet />) : (
             <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-8">
               <ShieldAlert size={42} className="text-muted-foreground mb-4" />
               <h1 className="text-xl font-semibold">Acesso não autorizado</h1>
