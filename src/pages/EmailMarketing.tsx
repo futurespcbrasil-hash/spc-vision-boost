@@ -190,9 +190,15 @@ const EmailMarketing = () => {
         const { data, error: insertError } = await db.from("email_marketing_campaigns")
           .insert(payload).select("id").single();
         error = insertError;
-        if (!error && data?.id) setCampaignId(data.id);
+        if (!error && data?.id) {
+          setCampaignId(data.id);
+          try { localStorage.setItem(`email_marketing_last_campaign_${user.id}`, data.id); } catch { /* armazenamento indisponível */ }
+        }
       }
       if (error) throw error;
+      if (campaignId) {
+        try { localStorage.setItem(`email_marketing_last_campaign_${user.id}`, campaignId); } catch { /* armazenamento indisponível */ }
+      }
       if (options.status) setCampaignStatus(options.status);
       await refreshSavedCampaigns();
       if (showToast) toast.success("Campanha salva no CRM.");
@@ -242,6 +248,27 @@ const EmailMarketing = () => {
       setLoadingCampaign(false);
     }
   };
+
+  // Reabre a última campanha salva em rascunho/pausada ao voltar ao menu ou recarregar.
+  const restoredLastCampaign = useRef(false);
+  useEffect(() => {
+    if (loadingCampaigns || campaignId || loadingCampaign || restoredLastCampaign.current) return;
+    restoredLastCampaign.current = true;
+    void (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const lastId = localStorage.getItem(`email_marketing_last_campaign_${user.id}`);
+        if (!lastId) return;
+        const lastCampaign = savedCampaigns.find((campaign) =>
+          campaign.id === lastId && ['draft', 'paused'].includes(campaign.status)
+        );
+        if (lastCampaign) await openSavedCampaign(lastId);
+      } catch (error) {
+        console.warn("Não foi possível restaurar a última campanha:", error);
+      }
+    })();
+  }, [loadingCampaigns, campaignId, loadingCampaign, savedCampaigns]);
 
   const newCampaign = () => {
     if (sending) return;
