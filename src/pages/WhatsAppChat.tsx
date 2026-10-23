@@ -80,6 +80,15 @@ const uploadMedia = async (file: Blob, filename: string, userId: string) => {
 
 const onlyDigits = (v: string) => v.replace(/\D/g, '');
 
+// Aceita valores brasileiros (1.000,00) e valores digitados com ponto decimal (1000.00).
+const parsePlanValue = (raw: string): number | null => {
+  const value = raw.trim().replace(/[^0-9,.-]/g, '');
+  if (!value) return null;
+  const normalized = value.includes(',') ? value.replace(/\./g, '').replace(',', '.') : value;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+};
+
 // Formata número brasileiro: 5554991811902 -> +55 (54) 99181-1902
 const formatNumber = (raw: string) => {
   const d = onlyDigits(raw || '');
@@ -991,6 +1000,10 @@ const WhatsAppChat = () => {
     if (!leadName.trim() || !user) return;
     setSavingLead(true);
     try {
+      const parsedPlanValue = leadFunnel === 'spc' ? parsePlanValue(leadPlanValue) : null;
+      if (leadFunnel === 'spc' && leadPlanValue.trim() && (parsedPlanValue === null || !Number.isFinite(parsedPlanValue) || parsedPlanValue < 0)) {
+        throw new Error('Informe um valor de plano válido, por exemplo 1.000,00.');
+      }
       const digits = onlyDigits(leadPhone);
       if (digits.length >= 10 && selected) {
         const { data: existingLeads, error: lookupError } = await supabase.from('leads').select('id,phone,whatsapp,status,funnel,assigned_to');
@@ -1004,7 +1017,7 @@ const WhatsAppChat = () => {
         if (uniqueMatches.length === 1) {
           const existing = uniqueMatches[0];
           if (leadFunnel === 'spc' && (leadPlanValue.trim() || leadBiro.trim())) {
-            const planValue = leadPlanValue.trim() ? Number(leadPlanValue.replace(/\./g, '').replace(',', '.')) : null;
+            const planValue = leadPlanValue.trim() ? parsedPlanValue : null;
             if (planValue !== null && !Number.isFinite(planValue)) throw new Error('Informe um valor de plano válido.');
             const { error: detailsError } = await supabase.from('leads').update({
               ...(planValue !== null ? { plan_value: planValue } : {}),
@@ -1032,7 +1045,7 @@ const WhatsAppChat = () => {
         whatsapp: leadPhone.trim(),
         status: leadStage,
         funnel: leadFunnel,
-        plan_value: leadFunnel === 'spc' && leadPlanValue.trim() ? Number(leadPlanValue.replace(/\./g, '').replace(',', '.')) : null,
+        plan_value: leadFunnel === 'spc' ? parsedPlanValue : null,
         biro: leadFunnel === 'spc' ? (leadBiro.trim() || null) : null,
         assigned_to: leadAssignee || user.id,
         type: 'PJ',
