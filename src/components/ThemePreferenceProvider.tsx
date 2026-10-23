@@ -32,7 +32,7 @@ const applyTheme = (theme: CRMTheme) => {
 const setWallpaperStyle = (url: string | null) => {
   const root = document.documentElement;
   if (url) {
-    root.style.setProperty('--crm-wallpaper-image', 'url(\"' + url.replace(/[\"\\\\\\n\\r]/g, '') + '\")');
+    root.style.setProperty('--crm-wallpaper-image', 'url(\"' + url + '\")');
     // Sample a grid of pixels to select readable text for the current wallpaper.
     const image = new Image();
     image.crossOrigin = 'anonymous';
