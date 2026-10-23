@@ -830,3 +830,34 @@ html.theme-future nav.fixed.bottom-0 { --crm-nav-text: var(--sidebar-foreground)
 html.theme-light nav.fixed.bottom-0 { --crm-nav-text: #111111; }
 html.theme-dark nav.fixed.bottom-0 { --crm-nav-text: #f7f7f7; }
 html.theme-transparent nav.fixed.bottom-0 { --crm-nav-text: var(--crm-wallpaper-nav-text, #211b2a); }
+
+
+/* O painel "Ver mais" também usa apenas texto e ícones, sem tarjas nos itens. */
+html.theme-future [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div,
+html.theme-light [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div,
+html.theme-dark [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div,
+html.theme-transparent [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div {
+  --crm-nav-text: var(--sidebar-foreground);
+}
+html.theme-light [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div { --crm-nav-text: #111111; }
+html.theme-dark [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div { --crm-nav-text: #f7f7f7; }
+html.theme-transparent [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div { --crm-nav-text: var(--crm-wallpaper-nav-text, #211b2a); }
+html.theme-future [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div a,
+html.theme-future [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div button,
+html.theme-light [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div a,
+html.theme-light [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div button,
+html.theme-dark [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div a,
+html.theme-dark [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div button,
+html.theme-transparent [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div a,
+html.theme-transparent [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div button {
+  color: var(--crm-nav-text, var(--foreground)) !important;
+  background: transparent !important; background-color: transparent !important;
+  border: 0 !important; box-shadow: none !important;
+}
+html.theme-transparent [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div {
+  background: transparent !important; background-color: transparent !important;
+  border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+html.theme-transparent [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div > div {
+  border-color: transparent !important;
+}
