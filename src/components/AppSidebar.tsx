@@ -90,6 +90,7 @@ const AppSidebar = () => {
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
   const [collapsed, setCollapsed] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(location.pathname.startsWith('/perfil'));
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
   const [campaignsOpen, setCampaignsOpen] = useState(location.pathname.startsWith('/campanhas'));
@@ -526,23 +527,39 @@ const AppSidebar = () => {
         )}
         {canAccessModule('perfil') && (
           <div className="space-y-1">
-            <Link
-              to="/perfil"
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm w-full transition-all duration-200 ${collapsed ? 'justify-center' : ''} ${location.pathname === '/perfil' ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border' : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-              title="Meu Perfil"
-            >
-              <UserCog size={16} />
-              {!collapsed && <span>Meu Perfil</span>}
-            </Link>
-            {!collapsed && (
+            <div className="flex items-center gap-1">
               <Link
-                to="/perfil/personalizacao"
-                className={`ml-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-all duration-200 ${location.pathname === '/perfil/personalizacao' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground'}`}
-                title="Personalização"
+                to="/perfil"
+                className={`flex flex-1 items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all duration-200 ${collapsed ? 'justify-center' : ''} ${location.pathname === '/perfil' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+                title="Meu Perfil"
+                onClick={() => setProfileMenuOpen(true)}
               >
-                <Palette size={14} />
-                <span>Personalização</span>
+                <UserCog size={16} />
+                {!collapsed && <span>Meu Perfil</span>}
               </Link>
+              {!collapsed && (
+                <button
+                  type="button"
+                  onClick={() => setProfileMenuOpen((open) => !open)}
+                  className="p-2 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                  aria-label={profileMenuOpen ? "Recolher opções do perfil" : "Expandir opções do perfil"}
+                  aria-expanded={profileMenuOpen}
+                >
+                  <ChevronDown size={14} className={`transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+              )}
+            </div>
+            {!collapsed && profileMenuOpen && (
+              <div className="ml-5 mt-1 space-y-1 border-l border-sidebar-border/50 pl-2">
+                <Link
+                  to="/perfil/personalizacao"
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-all duration-200 ${location.pathname === '/perfil/personalizacao' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground'}`}
+                  title="Personalização"
+                >
+                  <Palette size={14} />
+                  <span>Personalização</span>
+                </Link>
+              </div>
             )}
           </div>
         )}
