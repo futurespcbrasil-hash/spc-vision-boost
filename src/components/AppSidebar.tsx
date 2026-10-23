@@ -107,6 +107,19 @@ const AppSidebar = () => {
     <Link
       key={item.to}
       to={item.to}
+      onClick={() => {
+        if (item.moduleKey !== 'crm' || !user) return;
+        // Abrir o Kanban considera lidas as notificações de atribuição/transferência.
+        setKanbanUnread(0);
+        void (supabase as any).from('whatsapp_notifications')
+          .update({ read_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .is('read_at', null)
+          .not('lead_id', 'is', null)
+          .then(({ error }: { error: any }) => {
+            if (error) console.warn('[Sidebar] Não foi possível marcar notificações do Kanban como lidas:', error.message);
+          });
+      }}
       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
         ${isActive 
           ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
