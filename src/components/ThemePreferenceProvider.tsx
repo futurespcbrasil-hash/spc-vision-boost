@@ -31,8 +31,44 @@ const applyTheme = (theme: CRMTheme) => {
 
 const setWallpaperStyle = (url: string | null) => {
   const root = document.documentElement;
-  if (url) root.style.setProperty('--crm-wallpaper-image', `url("${url.replace(/["\\\\\n\r]/g, '')}")`);
-  else root.style.removeProperty('--crm-wallpaper-image');
+  if (url) {
+    root.style.setProperty('--crm-wallpaper-image', 'url(\"' + url + '\")');
+    // Sample a grid of pixels to select readable text for the current wallpaper.
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 32;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return;
+        context.drawImage(image, 0, 0, 32, 32);
+        const pixels = context.getImageData(0, 0, 32, 32).data;
+        let luminanceTotal = 0;
+        let count = 0;
+        for (let y = 2; y < 32; y += 4) {
+          for (let x = 2; x < 32; x += 4) {
+            const index = (y * 32 + x) * 4;
+            const linear = [pixels[index], pixels[index + 1], pixels[index + 2]].map((channel) => {
+              const value = channel / 255;
+              return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+            });
+            luminanceTotal += 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+            count += 1;
+          }
+        }
+        root.style.setProperty('--crm-wallpaper-nav-text', count && luminanceTotal / count < 0.42 ? '#ffffff' : '#17131d');
+      } catch {
+        root.style.setProperty('--crm-wallpaper-nav-text', '#17131d');
+      }
+    };
+    image.onerror = () => root.style.setProperty('--crm-wallpaper-nav-text', '#17131d');
+    image.src = url;
+  } else {
+    root.style.removeProperty('--crm-wallpaper-image');
+    root.style.removeProperty('--crm-wallpaper-nav-text');
+  }
 };
 
 const compressWallpaper = async (file: File): Promise<Blob> => {
