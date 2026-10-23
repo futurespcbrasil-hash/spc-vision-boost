@@ -42,7 +42,11 @@ const Notas = () => {
 
   useEffect(() => {
     if (!draftKey || editing) return;
-    try { localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* armazenamento indisponível */ }
+    try {
+      const hasContent = !!(form.titulo?.trim() || form.conteudo?.trim() || form.data_lembrete || form.concluido || form.cor !== emptyForm.cor);
+      if (hasContent) localStorage.setItem(draftKey, JSON.stringify(form));
+      else localStorage.removeItem(draftKey);
+    } catch { /* armazenamento indisponível */ }
   }, [form, draftKey, editing]);
 
   const load = async () => {
