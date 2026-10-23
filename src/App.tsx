@@ -104,7 +104,7 @@ const ProtectedRoutes = () => {
             <Route path="/comparacao/:id" element={<PublicComparison />} />
             <Route element={<AppLayout />}>
             <Route path="/manual" element={<ManualEmissor />} />
-            <Route path="/" element={{role === 'gestor' ? <GestorDashboard /> : <Dashboard />}} />
+            <Route path="/" element={role === 'gestor' ? <GestorDashboard /> : <Dashboard />} />
             <Route path="/crm" element={<CRMKanban />} />
             <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
             <Route path="/leads" element={<LeadsPage />} />
