@@ -795,9 +795,10 @@ const WhatsAppChat = () => {
           const m = payload.new as Message;
           setMessages(prev => prev.map(x => x.id === m.id ? m : x));
         })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'whatsapp_messages' },
         payload => {
-          const deleted = payload.old as { id?: string; wa_message_id?: string };
+          const deleted = payload.old as { id?: string; chat_id?: string; wa_message_id?: string };
+          if (deleted.chat_id && deleted.chat_id !== chatId) return;
           setMessages(prev => prev.filter(message =>
             message.id !== deleted.id && (!deleted.wa_message_id || message.wa_message_id !== deleted.wa_message_id)
           ));
