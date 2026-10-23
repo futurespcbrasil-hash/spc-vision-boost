@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { waha } from '@/services/ryzeService';
@@ -82,6 +82,10 @@ export default function WhatsAppConversas() {
   const [startingNumberChat, setStartingNumberChat] = useState(false);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
+  const pendingInitialScrollRef = useRef(true);
+  const activeChatIdRef = useRef('');
+  const selectedChatRef = useRef<Chat | null>(null);
+  const messageLoadSequenceRef = useRef(0);
   const sendLockRef = useRef(false);
   const scrollMessagesToBottom = useCallback((force = false) => {
     if (!force && !stickToBottomRef.current) return;
@@ -95,6 +99,7 @@ export default function WhatsAppConversas() {
   }, []);
 
   const selectedChat = useMemo(() => chats.find((chat) => chat.id === selectedChatId) || null, [chats, selectedChatId]);
+  selectedChatRef.current = selectedChat;
   const selectedInstance = useMemo(() => instances.find((item) => item.id === instanceId) || null, [instances, instanceId]);
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLocaleLowerCase();
@@ -141,6 +146,7 @@ export default function WhatsAppConversas() {
   }, [instanceId]);
 
   const loadMessages = useCallback(async (chat: Chat, refreshRemote = true) => {
+    const loadSequence = ++messageLoadSequenceRef.current;
     setLoadingMessages(true);
     try {
       if (refreshRemote) {
@@ -150,13 +156,15 @@ export default function WhatsAppConversas() {
       const { data, error } = await (supabase as any).from('whatsapp_messages').select('*')
         .eq('instance_id', chat.instance_id).eq('chat_id', chat.id).order('timestamp', { ascending: true }).limit(500);
       if (error) throw error;
+      // Uma resposta atrasada de outra conversa não pode substituir o chat atualmente aberto.
+      if (loadSequence !== messageLoadSequenceRef.current || activeChatIdRef.current !== chat.id) return;
       setMessages((data || []) as Message[]);
       await (supabase as any).from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chat.id);
       setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread_count: 0 } : item));
     } catch (e) {
-      toast.error('Não foi possível carregar as mensagens: ' + errorText(e));
+      if (loadSequence === messageLoadSequenceRef.current) toast.error('Não foi possível carregar as mensagens: ' + errorText(e));
     } finally {
-      setLoadingMessages(false);
+      if (loadSequence === messageLoadSequenceRef.current) setLoadingMessages(false);
     }
   }, []);
 
@@ -174,26 +182,47 @@ export default function WhatsAppConversas() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
         () => { void loadChats(false); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages', filter: `instance_id=eq.${instanceId}` },
-        () => { if (selectedChat) void loadMessages(selectedChat, false); })
+        () => { const current = selectedChatRef.current; if (current) void loadMessages(current, false); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [instanceId, user?.id, selectedChat, loadChats, loadMessages]);
+  }, [instanceId, user?.id, loadChats, loadMessages]);
 
   // Fallback para buscar atualizações da WAHA caso um webhook/evento Realtime se perca.
   useEffect(() => {
     if (!instanceId) return;
     const interval = window.setInterval(() => {
       void loadChats(true);
-      if (selectedChat) void loadMessages(selectedChat, true);
+      const current = selectedChatRef.current;
+      if (current) void loadMessages(current, true);
     }, 30000);
     return () => window.clearInterval(interval);
-  }, [instanceId, selectedChat, loadChats, loadMessages]);
+  }, [instanceId, loadChats, loadMessages]);
 
-  useEffect(() => { stickToBottomRef.current = true; }, [selectedChatId]);
+  useEffect(() => {
+    activeChatIdRef.current = selectedChatId;
+    pendingInitialScrollRef.current = true;
+    stickToBottomRef.current = true;
+    messageLoadSequenceRef.current += 1;
+  }, [selectedChatId]);
 
-  useEffect(() => { scrollMessagesToBottom(); }, [messages, loadingMessages, selectedChatId, scrollMessagesToBottom]);
+  // Primeiro carregamento da conversa sempre termina no fim. Depois, só acompanha
+  // novas mensagens se o usuário já estava no fim; scroll manual para cima é respeitado.
+  useLayoutEffect(() => {
+    if (loadingMessages && pendingInitialScrollRef.current) return;
+    if (pendingInitialScrollRef.current) {
+      const viewport = messagesViewportRef.current;
+      if (viewport) viewport.scrollTop = viewport.scrollHeight;
+      pendingInitialScrollRef.current = false;
+      stickToBottomRef.current = true;
+      return;
+    }
+    scrollMessagesToBottom();
+  }, [messages, loadingMessages, selectedChatId, scrollMessagesToBottom]);
 
-  useEffect(() => { if (selectedChat) void loadMessages(selectedChat, true); else setMessages([]); }, [selectedChatId, selectedChat, loadMessages]);
+  useEffect(() => {
+    if (selectedChat) void loadMessages(selectedChat, true);
+    else { setMessages([]); setLoadingMessages(false); }
+  }, [selectedChatId, loadMessages]);
 
   const openNumberActions = (number: string) => {
     setActionNumber(normalizeBrazilNumber(number));
@@ -324,7 +353,7 @@ export default function WhatsAppConversas() {
           </div>
           <ScrollArea className="flex-1">
             {!loading && filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">Nenhuma conversa sincronizada. A lista será atualizada automaticamente quando houver novas conversas.</p>}
-            {filtered.map((chat) => (
+            {filtered.filter((chat) => chat.wa_chat_id !== 'status@broadcast' && !chat.wa_chat_id.endsWith('@newsletter')).map((chat) => (
               <button key={chat.id} onClick={() => setSelectedChatId(chat.id)}
                 className={'w-full flex items-start gap-3 p-3 text-left border-b transition-colors hover:bg-muted/50 ' + (selectedChatId === chat.id ? 'bg-muted' : '')}>
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
