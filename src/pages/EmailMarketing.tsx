@@ -84,6 +84,7 @@ const EmailMarketing = () => {
   const [suppressions, setSuppressions] = useState<Array<{ email: string; reason: string; source: string; created_at: string }>>([]);
   const [loadingSuppressions, setLoadingSuppressions] = useState(false);
   const [savingSuppression, setSavingSuppression] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
   const restoredLastCampaign = useRef(false);
   const stopRef = useRef(false);
   const pauseRef = useRef(false);
@@ -224,13 +225,15 @@ const EmailMarketing = () => {
           const saved = savedCampaigns.find((campaign) => campaign.id === lastId);
           if (saved && ['draft', 'paused'].includes(saved.status)) {
             await openSavedCampaign(lastId);
+            if (active) setDraftReady(true);
             return;
           }
         }
         // Restaura apenas o rascunho local quando não há campanha salva selecionada.
         // Não armazena contatos, histórico, tokens nem imagens grandes no localStorage.
         const draftRaw = localStorage.getItem(`email_marketing_draft_${user.id}`);
-        if (!draftRaw || !active) return;
+        if (!active) return;
+        if (!draftRaw) { setDraftReady(true); return; }
         const draft = JSON.parse(draftRaw);
         if (typeof draft.campaignName === "string") setCampaignName(draft.campaignName);
         if (typeof draft.subject === "string") setSubject(draft.subject);
@@ -242,13 +245,14 @@ const EmailMarketing = () => {
         if (typeof draft.imageMimeType === "string") setImageMimeType(draft.imageMimeType);
         // A imagem em si não é restaurada localmente para evitar estourar a cota do navegador.
         if (draft.imageName) setImageName("");
-      } catch { /* armazenamento indisponível */ }
+        setDraftReady(true);
+      } catch { setDraftReady(true); /* armazenamento indisponível */ }
     })();
     return () => { active = false; };
   }, [loadingCampaigns, campaignId, loadingCampaign, savedCampaigns]);
 
   useEffect(() => {
-    if (loadingCampaigns || campaignId || loadingCampaign || !restoredLastCampaign.current) return;
+    if (loadingCampaigns || campaignId || loadingCampaign || !draftReady || !restoredLastCampaign.current) return;
     let active = true;
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -266,7 +270,7 @@ const EmailMarketing = () => {
       })();
     }, 500);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [loadingCampaigns, campaignId, loadingCampaign, campaignName, subject, message, campaignButtons, delaySeconds, dailyLimit, imageName, imageMimeType]);
+  }, [loadingCampaigns, campaignId, loadingCampaign, draftReady, campaignName, subject, message, campaignButtons, delaySeconds, dailyLimit, imageName, imageMimeType]);
 
   const openSavedCampaign = async (id: string) => {
     setLoadingCampaign(true);
