@@ -6,11 +6,11 @@ interface AppState {
   leads: Lead[];
   schedule: ScheduleEvent[];
   loading: boolean;
-  moveLeadToStage: (leadId: string, stage: KanbanStage) => void;
+  moveLeadToStage: (leadId: string, stage: KanbanStage) => Promise<boolean>;
   addLead: (lead: Lead) => Promise<boolean>;
-  updateLead: (lead: Lead) => void;
-  deleteLead: (leadId: string) => void;
-  toggleScheduleDone: (eventId: string) => void;
+  updateLead: (lead: Lead) => Promise<boolean>;
+  deleteLead: (leadId: string) => Promise<boolean>;
+  toggleScheduleDone: (eventId: string) => Promise<boolean>;
   addScheduleEvent: (event: ScheduleEvent) => Promise<boolean>;
   refreshLeads: () => void;
   refreshSchedule: () => void;
@@ -91,9 +91,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [fetchLeads]);
 
-  const moveLeadToStage = async (leadId: string, stage: KanbanStage) => {
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: stage } : l));
-    await supabase.from('leads').update({ status: stage }).eq('id', leadId);
+  const moveLeadToStage = async (leadId: string, stage: KanbanStage): Promise<boolean> => {
+    const previous = leads.find(lead => lead.id === leadId);
+    if (!previous) return false;
+    setLeads(current => current.map(lead => lead.id === leadId ? { ...lead, status: stage } : lead));
+    try {
+      const { error } = await supabase.from('leads').update({ status: stage }).eq('id', leadId);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[CRM] Falha ao mover lead:', error);
+      setLeads(current => current.map(lead => lead.id === leadId ? previous : lead));
+      return false;
+    }
   };
 
   const addLead = async (lead: Lead) => {
@@ -124,37 +134,63 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return true;
   };
 
-  const updateLead = async (lead: Lead) => {
-    setLeads(prev => prev.map(l => l.id === lead.id ? lead : l));
-    await supabase.from('leads').update({
-      name: lead.name,
-      company: lead.company,
-      phone: lead.phone,
-      whatsapp: lead.whatsapp,
-      email: lead.email || '',
-      cpf_cnpj: lead.cpfCnpj,
-      type: lead.type,
-      origin: lead.origin,
-      product: lead.product,
-      status: lead.status,
-      observations: lead.observations,
-      interactions: lead.interactions as any,
-      assigned_to: lead.assignedTo || null,
-      funnel: (lead as any).funnel || 'spc',
-    }).eq('id', lead.id);
+  const updateLead = async (lead: Lead): Promise<boolean> => {
+    const previous = leads.find(item => item.id === lead.id);
+    setLeads(current => current.map(item => item.id === lead.id ? lead : item));
+    try {
+      const { error } = await supabase.from('leads').update({
+        name: lead.name,
+        company: lead.company,
+        phone: lead.phone,
+        whatsapp: lead.whatsapp,
+        email: lead.email || '',
+        cpf_cnpj: lead.cpfCnpj,
+        type: lead.type,
+        origin: lead.origin,
+        product: lead.product,
+        status: lead.status,
+        observations: lead.observations,
+        interactions: lead.interactions as any,
+        assigned_to: lead.assignedTo || null,
+        funnel: (lead as any).funnel || 'spc',
+      }).eq('id', lead.id);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[CRM] Falha ao atualizar lead:', error);
+      if (previous) setLeads(current => current.map(item => item.id === lead.id ? previous : item));
+      return false;
+    }
   };
 
-  const deleteLead = async (leadId: string) => {
-    setLeads(prev => prev.filter(l => l.id !== leadId));
-    await supabase.from('leads').delete().eq('id', leadId);
+  const deleteLead = async (leadId: string): Promise<boolean> => {
+    const previous = leads.find(lead => lead.id === leadId);
+    setLeads(current => current.filter(lead => lead.id !== leadId));
+    try {
+      const { error } = await supabase.from('leads').delete().eq('id', leadId);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[CRM] Falha ao excluir lead:', error);
+      if (previous) setLeads(current => current.some(lead => lead.id === leadId) ? current : [previous, ...current]);
+      return false;
+    }
   };
 
-  const toggleScheduleDone = async (eventId: string) => {
-    const event = schedule.find(e => e.id === eventId);
-    if (!event) return;
+  const toggleScheduleDone = async (eventId: string): Promise<boolean> => {
+    const event = schedule.find(item => item.id === eventId);
+    if (!event) return false;
     const newDone = !event.done;
-    setSchedule(prev => prev.map(e => e.id === eventId ? { ...e, done: newDone } : e));
-    await supabase.from('schedule_events').update({ done: newDone }).eq('id', eventId);
+    setSchedule(current => current.map(item => item.id === eventId ? { ...item, done: newDone } : item));
+    try {
+      const { error } = await supabase.from('schedule_events').update({ done: newDone }).eq('id', eventId);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[CRM] Falha ao atualizar compromisso:', error);
+      setSchedule(current => current.map(item => item.id === eventId ? event : item));
+      return false;
+    }
   };
 
   const addScheduleEvent = async (event: ScheduleEvent): Promise<boolean> => {
