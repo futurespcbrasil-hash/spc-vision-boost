@@ -220,13 +220,53 @@ const EmailMarketing = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!active || !user) return;
         const lastId = localStorage.getItem(`email_marketing_last_campaign_${user.id}`);
-        if (!lastId) return;
-        const saved = savedCampaigns.find((campaign) => campaign.id === lastId);
-        if (saved && ['draft', 'paused'].includes(saved.status)) await openSavedCampaign(lastId);
+        if (lastId) {
+          const saved = savedCampaigns.find((campaign) => campaign.id === lastId);
+          if (saved && ['draft', 'paused'].includes(saved.status)) {
+            await openSavedCampaign(lastId);
+            return;
+          }
+        }
+        // Restaura apenas o rascunho local quando não há campanha salva selecionada.
+        // Não armazena contatos, histórico, tokens nem imagens grandes no localStorage.
+        const draftRaw = localStorage.getItem(`email_marketing_draft_${user.id}`);
+        if (!draftRaw || !active) return;
+        const draft = JSON.parse(draftRaw);
+        if (typeof draft.campaignName === "string") setCampaignName(draft.campaignName);
+        if (typeof draft.subject === "string") setSubject(draft.subject);
+        if (typeof draft.message === "string") setMessage(draft.message);
+        if (Array.isArray(draft.campaignButtons)) setCampaignButtons(draft.campaignButtons);
+        if (Number.isFinite(draft.delaySeconds)) setDelaySeconds(Math.max(30, Math.min(600, draft.delaySeconds)));
+        if (Number.isFinite(draft.dailyLimit)) setDailyLimit(Math.max(1, Math.min(400, draft.dailyLimit)));
+        if (typeof draft.imageName === "string") setImageName(draft.imageName);
+        if (typeof draft.imageMimeType === "string") setImageMimeType(draft.imageMimeType);
+        // A imagem em si não é restaurada localmente para evitar estourar a cota do navegador.
+        if (draft.imageName) setImageName("");
       } catch { /* armazenamento indisponível */ }
     })();
     return () => { active = false; };
   }, [loadingCampaigns, campaignId, loadingCampaign, savedCampaigns]);
+
+  useEffect(() => {
+    if (loadingCampaigns || campaignId || loadingCampaign || !restoredLastCampaign.current) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!active || !user) return;
+          const draft = {
+            campaignName, subject, message, campaignButtons,
+            delaySeconds, dailyLimit, imageName, imageMimeType,
+            savedAt: new Date().toISOString(),
+          };
+          const serialized = JSON.stringify(draft);
+          if (serialized.length < 100_000) localStorage.setItem(`email_marketing_draft_${user.id}`, serialized);
+        } catch { /* armazenamento local indisponível ou cota excedida */ }
+      })();
+    }, 500);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [loadingCampaigns, campaignId, loadingCampaign, campaignName, subject, message, campaignButtons, delaySeconds, dailyLimit, imageName, imageMimeType]);
 
   const openSavedCampaign = async (id: string) => {
     setLoadingCampaign(true);
