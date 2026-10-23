@@ -385,6 +385,7 @@ const Agenda = () => {
         toast.success(data.synced ? 'Evento criado e sincronizado com Google Calendar + Meet!' : 'Evento salvo (Google Calendar não conectado)');
         addLog(data.synced ? 'Evento criado com Meet link' : 'Evento salvo localmente', data.synced ? 'success' : 'info');
         setShowEventForm(false);
+        try { if (eventDraftKey) localStorage.removeItem(eventDraftKey); } catch { /* armazenamento indisponível */ }
         fetchAppEvents();
       } else {
         toast.error(data.error || 'Erro ao criar evento');
@@ -683,14 +684,15 @@ const Agenda = () => {
             initialData={editingGoogleEvent}
             loading={creatingEvent}
             onSubmit={handleUpdateGoogleEvent}
-            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); }}
+            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); try { if (!editingEvent && !editingGoogleEvent && eventDraftKey) localStorage.removeItem(eventDraftKey); } catch { /* armazenamento indisponível */ } }}
           />
         ) : (
           <EventForm
             initialData={editingEvent}
             loading={creatingEvent}
             onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
-            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); }}
+            draftKey={!editingEvent ? eventDraftKey : undefined}
+            onCancel={() => { setShowEventForm(false); setEditingEvent(null); setEditingGoogleEvent(null); try { if (!editingEvent && eventDraftKey) localStorage.removeItem(eventDraftKey); } catch { /* armazenamento indisponível */ } }}
           />
         )
       )}
@@ -940,11 +942,13 @@ const EventForm = ({
   loading,
   onSubmit,
   onCancel,
+  draftKey,
 }: {
   initialData?: AppEvent | null;
   loading: boolean;
   onSubmit: (data: EventFormData) => void;
   onCancel: () => void;
+  draftKey?: string;
 }) => {
   const formatForInput = (dt: string) => {
     if (!dt) return '';
@@ -954,15 +958,24 @@ const EventForm = ({
     return local.toISOString().slice(0, 16);
   };
 
-  const [form, setForm] = useState<EventFormData>({
-    title: initialData?.title || '',
-    description: initialData?.description || '',
-    start_datetime: initialData ? formatForInput(initialData.start_datetime) : '',
-    end_datetime: initialData ? formatForInput(initialData.end_datetime) : '',
-    client_email: initialData?.client_email || '',
-    location: '',
-    with_meet: !!initialData?.meet_link,
+  const [form, setForm] = useState<EventFormData>(() => {
+    const initial: EventFormData = {
+      title: initialData?.title || '',
+      description: initialData?.description || '',
+      start_datetime: initialData ? formatForInput(initialData.start_datetime) : '',
+      end_datetime: initialData ? formatForInput(initialData.end_datetime) : '',
+      client_email: initialData?.client_email || '',
+      location: '',
+      with_meet: !!initialData?.meet_link,
+    };
+    if (initialData || !draftKey) return initial;
+    try { const saved = localStorage.getItem(draftKey); return saved ? { ...initial, ...JSON.parse(saved) } : initial; } catch { return initial; }
   });
+
+  useEffect(() => {
+    if (initialData || !draftKey) return;
+    try { localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* armazenamento indisponível */ }
+  }, [form, draftKey, initialData]);
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
 
