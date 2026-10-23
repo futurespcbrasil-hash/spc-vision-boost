@@ -185,11 +185,8 @@ const AppSidebar = () => {
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80">
         {!collapsed && (
           <div className="flex items-center animate-fade-in px-1 py-1">
-            <img
-              src={document.documentElement.dataset.crmTheme === 'light' ? '/logo-future-black.svg' : document.documentElement.dataset.crmTheme === 'transparent' && getComputedStyle(document.documentElement).getPropertyValue('--crm-wallpaper-nav-text').trim() === '#17131d' ? '/logo-future-black.svg' : '/logo-future-white.svg'}
-              alt="Future Soluções"
-              className="h-8 w-auto max-w-full object-contain"
-            />
+            <img src="/logo-future-white.svg" alt="Future Soluções" className="crm-logo-white h-8 w-auto max-w-full object-contain" />
+            <img src="/logo-future-black.svg" alt="" aria-hidden="true" className="crm-logo-black h-8 w-auto max-w-full object-contain" />
           </div>
         )}
         <button 
