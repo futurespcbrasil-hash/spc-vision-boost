@@ -36,7 +36,7 @@ const Perfil = () => {
       toast.error('Erro ao atualizar nome');
     } else {
       toast.success('Nome atualizado com sucesso!');
-      try { if (nameDraftKey) localStorage.removeItem(nameDraftKey); } catch { /* armazenamento indisponível */ }
+      try { if (nameDraftKey) localStorage.setItem(nameDraftKey, displayName.trim()); } catch { /* armazenamento indisponível */ }
     }
   };
 
