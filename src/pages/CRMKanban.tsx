@@ -125,7 +125,11 @@ const CRMKanban = () => {
 
   const handleStartConversation = (lead: Lead) => {
     const rawNumber = lead.whatsapp || lead.phone || '';
-    const digits = rawNumber.replace(/\D/g, '');
+    let digits = rawNumber.replace(/\D/g, '');
+    // Corrige números que foram gravados duas vezes em registros antigos.
+    if (digits.length % 2 === 0 && digits.slice(0, digits.length / 2) === digits.slice(digits.length / 2)) {
+      digits = digits.slice(0, digits.length / 2);
+    }
     if (digits.length < 10) {
       toast({ title: 'WhatsApp não informado', description: 'Cadastre um número com DDD neste lead antes de iniciar a conversa.', variant: 'destructive' });
       return;
