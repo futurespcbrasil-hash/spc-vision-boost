@@ -1893,7 +1893,7 @@ const WhatsAppChat = () => {
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setReplyingTo(null)} title="Cancelar resposta"><Trash2 size={14} /></Button>
                 </div>
               )}
-              {/* Input Bar - Travada no rodapé */
+              {/* Input Bar - Travada no rodapé */}
               <div className="p-3 border-t bg-card flex items-center gap-3 flex-shrink-0 relative z-[100] sticky bottom-0 border-b md:border-b-0 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] pb-safe-bottom">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
