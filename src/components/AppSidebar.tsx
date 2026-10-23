@@ -39,6 +39,7 @@ const AppSidebar = () => {
     const channel = supabase.channel(`sidebar-kanban-notifications-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, () => { void refresh(); })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, () => { void refresh(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => { void refresh(); })
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
