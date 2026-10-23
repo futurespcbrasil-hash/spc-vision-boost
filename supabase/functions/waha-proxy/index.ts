@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     return chatId;
   };
 
-  const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any, recipient: string) => {
+  const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any, recipient: string, replyTo?: string) => {
     const now = new Date().toISOString();
     let digits = String(recipient || chatId).split("@")[0].replace(/\D/g, "");
     let { data: existing } = await db.from("whatsapp_chats")
@@ -146,7 +146,7 @@ Deno.serve(async (req: Request) => {
         const { error } = await db.from("whatsapp_messages").insert({
           chat_id: chatIdDb, instance_id: inst.id, wa_message_id: typeof rawId === "string" ? rawId : null,
           from_me: true, sender: "me", message_type: messageType, text: text || null,
-          status: "sent", timestamp: now, raw: result || {}, sent_by: inst.owner_id,
+          status: "sent", timestamp: now, raw: result || {}, sent_by: inst.owner_id, reply_to: replyTo || null,
         });
         if (error) throw new Error("Mensagem enviada, mas falhou gravar o histórico no CRM: " + error.message);
       }
@@ -274,8 +274,11 @@ Deno.serve(async (req: Request) => {
         const inst = await getOwnedInstance();
         if (!number || typeof body.text !== "string" || !body.text.trim()) return json({ error: "Número e texto são obrigatórios." }, 400);
         const chatId = await resolveChatId(inst.provider_instance_name, number);
-        const result = await callWaha("/api/sendText", "POST", { session: inst.provider_instance_name, chatId, text: body.text });
-        await persistOutbound(inst, chatId, String(body.text).trim(), "text", result, number);
+        const replyTo = typeof body.reply_to === "string" && body.reply_to.trim() ? body.reply_to.trim() : undefined;
+        const payload: Record<string, unknown> = { session: inst.provider_instance_name, chatId, text: body.text };
+        if (replyTo) payload.reply_to = replyTo;
+        const result = await callWaha("/api/sendText", "POST", payload);
+        await persistOutbound(inst, chatId, String(body.text).trim(), "text", result, number, replyTo);
         return json(result);
       }
       case "send_media": {
