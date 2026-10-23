@@ -1053,3 +1053,24 @@ html.theme-dark aside.gradient-spc .crm-logo-white { display: block !important; 
 html.theme-dark aside.gradient-spc .crm-logo-black { display: none !important; }
 html.theme-transparent aside.gradient-spc .crm-logo-white { display: block !important; }
 html.theme-transparent aside.gradient-spc .crm-logo-black { display: none !important; }
+
+
+/* No tema Transparente, os indicadores da dashboard ficam sem preenchimento: apenas texto e contorno leve. */
+html.theme-transparent .dashboard-stat-grid .stat-card {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: hsl(var(--foreground) / 0.16) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html.theme-transparent .dashboard-stat-grid .stat-card:hover {
+  background: hsl(var(--foreground) / 0.035) !important;
+  box-shadow: none !important;
+  border-color: hsl(var(--foreground) / 0.26) !important;
+}
+html.theme-transparent .dashboard-stat-grid .stat-card > .absolute,
+html.theme-transparent .dashboard-stat-grid .stat-card .inline-flex.h-10.w-10,
+html.theme-transparent .dashboard-stat-grid .stat-card > .relative.mt-3 {
+  display: none !important;
+}
