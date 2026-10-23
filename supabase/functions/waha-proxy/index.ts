@@ -348,7 +348,7 @@ Deno.serve(async (req: Request) => {
           if (exact.error) throw exact.error;
           existing = exact.data;
           if (!existing && !isGroup && number.length >= 10 && !waChatId.endsWith("@lid")) {
-            const byPhone = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count")
+            const byPhone = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at")
               .eq("instance_id", inst.id).eq("contact_number", number).eq("is_group", false).limit(1).maybeSingle();
             if (byPhone.error) throw byPhone.error;
             existing = byPhone.data;
