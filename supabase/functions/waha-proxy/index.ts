@@ -343,12 +343,12 @@ Deno.serve(async (req: Request) => {
           // WAHA pode apresentar o mesmo contato com JIDs @c.us e @lid.
           // Reaproveitar o registro por telefone para não criar uma segunda conversa.
           let existing: any = null;
-          const exact = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at")
+          const exact = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message")
             .eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
           if (exact.error) throw exact.error;
           existing = exact.data;
           if (!existing && !isGroup && number.length >= 10 && !waChatId.endsWith("@lid")) {
-            const byPhone = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at")
+            const byPhone = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message")
               .eq("instance_id", inst.id).eq("contact_number", number).eq("is_group", false).limit(1).maybeSingle();
             if (byPhone.error) throw byPhone.error;
             existing = byPhone.data;
@@ -356,7 +356,7 @@ Deno.serve(async (req: Request) => {
           if (existing) {
             const previousMessageAt = existing.last_message_at ? new Date(existing.last_message_at).getTime() : 0;
             const currentMessageAt = record.last_message_at ? new Date(record.last_message_at).getTime() : 0;
-            const hasNewInboundMessage = currentMessageAt > previousMessageAt && !lastMessageFromMe;
+            const hasNewInboundMessage = !lastMessageFromMe && (currentMessageAt > previousMessageAt || (currentMessageAt === previousMessageAt && String(record.last_message || "") !== String(existing.last_message || "")));
             const { error } = await db.from("whatsapp_chats").update({
               ...record,
               wa_chat_id: existing.wa_chat_id,
