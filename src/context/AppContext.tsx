@@ -1,17 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Lead, ScheduleEvent, KanbanStage } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface AppState {
   leads: Lead[];
   schedule: ScheduleEvent[];
   loading: boolean;
-  moveLeadToStage: (leadId: string, stage: KanbanStage) => void;
+  moveLeadToStage: (leadId: string, stage: KanbanStage) => Promise<boolean>;
   addLead: (lead: Lead) => Promise<boolean>;
-  updateLead: (lead: Lead) => void;
-  deleteLead: (leadId: string) => void;
-  toggleScheduleDone: (eventId: string) => void;
-  addScheduleEvent: (event: ScheduleEvent) => void;
+  updateLead: (lead: Lead) => Promise<boolean>;
+  deleteLead: (leadId: string) => Promise<boolean>;
+  toggleScheduleDone: (eventId: string) => Promise<boolean>;
+  addScheduleEvent: (event: ScheduleEvent) => Promise<boolean>;
   refreshLeads: () => void;
   refreshSchedule: () => void;
 }
@@ -91,84 +92,141 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [fetchLeads]);
 
-  const moveLeadToStage = async (leadId: string, stage: KanbanStage) => {
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: stage } : l));
-    await supabase.from('leads').update({ status: stage }).eq('id', leadId);
-  };
-
-  const addLead = async (lead: Lead) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data, error } = await supabase.from('leads').insert({
-      name: lead.name,
-      company: lead.company,
-      phone: lead.phone,
-      whatsapp: lead.whatsapp,
-      email: lead.email || '',
-      cpf_cnpj: lead.cpfCnpj,
-      type: lead.type,
-      origin: lead.origin,
-      product: lead.product,
-      status: lead.status,
-      observations: lead.observations,
-      interactions: lead.interactions as any,
-      user_id: user?.id,
-      assigned_to: lead.assignedTo || null,
-      last_interaction_at: lead.lastInteractionAt || null,
-      funnel: (lead as any).funnel || 'spc',
-    }).select().single();
-    if (error || !data) {
-      console.error('[CRM] Falha ao cadastrar lead:', error);
+  const moveLeadToStage = async (leadId: string, stage: KanbanStage): Promise<boolean> => {
+    const previous = leads.find(lead => lead.id === leadId);
+    if (!previous) return false;
+    setLeads(current => current.map(lead => lead.id === leadId ? { ...lead, status: stage } : lead));
+    try {
+      const { error } = await supabase.from('leads').update({ status: stage }).eq('id', leadId);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[CRM] Falha ao mover lead:', error);
+      toast.error('Não foi possível mover o lead. As alterações foram revertidas.');
+      setLeads(current => current.map(lead => lead.id === leadId ? previous : lead));
       return false;
     }
-    setLeads(prev => [dbToLead(data), ...prev]);
-    return true;
   };
 
-  const updateLead = async (lead: Lead) => {
-    setLeads(prev => prev.map(l => l.id === lead.id ? lead : l));
-    await supabase.from('leads').update({
-      name: lead.name,
-      company: lead.company,
-      phone: lead.phone,
-      whatsapp: lead.whatsapp,
-      email: lead.email || '',
-      cpf_cnpj: lead.cpfCnpj,
-      type: lead.type,
-      origin: lead.origin,
-      product: lead.product,
-      status: lead.status,
-      observations: lead.observations,
-      interactions: lead.interactions as any,
-      assigned_to: lead.assignedTo || null,
-      funnel: (lead as any).funnel || 'spc',
-    }).eq('id', lead.id);
+  const addLead = async (lead: Lead): Promise<boolean> => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) return false;
+      const { data, error } = await supabase.from('leads').insert({
+        name: lead.name,
+        company: lead.company,
+        phone: lead.phone,
+        whatsapp: lead.whatsapp,
+        email: lead.email || '',
+        cpf_cnpj: lead.cpfCnpj,
+        type: lead.type,
+        origin: lead.origin,
+        product: lead.product,
+        status: lead.status,
+        observations: lead.observations,
+        interactions: lead.interactions as any,
+        user_id: user.id,
+        assigned_to: lead.assignedTo || null,
+        last_interaction_at: lead.lastInteractionAt || null,
+        funnel: (lead as any).funnel || 'spc',
+      }).select().single();
+      if (error || !data) {
+        console.error('[CRM] Falha ao cadastrar lead:', error);
+        return false;
+      }
+      setLeads(prev => [dbToLead(data), ...prev]);
+      return true;
+    } catch (error) {
+      console.error('[CRM] Erro inesperado ao cadastrar lead:', error);
+      return false;
+    }
   };
 
-  const deleteLead = async (leadId: string) => {
-    setLeads(prev => prev.filter(l => l.id !== leadId));
-    await supabase.from('leads').delete().eq('id', leadId);
+  const updateLead = async (lead: Lead): Promise<boolean> => {
+    const previous = leads.find(item => item.id === lead.id);
+    setLeads(current => current.map(item => item.id === lead.id ? lead : item));
+    try {
+      const { error } = await supabase.from('leads').update({
+        name: lead.name,
+        company: lead.company,
+        phone: lead.phone,
+        whatsapp: lead.whatsapp,
+        email: lead.email || '',
+        cpf_cnpj: lead.cpfCnpj,
+        type: lead.type,
+        origin: lead.origin,
+        product: lead.product,
+        status: lead.status,
+        observations: lead.observations,
+        interactions: lead.interactions as any,
+        assigned_to: lead.assignedTo || null,
+        funnel: (lead as any).funnel || 'spc',
+      }).eq('id', lead.id);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[CRM] Falha ao atualizar lead:', error);
+      toast.error('Não foi possível salvar as alterações do lead. Confira sua conexão e tente novamente.');
+      if (previous) setLeads(current => current.map(item => item.id === lead.id ? previous : item));
+      return false;
+    }
   };
 
-  const toggleScheduleDone = async (eventId: string) => {
-    const event = schedule.find(e => e.id === eventId);
-    if (!event) return;
+  const deleteLead = async (leadId: string): Promise<boolean> => {
+    const previous = leads.find(lead => lead.id === leadId);
+    setLeads(current => current.filter(lead => lead.id !== leadId));
+    try {
+      const { error } = await supabase.from('leads').delete().eq('id', leadId);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[CRM] Falha ao excluir lead:', error);
+      toast.error('Não foi possível excluir o lead. Ele foi restaurado na lista.');
+      if (previous) setLeads(current => current.some(lead => lead.id === leadId) ? current : [previous, ...current]);
+      return false;
+    }
+  };
+
+  const toggleScheduleDone = async (eventId: string): Promise<boolean> => {
+    const event = schedule.find(item => item.id === eventId);
+    if (!event) return false;
     const newDone = !event.done;
-    setSchedule(prev => prev.map(e => e.id === eventId ? { ...e, done: newDone } : e));
-    await supabase.from('schedule_events').update({ done: newDone }).eq('id', eventId);
+    setSchedule(current => current.map(item => item.id === eventId ? { ...item, done: newDone } : item));
+    try {
+      const { error } = await supabase.from('schedule_events').update({ done: newDone }).eq('id', eventId);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('[CRM] Falha ao atualizar compromisso:', error);
+      toast.error('Não foi possível atualizar o compromisso. A alteração foi revertida.');
+      setSchedule(current => current.map(item => item.id === eventId ? event : item));
+      return false;
+    }
   };
 
-  const addScheduleEvent = async (event: ScheduleEvent) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data } = await supabase.from('schedule_events').insert({
-      lead_id: event.leadId,
-      lead_name: event.leadName,
-      date: event.date,
-      time: event.time,
-      note: event.note,
-      done: event.done,
-      user_id: user?.id,
-    }).select().single();
-    if (data) setSchedule(prev => [dbToEvent(data), ...prev]);
+  const addScheduleEvent = async (event: ScheduleEvent): Promise<boolean> => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) return false;
+      const { data, error } = await supabase.from('schedule_events').insert({
+        lead_id: event.leadId || null,
+        lead_name: event.leadName,
+        date: event.date,
+        time: event.time,
+        note: event.note,
+        done: event.done,
+        user_id: user.id,
+      }).select().single();
+      if (error || !data) {
+        console.error('[CRM] Falha ao salvar compromisso:', error);
+        return false;
+      }
+      setSchedule(prev => [dbToEvent(data), ...prev]);
+      return true;
+    } catch (error) {
+      console.error('[CRM] Erro inesperado ao salvar compromisso:', error);
+      return false;
+    }
   };
 
   return (
