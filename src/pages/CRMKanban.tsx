@@ -261,9 +261,10 @@ const CRMKanban = () => {
         setEditFunnelStages(baseStages.map(stage => ({ key: stage.key, label: stage.label })));
         return;
       }
-      const options = data?.length
-        ? data.map(stage => ({ key: stage.key, label: stage.label }))
-        : baseStages.map(stage => ({ key: stage.key, label: stage.label }));
+      const validRows = (Array.isArray(data) ? data : []).filter(stage => !!stage && typeof stage.key === 'string' && !!stage.key);
+      const options = validRows.length
+        ? validRows.map(stage => ({ key: stage.key, label: stage.label || stage.key }))
+        : (Array.isArray(baseStages) ? baseStages : []).filter(stage => !!stage && !!stage.key).map(stage => ({ key: stage.key, label: stage.label || stage.key }));
       setEditFunnelStages(options);
       setEditData(current => {
         if (!current || String((current as any).funnel || 'spc') !== funnelKey) return current;
@@ -912,8 +913,12 @@ const CRMKanban = () => {
       {/* Mobile single-column view */}
       <div className="lg:hidden space-y-2">
         {(() => {
-          const stage = allStages.find(s => s.key === mobileStage) || allStages[0];
-          const allStageLeads = leads.filter(l => l.status === stage.key);
+          const stage = (Array.isArray(allStages) ? allStages : []).find(s => !!s && s.key === mobileStage) || (Array.isArray(allStages) ? allStages : []).find(Boolean);
+          // O funil pode ainda não ter colunas configuradas; nunca acessar stage.key nesse caso.
+          if (!stage || typeof stage.key !== 'string' || !stage.key) {
+            return <p className="text-sm text-muted-foreground text-center py-8">Nenhuma coluna configurada neste funil. Adicione uma etapa para visualizar os leads.</p>;
+          }
+          const allStageLeads = leads.filter(l => !!l && l.status === stage.key);
           const stageLeads = searchQuery.trim()
             ? allStageLeads.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase()))
             : allStageLeads;
