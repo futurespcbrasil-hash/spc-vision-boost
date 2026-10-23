@@ -208,14 +208,19 @@ const WhatsAppChat = () => {
         : number;
     };
     const digits = digitsOnly(requestedPhone);
-    const localDigits = (value: string) => {
-      const number = digitsOnly(value);
-      return number.startsWith('55') ? number.slice(2) : number;
+    // Compara números na mesma forma, independentemente de estarem salvos
+    // com código do país, sem código do país ou duplicados em registros antigos.
+    const canonicalPhone = (value: string) => {
+      let number = digitsOnly(value);
+      if (number.startsWith('55') && number.length >= 12) number = number.slice(2);
+      if (number.length > 11) number = number.slice(-11);
+      return number;
     };
-    const target = chats.find(chat =>
-      digitsOnly(chat.contact_number) === digits ||
-      localDigits(chat.contact_number) === localDigits(digits)
-    );
+    const requestedCanonical = canonicalPhone(digits);
+    const target = chats.find(chat => {
+      const savedCanonical = canonicalPhone(chat.contact_number || '');
+      return !!requestedCanonical && savedCanonical === requestedCanonical;
+    });
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('phone');
     nextParams.delete('compose');
