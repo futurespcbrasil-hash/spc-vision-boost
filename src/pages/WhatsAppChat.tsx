@@ -252,6 +252,8 @@ const WhatsAppChat = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<Chat | null>(null);
+  const draftRestorePending = useRef(false);
+  const activeDraftKey = useRef('');
   const profilePicFetched = useRef<Set<string>>(new Set());
   const [instanceUnread, setInstanceUnread] = useState<Record<string, number>>({});
 
@@ -335,6 +337,37 @@ const WhatsAppChat = () => {
 
   // Mantém a conversa selecionada acessível dentro de intervalos/realtime
   useEffect(() => { selectedRef.current = selected; }, [selected]);
+
+  // Restaura a conversa e o texto não enviado por usuário, instância e conversa.
+  useEffect(() => {
+    if (!user?.id || !instanceId || !selected?.id) {
+      activeDraftKey.current = '';
+      return;
+    }
+    const selectionKey = `whatsapp_chat_selected_${user.id}_${instanceId}`;
+    const draftKey = `whatsapp_chat_draft_${user.id}_${instanceId}_${selected.id}`;
+    try {
+      localStorage.setItem(selectionKey, selected.id);
+      activeDraftKey.current = draftKey;
+      draftRestorePending.current = true;
+      setText(localStorage.getItem(draftKey) || '');
+    } catch {
+      activeDraftKey.current = draftKey;
+      draftRestorePending.current = true;
+      setText('');
+    }
+  }, [selected?.id, instanceId, user?.id]);
+
+  useEffect(() => {
+    if (!activeDraftKey.current || !selected?.id || draftRestorePending.current) {
+      draftRestorePending.current = false;
+      return;
+    }
+    try {
+      if (text) localStorage.setItem(activeDraftKey.current, text);
+      else localStorage.removeItem(activeDraftKey.current);
+    } catch { /* armazenamento indisponível ou quota excedida */ }
+  }, [text, selected?.id]);
 
   // Load instances
   useEffect(() => {
@@ -434,7 +467,9 @@ const WhatsAppChat = () => {
       if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev);
       else setSelected(list[0] || null);
     } else {
-      setSelected(list[0] || null);
+      let savedChatId = '';
+      try { savedChatId = user?.id ? localStorage.getItem(`whatsapp_chat_selected_${user.id}_${instanceId}`) || '' : ''; } catch { /* armazenamento indisponível */ }
+      setSelected(list.find(chat => chat.id === savedChatId) || list[0] || null);
       setMessages([]);
     }
   };
@@ -519,12 +554,20 @@ const WhatsAppChat = () => {
   }, [instanceId]);
 
 
-  // Rola até a última mensagem (o viewport real do ScrollArea do Radix)
-  const scrollToBottom = (smooth = false) => {
+  // Controla a rolagem no viewport real, sem deslocar a página inteira.
+  const getMessagesViewport = () => {
     const root = scrollRef.current as unknown as HTMLElement | null;
-    const vp = (root?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null) || root;
-    if (!vp) return;
-    vp.scrollTo({ top: vp.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    return (root?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null) || root;
+  };
+  const isMessagesViewportNearBottom = (threshold = 120) => {
+    const viewport = getMessagesViewport();
+    if (!viewport) return true;
+    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= threshold;
+  };
+  const scrollToBottom = (smooth = false) => {
+    const viewport = getMessagesViewport();
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   };
 
   // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
@@ -544,18 +587,16 @@ const WhatsAppChat = () => {
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
-    let changed = true;
+    let changed = false;
     setMessages(prev => {
       const merged = dropConfirmedTemps(list, prev);
       changed = prev.length !== merged.length || prev[prev.length - 1]?.id !== merged[merged.length - 1]?.id;
       return changed ? merged : prev;
     });
-    if (!silent || changed) {
-      setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: !silent ? 'auto' : 'smooth', block: 'end' });
-        }
-      }, 100);
+    // Na carga inicial vai para a última mensagem; no polling só acompanha se novas mensagens chegaram
+    // e o usuário já estava próximo do final. Ao ler mensagens antigas, preserva a posição.
+    if (!silent || (changed && isMessagesViewportNearBottom())) {
+      window.setTimeout(() => scrollToBottom(!silent), 100);
     }
   }, []);
 
@@ -603,7 +644,8 @@ const WhatsAppChat = () => {
               (x.text || '').trim() === (m.text || '').trim()));
             return [...cleaned, m];
           });
-          requestAnimationFrame(() => scrollToBottom(true));
+          const shouldFollowLatest = isMessagesViewportNearBottom();
+          if (shouldFollowLatest) requestAnimationFrame(() => scrollToBottom(true));
 
           // Notificação Push se não for minha e a janela estiver oculta ou outro chat selecionado
           if (!m.from_me && (document.hidden || selectedRef.current?.id !== chatId)) {
