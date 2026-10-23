@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
   CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
   Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
-  Pin, PinOff, Eye, Bell
+  Pin, PinOff, Eye, Bell, Copy, Forward, Star, Reply, Share2, Download, ExternalLink, Info, CheckSquare
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -195,6 +196,12 @@ const WhatsAppChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [messageDetails, setMessageDetails] = useState<Message | null>(null);
+  const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
+  const [favoriteMessageIds, setFavoriteMessageIds] = useState<string[]>([]);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const messageFlagKey = 'whatsapp_message_flags_' + (user?.id || 'anonymous') + '_' + (instanceId || 'none');
 
   // Abre uma conversa do CRM apenas depois de carregar as conversas da instância
   // do usuário. Isso evita abrir o modal de nova conversa antes de localizar uma existente.
@@ -441,6 +448,79 @@ const WhatsAppChat = () => {
     if (!user?.id || !instanceId) return;
     localStorage.setItem(`whatsapp_chat_instance_${user.id}`, instanceId);
   }, [instanceId, user?.id]);
+
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(messageFlagKey) || '{}');
+      setPinnedMessageIds(Array.isArray(saved.pinned) ? saved.pinned : []);
+      setFavoriteMessageIds(Array.isArray(saved.favorites) ? saved.favorites : []);
+    } catch { setPinnedMessageIds([]); setFavoriteMessageIds([]); }
+    setSelectedMessageIds([]);
+  }, [messageFlagKey]);
+
+  const saveMessageFlags = (pinned: string[], favorites: string[]) => {
+    setPinnedMessageIds(pinned);
+    setFavoriteMessageIds(favorites);
+    try { localStorage.setItem(messageFlagKey, JSON.stringify({ pinned, favorites })); } catch { /* localStorage indisponível */ }
+  };
+
+  const handleMessageAction = async (action: string, message: Message) => {
+    const content = (message.text || '').trim();
+    const copyContent = content || message.media_url || '';
+    try {
+      if (action === 'details') { setMessageDetails(message); return; }
+      if (action === 'reply') { setReplyingTo(message); window.setTimeout(() => inputRef.current?.focus(), 50); return; }
+      if (action === 'copy') {
+        if (!copyContent) return toast({ title: 'Nada para copiar' });
+        await navigator.clipboard.writeText(copyContent);
+        toast({ title: 'Copiado para a área de transferência' }); return;
+      }
+      if (action === 'forward') {
+        if (!content) return toast({ title: 'Encaminhamento de mídia indisponível', description: 'Salve a mídia e anexe-a à conversa de destino.' });
+        setNewChatNumber('');
+        setNewChatMessage(content);
+        setNewChatOpen(true); return;
+      }
+      if (action === 'pin') {
+        const next = pinnedMessageIds.includes(message.id) ? pinnedMessageIds.filter(id => id !== message.id) : [...pinnedMessageIds, message.id];
+        saveMessageFlags(next, favoriteMessageIds);
+        toast({ title: next.includes(message.id) ? 'Mensagem fixada no CRM' : 'Mensagem desafixada' }); return;
+      }
+      if (action === 'favorite') {
+        const next = favoriteMessageIds.includes(message.id) ? favoriteMessageIds.filter(id => id !== message.id) : [...favoriteMessageIds, message.id];
+        saveMessageFlags(pinnedMessageIds, next);
+        toast({ title: next.includes(message.id) ? 'Mensagem favoritada' : 'Favorito removido' }); return;
+      }
+      if (action === 'select') {
+        setSelectedMessageIds(prev => prev.includes(message.id) ? prev.filter(id => id !== message.id) : [...prev, message.id]); return;
+      }
+      if (action === 'save' || action === 'open') {
+        let url = message.media_url || '';
+        if (!url && content) url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+        if (!url) return toast({ title: 'Conteúdo indisponível' });
+        if (action === 'open') { window.open(url, '_blank', 'noopener,noreferrer'); return; }
+        if (message.media_url) {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('Não foi possível baixar a mídia.');
+          url = URL.createObjectURL(await response.blob());
+        }
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = message.media_url ? ('whatsapp-arquivo-' + message.id) : ('mensagem-whatsapp-' + message.id + '.txt');
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+        return;
+      }
+      if (action === 'share') {
+        if (navigator.share) await navigator.share({ title: 'Mensagem do WhatsApp', text: content || undefined, url: message.media_url || undefined });
+        else if (copyContent) { await navigator.clipboard.writeText(copyContent); toast({ title: 'Conteúdo copiado para compartilhar' }); }
+        else toast({ title: 'Nada para compartilhar' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Não foi possível executar a ação', description: error?.message || 'Tente novamente.', variant: 'destructive' });
+    }
+  };
 
   // Load quick replies
   useEffect(() => {
