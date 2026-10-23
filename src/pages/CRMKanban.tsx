@@ -926,7 +926,7 @@ const CRMKanban = () => {
           const stageLeads = searchQuery.trim()
             ? allStageLeads.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase()))
             : allStageLeads;
-          const stagePlanTotal = stageLeads.reduce((total, lead) => total + (Number.isFinite(Number(lead.planValue)) ? Number(lead.planValue || 0) : 0), 0);
+          const stagePlanTotal = allStageLeads.reduce((total, lead) => total + (Number.isFinite(Number(lead.planValue)) ? Number(lead.planValue || 0) : 0), 0);
           const isExpanded = expandedStages.has(stage.key as KanbanStage);
           const visibleLeads = isExpanded ? stageLeads : stageLeads.slice(0, MAX_VISIBLE);
           const hasMore = stageLeads.length > MAX_VISIBLE;
@@ -986,7 +986,7 @@ const CRMKanban = () => {
             const stageLeads = searchQuery.trim()
               ? allStageLeads.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase()))
               : allStageLeads;
-            const stagePlanTotal = stageLeads.reduce((total, lead) => total + (Number.isFinite(Number(lead.planValue)) ? Number(lead.planValue || 0) : 0), 0);
+            const stagePlanTotal = allStageLeads.reduce((total, lead) => total + (Number.isFinite(Number(lead.planValue)) ? Number(lead.planValue || 0) : 0), 0);
             const isDragOver = dragOverStage === stage.key;
             const isExpanded = expandedStages.has(stage.key as KanbanStage);
             const visibleLeads = isExpanded ? stageLeads : stageLeads.slice(0, MAX_VISIBLE);
