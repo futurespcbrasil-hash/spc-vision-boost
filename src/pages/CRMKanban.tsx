@@ -30,7 +30,7 @@ const CRMKanban = () => {
   const baseStages = KANBAN_STAGES;
   const addLeadDraftKey = user ? `crm_kanban_new_lead_draft_${user.id}_${funnel}` : undefined;
   const readAddLeadDraft = () => {
-    const empty = { name: '', company: '', phone: '', whatsapp: '', email: '', product: '', origin: 'Kanban', stage: 'lead_novo', assignee: user?.id || '', funnel };
+    const empty = { name: '', company: '', phone: '', whatsapp: '', email: '', product: '', planValue: '', origin: 'Kanban', stage: 'lead_novo', assignee: user?.id || '', funnel };
     try {
       const raw = addLeadDraftKey ? localStorage.getItem(addLeadDraftKey) : null;
       if (!raw) return empty;
@@ -59,6 +59,7 @@ const CRMKanban = () => {
   const [newLeadWhatsapp, setNewLeadWhatsapp] = useState(initialAddLeadDraft.whatsapp);
   const [newLeadEmail, setNewLeadEmail] = useState(initialAddLeadDraft.email);
   const [newLeadProduct, setNewLeadProduct] = useState(initialAddLeadDraft.product);
+  const [newLeadPlanValue, setNewLeadPlanValue] = useState(initialAddLeadDraft.planValue || '');
   const [newLeadOrigin, setNewLeadOrigin] = useState(initialAddLeadDraft.origin);
   const [newLeadStage, setNewLeadStage] = useState<string>(initialAddLeadDraft.stage);
   const [newLeadAssignee, setNewLeadAssignee] = useState(initialAddLeadDraft.assignee);
@@ -100,6 +101,7 @@ const CRMKanban = () => {
     setNewLeadWhatsapp(draft.whatsapp);
     setNewLeadEmail(draft.email);
     setNewLeadProduct(draft.product);
+    setNewLeadPlanValue(draft.planValue || '');
     setNewLeadOrigin(draft.origin);
     setNewLeadStage(draft.stage);
     setNewLeadAssignee(draft.assignee);
@@ -111,13 +113,13 @@ const CRMKanban = () => {
 
   useEffect(() => {
     if (!addLeadDraftKey || !showAddLead) return;
-    const draft = { name: newLeadName, company: newLeadCompany, phone: newLeadPhone, whatsapp: newLeadWhatsapp, email: newLeadEmail, product: newLeadProduct, origin: newLeadOrigin, stage: newLeadStage, assignee: newLeadAssignee, funnel };
+    const draft = { name: newLeadName, company: newLeadCompany, phone: newLeadPhone, whatsapp: newLeadWhatsapp, email: newLeadEmail, product: newLeadProduct, planValue: newLeadPlanValue, origin: newLeadOrigin, stage: newLeadStage, assignee: newLeadAssignee, funnel };
     try {
-      const hasContent = !!(newLeadName.trim() || newLeadCompany.trim() || newLeadPhone.trim() || newLeadWhatsapp.trim() || newLeadEmail.trim() || newLeadProduct.trim() || newLeadOrigin !== 'Kanban' || newLeadStage !== 'lead_novo' || newLeadAssignee !== (user?.id || ''));
+      const hasContent = !!(newLeadName.trim() || newLeadCompany.trim() || newLeadPhone.trim() || newLeadWhatsapp.trim() || newLeadEmail.trim() || newLeadProduct.trim() || newLeadPlanValue.trim() || newLeadOrigin !== 'Kanban' || newLeadStage !== 'lead_novo' || newLeadAssignee !== (user?.id || ''));
       if (hasContent) localStorage.setItem(addLeadDraftKey, JSON.stringify(draft));
       else localStorage.removeItem(addLeadDraftKey);
     } catch { /* armazenamento indisponível */ }
-  }, [addLeadDraftKey, showAddLead, newLeadName, newLeadCompany, newLeadPhone, newLeadWhatsapp, newLeadEmail, newLeadProduct, newLeadOrigin, newLeadStage, newLeadAssignee, funnel, user?.id]);
+  }, [addLeadDraftKey, showAddLead, newLeadName, newLeadCompany, newLeadPhone, newLeadWhatsapp, newLeadEmail, newLeadProduct, newLeadPlanValue, newLeadOrigin, newLeadStage, newLeadAssignee, funnel, user?.id]);
 
   const clearAddLeadDraft = () => {
     try { if (addLeadDraftKey) localStorage.removeItem(addLeadDraftKey); } catch { /* armazenamento indisponível */ }
@@ -222,8 +224,8 @@ const CRMKanban = () => {
         const card = cards.find(element => element.offsetParent !== null) || cards[0];
         if (!card) return;
         card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-        card.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
-        window.setTimeout(() => card.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 1800);
+        card.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'animate-pulse');
+        window.setTimeout(() => card.classList.remove('ring-2', 'ring-primary', 'ring-offset-2', 'animate-pulse'), 2400);
       }, targetFunnel !== activeSector ? 650 : 250);
       return;
     }
@@ -396,6 +398,7 @@ const CRMKanban = () => {
       type: 'PJ',
       origin: newLeadOrigin.trim() || 'Kanban',
       product: newLeadProduct.trim(),
+      planValue: newLeadPlanValue.trim() ? Number(newLeadPlanValue.replace(',', '.')) : null,
       status: newLeadStage as KanbanStage,
       observations: '',
       interactions: [],
@@ -413,6 +416,7 @@ const CRMKanban = () => {
     setNewLeadWhatsapp('');
     setNewLeadEmail('');
     setNewLeadProduct('');
+    setNewLeadPlanValue('');
     setNewLeadOrigin('Kanban');
     setNewLeadStage('lead_novo');
     setNewLeadAssignee(user?.id || '');
@@ -794,7 +798,7 @@ const CRMKanban = () => {
               <div><label className="text-xs text-muted-foreground">WhatsApp</label><input value={newLeadWhatsapp} onChange={e => setNewLeadWhatsapp(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Se vazio, usa o telefone" /></div>
             </div>
             <div><label className="text-xs text-muted-foreground">E-mail</label><input type="email" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="E-mail" /></div>
-            <div><label className="text-xs text-muted-foreground">Produto / serviço</label><input value={newLeadProduct} onChange={e => setNewLeadProduct(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Ex.: SPC Brasil, certificado digital" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label className="text-xs text-muted-foreground">Produto / serviço</label><input value={newLeadProduct} onChange={e => setNewLeadProduct(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder={funnel === 'emissor' ? 'Ex.: Emissor Fiscal' : 'Ex.: SPC Brasil, certificado digital'} /></div><div><label className="text-xs text-muted-foreground">Valor do plano (R$)</label><input type="number" min="0" step="0.01" value={newLeadPlanValue} onChange={e => setNewLeadPlanValue(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="0,00" /></div></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><label className="text-xs text-muted-foreground">Etapa inicial</label><select value={newLeadStage} onChange={e => setNewLeadStage(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm">{allStages.map(stage => <option key={stage.key} value={stage.key}>{stage.label}</option>)}</select></div>
               <div><label className="text-xs text-muted-foreground">Origem</label><input value={newLeadOrigin} onChange={e => setNewLeadOrigin(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" /></div>
@@ -922,6 +926,7 @@ const CRMKanban = () => {
           const stageLeads = searchQuery.trim()
             ? allStageLeads.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase()))
             : allStageLeads;
+          const stagePlanTotal = stageLeads.reduce((total, lead) => total + (Number.isFinite(Number(lead.planValue)) ? Number(lead.planValue || 0) : 0), 0);
           const isExpanded = expandedStages.has(stage.key as KanbanStage);
           const visibleLeads = isExpanded ? stageLeads : stageLeads.slice(0, MAX_VISIBLE);
           const hasMore = stageLeads.length > MAX_VISIBLE;
@@ -1004,6 +1009,7 @@ const CRMKanban = () => {
                       </div>
                     ) : (
                       <span className="text-sm font-semibold text-foreground truncate">{stage.label}</span>
+                      <span className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300" title="Soma dos valores de plano nesta coluna">R$ {stagePlanTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
