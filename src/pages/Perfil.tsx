@@ -57,7 +57,8 @@ const Perfil = () => {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-7 animate-fade-in">
       <div>
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><User size={13} /> CONTA E SEGURANÇA</div>\n        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Meu Perfil</h1>
+        <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><User size={13} /> CONTA E SEGURANÇA</div>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Meu Perfil</h1>
         <p className="text-muted-foreground text-sm mt-1">Gerencie suas informações pessoais</p>
       </div>
 
