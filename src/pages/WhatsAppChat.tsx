@@ -992,7 +992,7 @@ const WhatsAppChat = () => {
         whatsapp: leadPhone.trim(),
         status: leadStage,
         funnel: leadFunnel,
-        plan_value: leadFunnel === 'spc' && leadPlanValue.trim() ? Number(leadPlanValue.replace(',', '.')) : null,
+        plan_value: leadFunnel === 'spc' && leadPlanValue.trim() ? Number(leadPlanValue.replace(/\./g, '').replace(',', '.')) : null,
         biro: leadFunnel === 'spc' ? (leadBiro.trim() || null) : null,
         assigned_to: leadAssignee || user.id,
         type: 'PJ',
