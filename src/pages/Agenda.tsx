@@ -899,7 +899,11 @@ const ScheduleForm = ({ onAdd, onCancel, draftKey }: { onAdd: (e: any) => void |
     try { const saved = draftKey ? localStorage.getItem(draftKey) : null; return saved ? { ...initial, ...JSON.parse(saved) } : initial; } catch { return initial; }
   });
   useEffect(() => {
-    try { if (draftKey) localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* armazenamento indisponível */ }
+    try {
+      const hasContent = !!(form.leadName.trim() || form.date || form.time || form.note.trim());
+      if (draftKey && hasContent) localStorage.setItem(draftKey, JSON.stringify(form));
+      else if (draftKey) localStorage.removeItem(draftKey);
+    } catch { /* armazenamento indisponível */ }
   }, [form, draftKey]);
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
 
@@ -974,7 +978,11 @@ const EventForm = ({
 
   useEffect(() => {
     if (initialData || !draftKey) return;
-    try { localStorage.setItem(draftKey, JSON.stringify(form)); } catch { /* armazenamento indisponível */ }
+    try {
+      const hasContent = !!(form.title.trim() || form.description.trim() || form.start_datetime || form.end_datetime || form.client_email.trim() || form.location?.trim());
+      if (hasContent) localStorage.setItem(draftKey, JSON.stringify(form));
+      else localStorage.removeItem(draftKey);
+    } catch { /* armazenamento indisponível */ }
   }, [form, draftKey, initialData]);
 
   const inputClass = "w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20";
