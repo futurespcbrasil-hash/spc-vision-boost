@@ -1011,8 +1011,10 @@ const CRMKanban = () => {
                         <button onClick={() => handleRenameColumn(stage.key)} className="text-primary"><Save size={12} /></button>
                       </div>
                     ) : (
-                      <><span className="text-sm font-semibold text-foreground truncate">{stage.label}</span>
-                      <span className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300" title="Soma dos valores de plano nesta coluna">R$ {stagePlanTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-sm font-semibold text-foreground truncate">{stage.label}</span>
+                        <span className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300" title="Soma dos valores de plano nesta coluna">R$ {stagePlanTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
