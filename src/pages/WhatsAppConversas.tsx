@@ -174,7 +174,14 @@ export default function WhatsAppConversas() {
       // Uma resposta atrasada de outra conversa não pode substituir o chat atualmente aberto.
       if (loadSequence !== messageLoadSequenceRef.current || activeChatIdRef.current !== chat.id) return;
       // A consulta vem do mais recente para o mais antigo; renderizar em ordem cronológica.
-      setMessages(((data || []) as Message[]).reverse());
+      setMessages(((data || []) as Message[]).reverse().sort((a, b) => {
+        const ta = Date.parse(a.timestamp || '');
+        const tb = Date.parse(b.timestamp || '');
+        if (!Number.isFinite(ta) && !Number.isFinite(tb)) return 0;
+        if (!Number.isFinite(ta)) return 1;
+        if (!Number.isFinite(tb)) return -1;
+        return ta - tb;
+      }));
       messagesLoadedForChatRef.current = chat.id;
       await (supabase as any).from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chat.id);
       setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread_count: 0 } : item));
