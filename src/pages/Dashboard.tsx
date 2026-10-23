@@ -401,7 +401,7 @@ const SalesDashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in relative pb-20">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> FUTURE VISION</div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Dashboard</h1>
@@ -489,7 +489,7 @@ const SalesDashboard = () => {
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-5">
         <div className="stat-card">
-          <h3 className="font-semibold text-foreground mb-4">Leads por Etapa do Funil</h3>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary mb-1">Desempenho comercial</p><h3 className="font-semibold text-foreground mb-4">Leads por Etapa do Funil</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={funnelData}>
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -501,7 +501,7 @@ const SalesDashboard = () => {
         </div>
 
         <div className="stat-card">
-          <h3 className="font-semibold text-foreground mb-4">Produto Mais Vendido</h3>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary mb-1">Portfólio</p><h3 className="font-semibold text-foreground mb-4">Produto Mais Vendido</h3>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie data={productData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name }) => name}>
