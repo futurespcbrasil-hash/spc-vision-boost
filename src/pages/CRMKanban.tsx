@@ -19,7 +19,7 @@ const CRMKanban = () => {
   const { role, user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { activeSector, sectors } = useSectors();
+  const { activeSector, setActiveSector, sectors } = useSectors();
   const isGestor = !authLoading && role === 'gestor';
   const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
   const funnel = activeSector;
@@ -191,19 +191,21 @@ const CRMKanban = () => {
     next.delete('focus');
     setSearchParams(next, { replace: true });
     if (focusCard) {
+      const targetFunnel = String((target as any).funnel || 'spc');
+      if (targetFunnel !== activeSector) setActiveSector(targetFunnel);
       window.setTimeout(() => {
         const card = document.getElementById(`lead-card-${target.id}`);
         if (!card) return;
         card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         card.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
         window.setTimeout(() => card.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 1800);
-      }, 180);
+      }, targetFunnel !== activeSector ? 500 : 180);
       return;
     }
     setSelectedLead(target);
     setEditMode(false);
     setEditData(null);
-  }, [searchParams, setSearchParams, allLeads]);
+  }, [searchParams, setSearchParams, allLeads, activeSector, setActiveSector]);
 
   useEffect(() => {
     let active = true;
