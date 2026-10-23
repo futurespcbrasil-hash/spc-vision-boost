@@ -41,7 +41,7 @@ const isPhoneNumber = (value: string) => {
   return digits.length >= 10 && digits.length <= 13;
 };
 const renderMessageText = (text: string, onPhoneClick: (number: string) => void) => {
-  const tokenRegex = /https?:\/\/[^\s]+|www\.[^\s]+|(?<![\w])\(?\+?\d[\d \t().-]{7,}\d(?![\w])/gi;
+  const tokenRegex = /https?:\/\/[^\s]+|www\.[^\s]+|(?<!\d)\+?(?:55[ \t().-]*)?\(?\d{2}\)?[ \t.-]*\d{4,5}[ \t.-]?\d{4}(?!\d)/gi;
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
   for (const match of text.matchAll(tokenRegex)) {
@@ -82,13 +82,16 @@ export default function WhatsAppConversas() {
   const [startingNumberChat, setStartingNumberChat] = useState(false);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
+  const sendLockRef = useRef(false);
   const scrollMessagesToBottom = useCallback((force = false) => {
-    const viewport = messagesViewportRef.current;
-    if (!viewport || (!force && !stickToBottomRef.current)) return;
-    requestAnimationFrame(() => {
-      const current = messagesViewportRef.current;
-      if (current) current.scrollTop = current.scrollHeight;
-    });
+    if (!force && !stickToBottomRef.current) return;
+    // Aguarda o React aplicar as mensagens e a altura final dos balões antes de rolar.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const viewport = messagesViewportRef.current;
+      if (viewport && (force || stickToBottomRef.current)) {
+        viewport.scrollTop = viewport.scrollHeight;
+      }
+    }));
   }, []);
 
   const selectedChat = useMemo(() => chats.find((chat) => chat.id === selectedChatId) || null, [chats, selectedChatId]);
@@ -262,7 +265,9 @@ export default function WhatsAppConversas() {
 
   const handleSend = async () => {
     const text = message.trim();
-    if (!text || !selectedChat || !selectedInstance || sending) return;
+    if (!text || !selectedChat || !selectedInstance || sending || sendLockRef.current) return;
+    // Bloqueio síncrono evita envio duplo por Enter + clique antes do próximo render.
+    sendLockRef.current = true;
     if (!selectedInstance.provider_instance_name) {
       toast.error('Esta conta ainda não está vinculada a uma sessão WAHA. Selecione a instância WAHA correta.');
       return;
@@ -288,6 +293,7 @@ export default function WhatsAppConversas() {
     } catch (e) {
       toast.error('Falha ao enviar mensagem: ' + errorText(e));
     } finally {
+      sendLockRef.current = false;
       setSending(false);
     }
   };
