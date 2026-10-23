@@ -758,3 +758,70 @@ html.theme-transparent aside.gradient-spc nav > button[class*="bg-sidebar-accent
   background-color: transparent !important;
   box-shadow: none !important;
 }
+
+
+/* Navegação sem tarjas: texto e ícones, de forma consistente em todos os temas. */
+html.theme-future aside.gradient-spc,
+html.theme-light aside.gradient-spc,
+html.theme-dark aside.gradient-spc,
+html.theme-transparent aside.gradient-spc { --crm-nav-text: var(--sidebar-foreground); }
+html.theme-light aside.gradient-spc { --crm-nav-text: #111111; }
+html.theme-dark aside.gradient-spc { --crm-nav-text: #f7f7f7; }
+html.theme-transparent aside.gradient-spc { --crm-nav-text: var(--crm-wallpaper-nav-text, #211b2a); }
+
+html.theme-future aside.gradient-spc a, html.theme-future aside.gradient-spc button,
+html.theme-light aside.gradient-spc a, html.theme-light aside.gradient-spc button,
+html.theme-dark aside.gradient-spc a, html.theme-dark aside.gradient-spc button,
+html.theme-transparent aside.gradient-spc a, html.theme-transparent aside.gradient-spc button,
+html.theme-future nav.fixed.bottom-0 a, html.theme-future nav.fixed.bottom-0 button,
+html.theme-light nav.fixed.bottom-0 a, html.theme-light nav.fixed.bottom-0 button,
+html.theme-dark nav.fixed.bottom-0 a, html.theme-dark nav.fixed.bottom-0 button,
+html.theme-transparent nav.fixed.bottom-0 a, html.theme-transparent nav.fixed.bottom-0 button {
+  color: var(--crm-nav-text, var(--sidebar-foreground)) !important;
+  background: transparent !important; background-color: transparent !important;
+  border: 0 !important; outline: 0; box-shadow: none !important; text-shadow: none;
+  --tw-ring-offset-shadow: 0 0 #0000 !important; --tw-ring-shadow: 0 0 #0000 !important;
+}
+html.theme-future aside.gradient-spc a:hover, html.theme-future aside.gradient-spc button:hover,
+html.theme-light aside.gradient-spc a:hover, html.theme-light aside.gradient-spc button:hover,
+html.theme-dark aside.gradient-spc a:hover, html.theme-dark aside.gradient-spc button:hover,
+html.theme-transparent aside.gradient-spc a:hover, html.theme-transparent aside.gradient-spc button:hover,
+html.theme-future aside.gradient-spc a[class*="bg-sidebar-accent"], html.theme-future aside.gradient-spc button[class*="bg-sidebar-accent"],
+html.theme-light aside.gradient-spc a[class*="bg-sidebar-accent"], html.theme-light aside.gradient-spc button[class*="bg-sidebar-accent"],
+html.theme-dark aside.gradient-spc a[class*="bg-sidebar-accent"], html.theme-dark aside.gradient-spc button[class*="bg-sidebar-accent"],
+html.theme-transparent aside.gradient-spc a[class*="bg-sidebar-accent"], html.theme-transparent aside.gradient-spc button[class*="bg-sidebar-accent"],
+html.theme-future nav.fixed.bottom-0 a[class*="text-sidebar-accent"],
+html.theme-light nav.fixed.bottom-0 a[class*="text-sidebar-accent"],
+html.theme-dark nav.fixed.bottom-0 a[class*="text-sidebar-accent"],
+html.theme-transparent nav.fixed.bottom-0 a[class*="text-sidebar-accent"] {
+  color: var(--crm-nav-text, var(--sidebar-foreground)) !important;
+  background: transparent !important; background-color: transparent !important;
+  border: 0 !important; box-shadow: none !important; font-weight: 700;
+}
+html.theme-future aside.gradient-spc nav div[class*="border-l"],
+html.theme-light aside.gradient-spc nav div[class*="border-l"],
+html.theme-dark aside.gradient-spc nav div[class*="border-l"],
+html.theme-transparent aside.gradient-spc nav div[class*="border-l"] { border-left: 0 !important; }
+html.theme-future aside.gradient-spc > div:first-child, html.theme-light aside.gradient-spc > div:first-child,
+html.theme-dark aside.gradient-spc > div:first-child, html.theme-transparent aside.gradient-spc > div:first-child,
+html.theme-future aside.gradient-spc > div:last-child, html.theme-light aside.gradient-spc > div:last-child,
+html.theme-dark aside.gradient-spc > div:last-child, html.theme-transparent aside.gradient-spc > div:last-child {
+  border-color: transparent !important;
+}
+html.theme-future nav.fixed.bottom-0, html.theme-light nav.fixed.bottom-0,
+html.theme-dark nav.fixed.bottom-0, html.theme-transparent nav.fixed.bottom-0 {
+  background: transparent !important; background-color: transparent !important; border: 0 !important;
+  box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+html.theme-transparent aside.gradient-spc {
+  background: transparent !important; background-color: transparent !important; background-image: none !important;
+  border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+html.theme-transparent nav.fixed.bottom-0 { background: transparent !important; background-color: transparent !important; }
+html.theme-future aside.gradient-spc a:focus-visible, html.theme-future aside.gradient-spc button:focus-visible,
+html.theme-light aside.gradient-spc a:focus-visible, html.theme-light aside.gradient-spc button:focus-visible,
+html.theme-dark aside.gradient-spc a:focus-visible, html.theme-dark aside.gradient-spc button:focus-visible,
+html.theme-transparent aside.gradient-spc a:focus-visible, html.theme-transparent aside.gradient-spc button:focus-visible,
+nav.fixed.bottom-0 a:focus-visible, nav.fixed.bottom-0 button:focus-visible {
+  outline: 2px solid currentColor !important; outline-offset: 2px;
+}
