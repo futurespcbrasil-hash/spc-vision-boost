@@ -23,24 +23,27 @@ const GestorDashboard = () => {
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [userRoles, setUserRoles] = useState<any[]>([]);
+  const [funnelLabels, setFunnelLabels] = useState<{ key: string; label: string }[]>([]);
   const [systemIndications, setSystemIndications] = useState<any[]>([]);
   const [googleCalendarEvents, setGoogleCalendarEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      const [leadsRes, eventsRes, profilesRes, rolesRes, indicationsRes] = await Promise.all([
+      const [leadsRes, eventsRes, profilesRes, rolesRes, indicationsRes, sectorsRes] = await Promise.all([
         supabase.from('leads').select('*'),
         supabase.from('schedule_events').select('*'),
         supabase.from('profiles').select('*'),
         supabase.from('user_roles').select('user_id, role'),
         supabase.from('atendimento_indicacoes').select('id, user_id, created_at'),
+        supabase.from('sectors').select('key,label'),
       ]);
       setAllLeads(leadsRes.data || []);
       setAllEvents(eventsRes.data || []);
       setProfiles(profilesRes.data || []);
       setUserRoles(rolesRes.data || []);
       setSystemIndications(indicationsRes.data || []);
+      setFunnelLabels((sectorsRes.data || []).map((sector: any) => ({ key: String(sector.key), label: String(sector.label || sector.key) })));
 
       // Consult the connected Google Calendar of each Atendimento user for today's appointments.
       try {
@@ -185,7 +188,7 @@ const GestorDashboard = () => {
           {interactionSummary.map(([funnelName, summary]) => (
             <div key={funnelName} className="rounded-lg border border-border p-3">
               <div className="flex items-center justify-between gap-3 mb-2">
-                <span className="font-medium text-sm">{funnelName === 'spc' ? 'SPC Brasil' : funnelName}</span>
+                <span className="font-medium text-sm">{funnelName === 'spc' ? 'SPC Brasil' : (funnelLabels.find(item => item.key === funnelName)?.label || funnelName)}</span>
                 <span className="text-xs text-muted-foreground">{summary.total} leads</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
