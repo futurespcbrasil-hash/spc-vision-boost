@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
 import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2 } from 'lucide-react';
@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSectors } from '@/hooks/useSectors';
 import SectorSelector from '@/components/SectorSelector';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface SearchedLead {
   name: string;
@@ -23,6 +24,11 @@ const LeadsPage = () => {
   const { activeSector, sectors } = useSectors();
   const isGestor = !authLoading && role === 'gestor';
   const selectedSector = activeSector;
+  const leadDraftKey = user ? `crm_lead_form_draft_${user.id}_${selectedSector}` : undefined;
+  const clearLeadDraft = () => { try { if (leadDraftKey) localStorage.removeItem(leadDraftKey); } catch { /* armazenamento indisponível */ } };
+  useEffect(() => {
+    try { if (leadDraftKey && localStorage.getItem(leadDraftKey)) setShowForm(true); } catch { /* armazenamento indisponível */ }
+  }, [leadDraftKey]);
   const sectorLabel = sectors.find(s => s.key === selectedSector)?.label || selectedSector;
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === selectedSector);
   const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
@@ -177,7 +183,16 @@ const LeadsPage = () => {
         </div>
       </div>
 
-      {showForm && <LeadForm onAdd={(lead) => { addLead({ ...lead, funnel: selectedSector } as any); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
+      {showForm && <LeadForm key={leadDraftKey} draftKey={leadDraftKey} onAdd={async (lead) => {
+        const saved = await addLead({ ...lead, funnel: selectedSector } as any);
+        if (saved) {
+          clearLeadDraft();
+          setShowForm(false);
+          toast.success('Lead cadastrado com sucesso.');
+        } else {
+          toast.error('Não foi possível salvar o lead. O formulário foi mantido para você tentar novamente.');
+        }
+      }} onCancel={() => { clearLeadDraft(); setShowForm(false); }} />}
 
       {/* Internet Search Modal */}
       {showSearchModal && (
@@ -413,12 +428,28 @@ const LeadsPage = () => {
   );
 };
 
-const LeadForm = ({ onAdd, onCancel }: { onAdd: (lead: Lead) => void; onCancel: () => void }) => {
-  const [form, setForm] = useState({
-    name: '', company: '', phone: '', whatsapp: '', cpfCnpj: '', email: '',
-    type: 'PJ' as 'PF' | 'PJ', origin: '', product: 'SPC Maxi', status: 'lead_novo' as KanbanStage,
-    observations: '',
+const LeadForm = ({ onAdd, onCancel, draftKey }: { onAdd: (lead: Lead) => void; onCancel: () => void; draftKey?: string }) => {
+  const [form, setForm] = useState(() => {
+    const initial = {
+      name: '', company: '', phone: '', whatsapp: '', cpfCnpj: '', email: '',
+      type: 'PJ' as 'PF' | 'PJ', origin: '', product: 'SPC Maxi', status: 'lead_novo' as KanbanStage,
+      observations: '',
+    };
+    if (!draftKey) return initial;
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) return { ...initial, ...JSON.parse(saved), cpfCnpj: '' };
+    } catch { /* rascunho ausente ou inválido */ }
+    return initial;
   });
+
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      const { cpfCnpj: _sensitiveIdentifier, ...safeDraft } = form;
+      localStorage.setItem(draftKey, JSON.stringify(safeDraft));
+    } catch { /* armazenamento indisponível ou quota excedida */ }
+  }, [form, draftKey]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
