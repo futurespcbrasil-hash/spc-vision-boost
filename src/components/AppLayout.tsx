@@ -1,5 +1,5 @@
-import { ReactNode, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { ReactNode, useEffect, useRef } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,8 +35,10 @@ const moduleForPath = (pathname: string): string | null => {
   return null;
 };
 
-const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: boolean }) => {
+const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: boolean }) => {
   const location = useLocation();
+  const currentPathname = useRef(location.pathname);
+  currentPathname.current = location.pathname;
   const { user, canAccessModule, canManageUsers } = useAuth();
 
   // Unread internal-chat messages update the browser tab title and desktop notification.
@@ -76,7 +78,7 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
     let active = true;
     const channel = supabase.channel(`crm-assignment-notifications-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, payload => {
-        if (!active || location.pathname.startsWith('/whatsapp')) return;
+        if (!active || currentPathname.current.startsWith('/whatsapp')) return;
         const item = payload.new as { id: string; title?: string; body?: string; chat_id?: string | null; lead_id?: string | null };
         toast({ title: item.title || 'Nova notificação', description: item.body || 'Você recebeu uma nova atribuição.' });
         if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
@@ -94,21 +96,23 @@ const AppLayout = ({ children, noPadding }: { children: ReactNode; noPadding?: b
       })
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
-  }, [user, location.pathname]);
+  }, [user]);
 
   const moduleKey = moduleForPath(location.pathname);
-  // User administration is owner-only; all other routes require an explicit saved module permission.
-  const allowed = moduleKey !== null
-    && canAccessModule(moduleKey)
-    && (location.pathname !== '/usuarios' || canManageUsers);
+  const useNoPadding = noPadding ?? location.pathname.startsWith('/whatsapp');
+  // Rotas sem módulo mapeado (como NotFound) não representam módulos protegidos.
+  const allowed = moduleKey === null || (
+    canAccessModule(moduleKey)
+    && (location.pathname !== '/usuarios' || canManageUsers)
+  );
 
   return (
     <div className="flex min-h-screen bg-background">
       <CRMNotificationBell />
       <div className="hidden md:block"><AppSidebar /></div>
-      <main className={`flex-1 overflow-hidden ${noPadding ? 'pb-16 md:pb-0' : 'pb-20 md:pb-0'}`}>
-        <div className={noPadding ? 'h-full' : 'p-4 sm:p-5 lg:p-7 xl:p-8 max-w-[1600px] mx-auto'}>
-          {allowed ? children : (
+      <main className={`flex-1 overflow-hidden ${useNoPadding ? 'pb-16 md:pb-0' : 'pb-20 md:pb-0'}`}>
+        <div className=${useNoPadding ? 'h-full' : 'p-4 sm:p-5 lg:p-7 xl:p-8 max-w-[1600px] mx-auto'}>
+          {allowed ? (children ?? <Outlet />) : (
             <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-8">
               <ShieldAlert size={42} className="text-muted-foreground mb-4" />
               <h1 className="text-xl font-semibold">Acesso não autorizado</h1>
