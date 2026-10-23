@@ -641,3 +641,48 @@ html.theme-dark body {
     background-color: hsl(var(--card) / 0.94) !important;
   }
 }
+
+
+/* Harmonização de classes utilitárias legadas com os temas pessoais. */
+html.theme-dark .bg-gray-50,
+html.theme-dark .bg-gray-100,
+html.theme-dark .bg-slate-50,
+html.theme-dark .bg-slate-100,
+html.theme-dark .bg-zinc-50,
+html.theme-dark .bg-neutral-50 {
+  background-color: hsl(var(--muted)) !important;
+}
+html.theme-dark .bg-gray-200,
+html.theme-dark .bg-slate-200,
+html.theme-dark .bg-zinc-100,
+html.theme-dark .bg-neutral-100 {
+  background-color: hsl(var(--secondary)) !important;
+}
+html.theme-dark .border-gray-100,
+html.theme-dark .border-gray-200,
+html.theme-dark .border-slate-100,
+html.theme-dark .border-slate-200,
+html.theme-dark .border-zinc-100,
+html.theme-dark .border-zinc-200 {
+  border-color: hsl(var(--border)) !important;
+}
+html.theme-dark .text-gray-500,
+html.theme-dark .text-gray-600,
+html.theme-dark .text-slate-500,
+html.theme-dark .text-slate-600,
+html.theme-dark .text-zinc-500,
+html.theme-dark .text-neutral-500 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+html.theme-dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+html.theme-dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: hsl(var(--border)) !important;
+}
+html.theme-transparent .bg-white,
+html.theme-transparent .bg-white\/95,
+html.theme-transparent .bg-white\/90,
+html.theme-transparent .bg-white\/80 {
+  background-color: hsl(var(--card) / 0.72) !important;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
