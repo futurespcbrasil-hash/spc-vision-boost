@@ -48,6 +48,9 @@ const Chat = () => {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const draftRestorePending = useRef(false);
+  const restoredConversation = useRef(false);
+  const activeDraftKey = useRef('');
 
   // Load every registered teammate through a scoped RPC.
   // This avoids profile/role table RLS rules hiding coworkers from non-manager roles.
@@ -77,6 +80,44 @@ const Chat = () => {
     if (user) load();
     return () => { active = false; };
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.id || users.length === 0 || restoredConversation.current) return;
+    restoredConversation.current = true;
+    try {
+      const savedId = localStorage.getItem(`internal_chat_selected_${user.id}`);
+      const savedUser = users.find(item => item.user_id === savedId);
+      if (savedUser) setSelected(savedUser);
+    } catch { /* armazenamento indisponível */ }
+  }, [users, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !selected?.user_id) {
+      activeDraftKey.current = '';
+      return;
+    }
+    try {
+      localStorage.setItem(`internal_chat_selected_${user.id}`, selected.user_id);
+      activeDraftKey.current = `internal_chat_draft_${user.id}_${selected.user_id}`;
+      draftRestorePending.current = true;
+      setText(localStorage.getItem(activeDraftKey.current) || '');
+    } catch {
+      activeDraftKey.current = `internal_chat_draft_${user.id}_${selected.user_id}`;
+      draftRestorePending.current = true;
+      setText('');
+    }
+  }, [selected?.user_id, user?.id]);
+
+  useEffect(() => {
+    if (!activeDraftKey.current || !selected?.user_id || draftRestorePending.current) {
+      draftRestorePending.current = false;
+      return;
+    }
+    try {
+      if (text) localStorage.setItem(activeDraftKey.current, text);
+      else localStorage.removeItem(activeDraftKey.current);
+    } catch { /* armazenamento indisponível */ }
+  }, [text, selected?.user_id]);
 
   // Load unread counts
   useEffect(() => {
