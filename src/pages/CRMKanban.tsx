@@ -130,9 +130,7 @@ const CRMKanban = () => {
       return;
     }
     const internationalNumber = digits.startsWith('55') ? digits : `55${digits}`;
-    // Abrir o WhatsApp Web de forma síncrona no clique evita bloqueio de popup.
-    window.open(`https://wa.me/${internationalNumber}`, '_blank', 'noopener,noreferrer');
-    navigate(`/whatsapp?phone=${encodeURIComponent(internationalNumber)}`);
+    navigate(`/whatsapp?phone=${encodeURIComponent(internationalNumber)}&compose=1`);
   };
 
   useEffect(() => {
@@ -187,12 +185,24 @@ const CRMKanban = () => {
     if (!targetId) return;
     const target = allLeads.find(lead => lead.id === targetId);
     if (!target) return;
+    const next = new URLSearchParams(searchParams);
+    const focusCard = next.get('focus') === 'card';
+    next.delete('leadId');
+    next.delete('focus');
+    setSearchParams(next, { replace: true });
+    if (focusCard) {
+      window.setTimeout(() => {
+        const card = document.getElementById(`lead-card-${target.id}`);
+        if (!card) return;
+        card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        card.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+        window.setTimeout(() => card.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 1800);
+      }, 180);
+      return;
+    }
     setSelectedLead(target);
     setEditMode(false);
     setEditData(null);
-    const next = new URLSearchParams(searchParams);
-    next.delete('leadId');
-    setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, allLeads]);
 
   useEffect(() => {
@@ -298,9 +308,10 @@ const CRMKanban = () => {
     setCustomStages([]);
   }, [funnel]);
 
-  const allStages = customStages.length >= baseStages.length
+  // O banco é a fonte da verdade: não reintroduzir etapas padrão que foram excluídas.
+  const allStages = customStages.length > 0
     ? customStages.map(s => ({ ...s, key: s.key as KanbanStage }))
-    : [...baseStages, ...customStages.filter(s => !baseStages.some(base => base.key === s.key)).map(s => ({ ...s, key: s.key as KanbanStage }))];
+    : baseStages;
   // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
   const canManageCustomStage = (key: string) =>
     isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
@@ -807,8 +818,7 @@ const CRMKanban = () => {
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <a href={`tel:${selectedLead.phone}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"><Phone size={15} /> Ligar</a>
-                  <a href={`https://wa.me/${selectedLead.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#25D366] text-white text-sm font-medium hover:opacity-90 transition"><MessageCircle size={15} /> WhatsApp</a>
+                  <button type="button" onClick={() => handleStartConversation(selectedLead)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#25D366] text-white text-sm font-medium hover:opacity-90 transition"><MessageCircle size={15} /> Conversar</button>
                   {selectedLead.email && (
                     <a href={`mailto:${selectedLead.email}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition"><Mail size={15} /> Email</a>
                   )}
@@ -861,7 +871,7 @@ const CRMKanban = () => {
                   onDragEnd={handleDragEnd}
 
                   isDragging={draggedLead === lead.id}
-                  onClick={() => setSelectedLead(lead)}
+                  onClick={() => { setSelectedLead(lead); setEditData({ ...lead }); setEditMode(true); }}
                   onStatusChange={handleCardStatusChange}
                   onObsChange={handleCardObsChange}
                   teamMembers={teamMembers}
@@ -951,7 +961,7 @@ const CRMKanban = () => {
                       onDragEnd={handleDragEnd}
 
                       isDragging={draggedLead === lead.id}
-                      onClick={() => setSelectedLead(lead)}
+                      onClick={() => { setSelectedLead(lead); setEditData({ ...lead }); setEditMode(true); }}
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
                       teamMembers={teamMembers}
@@ -1009,6 +1019,7 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
 
   return (
     <div
+      id={`lead-card-${lead.id}`}
       draggable
       onDragStart={() => onDragStart(lead.id)}
       onDragEnd={onDragEnd}
@@ -1026,6 +1037,12 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       </div>
       
       <div className="spc-badge mb-1.5">{lead.product}</div>
+      {(lead.planValue != null || lead.biro) && (
+        <div className="flex flex-wrap gap-1 mb-1.5 text-[10px]">
+          {lead.planValue != null && <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">VP {Number(lead.planValue).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+          {lead.biro && <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">B - {lead.biro}</span>}
+        </div>
+      )}
 
       {/* Lead age and last interaction */}
       {(() => {
@@ -1035,13 +1052,25 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
           ...interactions.map(item => item?.date ? new Date(item.date).getTime() : 0),
         ].filter(value => Number.isFinite(value) && value > 0);
         const latestInteraction = interactionTimes.length ? Math.max(...interactionTimes) : 0;
-        const reference = latestInteraction > 0 ? latestInteraction : 0;
-        const daysSince = reference ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : null;
+        const createdTime = lead.createdAt ? new Date(lead.createdAt).getTime() : 0;
+        const reference = latestInteraction || (Number.isFinite(createdTime) ? createdTime : 0);
+        const daysSince = reference > 0 ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : 0;
+        const signalColor = daysSince <= 10 ? '#22c55e' : daysSince <= 30 ? '#eab308' : '#ef4444';
+        const progress = Math.min(100, (daysSince / 30) * 100);
+        const createdLabel = lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
         return (
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1.5" title={`Criado em ${lead.createdAt || 'data indisponível'}; última interação ${daysSince === null ? 'não registrada' : `há ${daysSince} dia(s)`}`}>
-            <Clock size={11} />
-            <span>Criado: {lead.createdAt || '—'}</span>
-            <span className="ml-auto">Último contato: {daysSince === null ? '—' : daysSince === 0 ? 'hoje' : `há ${daysSince}d`}</span>
+          <div className="mb-1.5" title={`Criado em ${createdLabel}; sem interação há ${daysSince} dia(s)`}>
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Clock size={11} />
+              <span>Criado: {createdLabel}</span>
+              <span className="ml-auto inline-flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: signalColor }} />
+                {daysSince === 0 ? 'Interação hoje' : `há ${daysSince} ${daysSince === 1 ? 'dia' : 'dias'} sem interação`}
+              </span>
+            </div>
+            <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden" aria-label={`${progress.toFixed(0)}% do ciclo de 30 dias sem interação`}>
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, backgroundColor: signalColor }} />
+            </div>
           </div>
         );
       })()}
