@@ -376,7 +376,7 @@ const SalesDashboard = () => {
     .slice(0, 5);
 
 return (
-    <div className="space-y-6 animate-fade-in relative pb-20">
+    <div className="dashboard-sales-content space-y-6 animate-fade-in relative pb-20">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> FUTURE VISION</div>
