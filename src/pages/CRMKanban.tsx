@@ -70,6 +70,23 @@ const CRMKanban = () => {
   const [showExport, setShowExport] = useState(false);
   const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [, setDayVersion] = useState(0);
+
+  // Atualiza o contador e a borda dos cards à meia-noite mesmo se o Kanban
+  // permanecer aberto no navegador durante vários dias.
+  useEffect(() => {
+    let timer: number;
+    const scheduleNextDay = () => {
+      const now = new Date();
+      const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+      timer = window.setTimeout(() => {
+        setDayVersion(version => version + 1);
+        scheduleNextDay();
+      }, Math.max(1000, nextDay.getTime() - now.getTime()));
+    };
+    scheduleNextDay();
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const previousDraftFunnel = useRef(funnel);
   useEffect(() => {
