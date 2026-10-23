@@ -104,50 +104,51 @@ const ProtectedRoutes = () => {
           <Suspense fallback={<PageLoader />}>
           <Routes>
 
-            <Route path="/manual" element={<AppLayout><ManualEmissor /></AppLayout>} />
-            <Route path="/comparacao/:id" element={<PublicComparison />} />
-            <Route path="/" element={<AppLayout>{role === 'gestor' ? <GestorDashboard /> : <Dashboard />}</AppLayout>} />
-            <Route path="/crm" element={<AppLayout><CRMKanban /></AppLayout>} />
+            <Route element={<AppLayout />}>
+            <Route path="/manual" element={<ManualEmissor />} />
+            <Route path="/" element={role === 'gestor' ? <GestorDashboard /> : <Dashboard />} />
+            <Route path="/crm" element={<CRMKanban />} />
             <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
-            <Route path="/leads" element={<AppLayout><LeadsPage /></AppLayout>} />
+            <Route path="/leads" element={<LeadsPage />} />
             <Route path="/produtos" element={<Navigate to="/" replace />} />
             <Route path="/comparador" element={<Navigate to="/" replace />} />
             <Route path="/gerar-link" element={<Navigate to="/" replace />} />
-            <Route path="/agenda" element={<AppLayout><Agenda /></AppLayout>} />
-            <Route path="/argumentos" element={<AppLayout><Argumentos /></AppLayout>} />
-            <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
-            <Route path="/chat" element={<AppLayout><Chat /></AppLayout>} />
-            <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
-            <Route path="/perfil/personalizacao" element={<AppLayout><Personalizacao /></AppLayout>} />
-            <Route path="/metas" element={<AppLayout><Metas /></AppLayout>} />
-            <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
-            <Route path="/parceiros-spc" element={<AppLayout><ParceirosDashboard /></AppLayout>} />
-            <Route path="/parceiros-spc/parceiros" element={<AppLayout><Parceiros /></AppLayout>} />
-            <Route path="/parceiros-spc/clientes" element={<AppLayout><ClientesIndicados /></AppLayout>} />
-            <Route path="/indicacoes/clientes" element={<AppLayout><ClientesIndicadosAtendimento /></AppLayout>} />
-            <Route path="/parceiros-spc/relatorios" element={<AppLayout><ParceirosRelatorios /></AppLayout>} />
-            <Route path="/consultas" element={<AppLayout><ConsultaSPC /></AppLayout>} />
-            <Route path="/consultas/cnpj" element={<AppLayout><ConsultaCNPJ /></AppLayout>} />
-            <Route path="/consultas/sintegra" element={<AppLayout><ConsultaSintegra /></AppLayout>} />
-            <Route path="/consultas/cnpj-lote" element={<AppLayout><ConsultaCNPJLote /></AppLayout>} />
-            <Route path="/campanhas/email" element={<AppLayout><EmailMarketing /></AppLayout>} />
-            <Route path="/campanhas/whatsapp" element={<AppLayout><CampanhasWhatsApp /></AppLayout>} />
-            <Route path="/whatsapp" element={<AppLayout noPadding><WhatsAppChat /></AppLayout>} />
-            <Route path="/whatsapp/instancias" element={<AppLayout noPadding><WhatsAppInstancias /></AppLayout>} />
-            <Route path="/whatsapp/ajustes" element={<AppLayout noPadding><WhatsAppAjustes /></AppLayout>} />
-            <Route path="/relatorios-comissoes" element={<AppLayout><RelatoriosComissoes /></AppLayout>} />
-            <Route path="/comissoes/indicacoes-sistema" element={<AppLayout><ComissoesIndicacoesSistema /></AppLayout>} />
-            <Route path="/cadastro-vendedores" element={<AppLayout><CadastroVendedores /></AppLayout>} />
-            <Route path="/usuarios" element={<AppLayout><Usuarios /></AppLayout>} />
+            <Route path="/agenda" element={<Agenda />} />
+            <Route path="/argumentos" element={<Argumentos />} />
+            <Route path="/relatorios" element={<Relatorios />} />
+            <Route path="/chat" element={<Chat />} />
+            <Route path="/perfil" element={<Perfil />} />
+            <Route path="/perfil/personalizacao" element={<Personalizacao />} />
+            <Route path="/metas" element={<Metas />} />
+            <Route path="/notas" element={<Notas />} />
+            <Route path="/parceiros-spc" element={<ParceirosDashboard />} />
+            <Route path="/parceiros-spc/parceiros" element={<Parceiros />} />
+            <Route path="/parceiros-spc/clientes" element={<ClientesIndicados />} />
+            <Route path="/indicacoes/clientes" element={<ClientesIndicadosAtendimento />} />
+            <Route path="/parceiros-spc/relatorios" element={<ParceirosRelatorios />} />
+            <Route path="/consultas" element={<ConsultaSPC />} />
+            <Route path="/consultas/cnpj" element={<ConsultaCNPJ />} />
+            <Route path="/consultas/sintegra" element={<ConsultaSintegra />} />
+            <Route path="/consultas/cnpj-lote" element={<ConsultaCNPJLote />} />
+            <Route path="/campanhas/email" element={<EmailMarketing />} />
+            <Route path="/campanhas/whatsapp" element={<CampanhasWhatsApp />} />
+            <Route path="/whatsapp" element={<WhatsAppChat />} />
+            <Route path="/whatsapp/instancias" element={<WhatsAppInstancias />} />
+            <Route path="/whatsapp/ajustes" element={<WhatsAppAjustes />} />
+            <Route path="/relatorios-comissoes" element={<RelatoriosComissoes />} />
+            <Route path="/comissoes/indicacoes-sistema" element={<ComissoesIndicacoesSistema />} />
+            <Route path="/cadastro-vendedores" element={<CadastroVendedores />} />
+            <Route path="/usuarios" element={<Usuarios />} />
             <Route path="/revendas" element={<Navigate to="/" replace />} />
-            <Route path="/financeiro/clientes" element={<AppLayout><BoletosWhatsApp initialTab="clientes" /></AppLayout>} />
-            <Route path="/financeiro/boletos" element={<AppLayout><BoletosWhatsApp /></AppLayout>} />
-            <Route path="/future-remote" element={<AppLayout><FutureRemoteDashboard /></AppLayout>} />
+            <Route path="/financeiro/clientes" element={<BoletosWhatsApp initialTab="clientes" />} />
+            <Route path="/financeiro/boletos" element={<BoletosWhatsApp />} />
+            <Route path="/future-remote" element={<FutureRemoteDashboard />} />
             <Route path="/future-remote/solicitacoes" element={<Navigate to="/future-remote" replace />} />
             <Route path="/future-remote/computadores" element={<Navigate to="/future-remote" replace />} />
             <Route path="/future-remote/historico" element={<Navigate to="/future-remote" replace />} />
             <Route path="/future-remote/configuracoes" element={<Navigate to="/future-remote" replace />} />
             <Route path="*" element={<NotFound />} />
+            </Route>
           </Routes>
           </Suspense>
         </ErrorBoundary>
