@@ -89,13 +89,13 @@ const LeadsPage = () => {
     setEditMode(true);
   };
 
-  const handleSaveEdit = () => {
-    if (editData) {
-      updateLead(editData);
-      setSelectedLead(editData);
-      setEditMode(false);
-      setEditData(null);
-    }
+  const handleSaveEdit = async () => {
+    if (!editData) return;
+    const saved = await updateLead(editData);
+    if (!saved) return;
+    setSelectedLead(editData);
+    setEditMode(false);
+    setEditData(null);
   };
 
   const handleDelete = (lead: Lead) => {
