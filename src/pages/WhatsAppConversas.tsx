@@ -181,7 +181,7 @@ export default function WhatsAppConversas() {
     const channel = supabase.channel(`whatsapp-conversas-${user.id}-${instanceId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
         () => { void loadChats(false); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages', filter: `instance_id=eq.${instanceId}` },
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `instance_id=eq.${instanceId}` },
         () => { const current = selectedChatRef.current; if (current) void loadMessages(current, false); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
