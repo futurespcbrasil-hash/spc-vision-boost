@@ -61,6 +61,17 @@ const CRMKanban = () => {
   const canEditLead = (lead: Lead) => isOwner || isGestor || !lead.userId || lead.userId === user?.id;
 
   useEffect(() => {
+    const channel = supabase.channel(`kanban-lead-assignment-live-${user?.id || 'anonymous'}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, (payload) => {
+        const before = payload.old as { assigned_to?: string | null };
+        const after = payload.new as { assigned_to?: string | null };
+        if (before.assigned_to !== after.assigned_to) void refreshLeads();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, refreshLeads]);
+
+  useEffect(() => {
     let cancelled = false;
     const loadAgentColors = async () => {
       const { data, error } = await (supabase as any).from('whatsapp_agent_preferences').select('user_id,display_name,color');
@@ -1004,7 +1015,7 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
           <button onClick={() => onDelete(lead)} className="text-muted-foreground hover:text-destructive transition"><Trash2 size={12} /></button>
         </div>
       </div>
-      {lead.assignedTo && <div className="mt-2 h-1.5 w-full rounded-full" style={{ backgroundColor: assigneeColor || '#64748b' }} title={`Responsável: ${assigneeName || 'usuário atribuído'}`} aria-label={`Responsável: ${assigneeName || 'usuário atribuído'}`} />}
+      {lead.assignedTo && <div className="mt-2 h-1.5 w-full rounded-full transition-colors duration-200" style={{ backgroundColor: assigneeColor || '#64748b' }} title={`Responsável: ${assigneeName || 'usuário atribuído'}`} aria-label={`Responsável: ${assigneeName || 'usuário atribuído'}`} data-assignee-id={lead.assignedTo} />}
     </div>
   );
 };
