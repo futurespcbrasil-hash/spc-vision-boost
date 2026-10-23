@@ -308,7 +308,8 @@ Deno.serve(async (req: Request) => {
           const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
           const waChatId = typeof rawId === "string" ? rawId : "";
           if (!waChatId) continue;
-          if (waChatId === "status@broadcast") continue;
+          // Não tratar status, listas de transmissão ou canais como conversas individuais.
+          if (waChatId === "status@broadcast" || waChatId.endsWith("@newsletter") || waChatId.endsWith("@broadcast")) continue;
           const number = waChatId.split("@")[0].replace(/\D/g, "");
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
