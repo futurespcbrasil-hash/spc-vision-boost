@@ -8,6 +8,7 @@ import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SectorsProvider } from "@/hooks/useSectors";
 import AppLayout from "@/components/AppLayout";
+import { ThemePreferenceProvider } from "@/components/ThemePreferenceProvider";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Auth from "@/pages/Auth";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
@@ -47,6 +48,7 @@ const Argumentos = lazyWithRetry(() => import("@/pages/Argumentos"));
 const Relatorios = lazyWithRetry(() => import("@/pages/Relatorios"));
 const Chat = lazyWithRetry(() => import("@/pages/Chat"));
 const Perfil = lazyWithRetry(() => import("@/pages/Perfil"));
+const Personalizacao = lazyWithRetry(() => import("@/pages/Personalizacao"));
 const Metas = lazyWithRetry(() => import("@/pages/Metas"));
 const Notas = lazyWithRetry(() => import("@/pages/Notas"));
 const ParceirosDashboard = lazyWithRetry(() => import("@/pages/parceiros-spc/ParceirosDashboard"));
@@ -95,6 +97,7 @@ const ProtectedRoutes = () => {
   if (!user) return <Auth />;
 
   return (
+    <ThemePreferenceProvider>
     <AppProvider>
       <SectorsProvider>
         <ErrorBoundary>
@@ -115,6 +118,7 @@ const ProtectedRoutes = () => {
             <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
             <Route path="/chat" element={<AppLayout><Chat /></AppLayout>} />
             <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
+            <Route path="/perfil/personalizacao" element={<AppLayout><Personalizacao /></AppLayout>} />
             <Route path="/metas" element={<AppLayout><Metas /></AppLayout>} />
             <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
             <Route path="/parceiros-spc" element={<AppLayout><ParceirosDashboard /></AppLayout>} />
@@ -151,6 +155,7 @@ const ProtectedRoutes = () => {
         <PWAInstallPrompt />
       </SectorsProvider>
     </AppProvider>
+    </ThemePreferenceProvider>
   );
 };
 

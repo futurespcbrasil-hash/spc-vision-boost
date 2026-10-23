@@ -247,7 +247,7 @@ const AttendanceDashboard = () => {
   });
 
   return (
-    <div className="space-y-6 animate-fade-in relative pb-20">
+    <div className="space-y-7 animate-fade-in relative pb-20">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Minha Dashboard</h1>
@@ -327,7 +327,7 @@ const AttendanceDashboard = () => {
         )}
       </section>
 
-      <Link to="/leads" className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:opacity-90" title="Novo Lead">
+      <Link to="/leads" className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_12px_30px_-8px_hsl(var(--primary)/0.55)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_34px_-8px_hsl(var(--primary)/0.6)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/25" title="Novo Lead">
         <Plus size={24} />
       </Link>
     </div>
@@ -401,16 +401,17 @@ const SalesDashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in relative pb-20">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> FUTURE VISION</div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Visão geral do seu funil de vendas</p>
         </div>
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setShowNotif(!showNotif)}
-            className="relative p-2 rounded-lg bg-card border border-border text-foreground hover:bg-muted transition"
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-card border border-border/80 text-foreground shadow-sm hover:border-primary/30 hover:bg-primary/5 transition-all"
           >
             <Bell size={18} />
             {totalNotif > 0 && (
@@ -420,7 +421,7 @@ const SalesDashboard = () => {
             )}
           </button>
           {showNotif && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-lg z-50 animate-slide-in">
+            <div className="absolute right-0 top-full mt-3 w-[min(20rem,calc(100vw-2rem))] bg-card border border-border/80 rounded-2xl shadow-xl z-50 animate-slide-in overflow-hidden">
               {notasLembrete.length > 0 && (
                 <>
                   <div className="p-3 border-b border-border flex items-center gap-2">
@@ -471,22 +472,24 @@ const SalesDashboard = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 lg:gap-5">
         {stats.map(s => (
-          <div key={s.label} className="stat-card">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-muted-foreground text-sm">{s.label}</span>
-              <s.icon size={20} className={s.color} />
+          <div key={s.label} className="stat-card group relative overflow-hidden">
+            <div className="absolute -right-5 -top-6 h-20 w-20 rounded-full bg-primary/5 transition-transform duration-300 group-hover:scale-125" />
+            <div className="relative flex items-center justify-between gap-3 mb-4">
+              <span className="text-sm font-medium text-muted-foreground">{s.label}</span>
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/8 ring-1 ring-primary/10"><s.icon size={19} className={s.color} /></span>
             </div>
-            <div className="text-3xl font-bold text-foreground">{s.value}</div>
+            <div className="relative text-3xl font-bold tracking-tight text-foreground tabular-nums">{s.value}</div>
+            <div className="relative mt-3 h-1 w-10 rounded-full bg-primary/20 transition-all duration-300 group-hover:w-16 group-hover:bg-primary/50" />
           </div>
         ))}
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-5">
         <div className="stat-card">
-          <h3 className="font-semibold text-foreground mb-4">Leads por Etapa do Funil</h3>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary mb-1">Desempenho comercial</p><h3 className="font-semibold text-foreground mb-4">Leads por Etapa do Funil</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={funnelData}>
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -498,7 +501,7 @@ const SalesDashboard = () => {
         </div>
 
         <div className="stat-card">
-          <h3 className="font-semibold text-foreground mb-4">Produto Mais Vendido</h3>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary mb-1">Portfólio</p><h3 className="font-semibold text-foreground mb-4">Produto Mais Vendido</h3>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie data={productData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name }) => name}>
