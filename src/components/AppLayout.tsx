@@ -100,11 +100,10 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
 
   const moduleKey = moduleForPath(location.pathname);
   const useNoPadding = noPadding ?? location.pathname.startsWith('/whatsapp');
-  // Rotas sem módulo mapeado (como NotFound) não representam módulos protegidos.
-  const allowed = moduleKey === null || (
-    canAccessModule(moduleKey)
-    && (location.pathname !== '/usuarios' || canManageUsers)
-  );
+  // Toda rota renderizada dentro do layout precisa ter módulo explícito e permissão salva.
+  const allowed = moduleKey !== null
+    && canAccessModule(moduleKey)
+    && (location.pathname !== '/usuarios' || canManageUsers);
 
   return (
     <div className="flex min-h-screen bg-background">
