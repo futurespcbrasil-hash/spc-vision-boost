@@ -375,7 +375,7 @@ const SalesDashboard = () => {
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
     .slice(0, 5);
 
-remover estado sino local  return (
+return (
     <div className="space-y-6 animate-fade-in relative pb-20">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -383,6 +383,7 @@ remover estado sino local  return (
           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Visão geral do seu funil de vendas</p>
         </div>
+      </div>
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 lg:gap-5">
         {stats.map(s => (
