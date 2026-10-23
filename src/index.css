@@ -861,3 +861,111 @@ html.theme-transparent [class*="md:hidden"][class*="fixed"][class*="inset-0"] > 
 html.theme-transparent [class*="md:hidden"][class*="fixed"][class*="inset-0"] > div > div {
   border-color: transparent !important;
 }
+
+
+/* Correção final dos temas: Future mantém roxo/branco sem tarjas; Transparente adapta toda a interface ao wallpaper. */
+html.theme-future aside.gradient-spc a,
+html.theme-future aside.gradient-spc button {
+  color: #ffffff !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+html.theme-future aside.gradient-spc a:hover,
+html.theme-future aside.gradient-spc button:hover,
+html.theme-future aside.gradient-spc a:active,
+html.theme-future aside.gradient-spc button:active,
+html.theme-future aside.gradient-spc a[class*="bg-"],
+html.theme-future aside.gradient-spc button[class*="bg-"] {
+  color: #ffffff !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+html.theme-future aside.gradient-spc nav div[class*="border-l"],
+html.theme-future aside.gradient-spc > div:first-child,
+html.theme-future aside.gradient-spc > div:last-child {
+  border-color: transparent !important;
+}
+
+html.theme-transparent {
+  --foreground: var(--crm-wallpaper-foreground, 258 30% 16%);
+  --card: var(--crm-wallpaper-card, 0 0% 100%);
+  --card-foreground: var(--crm-wallpaper-foreground, 258 30% 16%);
+  --popover: var(--crm-wallpaper-card, 0 0% 100%);
+  --popover-foreground: var(--crm-wallpaper-foreground, 258 30% 16%);
+  --muted-foreground: var(--crm-wallpaper-muted-foreground, 257 12% 43%);
+  --secondary: var(--crm-wallpaper-secondary, 252 28% 91%);
+  --secondary-foreground: var(--crm-wallpaper-foreground, 258 30% 16%);
+  --muted: var(--crm-wallpaper-muted, 252 22% 91%);
+  --accent-foreground: var(--crm-wallpaper-foreground, 258 30% 16%);
+  --border: var(--crm-wallpaper-border-hsl, 252 24% 84%);
+  --input: var(--crm-wallpaper-border-hsl, 252 24% 84%);
+  color: var(--crm-wallpaper-text, #17131d);
+}
+html.theme-transparent body {
+  color: var(--crm-wallpaper-text, #17131d);
+}
+html.theme-transparent .bg-card,
+html.theme-transparent .bg-white,
+html.theme-transparent .bg-white\/95,
+html.theme-transparent .bg-white\/90,
+html.theme-transparent .bg-white\/80,
+html.theme-transparent .bg-gray-50,
+html.theme-transparent .bg-gray-100,
+html.theme-transparent .bg-slate-50,
+html.theme-transparent .bg-slate-100,
+html.theme-transparent .bg-zinc-50,
+html.theme-transparent .bg-neutral-50 {
+  background-color: var(--crm-wallpaper-surface, rgba(255,255,255,0.58)) !important;
+  color: var(--crm-wallpaper-text, #17131d);
+  border-color: var(--crm-wallpaper-border, rgba(255,255,255,0.42));
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+html.theme-transparent [role="dialog"],
+html.theme-transparent .kanban-column,
+html.theme-transparent .stat-card,
+html.theme-transparent .glass-card,
+html.theme-transparent .bg-popover {
+  background-color: var(--crm-wallpaper-surface-strong, rgba(255,255,255,0.72)) !important;
+  color: var(--crm-wallpaper-text, #17131d);
+  border-color: var(--crm-wallpaper-border, rgba(255,255,255,0.42)) !important;
+}
+html.theme-transparent .text-foreground,
+html.theme-transparent .text-card-foreground,
+html.theme-transparent .text-popover-foreground,
+html.theme-transparent .text-black,
+html.theme-transparent .text-gray-900,
+html.theme-transparent .text-gray-800,
+html.theme-transparent .text-slate-900,
+html.theme-transparent .text-slate-800,
+html.theme-transparent .text-zinc-900,
+html.theme-transparent .text-neutral-900 {
+  color: var(--crm-wallpaper-text, #17131d) !important;
+}
+html.theme-transparent .text-muted-foreground,
+html.theme-transparent .text-gray-600,
+html.theme-transparent .text-gray-500,
+html.theme-transparent .text-slate-600,
+html.theme-transparent .text-slate-500,
+html.theme-transparent .text-zinc-500,
+html.theme-transparent .text-neutral-500 {
+  color: var(--crm-wallpaper-muted-text, #655d6e) !important;
+}
+html.theme-transparent input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.theme-transparent textarea,
+html.theme-transparent select {
+  color: var(--crm-wallpaper-text, #17131d);
+  background-color: var(--crm-wallpaper-surface-strong, rgba(255,255,255,0.72));
+  border-color: var(--crm-wallpaper-border, rgba(255,255,255,0.42));
+}
+html.theme-transparent input::placeholder,
+html.theme-transparent textarea::placeholder {
+  color: var(--crm-wallpaper-muted-text, #655d6e);
+}
