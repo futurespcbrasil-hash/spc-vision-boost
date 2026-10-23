@@ -174,10 +174,11 @@ const WhatsAppChat = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState<string>('');
   const [chats, setChats] = useState<Chat[]>([]);
+  const [chatsLoaded, setChatsLoaded] = useState(false);
   const [selected, setSelected] = useState<Chat | null>(null);
   const [peeking, setPeeking] = useState<string | null>(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
@@ -186,25 +187,38 @@ const WhatsAppChat = () => {
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
 
-  // Quando o Kanban encaminha um telefone, abrir a conversa correspondente
-  // dentro do CRM; o WhatsApp Web é aberto pelo próprio botão de origem.
+  // Abre uma conversa do CRM apenas depois de carregar as conversas da instância
+  // do usuário. Isso evita abrir o modal de nova conversa antes de localizar uma existente.
   useEffect(() => {
     const requestedPhone = searchParams.get('phone');
-    if (!requestedPhone) return;
-    const digits = onlyDigits(requestedPhone);
-    const localDigits = (value: string) => {
+    if (!requestedPhone || !instanceId || !chatsLoaded) return;
+    const digitsOnly = (value: string) => {
       const number = onlyDigits(value);
+      return number.length % 2 === 0 && number.slice(0, number.length / 2) === number.slice(number.length / 2)
+        ? number.slice(0, number.length / 2)
+        : number;
+    };
+    const digits = digitsOnly(requestedPhone);
+    const localDigits = (value: string) => {
+      const number = digitsOnly(value);
       return number.startsWith('55') ? number.slice(2) : number;
     };
     const target = chats.find(chat =>
-      onlyDigits(chat.contact_number) === digits ||
+      digitsOnly(chat.contact_number) === digits ||
       localDigits(chat.contact_number) === localDigits(digits)
     );
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('phone');
+    nextParams.delete('compose');
+    setSearchParams(nextParams, { replace: true });
     if (target) {
       setSelected(target);
+      setNewChatOpen(false);
+      setNewChatNumber('');
+      setNewChatMessage('');
       setSearch('');
       if (isMobile) setMobileShowChat(true);
-      if (searchParams.get('compose') === '1') window.setTimeout(() => inputRef.current?.focus(), 250);
+      if (searchParams.get('compose') === '1') window.setTimeout(() => inputRef.current?.focus(), 300);
     } else {
       setSearch(digits);
       if (searchParams.get('compose') === '1') {
@@ -213,7 +227,7 @@ const WhatsAppChat = () => {
         setNewChatOpen(true);
       }
     }
-  }, [searchParams, chats, isMobile]);
+  }, [searchParams, chats, isMobile, instanceId, chatsLoaded, setSearchParams]);
 
   // Lead registration modal state
   const [leadDialog, setLeadDialog] = useState(false);
@@ -441,7 +455,7 @@ const WhatsAppChat = () => {
 
   // Load chats
   const loadChats = async () => {
-    if (!instanceId) { setChats([]); setSelected(null); setMessages([]); return; }
+    if (!instanceId) { setChats([]); setSelected(null); setMessages([]); setChatsLoaded(false); return; }
     const { data, error } = await supabase.from('whatsapp_chats').select('*')
       .eq('instance_id', instanceId)
       .eq('archived', false)
@@ -471,6 +485,7 @@ const WhatsAppChat = () => {
       return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
     });
     setChats(list);
+    setChatsLoaded(true);
     // Ao trocar de instância, nunca manter a conversa da instância anterior aberta.
     const cur = selectedRef.current;
     if (cur && cur.instance_id === instanceId) {
@@ -531,7 +546,7 @@ const WhatsAppChat = () => {
     setInstanceUnread(map);
   };
 
-  useEffect(() => { loadChats(); }, [instanceId]);
+  useEffect(() => { setChatsLoaded(false); void loadChats(); }, [instanceId]);
 
   useEffect(() => {
     loadInstanceUnread();
