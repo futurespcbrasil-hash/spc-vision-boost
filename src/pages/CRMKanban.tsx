@@ -27,6 +27,17 @@ const CRMKanban = () => {
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead, refreshLeads } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
   const baseStages = KANBAN_STAGES;
+  const addLeadDraftKey = user ? `crm_kanban_new_lead_draft_${user.id}` : undefined;
+  const readAddLeadDraft = () => {
+    const empty = { name: '', company: '', phone: '', whatsapp: '', email: '', product: '', origin: 'Kanban', stage: 'lead_novo', assignee: user?.id || '', funnel };
+    try {
+      const raw = addLeadDraftKey ? localStorage.getItem(addLeadDraftKey) : null;
+      if (!raw) return empty;
+      const saved = JSON.parse(raw);
+      return saved.funnel === funnel ? { ...empty, ...saved } : empty;
+    } catch { return empty; }
+  };
+  const initialAddLeadDraft = readAddLeadDraft();
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -39,16 +50,16 @@ const CRMKanban = () => {
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
   const [leadAssignmentHistory, setLeadAssignmentHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [showAddLead, setShowAddLead] = useState(false);
-  const [newLeadName, setNewLeadName] = useState('');
-  const [newLeadCompany, setNewLeadCompany] = useState('');
-  const [newLeadPhone, setNewLeadPhone] = useState('');
-  const [newLeadWhatsapp, setNewLeadWhatsapp] = useState('');
-  const [newLeadEmail, setNewLeadEmail] = useState('');
-  const [newLeadProduct, setNewLeadProduct] = useState('');
-  const [newLeadOrigin, setNewLeadOrigin] = useState('Kanban');
-  const [newLeadStage, setNewLeadStage] = useState<string>('lead_novo');
-  const [newLeadAssignee, setNewLeadAssignee] = useState('');
+  const [showAddLead, setShowAddLead] = useState(() => { try { const raw = addLeadDraftKey ? localStorage.getItem(addLeadDraftKey) : null; return !!raw && JSON.parse(raw).funnel === funnel; } catch { return false; } });
+  const [newLeadName, setNewLeadName] = useState(initialAddLeadDraft.name);
+  const [newLeadCompany, setNewLeadCompany] = useState(initialAddLeadDraft.company);
+  const [newLeadPhone, setNewLeadPhone] = useState(initialAddLeadDraft.phone);
+  const [newLeadWhatsapp, setNewLeadWhatsapp] = useState(initialAddLeadDraft.whatsapp);
+  const [newLeadEmail, setNewLeadEmail] = useState(initialAddLeadDraft.email);
+  const [newLeadProduct, setNewLeadProduct] = useState(initialAddLeadDraft.product);
+  const [newLeadOrigin, setNewLeadOrigin] = useState(initialAddLeadDraft.origin);
+  const [newLeadStage, setNewLeadStage] = useState<string>(initialAddLeadDraft.stage);
+  const [newLeadAssignee, setNewLeadAssignee] = useState(initialAddLeadDraft.assignee);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
@@ -58,6 +69,21 @@ const CRMKanban = () => {
   const [showExport, setShowExport] = useState(false);
   const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!addLeadDraftKey || !showAddLead) return;
+    const draft = { name: newLeadName, company: newLeadCompany, phone: newLeadPhone, whatsapp: newLeadWhatsapp, email: newLeadEmail, product: newLeadProduct, origin: newLeadOrigin, stage: newLeadStage, assignee: newLeadAssignee, funnel };
+    try {
+      const hasContent = !!(newLeadName.trim() || newLeadCompany.trim() || newLeadPhone.trim() || newLeadWhatsapp.trim() || newLeadEmail.trim() || newLeadProduct.trim() || newLeadOrigin !== 'Kanban' || newLeadStage !== 'lead_novo' || newLeadAssignee !== (user?.id || ''));
+      if (hasContent) localStorage.setItem(addLeadDraftKey, JSON.stringify(draft));
+      else localStorage.removeItem(addLeadDraftKey);
+    } catch { /* armazenamento indisponível */ }
+  }, [addLeadDraftKey, showAddLead, newLeadName, newLeadCompany, newLeadPhone, newLeadWhatsapp, newLeadEmail, newLeadProduct, newLeadOrigin, newLeadStage, newLeadAssignee, funnel, user?.id]);
+
+  const clearAddLeadDraft = () => {
+    try { if (addLeadDraftKey) localStorage.removeItem(addLeadDraftKey); } catch { /* armazenamento indisponível */ }
+  };
+  const closeAddLead = () => { setShowAddLead(false); clearAddLeadDraft(); };
 
   const canEditLead = (lead: Lead) => isOwner || isGestor || !lead.userId || lead.userId === user?.id;
 
