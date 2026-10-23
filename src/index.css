@@ -306,3 +306,291 @@ aside.gradient-spc nav::-webkit-scrollbar-corner {
     transform: none !important;
   }
 }
+
+
+/* Temas pessoais — aplicados no elemento raiz por ThemePreferenceProvider. */
+html.theme-light {
+  color-scheme: light;
+  --background: 252 30% 97%;
+  --foreground: 258 28% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 258 28% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 258 28% 16%;
+  --primary: 263 66% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 252 24% 93%;
+  --secondary-foreground: 258 28% 20%;
+  --muted: 252 22% 94%;
+  --muted-foreground: 257 12% 45%;
+  --accent: 263 45% 92%;
+  --accent-foreground: 263 65% 34%;
+  --border: 252 18% 87%;
+  --input: 252 18% 85%;
+  --ring: 263 66% 48%;
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 258 28% 22%;
+  --sidebar-primary: 263 66% 48%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 263 45% 95%;
+  --sidebar-accent-foreground: 263 65% 34%;
+  --sidebar-border: 252 18% 89%;
+  --sidebar-ring: 263 66% 48%;
+}
+
+html.theme-dark {
+  color-scheme: dark;
+  --background: 252 22% 8%;
+  --foreground: 250 24% 94%;
+  --card: 252 20% 12%;
+  --card-foreground: 250 24% 94%;
+  --popover: 252 20% 12%;
+  --popover-foreground: 250 24% 94%;
+  --primary: 263 82% 74%;
+  --primary-foreground: 263 45% 13%;
+  --secondary: 254 18% 18%;
+  --secondary-foreground: 250 24% 92%;
+  --muted: 252 18% 16%;
+  --muted-foreground: 252 12% 68%;
+  --accent: 263 30% 22%;
+  --accent-foreground: 263 82% 82%;
+  --destructive: 0 62% 43%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 153 50% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 85% 58%;
+  --warning-foreground: 252 22% 8%;
+  --border: 252 16% 24%;
+  --input: 252 16% 25%;
+  --ring: 263 82% 74%;
+  --sidebar-background: 258 25% 10%;
+  --sidebar-foreground: 250 24% 92%;
+  --sidebar-primary: 263 82% 74%;
+  --sidebar-primary-foreground: 263 45% 13%;
+  --sidebar-accent: 263 28% 20%;
+  --sidebar-accent-foreground: 250 24% 96%;
+  --sidebar-border: 252 16% 22%;
+  --sidebar-ring: 263 82% 74%;
+  --surface-shadow: 0 8px 28px -18px hsl(0 0% 0% / 0.72);
+  --surface-shadow-hover: 0 16px 34px -20px hsl(0 0% 0% / 0.82);
+  --focus-ring: 0 0 0 3px hsl(263 82% 74% / 0.22);
+}
+
+html.theme-transparent {
+  color-scheme: light;
+  --background: 252 34% 93%;
+  --foreground: 258 30% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 258 30% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 258 30% 16%;
+  --primary: 263 70% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 252 28% 91%;
+  --secondary-foreground: 258 28% 20%;
+  --muted: 252 22% 91%;
+  --muted-foreground: 257 12% 43%;
+  --accent: 263 45% 91%;
+  --accent-foreground: 263 65% 34%;
+  --border: 252 24% 84%;
+  --input: 252 24% 82%;
+  --ring: 263 70% 48%;
+  --sidebar-background: 264 70% 22%;
+  --sidebar-foreground: 255 35% 96%;
+  --sidebar-primary: 0 0% 100%;
+  --sidebar-primary-foreground: 264 74% 22%;
+  --sidebar-accent: 263 55% 34%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-border: 263 45% 34%;
+  --sidebar-ring: 263 76% 67%;
+  --surface-shadow: 0 8px 28px -18px hsl(263 45% 25% / 0.2);
+  --surface-shadow-hover: 0 16px 34px -20px hsl(263 55% 25% / 0.28);
+}
+
+html.theme-transparent body {
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(ellipse at 12% 8%, hsl(263 75% 70% / 0.28), transparent 38%),
+    radial-gradient(ellipse at 88% 92%, hsl(195 70% 70% / 0.22), transparent 34%),
+    linear-gradient(135deg, hsl(252 35% 95%), hsl(263 30% 88%));
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+html.theme-transparent .bg-card {
+  background-color: hsl(var(--card) / 0.76) !important;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+html.theme-transparent .stat-card,
+html.theme-transparent [role="dialog"] {
+  border-color: hsl(var(--border) / 0.7);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+html.theme-dark .bg-white,
+html.theme-dark .bg-white\/95,
+html.theme-dark .bg-white\/90 {
+  background-color: hsl(var(--card)) !important;
+}
+
+html.theme-dark .text-black,
+html.theme-dark .text-gray-900,
+html.theme-dark .text-slate-900 {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Miniaturas de tema na tela Meu Perfil > Personalização. */
+.theme-preview {
+  display: flex;
+  height: 132px;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 0.85rem;
+}
+
+.theme-preview-sidebar {
+  display: flex;
+  width: 24%;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 8px;
+}
+
+.theme-preview-sidebar span {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.24;
+}
+
+.theme-preview-sidebar span:first-child {
+  width: 72%;
+  opacity: 0.7;
+}
+
+.theme-preview-main {
+  min-width: 0;
+  flex: 1;
+  padding: 10px;
+}
+
+.theme-preview-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.theme-preview-topbar span:first-child {
+  width: 44%;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.65;
+}
+
+.theme-preview-topbar span:last-child {
+  width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  background: var(--preview-primary);
+}
+
+.theme-preview-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.theme-preview-cards span {
+  height: 26px;
+  border: 1px solid var(--preview-border);
+  border-radius: 5px;
+  background: var(--preview-card);
+}
+
+.theme-preview-panel {
+  display: flex;
+  height: 34px;
+  align-items: flex-end;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid var(--preview-border);
+  border-radius: 5px;
+  background: var(--preview-card);
+}
+
+.theme-preview-panel i {
+  display: block;
+  width: 12%;
+  height: 40%;
+  border-radius: 3px 3px 0 0;
+  background: var(--preview-primary);
+  opacity: 0.75;
+}
+
+.theme-preview-panel i:nth-child(2) { height: 78%; }
+.theme-preview-panel i:nth-child(3) { height: 58%; }
+.theme-preview-panel i:nth-child(4) { height: 92%; }
+
+.theme-preview-future {
+  --preview-primary: #7c3aed;
+  --preview-border: #e3d8f5;
+  --preview-card: #ffffff;
+  color: #4c287e;
+  background: #f8f6fc;
+}
+.theme-preview-future .theme-preview-sidebar {
+  color: #ffffff;
+  background: #35136d;
+}
+.theme-preview-light {
+  --preview-primary: #6d35d4;
+  --preview-border: #ded8e9;
+  --preview-card: #ffffff;
+  color: #42384f;
+  background: #f4f2f8;
+}
+.theme-preview-light .theme-preview-sidebar {
+  color: #3d3151;
+  background: #ffffff;
+  border-right: 1px solid #e4dfec;
+}
+.theme-preview-dark {
+  --preview-primary: #a78bfa;
+  --preview-border: #383447;
+  --preview-card: #1c1a27;
+  color: #eeeaf7;
+  background: #11101a;
+}
+.theme-preview-dark .theme-preview-sidebar {
+  color: #eeeaf7;
+  background: #1a1726;
+}
+.theme-preview-transparent {
+  --preview-primary: #6d35d4;
+  --preview-border: #ffffffb8;
+  --preview-card: #ffffff88;
+  color: #44344f;
+  background:
+    radial-gradient(circle at 20% 15%, #c4b5fd, transparent 40%),
+    linear-gradient(135deg, #e8e0f7, #b6d6e8);
+}
+.theme-preview-transparent .theme-preview-sidebar {
+  color: #ffffff;
+  background: #32125dbd;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-option,
+  .theme-option * {
+    transition: none !important;
+  }
+}
