@@ -266,30 +266,29 @@ export default function WhatsAppConversas() {
   const handleSend = async () => {
     const text = message.trim();
     if (!text || !selectedChat || !selectedInstance || sending || sendLockRef.current) return;
-    // Bloqueio síncrono evita envio duplo por Enter + clique antes do próximo render.
-    sendLockRef.current = true;
     if (!selectedInstance.provider_instance_name) {
       toast.error('Esta conta ainda não está vinculada a uma sessão WAHA. Selecione a instância WAHA correta.');
       return;
     }
+
+    // O waha-proxy já persiste a mensagem enviada. Não gravar novamente pelo
+    // frontend: isso criava duas linhas para o mesmo envio (uma vinculada e outra não).
+    sendLockRef.current = true;
+    stickToBottomRef.current = true;
     setSending(true);
     try {
-      const response: any = await waha.sendText(instanceId, selectedChat.wa_chat_id || selectedChat.contact_number, text);
-      const rawId = response?.wa_message_id || response?.messageId || response?.id?._serialized || response?.id || response?.data?.id || null;
-      const { error: saveError } = await (supabase as any).from('whatsapp_messages').upsert({
-        chat_id: selectedChat.id, instance_id: instanceId, wa_message_id: typeof rawId === 'string' ? rawId : null,
-        from_me: true, sender: 'me', message_type: 'text', text, status: 'sent',
-        timestamp: new Date().toISOString(), sent_by: user?.id || null, raw: response || {},
-      }, { onConflict: 'instance_id,wa_message_id' });
-      await (supabase as any).from('whatsapp_chats').update({
-        last_message: text, last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }).eq('id', selectedChat.id);
+      await waha.sendText(instanceId, selectedChat.wa_chat_id || selectedChat.contact_number, text);
       setMessage('');
-      stickToBottomRef.current = true;
+
+      // A Edge Function persiste o envio. Recarregamos apenas o histórico da
+      // conversa atual e mantemos a lista/seleção estáveis para não remontar o chat.
       await loadMessages(selectedChat, false);
-      await loadChats(false);
-      if (saveError) toast.warning('Mensagem enviada à WAHA, mas não foi possível gravar no histórico: ' + saveError.message);
-      else toast.success('Mensagem enviada.');
+      setChats((current) => current.map((item) => item.id === selectedChat.id
+        ? { ...item, last_message: text, last_message_at: new Date().toISOString() }
+        : item));
+      stickToBottomRef.current = true;
+      scrollMessagesToBottom(true);
+      toast.success('Mensagem enviada.');
     } catch (e) {
       toast.error('Falha ao enviar mensagem: ' + errorText(e));
     } finally {
