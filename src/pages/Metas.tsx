@@ -66,10 +66,31 @@ const Metas = () => {
             }
           : { ordem: i, referencia: m, ponto_zero: PONTO_ZERO, faturamento: null, salario: SALARIO_DEFAULT };
       });
-      setRows(base);
+      let restored = base;
+      try {
+        const rawDraft = localStorage.getItem(`crm_metas_draft_${user.id}`);
+        if (rawDraft) {
+          const draftRows = JSON.parse(rawDraft) as Row[];
+          restored = base.map(row => {
+            const draft = draftRows.find(item => item.ordem === row.ordem && item.dirty);
+            return draft ? { ...row, faturamento: draft.faturamento, salario: draft.salario, dirty: true } : row;
+          });
+        }
+      } catch { /* rascunho inválido ou armazenamento indisponível */ }
+      setRows(restored);
       setLoading(false);
     })();
   }, [user]);
+
+  useEffect(() => {
+    if (!user || loading) return;
+    const draftKey = `crm_metas_draft_${user.id}`;
+    try {
+      const dirtyRows = rows.filter(row => row.dirty).map(({ ordem, faturamento, salario, dirty }) => ({ ordem, faturamento, salario, dirty }));
+      if (dirtyRows.length) localStorage.setItem(draftKey, JSON.stringify(dirtyRows));
+      else localStorage.removeItem(draftKey);
+    } catch { /* armazenamento indisponível */ }
+  }, [rows, user, loading]);
 
   const update = (i: number, patch: Partial<Row>) =>
     setRows(r => r.map((x, idx) => idx === i ? { ...x, ...patch, dirty: true } : x));
