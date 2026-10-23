@@ -166,10 +166,10 @@ const AppSidebar = () => {
             if (error) console.warn('[Sidebar] Não foi possível marcar notificações do Kanban como lidas:', error.message);
           });
       }}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
         ${isActive 
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
-          : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+          ? 'bg-white/14 text-white shadow-sm ring-1 ring-white/10' 
+          : 'text-sidebar-foreground/75 hover:text-white hover:bg-white/10'
         }`}
       title={collapsed ? item.label : undefined}
     >
@@ -181,10 +181,10 @@ const AppSidebar = () => {
   );
 
   return (
-    <aside className={`h-screen gradient-spc flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'} sticky top-0`}>
-      <div className="flex items-center gap-2 p-4 border-b border-sidebar-border">
+    <aside className={`h-screen gradient-spc flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'} sticky top-0`}>
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80">
         {!collapsed && (
-          <div className="flex items-center animate-fade-in bg-white rounded-md px-2 py-1">
+          <div className="flex items-center animate-fade-in bg-white rounded-xl px-3 py-2 shadow-sm">
             <img src="/logo-future.png" alt="Future Soluções" className="h-7 w-auto object-contain" />
           </div>
         )}
@@ -196,7 +196,7 @@ const AppSidebar = () => {
         </button>
       </div>
 
-      <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
+      <nav className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto">
         {NAV_ITEMS.filter(item => canAccessModule(item.moduleKey)).map(item => {
           return renderNavItem(item, location.pathname === item.to);
         })}
@@ -227,7 +227,7 @@ const AppSidebar = () => {
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                    : 'text-sidebar-foreground/65 hover:text-white hover:bg-white/10'}`}>
                 <sub.icon size={14} />
                 <span>{sub.label}</span>
               </Link>
