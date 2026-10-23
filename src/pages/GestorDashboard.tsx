@@ -138,6 +138,21 @@ const GestorDashboard = () => {
     { name: 'Venda', value: vendasFechadas },
   ];
 
+  const interactionByFunnel = new Map<string, { total: number; fresh: number; warning: number; stale: number }>();
+  allLeads.forEach(lead => {
+    const funnelKey = String(lead.funnel || 'spc');
+    const lastInteraction = lead.last_interaction_at || lead.created_at;
+    const timestamp = lastInteraction ? new Date(lastInteraction).getTime() : 0;
+    const days = timestamp > 0 ? Math.max(0, Math.floor((Date.now() - timestamp) / 86400000)) : 0;
+    const current = interactionByFunnel.get(funnelKey) || { total: 0, fresh: 0, warning: 0, stale: 0 };
+    current.total++;
+    if (days <= 10) current.fresh++;
+    else if (days <= 30) current.warning++;
+    else current.stale++;
+    interactionByFunnel.set(funnelKey, current);
+  });
+  const interactionSummary = Array.from(interactionByFunnel.entries()).sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -163,6 +178,27 @@ const GestorDashboard = () => {
       </div>
 
       {/* Team performance split by sector */}
+      <div className="stat-card">
+        <h3 className="font-semibold text-foreground mb-1">⏱️ Interação dos leads por funil</h3>
+        <p className="text-xs text-muted-foreground mb-4">Dias desde a última interação registrada; quando não existe interação, conta desde a criação do lead.</p>
+        <div className="space-y-3">
+          {interactionSummary.map(([funnelName, summary]) => (
+            <div key={funnelName} className="rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="font-medium text-sm">{funnelName === 'spc' ? 'SPC Brasil' : funnelName}</span>
+                <span className="text-xs text-muted-foreground">{summary.total} leads</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500" /> 1–10 dias: <strong>{summary.fresh}</strong></div>
+                <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-yellow-500" /> 11–30 dias: <strong>{summary.warning}</strong></div>
+                <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-500" /> +30 dias: <strong>{summary.stale}</strong></div>
+              </div>
+            </div>
+          ))}
+          {interactionSummary.length === 0 && <p className="text-sm text-muted-foreground">Nenhum lead cadastrado.</p>}
+        </div>
+      </div>
+
       <div className="stat-card">
         <h3 className="font-semibold text-foreground mb-1">👥 Desempenho da equipe por setor</h3>
         <p className="text-xs text-muted-foreground mb-4">Indicadores separados entre SPC e Atendimento</p>
