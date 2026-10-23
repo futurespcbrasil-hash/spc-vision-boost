@@ -20,7 +20,7 @@ type Chat = {
 type Message = {
   id: string; chat_id: string; instance_id: string; wa_message_id: string | null;
   from_me: boolean; message_type: string; text: string | null; media_filename: string | null;
-  status: string | null; timestamp: string; error?: string | null;
+  status: string | null; timestamp: string; created_at?: string | null; error?: string | null;
 };
 
 const timeLabel = (value?: string | null) => value
@@ -169,7 +169,7 @@ export default function WhatsAppConversas() {
       // trazia as 500 mais antigas e fazia o chat parecer começar no início do histórico.
       const { data, error } = await (supabase as any).from('whatsapp_messages').select('*')
         .eq('instance_id', chat.instance_id).eq('chat_id', chat.id)
-        .order('timestamp', { ascending: false }).order('id', { ascending: false }).limit(500);
+        .order('timestamp', { ascending: false }).order('created_at', { ascending: false, nullsFirst: false }).limit(500);
       if (error) throw error;
       // Uma resposta atrasada de outra conversa não pode substituir o chat atualmente aberto.
       if (loadSequence !== messageLoadSequenceRef.current || activeChatIdRef.current !== chat.id) return;
@@ -177,10 +177,16 @@ export default function WhatsAppConversas() {
       setMessages(((data || []) as Message[]).reverse().sort((a, b) => {
         const ta = Date.parse(a.timestamp || '');
         const tb = Date.parse(b.timestamp || '');
-        if (!Number.isFinite(ta) && !Number.isFinite(tb)) return 0;
-        if (!Number.isFinite(ta)) return 1;
-        if (!Number.isFinite(tb)) return -1;
-        return ta - tb;
+        const validA = Number.isFinite(ta);
+        const validB = Number.isFinite(tb);
+        if (validA && validB && ta !== tb) return ta - tb;
+        if (validA !== validB) return validA ? -1 : 1;
+        // WAHA costuma usar precisão de segundos. created_at preserva a ordem
+        // de gravação quando várias mensagens compartilham o mesmo timestamp.
+        const ca = Date.parse(a.created_at || '');
+        const cb = Date.parse(b.created_at || '');
+        if (Number.isFinite(ca) && Number.isFinite(cb) && ca !== cb) return ca - cb;
+        return 0;
       }));
       messagesLoadedForChatRef.current = chat.id;
       await (supabase as any).from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chat.id);

@@ -410,13 +410,27 @@ Deno.serve(async (req: Request) => {
             const waMessageId = typeof rawId === "string" ? rawId : "";
             if (!waMessageId) continue;
             const fromMe = msg?.fromMe === true || msg?.from_me === true || msg?.key?.fromMe === true;
-            const rawTime = msg?.timestamp || msg?.t || msg?.createdAt || null;
-            let sentAt = new Date().toISOString();
-            if (typeof rawTime === "number" && rawTime > 0) sentAt = new Date(rawTime < 10_000_000_000 ? rawTime * 1000 : rawTime).toISOString();
-            else if (typeof rawTime === "string" && rawTime) {
-              const parsedTime = new Date(rawTime);
-              if (!Number.isNaN(parsedTime.getTime())) sentAt = parsedTime.toISOString();
-            }
+            // WAHA pode devolver timestamps como segundos, milissegundos ou strings numéricas.
+            // Também pode colocar o tempo em _data.t. Date(stringNumérica) não é confiável:
+            // mensagens antigas acabavam recebendo "agora" e apareciam no lugar errado.
+            const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ?? msg?._data?.t ?? msg?._data?.timestamp ?? null;
+            const parseWahaTime = (value: unknown): string | null => {
+              if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+                const d = new Date(value < 10_000_000_000 ? value * 1000 : value);
+                return Number.isNaN(d.getTime()) ? null : d.toISOString();
+              }
+              if (typeof value === "string" && value.trim()) {
+                const numeric = Number(value.trim());
+                if (Number.isFinite(numeric) && numeric > 0) {
+                  const d = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
+                  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+                }
+                const d = new Date(value);
+                return Number.isNaN(d.getTime()) ? null : d.toISOString();
+              }
+              return null;
+            };
+            const sentAt = parseWahaTime(rawTime) || "1970-01-01T00:00:00.000Z";
             const rawType = String(msg?.type || msg?.media?.mimetype || "").toLowerCase();
             const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
               : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
