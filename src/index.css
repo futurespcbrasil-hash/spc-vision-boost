@@ -969,3 +969,49 @@ html.theme-transparent input::placeholder,
 html.theme-transparent textarea::placeholder {
   color: var(--crm-wallpaper-muted-text, #655d6e);
 }
+
+
+/* Tema Future: neutraliza todas as classes utilitárias de estado que ainda desenham tarjas no menu. */
+html.theme-future aside.gradient-spc nav a,
+html.theme-future aside.gradient-spc nav button,
+html.theme-future aside.gradient-spc > div:last-child a,
+html.theme-future aside.gradient-spc > div:last-child button {
+  color: #fff !important;
+  background: none !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline-color: #fff;
+  --tw-ring-color: transparent !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+html.theme-future aside.gradient-spc nav a:hover,
+html.theme-future aside.gradient-spc nav button:hover,
+html.theme-future aside.gradient-spc nav a:active,
+html.theme-future aside.gradient-spc nav button:active,
+html.theme-future aside.gradient-spc nav a[aria-current="page"],
+html.theme-future aside.gradient-spc nav a[aria-current="true"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+html.theme-future aside.gradient-spc nav a span[class*="rounded-full"],
+html.theme-future aside.gradient-spc nav button span[class*="rounded-full"] { box-shadow: none !important; }
+/* Marca vetorial sem placa branca: a variante acompanha a cor do menu. */
+html.theme-future aside.gradient-spc { --crm-brand-logo: url('/logo-future-white.svg'); }
+html.theme-light aside.gradient-spc { --crm-brand-logo: url('/logo-future-black.svg'); }
+html.theme-dark aside.gradient-spc { --crm-brand-logo: url('/logo-future-white.svg'); }
+html.theme-transparent aside.gradient-spc { --crm-brand-logo: url('/logo-future-white.svg'); }
+
+html.theme-future aside.gradient-spc .crm-logo-white,
+html.theme-dark aside.gradient-spc .crm-logo-white,
+html.theme-transparent aside.gradient-spc .crm-logo-white { display: block; }
+html.theme-future aside.gradient-spc .crm-logo-black,
+html.theme-dark aside.gradient-spc .crm-logo-black,
+html.theme-transparent aside.gradient-spc .crm-logo-black { display: none; }
+html.theme-light aside.gradient-spc .crm-logo-white { display: none; }
+html.theme-light aside.gradient-spc .crm-logo-black { display: block; }
+html.theme-transparent aside.gradient-spc[style*="--crm-wallpaper-nav-text: #17131d"] .crm-logo-white { display: none; }
+html.theme-transparent aside.gradient-spc[style*="--crm-wallpaper-nav-text: #17131d"] .crm-logo-black { display: block; }

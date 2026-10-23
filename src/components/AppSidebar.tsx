@@ -184,8 +184,9 @@ const AppSidebar = () => {
     <aside className={`h-screen gradient-spc flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'} sticky top-0`}>
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80">
         {!collapsed && (
-          <div className="flex items-center animate-fade-in bg-white rounded-xl px-3 py-2 shadow-sm">
-            <img src="/logo-future.png" alt="Future Soluções" className="h-7 w-auto object-contain" />
+          <div className="flex items-center animate-fade-in px-1 py-1">
+            <img src="/logo-future-white.svg" alt="Future Soluções" className="crm-logo-white h-8 w-auto max-w-full object-contain" />
+            <img src="/logo-future-black.svg" alt="" aria-hidden="true" className="crm-logo-black h-8 w-auto max-w-full object-contain" />
           </div>
         )}
         <button 
@@ -505,12 +506,6 @@ const AppSidebar = () => {
 
 
       <div className="p-3 border-t border-sidebar-border space-y-2">
-        {!collapsed && profile && (
-          <div className="text-sidebar-foreground/80 text-xs px-2">
-            <div className="font-medium truncate">{profile.display_name || profile.email}</div>
-            <div className="text-sidebar-foreground/50 capitalize">{role}</div>
-          </div>
-        )}
         {canManageUsers && (
           <Link
             to="/usuarios"
