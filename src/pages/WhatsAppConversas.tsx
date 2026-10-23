@@ -225,7 +225,13 @@ export default function WhatsAppConversas() {
   }, [selectedChatId, loadMessages]);
 
   const openNumberActions = (number: string) => {
-    setActionNumber(normalizeBrazilNumber(number));
+    const digits = onlyDigits(number);
+    // Nunca abrir ações para uma sequência concatenada ou um identificador de grupo.
+    if (digits.length < 10 || digits.length > 13) {
+      toast.error('O texto selecionado não é um telefone válido. Confira se o número está separado de outros dígitos.');
+      return;
+    }
+    setActionNumber(normalizeBrazilNumber(digits));
     setNumberVerified(null);
     setFirstMessage('');
     setNumberDialogOpen(true);
