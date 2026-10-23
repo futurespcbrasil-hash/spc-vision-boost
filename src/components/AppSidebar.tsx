@@ -7,6 +7,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { waha } from '@/services/ryzeService';
 
 const AppSidebar = () => {
   const location = useLocation();
@@ -44,21 +45,30 @@ const AppSidebar = () => {
   useEffect(() => {
     if (!user) { setWhatsappUnread(0); return; }
     let active = true;
-    const refresh = async () => {
+    const refresh = async (syncProvider = false) => {
       const { data: ownedInstances, error: instanceError } = await (supabase as any).from('whatsapp_instances').select('id').eq('owner_id', user.id);
       if (instanceError || !active) return;
       const ids = (ownedInstances || []).map((item: { id: string }) => item.id);
       if (!ids.length) { setWhatsappUnread(0); return; }
-      const { data: unreadChats, error } = await (supabase as any).from('whatsapp_chats').select('unread_count').in('instance_id', ids).gt('unread_count', 0);
+      // Fora do menu Conversas, consulta a WAHA periodicamente para que mensagens
+      // recebidas atualizem unread_count mesmo quando a tela do chat não está aberta.
+      if (syncProvider && !location.pathname.startsWith('/whatsapp')) {
+        await Promise.allSettled(ids.map((id: string) => waha.getChats(id)));
+        if (!active) return;
+      }
+      const { data: unreadChats, error } = await (supabase as any).from('whatsapp_chats')
+        .select('unread_count,wa_chat_id').in('instance_id', ids).gt('unread_count', 0)
+        .neq('wa_chat_id', 'status@broadcast').not('wa_chat_id', 'like', '%@newsletter').not('wa_chat_id', 'like', '%@broadcast');
       if (active && !error) setWhatsappUnread((unreadChats || []).reduce((total: number, chat: { unread_count?: number }) => total + Number(chat.unread_count || 0), 0));
     };
-    void refresh();
+    void refresh(true);
+    const interval = window.setInterval(() => { void refresh(true); }, 30000);
     const channel = supabase.channel('sidebar-whatsapp-unread-' + user.id)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats' }, () => { void refresh(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_instances', filter: 'owner_id=eq.' + user.id }, () => { void refresh(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats' }, () => { void refresh(false); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_instances', filter: 'owner_id=eq.' + user.id }, () => { void refresh(false); })
       .subscribe();
-    return () => { active = false; supabase.removeChannel(channel); };
-  }, [user]);
+    return () => { active = false; window.clearInterval(interval); supabase.removeChannel(channel); };
+  }, [user, location.pathname]);
 
   useEffect(() => {
     if (location.pathname.startsWith('/whatsapp')) void markWhatsAppUnreadAsRead();
