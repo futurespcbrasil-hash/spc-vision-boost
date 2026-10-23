@@ -100,22 +100,40 @@ const CRMKanban = () => {
   }, [user?.id, refreshLeads]);
 
   useEffect(() => {
+    // Aguarda a sessão autenticada: se a consulta rodar antes da restauração
+    // da sessão, o mapa pode ficar vazio e os cards aparecem cinza.
+    if (authLoading || !user?.id) return;
     let cancelled = false;
     const loadAgentColors = async () => {
-      const { data, error } = await (supabase as any).from('whatsapp_agent_preferences').select('user_id,display_name,color');
-      if (error) { console.warn('[Kanban] Não foi possível carregar cores dos responsáveis:', error.message); return; }
+      const { data, error } = await (supabase as any)
+        .from('whatsapp_agent_preferences')
+        .select('user_id,display_name,color');
+      if (error) {
+        console.warn('[Kanban] Não foi possível carregar cores dos responsáveis:', error.message);
+        return;
+      }
       if (!cancelled) {
         const map: Record<string, { display_name: string; color: string }> = {};
-        (data || []).forEach((item: any) => { map[item.user_id] = { display_name: item.display_name, color: item.color }; });
+        (data || []).forEach((item: any) => {
+          if (item.user_id && item.color) {
+            map[item.user_id] = { display_name: item.display_name, color: item.color };
+          }
+        });
         setAgentColors(map);
       }
     };
     void loadAgentColors();
-    const channel = supabase.channel('kanban-agent-colors')
+    const channel = supabase.channel(`kanban-agent-colors-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_agent_preferences' }, () => { void loadAgentColors(); })
       .subscribe();
-    return () => { cancelled = true; supabase.removeChannel(channel); };
-  }, []);
+    const onVisible = () => { if (document.visibilityState === 'visible') void loadAgentColors(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      supabase.removeChannel(channel);
+    };
+  }, [authLoading, user?.id]);
 
   useEffect(() => {
     const targetId = searchParams.get('leadId');
