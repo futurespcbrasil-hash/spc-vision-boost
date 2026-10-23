@@ -447,7 +447,9 @@ const LeadForm = ({ onAdd, onCancel, draftKey }: { onAdd: (lead: Lead) => void; 
     if (!draftKey) return;
     try {
       const { cpfCnpj: _sensitiveIdentifier, ...safeDraft } = form;
-      localStorage.setItem(draftKey, JSON.stringify(safeDraft));
+      const hasContent = !!(safeDraft.name.trim() || safeDraft.company.trim() || safeDraft.phone.trim() || safeDraft.whatsapp.trim() || safeDraft.email.trim() || safeDraft.origin.trim() || safeDraft.observations.trim());
+      if (hasContent) localStorage.setItem(draftKey, JSON.stringify(safeDraft));
+      else localStorage.removeItem(draftKey);
     } catch { /* armazenamento indisponível ou quota excedida */ }
   }, [form, draftKey]);
 
