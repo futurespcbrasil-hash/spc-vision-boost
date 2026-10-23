@@ -312,7 +312,7 @@ const CRMKanban = () => {
       toast({ title: 'Erro ao cadastrar lead', description: 'O banco de dados não confirmou o cadastro. Revise os dados e tente novamente.', variant: 'destructive' });
       return;
     }
-    setShowAddLead(false);
+    closeAddLead();
     setNewLeadName('');
     setNewLeadCompany('');
     setNewLeadPhone('');
@@ -686,7 +686,7 @@ const CRMKanban = () => {
           <div className="bg-card rounded-xl border border-border max-w-lg w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-foreground">Novo lead — {sectorLabel}</h3>
-              <button onClick={() => setShowAddLead(false)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar"><X size={18} /></button>
+              <button onClick={closeAddLead} className="text-muted-foreground hover:text-foreground" aria-label="Fechar"><X size={18} /></button>
             </div>
             <div><label className="text-xs text-muted-foreground">Nome *</label><input autoFocus value={newLeadName} onChange={e => setNewLeadName(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Nome do contato" /></div>
             <div><label className="text-xs text-muted-foreground">Empresa</label><input value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Empresa" /></div>
@@ -702,7 +702,7 @@ const CRMKanban = () => {
             </div>
             <div><label className="text-xs text-muted-foreground">Responsável</label><select value={newLeadAssignee} onChange={e => setNewLeadAssignee(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"><option value="">Sem responsável</option>{teamMembers.map(member => <option key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</option>)}</select></div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setShowAddLead(false)} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
+              <button onClick={closeAddLead} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
               <button onClick={() => void handleCreateLead()} disabled={!newLeadName.trim()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50">Cadastrar lead</button>
             </div>
           </div>
