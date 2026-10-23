@@ -691,7 +691,7 @@ html.theme-transparent .bg-card {
   border-color: hsl(0 0% 100% / 0.52); box-shadow: 0 8px 28px -18px hsl(258 35% 20% / 0.24);
 }
 html.theme-transparent .kanban-column { background-color: hsl(var(--card) / 0.34) !important; }
-html.theme-transparent nav.md\\:hidden {
+html.theme-transparent nav.fixed.bottom-0 {
   background-color: hsl(0 0% 100% / 0.58) !important; border-color: hsl(0 0% 100% / 0.62) !important;
   -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
 }
