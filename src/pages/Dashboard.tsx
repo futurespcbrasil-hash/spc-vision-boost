@@ -403,7 +403,8 @@ const SalesDashboard = () => {
     <div className="space-y-6 animate-fade-in relative pb-20">
       <div className="flex items-center justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> FUTURE VISION</div>\n          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Dashboard</h1>
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> FUTURE VISION</div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Visão geral do seu funil de vendas</p>
         </div>
         {/* Notification Bell */}
