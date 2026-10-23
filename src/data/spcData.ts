@@ -18,6 +18,8 @@ export interface Lead {
   createdAt: string;
   address?: string;
   funnel?: string;
+  planValue?: number | null;
+  biro?: string | null;
 }
 
 export interface Interaction {

@@ -1,9 +1,9 @@
 import { useAppState } from '@/context/AppContext';
 import { KANBAN_STAGES } from '@/data/spcData';
-import { Users, Phone, Send, Handshake, CheckCircle2, FileText, Link2, Plus, Calendar, TrendingUp, Bell, StickyNote } from 'lucide-react';
+import { Users, Phone, Send, Handshake, CheckCircle2, FileText, Link2, Plus, Calendar, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 
@@ -375,31 +375,7 @@ const SalesDashboard = () => {
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
     .slice(0, 5);
 
-  const [showNotif, setShowNotif] = useState(false);
-  const notifRef = useRef<HTMLDivElement>(null);
-  const [notasLembrete, setNotasLembrete] = useState<any[]>([]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotif(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  useEffect(() => {
-    supabase
-      .from('notas')
-      .select('*')
-      .eq('concluido', false)
-      .order('data_lembrete', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setNotasLembrete(data ?? []));
-  }, []);
-
-  const totalNotif = upcomingEvents.length + notasLembrete.length;
-
-  return (
+remover estado sino local  return (
     <div className="space-y-6 animate-fade-in relative pb-20">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -407,70 +383,6 @@ const SalesDashboard = () => {
           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Visão geral do seu funil de vendas</p>
         </div>
-        {/* Notification Bell */}
-        <div className="relative" ref={notifRef}>
-          <button
-            onClick={() => setShowNotif(!showNotif)}
-            className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-card border border-border/80 text-foreground shadow-sm hover:border-primary/30 hover:bg-primary/5 transition-all"
-          >
-            <Bell size={18} />
-            {totalNotif > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-bold">
-                {totalNotif}
-              </span>
-            )}
-          </button>
-          {showNotif && (
-            <div className="absolute right-0 top-full mt-3 w-[min(20rem,calc(100vw-2rem))] bg-card border border-border/80 rounded-2xl shadow-xl z-50 animate-slide-in overflow-hidden">
-              {notasLembrete.length > 0 && (
-                <>
-                  <div className="p-3 border-b border-border flex items-center gap-2">
-                    <StickyNote size={14} className="text-primary" />
-                    <h4 className="text-sm font-semibold text-foreground">Post-its Pendentes</h4>
-                  </div>
-                  <div className="max-h-40 overflow-y-auto">
-                    {notasLembrete.map((n) => (
-                      <Link to="/notas" key={n.id} onClick={() => setShowNotif(false)}
-                        className="block px-3 py-2.5 border-b border-border/50 hover:bg-muted/50 transition">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-foreground truncate">{n.titulo}</span>
-                          <span className="text-[10px] text-destructive font-semibold">{n.data_lembrete || 'Sem data'}</span>
-                        </div>
-                        {n.conteudo && <div className="text-xs text-muted-foreground truncate mt-0.5">{n.conteudo}</div>}
-                      </Link>
-                    ))}
-                  </div>
-                </>
-              )}
-              <div className="p-3 border-b border-border">
-                <h4 className="text-sm font-semibold text-foreground">📅 Próximos Compromissos</h4>
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {upcomingEvents.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-4 text-center">Nenhum compromisso pendente</p>
-                ) : (
-                  upcomingEvents.map(e => (
-                    <div key={e.id} className="px-3 py-2.5 border-b border-border/50 hover:bg-muted/50 transition">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-foreground">{e.leadName}</span>
-                        <span className="text-[10px] text-muted-foreground">{e.date}</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <span className="text-xs text-muted-foreground">{e.note || 'Sem nota'}</span>
-                        <span className="text-xs text-primary font-medium">{e.time}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <Link to="/agenda" className="block text-center text-xs text-primary font-medium py-2 hover:bg-muted/50 transition rounded-b-xl">
-                Ver agenda completa →
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 lg:gap-5">
         {stats.map(s => (

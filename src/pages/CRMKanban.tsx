@@ -19,7 +19,7 @@ const CRMKanban = () => {
   const { role, user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { activeSector, sectors } = useSectors();
+  const { activeSector, setActiveSector, sectors } = useSectors();
   const isGestor = !authLoading && role === 'gestor';
   const isOwner = user?.id === '33b9e710-594d-4811-8e94-ba87507cf556';
   const funnel = activeSector;
@@ -130,9 +130,7 @@ const CRMKanban = () => {
       return;
     }
     const internationalNumber = digits.startsWith('55') ? digits : `55${digits}`;
-    // Abrir o WhatsApp Web de forma síncrona no clique evita bloqueio de popup.
-    window.open(`https://wa.me/${internationalNumber}`, '_blank', 'noopener,noreferrer');
-    navigate(`/whatsapp?phone=${encodeURIComponent(internationalNumber)}`);
+    navigate(`/whatsapp?phone=${encodeURIComponent(internationalNumber)}&compose=1`);
   };
 
   useEffect(() => {
@@ -187,13 +185,29 @@ const CRMKanban = () => {
     if (!targetId) return;
     const target = allLeads.find(lead => lead.id === targetId);
     if (!target) return;
+    const next = new URLSearchParams(searchParams);
+    const focusCard = next.get('focus') === 'card';
+    next.delete('leadId');
+    next.delete('focus');
+    setSearchParams(next, { replace: true });
+    if (focusCard) {
+      const targetFunnel = String((target as any).funnel || 'spc');
+      if (targetFunnel !== activeSector) setActiveSector(targetFunnel);
+      setExpandedStages(previous => new Set(previous).add(target.status as KanbanStage));
+      window.setTimeout(() => {
+        const cards = Array.from(document.querySelectorAll(`[id="lead-card-${target.id}"]`)) as HTMLElement[];
+        const card = cards.find(element => element.offsetParent !== null) || cards[0];
+        if (!card) return;
+        card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        card.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+        window.setTimeout(() => card.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 1800);
+      }, targetFunnel !== activeSector ? 650 : 250);
+      return;
+    }
     setSelectedLead(target);
     setEditMode(false);
     setEditData(null);
-    const next = new URLSearchParams(searchParams);
-    next.delete('leadId');
-    setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams, allLeads]);
+  }, [searchParams, setSearchParams, allLeads, activeSector, setActiveSector]);
 
   useEffect(() => {
     let active = true;
@@ -298,9 +312,10 @@ const CRMKanban = () => {
     setCustomStages([]);
   }, [funnel]);
 
-  const allStages = customStages.length >= baseStages.length
+  // O banco é a fonte da verdade: não reintroduzir etapas padrão que foram excluídas.
+  const allStages = customStages.length > 0
     ? customStages.map(s => ({ ...s, key: s.key as KanbanStage }))
-    : [...baseStages, ...customStages.filter(s => !baseStages.some(base => base.key === s.key)).map(s => ({ ...s, key: s.key as KanbanStage }))];
+    : baseStages;
   // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
   const canManageCustomStage = (key: string) =>
     isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
@@ -807,8 +822,7 @@ const CRMKanban = () => {
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <a href={`tel:${selectedLead.phone}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition"><Phone size={15} /> Ligar</a>
-                  <a href={`https://wa.me/${selectedLead.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#25D366] text-white text-sm font-medium hover:opacity-90 transition"><MessageCircle size={15} /> WhatsApp</a>
+                  <button type="button" onClick={() => handleStartConversation(selectedLead)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#25D366] text-white text-sm font-medium hover:opacity-90 transition"><MessageCircle size={15} /> Conversar</button>
                   {selectedLead.email && (
                     <a href={`mailto:${selectedLead.email}`} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border text-foreground text-sm font-medium hover:bg-muted transition"><Mail size={15} /> Email</a>
                   )}
@@ -861,7 +875,7 @@ const CRMKanban = () => {
                   onDragEnd={handleDragEnd}
 
                   isDragging={draggedLead === lead.id}
-                  onClick={() => setSelectedLead(lead)}
+                  onClick={() => { setSelectedLead(lead); setEditData({ ...lead }); setEditMode(true); }}
                   onStatusChange={handleCardStatusChange}
                   onObsChange={handleCardObsChange}
                   teamMembers={teamMembers}
@@ -905,7 +919,6 @@ const CRMKanban = () => {
             const isExpanded = expandedStages.has(stage.key as KanbanStage);
             const visibleLeads = isExpanded ? stageLeads : stageLeads.slice(0, MAX_VISIBLE);
             const hasMore = stageLeads.length > MAX_VISIBLE;
-            const isCustom = customStages.some(s => s.key === stage.key);
 
             return (
               <div
@@ -928,7 +941,7 @@ const CRMKanban = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    {(isCustom || customStages.length === 0) && canManageCustomStage(stage.key) && (
+                    {canManageCustomStage(stage.key) && (
                       <>
                         <button onClick={() => { setEditingColumn(stage.key); setEditColLabel(stage.label); }} className="text-muted-foreground hover:text-primary transition p-0.5" title="Renomear"><Edit3 size={11} /></button>
                         <button onClick={() => handleDeleteColumn(stage.key)} className="text-muted-foreground hover:text-destructive transition p-0.5" title="Excluir coluna"><Trash2 size={11} /></button>
@@ -951,7 +964,7 @@ const CRMKanban = () => {
                       onDragEnd={handleDragEnd}
 
                       isDragging={draggedLead === lead.id}
-                      onClick={() => setSelectedLead(lead)}
+                      onClick={() => { setSelectedLead(lead); setEditData({ ...lead }); setEditMode(true); }}
                       onStatusChange={handleCardStatusChange}
                       onObsChange={handleCardObsChange}
                       teamMembers={teamMembers}
@@ -1004,16 +1017,28 @@ interface LeadCardProps {
 
 const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, currentUserId, assigneeColor, assigneeName, onAssign, onStartConversation, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
-  const [showWhatsappOptions, setShowWhatsappOptions] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
+  const interactionDates = [
+    lead.lastInteractionAt ? new Date(lead.lastInteractionAt).getTime() : 0,
+    ...(Array.isArray(lead.interactions) ? lead.interactions.map(item => item?.date ? new Date(item.date).getTime() : 0) : []),
+  ].filter(value => Number.isFinite(value) && value > 0);
+  const lastInteraction = interactionDates.length ? Math.max(...interactionDates) : 0;
+  const createdTimestamp = lead.createdAt ? new Date(`${lead.createdAt}T12:00:00`).getTime() : 0;
+  const interactionReference = lastInteraction || createdTimestamp;
+  const daysSinceInteraction = interactionReference > 0 ? Math.max(0, Math.floor((Date.now() - interactionReference) / 86400000)) : 0;
+  const interactionColor = daysSinceInteraction <= 10 ? '#22c55e' : daysSinceInteraction <= 30 ? '#eab308' : '#ef4444';
+  const interactionProgress = Math.min(100, daysSinceInteraction / 30 * 100);
+  const createdLabel = lead.createdAt ? new Date(`${lead.createdAt}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   return (
     <div
+      id={`lead-card-${lead.id}`}
       draggable
       onDragStart={() => onDragStart(lead.id)}
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={`kanban-card animate-slide-in cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all ${isDragging ? 'kanban-card-dragging' : ''}`}
+      style={{ borderColor: interactionColor, boxShadow: `0 0 0 1px ${interactionColor}44` }}
     >
       <div className="flex items-start justify-between mb-1.5">
         <span className="font-medium text-sm text-foreground">{lead.name}</span>
@@ -1026,25 +1051,27 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       </div>
       
       <div className="spc-badge mb-1.5">{lead.product}</div>
+      {(lead.planValue != null || lead.biro) && (
+        <div className="flex flex-wrap gap-1 mb-1.5 text-[10px]">
+          {lead.planValue != null && <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">VP {Number(lead.planValue).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+          {lead.biro && <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">B - {lead.biro}</span>}
+        </div>
+      )}
 
-      {/* Lead age and last interaction */}
-      {(() => {
-        const interactions = Array.isArray(lead.interactions) ? lead.interactions : [];
-        const interactionTimes = [
-          lead.lastInteractionAt ? new Date(lead.lastInteractionAt).getTime() : 0,
-          ...interactions.map(item => item?.date ? new Date(item.date).getTime() : 0),
-        ].filter(value => Number.isFinite(value) && value > 0);
-        const latestInteraction = interactionTimes.length ? Math.max(...interactionTimes) : 0;
-        const reference = latestInteraction > 0 ? latestInteraction : 0;
-        const daysSince = reference ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : null;
-        return (
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1.5" title={`Criado em ${lead.createdAt || 'data indisponível'}; última interação ${daysSince === null ? 'não registrada' : `há ${daysSince} dia(s)`}`}>
-            <Clock size={11} />
-            <span>Criado: {lead.createdAt || '—'}</span>
-            <span className="ml-auto">Último contato: {daysSince === null ? '—' : daysSince === 0 ? 'hoje' : `há ${daysSince}d`}</span>
-          </div>
-        );
-      })()}
+      {/* Data de criação e contador de inatividade */}
+      <div className="mb-1.5" title={`Criado em ${createdLabel}; sem interação há ${daysSinceInteraction} dia(s)`}>
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Clock size={11} />
+          <span>Criado: {createdLabel}</span>
+          <span className="ml-auto inline-flex items-center gap-1.5">
+            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: interactionColor }} />
+            {daysSinceInteraction === 0 ? 'Interação hoje' : `há ${daysSinceInteraction} ${daysSinceInteraction === 1 ? 'dia' : 'dias'} sem interação`}
+          </span>
+        </div>
+        <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden" aria-label={`${interactionProgress.toFixed(0)}% do ciclo de 30 dias sem interação`}>
+          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${interactionProgress}%`, backgroundColor: interactionColor }} />
+        </div>
+      </div>
 
       {/* Status selector */}
       <div className="mb-1.5" onClick={e => e.stopPropagation()}>
@@ -1088,49 +1115,9 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       </div>
       
       <div className="flex items-center gap-2 mt-1">
-        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition" title="Ligar"><Phone size={13} /></a>
-        <div className="relative" onClick={e => e.stopPropagation()}>
-          <button
-            type="button"
-            onClick={() => setShowWhatsappOptions(value => !value)}
-            className="text-muted-foreground hover:text-success transition"
-            title="Opções do WhatsApp"
-            aria-label={`Opções do WhatsApp para ${lead.name}`}
-            aria-expanded={showWhatsappOptions}
-          >
-            <MessageCircle size={13} />
-          </button>
-          {showWhatsappOptions && (
-            <div className="absolute left-0 top-full z-50 mt-1 min-w-[190px] rounded-lg border border-border bg-popover p-1 shadow-xl">
-              <button
-                type="button"
-                onClick={() => {
-                  const digits = (lead.whatsapp || lead.phone || '').replace(/\D/g, '');
-                  if (digits.length < 10) {
-                    setShowWhatsappOptions(false);
-                    return;
-                  }
-                  const number = digits.startsWith('55') ? digits : `55${digits}`;
-                  window.open(`https://wa.me/${number}`, '_blank', 'noopener,noreferrer');
-                  setShowWhatsappOptions(false);
-                }}
-                className="w-full rounded-md px-3 py-2 text-left text-xs text-popover-foreground hover:bg-muted"
-              >
-                Chamar no WhatsApp Web
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowWhatsappOptions(false);
-                  onStartConversation(lead);
-                }}
-                className="w-full rounded-md px-3 py-2 text-left text-xs text-popover-foreground hover:bg-muted"
-              >
-                Iniciar conversa
-              </button>
-            </div>
-          )}
-        </div>
+        <button type="button" onClick={e => { e.stopPropagation(); onStartConversation(lead); }} className="text-muted-foreground hover:text-success transition" title="Conversar no WhatsApp do CRM" aria-label={`Conversar com ${lead.name} no WhatsApp do CRM`}>
+          <MessageCircle size={13} />
+        </button>
         {lead.email && <a href={`mailto:${lead.email}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition"><Mail size={13} /></a>}
         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()} title="Atribuir responsável">
           <UserPlus size={13} className="text-muted-foreground shrink-0" />
