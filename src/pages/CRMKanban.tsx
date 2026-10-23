@@ -25,7 +25,8 @@ const CRMKanban = () => {
   const funnel = activeSector;
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead, refreshLeads } = useAppState();
-  const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
+  // Protege a renderização contra registros incompletos vindos de cache/realtime.
+  const leads = (Array.isArray(allLeads) ? allLeads : []).filter(l => !!l && ((l as any).funnel || 'spc') === funnel);
   const baseStages = KANBAN_STAGES;
   const addLeadDraftKey = user ? `crm_kanban_new_lead_draft_${user.id}_${funnel}` : undefined;
   const readAddLeadDraft = () => {
@@ -326,7 +327,9 @@ const CRMKanban = () => {
       }
 
       if (data && data.length > 0) {
-        setCustomStages(data.map(d => ({ key: d.key, label: d.label, color: d.color, userId: d.user_id })));
+        // Nunca deixa linhas nulas/incompletas contaminarem os filtros e renders das colunas.
+        setCustomStages(data.filter((d): d is NonNullable<typeof d> => !!d && typeof d.key === 'string' && !!d.key)
+          .map(d => ({ key: d.key, label: d.label || d.key, color: d.color || 'bg-muted', userId: d.user_id })));
       } else {
         // Migrate from localStorage if exists (only for SPC funnel)
         if (funnel === 'spc') {
@@ -345,7 +348,7 @@ const CRMKanban = () => {
                 }));
                 const { data: inserted } = await supabase.from('kanban_stages').insert(rows).select();
                 if (inserted) {
-                  setCustomStages(inserted.map(d => ({ key: d.key, label: d.label, color: d.color, userId: d.user_id })));
+                  setCustomStages(inserted.filter(d => !!d && typeof d.key === 'string' && !!d.key).map(d => ({ key: d.key, label: d.label || d.key, color: d.color || 'bg-muted', userId: d.user_id })));
                   localStorage.removeItem('custom_kanban_stages');
                 }
               }
@@ -367,7 +370,9 @@ const CRMKanban = () => {
   }, [funnel]);
 
   // O banco é a fonte da verdade: não reintroduzir etapas padrão que foram excluídas.
-  const allStages = customStages.map(s => ({ ...s, key: s.key as KanbanStage }));
+  const allStages = (Array.isArray(customStages) ? customStages : [])
+    .filter((s): s is NonNullable<typeof s> => !!s && typeof s.key === 'string' && !!s.key)
+    .map(s => ({ ...s, label: s.label || s.key, color: s.color || 'bg-muted', key: s.key as KanbanStage }));
   // Owner override: the Future Soluções account must be able to manage shared Kanban columns.
   const canManageCustomStage = (key: string) =>
     isOwner || isGestor || customStages.some(stage => stage.key === key && stage.userId === user?.id);
@@ -458,7 +463,7 @@ const CRMKanban = () => {
         toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
         return;
       }
-      setCustomStages(customStages.filter(s => s.key !== key));
+      setCustomStages(customStages.filter(s => !!s && s.key !== key));
       await refreshLeads();
       toast({ title: 'Coluna excluída', description: 'Os leads foram movidos para outra etapa do mesmo funil.' });
     }
