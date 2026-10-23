@@ -55,15 +55,15 @@ const Perfil = () => {
   const inputClass = "w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30";
 
   return (
-    <div className="max-w-xl mx-auto space-y-8">
+    <div className="mx-auto w-full max-w-4xl space-y-7 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Meu Perfil</h1>
+        <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><User size={13} /> CONTA E SEGURANÇA</div>\n        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Meu Perfil</h1>
         <p className="text-muted-foreground text-sm mt-1">Gerencie suas informações pessoais</p>
       </div>
 
       {/* Info card */}
-      <div className="rounded-xl border border-border bg-card p-5 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+      <div className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 flex items-center gap-4 shadow-[var(--surface-shadow)]">
+        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center ring-1 ring-primary/10">
           <User size={24} className="text-primary" />
         </div>
         <div className="flex-1 min-w-0">
@@ -74,8 +74,8 @@ const Perfil = () => {
       </div>
 
       {/* Edit name */}
-      <form onSubmit={handleUpdateName} className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+      <form onSubmit={handleUpdateName} className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 space-y-5 shadow-[var(--surface-shadow)]">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
           <User size={18} /> Editar Nome
         </h2>
         <input
@@ -88,7 +88,7 @@ const Perfil = () => {
         <button
           type="submit"
           disabled={savingName}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm shadow-sm hover:brightness-105 transition disabled:opacity-50"
         >
           {savingName ? (
             <span className="animate-spin w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full" />
