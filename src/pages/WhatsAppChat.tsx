@@ -588,18 +588,19 @@ const WhatsAppChat = () => {
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
-    // Em atualizações silenciosas, preserve a posição se a pessoa estiver lendo mensagens antigas.
-    const shouldFollowLatest = !silent || isMessagesViewportNearBottom();
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
+    let changed = false;
     setMessages(prev => {
       const merged = dropConfirmedTemps(list, prev);
-      const changed = prev.length !== merged.length || prev[prev.length - 1]?.id !== merged[merged.length - 1]?.id;
+      changed = prev.length !== merged.length || prev[prev.length - 1]?.id !== merged[merged.length - 1]?.id;
       return changed ? merged : prev;
     });
-    if (shouldFollowLatest) {
+    // Initial load always follows the latest message. Silent polling only scrolls if new messages arrived
+    // and the user was already near the bottom; otherwise preserve the reading position.
+    if (!silent || (changed && isMessagesViewportNearBottom())) {
       window.setTimeout(() => scrollToBottom(!silent), 100);
     }
   }, []);
