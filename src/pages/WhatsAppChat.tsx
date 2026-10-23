@@ -190,7 +190,7 @@ const WhatsAppChat = () => {
   // dentro do CRM; o WhatsApp Web é aberto pelo próprio botão de origem.
   useEffect(() => {
     const requestedPhone = searchParams.get('phone');
-    if (!requestedPhone || chats.length === 0) return;
+    if (!requestedPhone) return;
     const digits = onlyDigits(requestedPhone);
     const localDigits = (value: string) => {
       const number = onlyDigits(value);
