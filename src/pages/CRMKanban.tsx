@@ -27,7 +27,7 @@ const CRMKanban = () => {
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead, refreshLeads } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
   const baseStages = KANBAN_STAGES;
-  const addLeadDraftKey = user ? `crm_kanban_new_lead_draft_${user.id}` : undefined;
+  const addLeadDraftKey = user ? `crm_kanban_new_lead_draft_${user.id}_${funnel}` : undefined;
   const readAddLeadDraft = () => {
     const empty = { name: '', company: '', phone: '', whatsapp: '', email: '', product: '', origin: 'Kanban', stage: 'lead_novo', assignee: user?.id || '', funnel };
     try {
@@ -69,6 +69,26 @@ const CRMKanban = () => {
   const [showExport, setShowExport] = useState(false);
   const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const previousDraftFunnel = useRef(funnel);
+  useEffect(() => {
+    if (previousDraftFunnel.current === funnel) return;
+    previousDraftFunnel.current = funnel;
+    const draft = readAddLeadDraft();
+    setNewLeadName(draft.name);
+    setNewLeadCompany(draft.company);
+    setNewLeadPhone(draft.phone);
+    setNewLeadWhatsapp(draft.whatsapp);
+    setNewLeadEmail(draft.email);
+    setNewLeadProduct(draft.product);
+    setNewLeadOrigin(draft.origin);
+    setNewLeadStage(draft.stage);
+    setNewLeadAssignee(draft.assignee);
+    try {
+      const raw = addLeadDraftKey ? localStorage.getItem(addLeadDraftKey) : null;
+      setShowAddLead(!!raw && JSON.parse(raw).funnel === funnel);
+    } catch { setShowAddLead(false); }
+  }, [funnel, user?.id]);
 
   useEffect(() => {
     if (!addLeadDraftKey || !showAddLead) return;
