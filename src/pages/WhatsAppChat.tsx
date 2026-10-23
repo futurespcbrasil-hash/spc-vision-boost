@@ -252,6 +252,8 @@ const WhatsAppChat = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<Chat | null>(null);
+  const draftRestorePending = useRef(false);
+  const activeDraftKey = useRef('');
   const profilePicFetched = useRef<Set<string>>(new Set());
   const [instanceUnread, setInstanceUnread] = useState<Record<string, number>>({});
 
@@ -335,6 +337,37 @@ const WhatsAppChat = () => {
 
   // Mantém a conversa selecionada acessível dentro de intervalos/realtime
   useEffect(() => { selectedRef.current = selected; }, [selected]);
+
+  // Restaura a conversa e o rascunho de digitação ao sair e voltar ao menu.
+  useEffect(() => {
+    if (!user?.id || !instanceId || !selected?.id) {
+      activeDraftKey.current = '';
+      return;
+    }
+    const selectionKey = `whatsapp_chat_selected_${user.id}_${instanceId}`;
+    const draftKey = `whatsapp_chat_draft_${user.id}_${instanceId}_${selected.id}`;
+    try {
+      localStorage.setItem(selectionKey, selected.id);
+      activeDraftKey.current = draftKey;
+      draftRestorePending.current = true;
+      setText(localStorage.getItem(draftKey) || '');
+    } catch {
+      activeDraftKey.current = draftKey;
+      draftRestorePending.current = true;
+      setText('');
+    }
+  }, [selected?.id, instanceId, user?.id]);
+
+  useEffect(() => {
+    if (!activeDraftKey.current || !selected?.id || draftRestorePending.current) {
+      draftRestorePending.current = false;
+      return;
+    }
+    try {
+      if (text) localStorage.setItem(activeDraftKey.current, text);
+      else localStorage.removeItem(activeDraftKey.current);
+    } catch { /* armazenamento indisponível ou quota excedida */ }
+  }, [text, selected?.id]);
 
   // Load instances
   useEffect(() => {
@@ -434,7 +467,12 @@ const WhatsAppChat = () => {
       if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev);
       else setSelected(list[0] || null);
     } else {
-      setSelected(list[0] || null);
+      // Restaura a última conversa deste usuário nesta instância, em vez de abrir sempre a primeira.
+      let savedChatId = '';
+      try {
+        savedChatId = user?.id ? localStorage.getItem(`whatsapp_chat_selected_${user.id}_${instanceId}`) || '' : '';
+      } catch { /* armazenamento indisponível */ }
+      setSelected(list.find(chat => chat.id === savedChatId) || list[0] || null);
       setMessages([]);
     }
   };
