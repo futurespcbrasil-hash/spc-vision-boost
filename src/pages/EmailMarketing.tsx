@@ -84,6 +84,7 @@ const EmailMarketing = () => {
   const [suppressions, setSuppressions] = useState<Array<{ email: string; reason: string; source: string; created_at: string }>>([]);
   const [loadingSuppressions, setLoadingSuppressions] = useState(false);
   const [savingSuppression, setSavingSuppression] = useState(false);
+  const restoredLastCampaign = useRef(false);
   const stopRef = useRef(false);
   const pauseRef = useRef(false);
 
@@ -190,10 +191,14 @@ const EmailMarketing = () => {
         const { data, error: insertError } = await db.from("email_marketing_campaigns")
           .insert(payload).select("id").single();
         error = insertError;
-        if (!error && data?.id) setCampaignId(data.id);
+        if (!error && data?.id) {
+          setCampaignId(data.id);
+          try { const currentUserId = (await supabase.auth.getUser()).data.user?.id; if (currentUserId) localStorage.setItem(`email_marketing_last_campaign_${currentUserId}`, data.id); } catch { /* armazenamento indisponível */ }
+        }
       }
       if (error) throw error;
       if (options.status) setCampaignStatus(options.status);
+      try { const currentUserId = (await supabase.auth.getUser()).data.user?.id; if (currentUserId && campaignId) localStorage.setItem(`email_marketing_last_campaign_${currentUserId}`, campaignId); } catch { /* armazenamento indisponível */ }
       await refreshSavedCampaigns();
       if (showToast) toast.success("Campanha salva no CRM.");
       return true;
@@ -205,6 +210,23 @@ const EmailMarketing = () => {
       setSavingCampaign(false);
     }
   }, [campaignName, campaignStatus, subject, message, imageData, imageName, imageMimeType, campaignButtons, contacts, logs, delaySeconds, dailyLimit, campaignId, refreshSavedCampaigns]);
+
+  useEffect(() => {
+    if (loadingCampaigns || campaignId || loadingCampaign || restoredLastCampaign.current) return;
+    restoredLastCampaign.current = true;
+    let active = true;
+    void (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!active || !user) return;
+        const lastId = localStorage.getItem(`email_marketing_last_campaign_${user.id}`);
+        if (!lastId) return;
+        const saved = savedCampaigns.find((campaign) => campaign.id === lastId);
+        if (saved && ['draft', 'paused'].includes(saved.status)) await openSavedCampaign(lastId);
+      } catch { /* armazenamento indisponível */ }
+    })();
+    return () => { active = false; };
+  }, [loadingCampaigns, campaignId, loadingCampaign, savedCampaigns]);
 
   const openSavedCampaign = async (id: string) => {
     setLoadingCampaign(true);
@@ -229,7 +251,6 @@ const EmailMarketing = () => {
       setSentEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email))] as string[]);
       setFailedEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email))] as string[]);
       setUncertainEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
-      setUncertainEmails([...new Set(restoredLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
       setFileName("Lista salva na campanha");
       setDelaySeconds(data.delay_seconds || 60);
       setDailyLimit(data.daily_limit || 100);
@@ -245,6 +266,8 @@ const EmailMarketing = () => {
 
   const newCampaign = () => {
     if (sending) return;
+    try { void supabase.auth.getUser().then(({ data }) => { if (data.user) localStorage.removeItem(`email_marketing_last_campaign_${data.user.id}`); }); } catch { /* armazenamento indisponível */ }
+    restoredLastCampaign.current = true;
     setCampaignId(null);
     setCampaignName(`Campanha ${new Date().toLocaleString("pt-BR")}`);
     setCampaignStatus("draft");
@@ -268,7 +291,6 @@ const EmailMarketing = () => {
       setContacts(nextContacts);
       setSentEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "sent").map((log: SendLog) => log.email))] as string[]);
       setFailedEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "error").map((log: SendLog) => log.email))] as string[]);
-      setUncertainEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
       setUncertainEmails([...new Set(nextLogs.filter((log: SendLog) => log.status === "uncertain").map((log: SendLog) => log.email))] as string[]);
       setCurrentEmail(data.last_worker_email || "");
       setCampaignStatus(data.status || "draft");
