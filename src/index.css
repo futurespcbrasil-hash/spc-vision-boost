@@ -825,3 +825,8 @@ html.theme-transparent aside.gradient-spc a:focus-visible, html.theme-transparen
 nav.fixed.bottom-0 a:focus-visible, nav.fixed.bottom-0 button:focus-visible {
   outline: 2px solid currentColor !important; outline-offset: 2px;
 }
+
+html.theme-future nav.fixed.bottom-0 { --crm-nav-text: var(--sidebar-foreground); }
+html.theme-light nav.fixed.bottom-0 { --crm-nav-text: #111111; }
+html.theme-dark nav.fixed.bottom-0 { --crm-nav-text: #f7f7f7; }
+html.theme-transparent nav.fixed.bottom-0 { --crm-nav-text: var(--crm-wallpaper-nav-text, #211b2a); }
