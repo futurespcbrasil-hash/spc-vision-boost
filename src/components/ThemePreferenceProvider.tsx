@@ -58,9 +58,32 @@ const setWallpaperStyle = (url: string | null) => {
             count += 1;
           }
         }
-        root.style.setProperty('--crm-wallpaper-nav-text', count && luminanceTotal / count < 0.42 ? '#ffffff' : '#17131d');
+        const darkWallpaper = count > 0 && luminanceTotal / count < 0.42;
+        root.style.setProperty('--crm-wallpaper-nav-text', darkWallpaper ? '#ffffff' : '#17131d');
+        root.style.setProperty('--crm-wallpaper-text', darkWallpaper ? '#f7f5fb' : '#17131d');
+        root.style.setProperty('--crm-wallpaper-foreground', darkWallpaper ? '0 0% 98%' : '258 30% 16%');
+        root.style.setProperty('--crm-wallpaper-card', darkWallpaper ? '258 22% 12%' : '0 0% 100%');
+        root.style.setProperty('--crm-wallpaper-muted-foreground', darkWallpaper ? '0 0% 78%' : '257 12% 43%');
+        root.style.setProperty('--crm-wallpaper-muted-text', darkWallpaper ? '#d0cbd8' : '#655d6e');
+        root.style.setProperty('--crm-wallpaper-secondary', darkWallpaper ? '258 18% 18%' : '252 28% 91%');
+        root.style.setProperty('--crm-wallpaper-muted', darkWallpaper ? '258 18% 18%' : '252 22% 91%');
+        root.style.setProperty('--crm-wallpaper-border-hsl', darkWallpaper ? '0 0% 100% / 22%' : '252 24% 84%');
+        root.style.setProperty('--crm-wallpaper-surface', darkWallpaper ? 'rgba(20,17,28,0.76)' : 'rgba(255,255,255,0.58)');
+        root.style.setProperty('--crm-wallpaper-surface-strong', darkWallpaper ? 'rgba(20,17,28,0.88)' : 'rgba(255,255,255,0.76)');
+        root.style.setProperty('--crm-wallpaper-border', darkWallpaper ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.58)');
       } catch {
         root.style.setProperty('--crm-wallpaper-nav-text', '#17131d');
+        root.style.setProperty('--crm-wallpaper-text', '#17131d');
+        root.style.setProperty('--crm-wallpaper-foreground', '258 30% 16%');
+        root.style.setProperty('--crm-wallpaper-card', '0 0% 100%');
+        root.style.setProperty('--crm-wallpaper-muted-foreground', '257 12% 43%');
+        root.style.setProperty('--crm-wallpaper-muted-text', '#655d6e');
+        root.style.setProperty('--crm-wallpaper-secondary', '252 28% 91%');
+        root.style.setProperty('--crm-wallpaper-muted', '252 22% 91%');
+        root.style.setProperty('--crm-wallpaper-border-hsl', '252 24% 84%');
+        root.style.setProperty('--crm-wallpaper-surface', 'rgba(255,255,255,0.58)');
+        root.style.setProperty('--crm-wallpaper-surface-strong', 'rgba(255,255,255,0.76)');
+        root.style.setProperty('--crm-wallpaper-border', 'rgba(255,255,255,0.58)');
       }
     };
     image.onerror = () => root.style.setProperty('--crm-wallpaper-nav-text', '#17131d');
@@ -68,6 +91,17 @@ const setWallpaperStyle = (url: string | null) => {
   } else {
     root.style.removeProperty('--crm-wallpaper-image');
     root.style.removeProperty('--crm-wallpaper-nav-text');
+    root.style.removeProperty('--crm-wallpaper-text');
+    root.style.removeProperty('--crm-wallpaper-foreground');
+    root.style.removeProperty('--crm-wallpaper-card');
+    root.style.removeProperty('--crm-wallpaper-muted-foreground');
+    root.style.removeProperty('--crm-wallpaper-muted-text');
+    root.style.removeProperty('--crm-wallpaper-secondary');
+    root.style.removeProperty('--crm-wallpaper-muted');
+    root.style.removeProperty('--crm-wallpaper-border-hsl');
+    root.style.removeProperty('--crm-wallpaper-surface');
+    root.style.removeProperty('--crm-wallpaper-surface-strong');
+    root.style.removeProperty('--crm-wallpaper-border');
   }
 };
 
