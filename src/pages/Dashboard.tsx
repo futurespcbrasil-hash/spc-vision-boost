@@ -474,12 +474,14 @@ const SalesDashboard = () => {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 lg:gap-5">
         {stats.map(s => (
-          <div key={s.label} className="stat-card">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-muted-foreground text-sm">{s.label}</span>
-              <s.icon size={20} className={s.color} />
+          <div key={s.label} className="stat-card group relative overflow-hidden">
+            <div className="absolute -right-5 -top-6 h-20 w-20 rounded-full bg-primary/5 transition-transform duration-300 group-hover:scale-125" />
+            <div className="relative flex items-center justify-between gap-3 mb-4">
+              <span className="text-sm font-medium text-muted-foreground">{s.label}</span>
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/8 ring-1 ring-primary/10"><s.icon size={19} className={s.color} /></span>
             </div>
-            <div className="text-3xl font-bold text-foreground">{s.value}</div>
+            <div className="relative text-3xl font-bold tracking-tight text-foreground tabular-nums">{s.value}</div>
+            <div className="relative mt-3 h-1 w-10 rounded-full bg-primary/20 transition-all duration-300 group-hover:w-16 group-hover:bg-primary/50" />
           </div>
         ))}
       </div>
