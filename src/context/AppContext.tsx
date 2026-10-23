@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Lead, ScheduleEvent, KanbanStage } from '@/data/spcData';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface AppState {
   leads: Lead[];
@@ -101,37 +102,44 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       console.error('[CRM] Falha ao mover lead:', error);
+      toast.error('Não foi possível mover o lead. As alterações foram revertidas.');
       setLeads(current => current.map(lead => lead.id === leadId ? previous : lead));
       return false;
     }
   };
 
-  const addLead = async (lead: Lead) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data, error } = await supabase.from('leads').insert({
-      name: lead.name,
-      company: lead.company,
-      phone: lead.phone,
-      whatsapp: lead.whatsapp,
-      email: lead.email || '',
-      cpf_cnpj: lead.cpfCnpj,
-      type: lead.type,
-      origin: lead.origin,
-      product: lead.product,
-      status: lead.status,
-      observations: lead.observations,
-      interactions: lead.interactions as any,
-      user_id: user?.id,
-      assigned_to: lead.assignedTo || null,
-      last_interaction_at: lead.lastInteractionAt || null,
-      funnel: (lead as any).funnel || 'spc',
-    }).select().single();
-    if (error || !data) {
-      console.error('[CRM] Falha ao cadastrar lead:', error);
+  const addLead = async (lead: Lead): Promise<boolean> => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) return false;
+      const { data, error } = await supabase.from('leads').insert({
+        name: lead.name,
+        company: lead.company,
+        phone: lead.phone,
+        whatsapp: lead.whatsapp,
+        email: lead.email || '',
+        cpf_cnpj: lead.cpfCnpj,
+        type: lead.type,
+        origin: lead.origin,
+        product: lead.product,
+        status: lead.status,
+        observations: lead.observations,
+        interactions: lead.interactions as any,
+        user_id: user.id,
+        assigned_to: lead.assignedTo || null,
+        last_interaction_at: lead.lastInteractionAt || null,
+        funnel: (lead as any).funnel || 'spc',
+      }).select().single();
+      if (error || !data) {
+        console.error('[CRM] Falha ao cadastrar lead:', error);
+        return false;
+      }
+      setLeads(prev => [dbToLead(data), ...prev]);
+      return true;
+    } catch (error) {
+      console.error('[CRM] Erro inesperado ao cadastrar lead:', error);
       return false;
     }
-    setLeads(prev => [dbToLead(data), ...prev]);
-    return true;
   };
 
   const updateLead = async (lead: Lead): Promise<boolean> => {
@@ -158,6 +166,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       console.error('[CRM] Falha ao atualizar lead:', error);
+      toast.error('Não foi possível salvar as alterações do lead. Confira sua conexão e tente novamente.');
       if (previous) setLeads(current => current.map(item => item.id === lead.id ? previous : item));
       return false;
     }
@@ -172,6 +181,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       console.error('[CRM] Falha ao excluir lead:', error);
+      toast.error('Não foi possível excluir o lead. Ele foi restaurado na lista.');
       if (previous) setLeads(current => current.some(lead => lead.id === leadId) ? current : [previous, ...current]);
       return false;
     }
@@ -188,6 +198,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       console.error('[CRM] Falha ao atualizar compromisso:', error);
+      toast.error('Não foi possível atualizar o compromisso. A alteração foi revertida.');
       setSchedule(current => current.map(item => item.id === eventId ? event : item));
       return false;
     }
