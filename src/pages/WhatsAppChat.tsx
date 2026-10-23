@@ -592,6 +592,14 @@ const WhatsAppChat = () => {
   };
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
+  const touchLeadInteraction = useCallback(async (chat: Chat | null | undefined, timestamp?: string) => {
+    if (!chat?.lead_id) return;
+    const parsed = timestamp ? new Date(timestamp) : new Date();
+    const interactionAt = Number.isFinite(parsed.getTime()) ? parsed.toISOString() : new Date().toISOString();
+    const { error } = await supabase.from('leads').update({ last_interaction_at: interactionAt }).eq('id', chat.lead_id);
+    if (error) console.warn('[WhatsApp] Não foi possível atualizar a última interação do lead:', error.message);
+  }, []);
+
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
@@ -649,6 +657,10 @@ const WhatsAppChat = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
           const m = payload.new as Message;
+          if (!m.from_me) {
+            const activeChat = selectedRef.current;
+            if (activeChat?.id === chatId) void touchLeadInteraction(activeChat, m.timestamp);
+          }
           setMessages(prev => {
             if (prev.some(x => x.id === m.id || (!!m.wa_message_id && x.wa_message_id === m.wa_message_id))) return prev;
             // descarta o balão otimista equivalente
@@ -680,7 +692,7 @@ const WhatsAppChat = () => {
     // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
     const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
     return () => { cancelled = true; window.clearInterval(poll); supabase.removeChannel(ch); };
-  }, [selected?.id, loadMessages, instanceId]);
+  }, [selected?.id, loadMessages, instanceId, touchLeadInteraction]);
 
   const handleSend = async () => {
     if (!text.trim() || !selected || !instanceId) return;
@@ -703,6 +715,7 @@ const WhatsAppChat = () => {
         setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: user.id } : chat));
       }
       await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, msg);
+      await touchLeadInteraction(selected);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
 
     } catch (e: any) {
