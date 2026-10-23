@@ -252,6 +252,7 @@ const WhatsAppChat = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<Chat | null>(null);
+  const messagesRef = useRef<Message[]>([]);
   const draftRestorePending = useRef(false);
   const activeDraftKey = useRef('');
   const profilePicFetched = useRef<Set<string>>(new Set());
@@ -337,6 +338,7 @@ const WhatsAppChat = () => {
 
   // Mantém a conversa selecionada acessível dentro de intervalos/realtime
   useEffect(() => { selectedRef.current = selected; }, [selected]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // Restaura a conversa e o texto não enviado por usuário, instância e conversa.
   useEffect(() => {
@@ -587,12 +589,13 @@ const WhatsAppChat = () => {
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     const list = ((data as Message[]) || []).slice().reverse();
-    let changed = false;
-    setMessages(prev => {
-      const merged = dropConfirmedTemps(list, prev);
-      changed = prev.length !== merged.length || prev[prev.length - 1]?.id !== merged[merged.length - 1]?.id;
-      return changed ? merged : prev;
-    });
+    const previous = messagesRef.current;
+    const merged = dropConfirmedTemps(list, previous);
+    const changed = previous.length !== merged.length || previous[previous.length - 1]?.id !== merged[merged.length - 1]?.id;
+    if (changed) {
+      messagesRef.current = merged;
+      setMessages(current => dropConfirmedTemps(list, current));
+    }
     // Na carga inicial vai para a última mensagem; no polling só acompanha se novas mensagens chegaram
     // e o usuário já estava próximo do final. Ao ler mensagens antigas, preserva a posição.
     if (!silent || (changed && isMessagesViewportNearBottom())) {
@@ -603,6 +606,7 @@ const WhatsAppChat = () => {
   useEffect(() => {
     if (!selected) return;
     const chatId = selected.id;
+    messagesRef.current = [];
     setMessages([]);
     let cancelled = false;
     // Carrega primeiro o histórico local para resposta rápida e, em seguida,
