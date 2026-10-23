@@ -1074,3 +1074,21 @@ html.theme-transparent .dashboard-stat-grid .stat-card .inline-flex.h-10.w-10,
 html.theme-transparent .dashboard-stat-grid .stat-card > .relative.mt-3 {
   display: none !important;
 }
+
+
+/* Tema Transparente: todos os painéis da dashboard comercial, inclusive gráficos,
+   deixam de usar o fundo opaco que os demais cartões do CRM preservam. */
+html.theme-transparent .dashboard-sales-content .stat-card {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  border-color: hsl(var(--foreground) / 0.18) !important;
+}
+html.theme-transparent .dashboard-sales-content .stat-card:hover {
+  background: hsl(var(--foreground) / 0.035) !important;
+  background-color: hsl(var(--foreground) / 0.035) !important;
+  box-shadow: none !important;
+}
