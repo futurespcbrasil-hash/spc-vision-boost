@@ -29,16 +29,17 @@ const AppSidebar = () => {
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
+  const userId = user?.id;
   const markWhatsAppUnreadAsRead = useCallback(async () => {
-    if (!user?.id) return;
+    if (!userId) return;
     setWhatsappUnread(0);
-    const { data: ownedInstances, error } = await (supabase as any).from('whatsapp_instances').select('id').eq('owner_id', user.id);
+    const { data: ownedInstances, error } = await (supabase as any).from('whatsapp_instances').select('id').eq('owner_id', userId);
     if (error) { console.warn('[Sidebar] Não foi possível carregar instâncias WhatsApp:', error.message); return; }
     const ids = (ownedInstances || []).map((item: { id: string }) => item.id);
     if (!ids.length) return;
     const { error: updateError } = await (supabase as any).from('whatsapp_chats').update({ unread_count: 0 }).in('instance_id', ids).gt('unread_count', 0);
     if (updateError) console.warn('[Sidebar] Não foi possível marcar mensagens WhatsApp como lidas:', updateError.message);
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => {
     if (!user) { setWhatsappUnread(0); return; }
