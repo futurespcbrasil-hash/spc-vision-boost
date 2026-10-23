@@ -1037,9 +1037,12 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       onDragStart={() => onDragStart(lead.id)}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`kanban-card animate-slide-in cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all ${isDragging ? 'kanban-card-dragging' : ''}`}
+      className={`kanban-card relative animate-slide-in cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all ${isDragging ? 'kanban-card-dragging' : ''}`}
       style={{ borderColor: interactionColor, boxShadow: `0 0 0 1px ${interactionColor}44` }}
     >
+      <svg aria-hidden="true" className="absolute inset-0 h-full w-full pointer-events-none z-10" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="1" y="1" width="98" height="98" rx="4" fill="none" stroke={interactionColor} strokeWidth="1.5" strokeDasharray={`${interactionProgress / 100 * 384} 384`} style={{ transition: 'stroke-dasharray 700ms ease, stroke 700ms ease' }} />
+      </svg>
       <div className="flex items-start justify-between mb-1.5">
         <span className="font-medium text-sm text-foreground">{lead.name}</span>
         <GripVertical size={14} className="text-muted-foreground/50 flex-shrink-0 cursor-grab" />
