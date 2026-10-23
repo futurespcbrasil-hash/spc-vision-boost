@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Lock, Save, CheckCircle, AlertCircle } from 'lucide-react';
@@ -6,7 +6,17 @@ import { toast } from 'sonner';
 
 const Perfil = () => {
   const { profile, role, user } = useAuth();
-  const [displayName, setDisplayName] = useState(profile?.display_name || '');
+  const nameDraftKey = user ? `crm_profile_name_draft_${user.id}` : undefined;
+  const [displayName, setDisplayName] = useState(() => {
+    try { const saved = nameDraftKey ? localStorage.getItem(nameDraftKey) : null; return saved ?? profile?.display_name ?? ''; } catch { return profile?.display_name || ''; }
+  });
+  useEffect(() => {
+    if (!nameDraftKey) return;
+    try {
+      if (displayName.trim() && displayName.trim() !== (profile?.display_name || '').trim()) localStorage.setItem(nameDraftKey, displayName);
+      else localStorage.removeItem(nameDraftKey);
+    } catch { /* armazenamento indisponível */ }
+  }, [nameDraftKey, displayName, profile?.display_name]);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -26,6 +36,7 @@ const Perfil = () => {
       toast.error('Erro ao atualizar nome');
     } else {
       toast.success('Nome atualizado com sucesso!');
+      try { if (nameDraftKey) localStorage.removeItem(nameDraftKey); } catch { /* armazenamento indisponível */ }
     }
   };
 

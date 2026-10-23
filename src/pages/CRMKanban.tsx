@@ -27,6 +27,17 @@ const CRMKanban = () => {
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead, refreshLeads } = useAppState();
   const leads = allLeads.filter(l => ((l as any).funnel || 'spc') === funnel);
   const baseStages = KANBAN_STAGES;
+  const addLeadDraftKey = user ? `crm_kanban_new_lead_draft_${user.id}_${funnel}` : undefined;
+  const readAddLeadDraft = () => {
+    const empty = { name: '', company: '', phone: '', whatsapp: '', email: '', product: '', origin: 'Kanban', stage: 'lead_novo', assignee: user?.id || '', funnel };
+    try {
+      const raw = addLeadDraftKey ? localStorage.getItem(addLeadDraftKey) : null;
+      if (!raw) return empty;
+      const saved = JSON.parse(raw);
+      return saved.funnel === funnel ? { ...empty, ...saved } : empty;
+    } catch { return empty; }
+  };
+  const initialAddLeadDraft = readAddLeadDraft();
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -39,16 +50,16 @@ const CRMKanban = () => {
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
   const [leadAssignmentHistory, setLeadAssignmentHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [showAddLead, setShowAddLead] = useState(false);
-  const [newLeadName, setNewLeadName] = useState('');
-  const [newLeadCompany, setNewLeadCompany] = useState('');
-  const [newLeadPhone, setNewLeadPhone] = useState('');
-  const [newLeadWhatsapp, setNewLeadWhatsapp] = useState('');
-  const [newLeadEmail, setNewLeadEmail] = useState('');
-  const [newLeadProduct, setNewLeadProduct] = useState('');
-  const [newLeadOrigin, setNewLeadOrigin] = useState('Kanban');
-  const [newLeadStage, setNewLeadStage] = useState<string>('lead_novo');
-  const [newLeadAssignee, setNewLeadAssignee] = useState('');
+  const [showAddLead, setShowAddLead] = useState(() => { try { const raw = addLeadDraftKey ? localStorage.getItem(addLeadDraftKey) : null; return !!raw && JSON.parse(raw).funnel === funnel; } catch { return false; } });
+  const [newLeadName, setNewLeadName] = useState(initialAddLeadDraft.name);
+  const [newLeadCompany, setNewLeadCompany] = useState(initialAddLeadDraft.company);
+  const [newLeadPhone, setNewLeadPhone] = useState(initialAddLeadDraft.phone);
+  const [newLeadWhatsapp, setNewLeadWhatsapp] = useState(initialAddLeadDraft.whatsapp);
+  const [newLeadEmail, setNewLeadEmail] = useState(initialAddLeadDraft.email);
+  const [newLeadProduct, setNewLeadProduct] = useState(initialAddLeadDraft.product);
+  const [newLeadOrigin, setNewLeadOrigin] = useState(initialAddLeadDraft.origin);
+  const [newLeadStage, setNewLeadStage] = useState<string>(initialAddLeadDraft.stage);
+  const [newLeadAssignee, setNewLeadAssignee] = useState(initialAddLeadDraft.assignee);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
@@ -58,6 +69,41 @@ const CRMKanban = () => {
   const [showExport, setShowExport] = useState(false);
   const [selectedStageKeys, setSelectedStageKeys] = useState<string[] | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const previousDraftFunnel = useRef(funnel);
+  useEffect(() => {
+    if (previousDraftFunnel.current === funnel) return;
+    previousDraftFunnel.current = funnel;
+    const draft = readAddLeadDraft();
+    setNewLeadName(draft.name);
+    setNewLeadCompany(draft.company);
+    setNewLeadPhone(draft.phone);
+    setNewLeadWhatsapp(draft.whatsapp);
+    setNewLeadEmail(draft.email);
+    setNewLeadProduct(draft.product);
+    setNewLeadOrigin(draft.origin);
+    setNewLeadStage(draft.stage);
+    setNewLeadAssignee(draft.assignee);
+    try {
+      const raw = addLeadDraftKey ? localStorage.getItem(addLeadDraftKey) : null;
+      setShowAddLead(!!raw && JSON.parse(raw).funnel === funnel);
+    } catch { setShowAddLead(false); }
+  }, [funnel, user?.id]);
+
+  useEffect(() => {
+    if (!addLeadDraftKey || !showAddLead) return;
+    const draft = { name: newLeadName, company: newLeadCompany, phone: newLeadPhone, whatsapp: newLeadWhatsapp, email: newLeadEmail, product: newLeadProduct, origin: newLeadOrigin, stage: newLeadStage, assignee: newLeadAssignee, funnel };
+    try {
+      const hasContent = !!(newLeadName.trim() || newLeadCompany.trim() || newLeadPhone.trim() || newLeadWhatsapp.trim() || newLeadEmail.trim() || newLeadProduct.trim() || newLeadOrigin !== 'Kanban' || newLeadStage !== 'lead_novo' || newLeadAssignee !== (user?.id || ''));
+      if (hasContent) localStorage.setItem(addLeadDraftKey, JSON.stringify(draft));
+      else localStorage.removeItem(addLeadDraftKey);
+    } catch { /* armazenamento indisponível */ }
+  }, [addLeadDraftKey, showAddLead, newLeadName, newLeadCompany, newLeadPhone, newLeadWhatsapp, newLeadEmail, newLeadProduct, newLeadOrigin, newLeadStage, newLeadAssignee, funnel, user?.id]);
+
+  const clearAddLeadDraft = () => {
+    try { if (addLeadDraftKey) localStorage.removeItem(addLeadDraftKey); } catch { /* armazenamento indisponível */ }
+  };
+  const closeAddLead = () => { setShowAddLead(false); clearAddLeadDraft(); };
 
   const canEditLead = (lead: Lead) => isOwner || isGestor || !lead.userId || lead.userId === user?.id;
 
@@ -286,7 +332,7 @@ const CRMKanban = () => {
       toast({ title: 'Erro ao cadastrar lead', description: 'O banco de dados não confirmou o cadastro. Revise os dados e tente novamente.', variant: 'destructive' });
       return;
     }
-    setShowAddLead(false);
+    closeAddLead();
     setNewLeadName('');
     setNewLeadCompany('');
     setNewLeadPhone('');
@@ -408,8 +454,13 @@ const CRMKanban = () => {
     if (selectedLead) { setEditData({ ...selectedLead }); setEditMode(true); }
   };
 
-  const handleSaveEdit = () => {
-    if (editData) { updateLead(editData); setSelectedLead(editData); setEditMode(false); setEditData(null); }
+  const handleSaveEdit = async () => {
+    if (!editData) return;
+    const saved = await updateLead(editData);
+    if (!saved) return;
+    setSelectedLead(editData);
+    setEditMode(false);
+    setEditData(null);
   };
 
   const handleDelete = () => {
@@ -660,7 +711,7 @@ const CRMKanban = () => {
           <div className="bg-card rounded-xl border border-border max-w-lg w-full p-6 space-y-4 animate-slide-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-foreground">Novo lead — {sectorLabel}</h3>
-              <button onClick={() => setShowAddLead(false)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar"><X size={18} /></button>
+              <button onClick={closeAddLead} className="text-muted-foreground hover:text-foreground" aria-label="Fechar"><X size={18} /></button>
             </div>
             <div><label className="text-xs text-muted-foreground">Nome *</label><input autoFocus value={newLeadName} onChange={e => setNewLeadName(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Nome do contato" /></div>
             <div><label className="text-xs text-muted-foreground">Empresa</label><input value={newLeadCompany} onChange={e => setNewLeadCompany(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm" placeholder="Empresa" /></div>
@@ -676,7 +727,7 @@ const CRMKanban = () => {
             </div>
             <div><label className="text-xs text-muted-foreground">Responsável</label><select value={newLeadAssignee} onChange={e => setNewLeadAssignee(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm"><option value="">Sem responsável</option>{teamMembers.map(member => <option key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</option>)}</select></div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setShowAddLead(false)} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
+              <button onClick={closeAddLead} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
               <button onClick={() => void handleCreateLead()} disabled={!newLeadName.trim()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition disabled:opacity-50">Cadastrar lead</button>
             </div>
           </div>
