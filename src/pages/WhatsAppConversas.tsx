@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { waha } from '@/services/ryzeService';
@@ -41,7 +41,7 @@ const isPhoneNumber = (value: string) => {
   return digits.length >= 10 && digits.length <= 13;
 };
 const renderMessageText = (text: string, onPhoneClick: (number: string) => void) => {
-  const tokenRegex = /https?:\/\/[^\s]+|www\.[^\s]+|(?:\+?\d[\d\s().-]{8,}\d)/gi;
+  const tokenRegex = /https?:\/\/[^\s]+|www\.[^\s]+|(?<![\w])\(?\+?\d[\d \t().-]{7,}\d(?![\w])/gi;
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
   for (const match of text.matchAll(tokenRegex)) {
@@ -80,6 +80,16 @@ export default function WhatsAppConversas() {
   const [numberVerified, setNumberVerified] = useState<boolean | null>(null);
   const [firstMessage, setFirstMessage] = useState('');
   const [startingNumberChat, setStartingNumberChat] = useState(false);
+  const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottomRef = useRef(true);
+  const scrollMessagesToBottom = useCallback((force = false) => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport || (!force && !stickToBottomRef.current)) return;
+    requestAnimationFrame(() => {
+      const current = messagesViewportRef.current;
+      if (current) current.scrollTop = current.scrollHeight;
+    });
+  }, []);
 
   const selectedChat = useMemo(() => chats.find((chat) => chat.id === selectedChatId) || null, [chats, selectedChatId]);
   const selectedInstance = useMemo(() => instances.find((item) => item.id === instanceId) || null, [instances, instanceId]);
@@ -176,6 +186,10 @@ export default function WhatsAppConversas() {
     return () => window.clearInterval(interval);
   }, [instanceId, selectedChat, loadChats, loadMessages]);
 
+  useEffect(() => { stickToBottomRef.current = true; }, [selectedChatId]);
+
+  useEffect(() => { scrollMessagesToBottom(); }, [messages, loadingMessages, selectedChatId, scrollMessagesToBottom]);
+
   useEffect(() => { if (selectedChat) void loadMessages(selectedChat, true); else setMessages([]); }, [selectedChatId, selectedChat, loadMessages]);
 
   const openNumberActions = (number: string) => {
@@ -208,9 +222,10 @@ export default function WhatsAppConversas() {
     setNumberVerified(null);
     try {
       const result: any = await waha.checkNumber(instanceId, normalized);
-      const exists = result?.exists === true || result?.result?.exists === true
-        || (Array.isArray(result) && result.some((item: any) => item?.exists === true))
-        || (Array.isArray(result?.results) && result.results.some((item: any) => item?.exists === true));
+      const exists = result?.exists === true || result?.numberExists === true || result?.number_exists === true
+        || result?.result?.exists === true || result?.result?.numberExists === true || result?.result?.number_exists === true
+        || (Array.isArray(result) && result.some((item: any) => item?.exists === true || item?.numberExists === true))
+        || (Array.isArray(result?.results) && result.results.some((item: any) => item?.exists === true || item?.numberExists === true));
       setNumberVerified(exists);
       if (exists) toast.success('Este número tem WhatsApp. Você já pode iniciar a conversa.');
       else toast.error('Não foi encontrada uma conta WhatsApp para este número.');
@@ -265,6 +280,7 @@ export default function WhatsAppConversas() {
         last_message: text, last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).eq('id', selectedChat.id);
       setMessage('');
+      stickToBottomRef.current = true;
       await loadMessages(selectedChat, false);
       await loadChats(false);
       if (saveError) toast.warning('Mensagem enviada à WAHA, mas não foi possível gravar no histórico: ' + saveError.message);
@@ -332,7 +348,10 @@ export default function WhatsAppConversas() {
               </div>
               <Badge variant="outline">{selectedChat.is_group ? 'Grupo' : selectedInstance?.status === 'connected' ? 'WhatsApp conectado' : selectedInstance?.status || 'Conta'}</Badge>
             </div>
-            <ScrollArea className="flex-1 p-4">
+            <div ref={messagesViewportRef} onScroll={(event) => {
+              const viewport = event.currentTarget;
+              stickToBottomRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 80;
+            }} className="flex-1 min-h-0 overflow-y-auto p-4">
               {loadingMessages && <p className="text-sm text-muted-foreground mb-3">Carregando mensagens…</p>}
               <div className="space-y-3">
                 {messages.map((msg) => <div key={msg.id} className={'flex ' + (msg.from_me ? 'justify-end' : 'justify-start')}>
@@ -345,7 +364,7 @@ export default function WhatsAppConversas() {
                 </div>)}
                 {!loadingMessages && messages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Sem mensagens registradas para esta conversa.</p>}
               </div>
-            </ScrollArea>
+            </div>
             <div className="p-3 border-t flex items-center gap-2">
               <Input placeholder="Digite uma mensagem..." value={message} onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}

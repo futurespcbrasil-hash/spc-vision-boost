@@ -265,7 +265,7 @@ Deno.serve(async (req: Request) => {
         const result = await callWaha("/api/contacts/check-exists?" + params.toString());
         return json({
           number: normalized,
-          exists: result?.numberExists === true,
+          exists: result?.numberExists === true || result?.exists === true || result?.number_exists === true,
           chat_id: typeof result?.chatId === "string" ? result.chatId : null,
           result,
         });
