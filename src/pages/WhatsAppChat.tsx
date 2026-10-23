@@ -717,7 +717,10 @@ const WhatsAppChat = () => {
     const list = ((data as Message[]) || []).slice().reverse();
     const previous = messagesRef.current;
     const merged = dropConfirmedTemps(list, previous);
-    const changed = previous.length !== merged.length || previous[previous.length - 1]?.id !== merged[merged.length - 1]?.id;
+    const changed = previous.length !== merged.length || previous.some((message, index) => {
+      const next = merged[index];
+      return !next || message.id !== next.id || message.text !== next.text || message.status !== next.status || message.media_url !== next.media_url;
+    });
     if (changed) {
       messagesRef.current = merged;
       setMessages(current => dropConfirmedTemps(list, current));
@@ -792,6 +795,13 @@ const WhatsAppChat = () => {
           const m = payload.new as Message;
           setMessages(prev => prev.map(x => x.id === m.id ? m : x));
         })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
+        payload => {
+          const deleted = payload.old as { id?: string; wa_message_id?: string };
+          setMessages(prev => prev.filter(message =>
+            message.id !== deleted.id && (!deleted.wa_message_id || message.wa_message_id !== deleted.wa_message_id)
+          ));
+        })
       .subscribe();
 
     if (selected.unread_count > 0 && peeking !== chatId) {
@@ -799,9 +809,19 @@ const WhatsAppChat = () => {
         setChats(prev => prev.map(c => c.id === chatId ? { ...c, unread_count: 0 } : c));
       });
     }
-    // Fallback de 5s: mesmo sem realtime, novas mensagens aparecem sozinhas
-    const poll = window.setInterval(() => loadMessages(chatId, true), 5000);
-    return () => { cancelled = true; window.clearInterval(poll); supabase.removeChannel(ch); };
+    // Realtime é o caminho rápido; a consulta de fallback roda menos e só com a aba visível.
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadMessages(chatId, true);
+    }, 10000);
+    // Algumas versões da WAHA não emitem evento de revogação; reconcilia a origem remota
+    // periodicamente para remover mensagens apagadas no celular sem fazer chamadas a cada 5s.
+    const remoteSync = window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || !instanceId) return;
+      void waha.getMessages(instanceId, selected.wa_chat_id)
+        .then(() => loadMessages(chatId, true))
+        .catch(error => console.warn('[WhatsApp] Sincronização remota periódica falhou:', error?.message || error));
+    }, 30000);
+    return () => { cancelled = true; window.clearInterval(poll); window.clearInterval(remoteSync); supabase.removeChannel(ch); };
   }, [selected?.id, loadMessages, instanceId, touchLeadInteraction]);
 
   const handleSend = async () => {
