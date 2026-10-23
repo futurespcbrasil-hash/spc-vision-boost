@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
@@ -38,6 +38,8 @@ const moduleForPath = (pathname: string): string | null => {
 
 const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: boolean }) => {
   const location = useLocation();
+  const currentPathname = useRef(location.pathname);
+  currentPathname.current = location.pathname;
   const { user, canAccessModule, canManageUsers } = useAuth();
 
   // Unread internal-chat messages update the browser tab title and desktop notification.
@@ -77,7 +79,7 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
     let active = true;
     const channel = supabase.channel(`crm-assignment-notifications-${user.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_notifications', filter: `user_id=eq.${user.id}` }, payload => {
-        if (!active || location.pathname.startsWith('/whatsapp')) return;
+        if (!active || currentPathname.current.startsWith('/whatsapp')) return;
         const item = payload.new as { id: string; title?: string; body?: string; chat_id?: string | null; lead_id?: string | null };
         toast({ title: item.title || 'Nova notificação', description: item.body || 'Você recebeu uma nova atribuição.' });
         if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
@@ -95,7 +97,7 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
       })
       .subscribe();
     return () => { active = false; supabase.removeChannel(channel); };
-  }, [user, location.pathname]);
+  }, [user]);
 
   const moduleKey = moduleForPath(location.pathname);
   const useNoPadding = noPadding ?? location.pathname.startsWith('/whatsapp');
