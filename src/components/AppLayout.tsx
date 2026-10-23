@@ -111,7 +111,7 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
       <CRMNotificationBell />
       <div className="hidden md:block"><AppSidebar /></div>
       <main className={`flex-1 overflow-hidden ${useNoPadding ? 'pb-16 md:pb-0' : 'pb-20 md:pb-0'}`}>
-        <div className=${useNoPadding ? 'h-full' : 'p-4 sm:p-5 lg:p-7 xl:p-8 max-w-[1600px] mx-auto'}>
+        <div className={useNoPadding ? 'h-full' : 'p-4 sm:p-5 lg:p-7 xl:p-8 max-w-[1600px] mx-auto'}>
           {allowed ? (children ?? <Outlet />) : (
             <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-8">
               <ShieldAlert size={42} className="text-muted-foreground mb-4" />
