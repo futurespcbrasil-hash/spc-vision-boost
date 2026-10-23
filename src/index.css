@@ -695,3 +695,17 @@ html.theme-transparent nav.fixed.bottom-0 {
   background-color: hsl(0 0% 100% / 0.58) !important; border-color: hsl(0 0% 100% / 0.62) !important;
   -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
 }
+
+
+/* Preserva exatamente o tratamento original da navegação no tema Padrão Future. */
+html.theme-future aside.gradient-spc nav > a[class*="bg-sidebar-accent"],
+html.theme-future aside.gradient-spc a[href="/perfil"][class*="bg-sidebar-accent"] {
+  background-color: hsl(0 0% 100% / 0.14) !important;
+  color: hsl(0 0% 100%) !important;
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.08), inset 0 0 0 1px hsl(0 0% 100% / 0.10);
+}
+html.theme-future aside.gradient-spc nav > a:not([class*="bg-sidebar-accent"]):hover,
+html.theme-future aside.gradient-spc a[href="/perfil"]:not([class*="bg-sidebar-accent"]):hover {
+  background-color: hsl(0 0% 100% / 0.10) !important;
+  color: hsl(var(--sidebar-foreground)) !important;
+}
