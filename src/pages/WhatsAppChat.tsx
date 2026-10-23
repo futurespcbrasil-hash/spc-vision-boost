@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -174,6 +174,7 @@ const WhatsAppChat = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState<string>('');
   const [chats, setChats] = useState<Chat[]>([]);
@@ -184,6 +185,29 @@ const WhatsAppChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
+
+  // Quando o Kanban encaminha um telefone, abrir a conversa correspondente
+  // dentro do CRM; o WhatsApp Web é aberto pelo próprio botão de origem.
+  useEffect(() => {
+    const requestedPhone = searchParams.get('phone');
+    if (!requestedPhone || chats.length === 0) return;
+    const digits = onlyDigits(requestedPhone);
+    const localDigits = (value: string) => {
+      const number = onlyDigits(value);
+      return number.startsWith('55') ? number.slice(2) : number;
+    };
+    const target = chats.find(chat =>
+      onlyDigits(chat.contact_number) === digits ||
+      localDigits(chat.contact_number) === localDigits(digits)
+    );
+    if (target) {
+      setSelected(target);
+      setSearch('');
+      if (isMobile) setMobileShowChat(true);
+    } else {
+      setSearch(digits);
+    }
+  }, [searchParams, chats, isMobile]);
 
   // Lead registration modal state
   const [leadDialog, setLeadDialog] = useState(false);
