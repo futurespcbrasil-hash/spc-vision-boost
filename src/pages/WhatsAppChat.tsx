@@ -849,27 +849,41 @@ const WhatsAppChat = () => {
     return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [user?.id]);
 
-  // Cores dos responsáveis são compartilhadas, mas cada usuário só edita a própria.
+  // Fonte única das cores pessoais: preferências salvas no banco.
+  // Espera a sessão carregar e atualiza também ao retornar à aba.
   useEffect(() => {
+    if (!user?.id) return;
     let cancelled = false;
     const loadAgentColors = async () => {
-      const { data, error } = await (supabase as any).from('whatsapp_agent_preferences').select('user_id,display_name,color');
+      const { data, error } = await (supabase as any)
+        .from('whatsapp_agent_preferences')
+        .select('user_id,display_name,color');
       if (error) {
         console.warn('[WhatsApp] Preferências de cor ainda indisponíveis:', error.message);
         return;
       }
       if (!cancelled) {
         const map: Record<string, { display_name: string; color: string }> = {};
-        (data || []).forEach((item: any) => { map[item.user_id] = { display_name: item.display_name, color: item.color }; });
+        (data || []).forEach((item: any) => {
+          if (item.user_id && item.color) {
+            map[item.user_id] = { display_name: item.display_name, color: item.color };
+          }
+        });
         setAgentColors(map);
       }
     };
     void loadAgentColors();
-    const channel = supabase.channel('whatsapp-agent-preferences')
+    const channel = supabase.channel(`whatsapp-agent-preferences-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_agent_preferences' }, () => { void loadAgentColors(); })
       .subscribe();
-    return () => { cancelled = true; supabase.removeChannel(channel); };
-  }, []);
+    const onVisible = () => { if (document.visibilityState === 'visible') void loadAgentColors(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   // Open lead registration modal pre-filled with contact info
   const handleOpenLeadDialog = () => {
