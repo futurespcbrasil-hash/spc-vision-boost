@@ -19,6 +19,13 @@ const CORES = [
 ];
 
 const corClasses = (c: string) => CORES.find((x) => x.value === c) ?? CORES[0];
+const isCustomHex = (c: string) => /^#[0-9a-f]{6}$/i.test(c || '');
+const colorText = (c: string) => {
+  if (!isCustomHex(c)) return '#1f2937';
+  const hex = c.slice(1);
+  const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 155 ? '#1f2937' : '#f9fafb';
+};
 
 const rotations = ['-rotate-2', '-rotate-1', 'rotate-0', 'rotate-1', 'rotate-2'];
 const rotFor = (id: string) => rotations[id.charCodeAt(0) % rotations.length];
@@ -143,7 +150,7 @@ const Notas = () => {
               <div
                 key={n.id}
                 className={`${c.bg} ${c.border} ${rotFor(n.id)} border-l-4 p-4 rounded-sm shadow-md hover:shadow-xl hover:rotate-0 transition-all duration-200 min-h-[200px] flex flex-col text-gray-800 ${n.concluido ? 'opacity-60' : ''}`}
-                style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive" }}
+                style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive", ...(isCustomHex(n.cor) ? { backgroundColor: n.cor, borderColor: n.cor, color: colorText(n.cor) } : {}) }}
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className={`font-bold text-lg leading-tight ${n.concluido ? 'line-through' : ''}`}>{n.titulo}</h3>
@@ -191,6 +198,13 @@ const Notas = () => {
             </div>
             <div>
               <Label>Cor</Label>
+              <div className="flex items-center gap-3 flex-wrap rounded-lg border border-border p-3">
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <input type="color" aria-label="Escolher qualquer cor para o post-it" value={isCustomHex(form.cor) ? form.cor : '#fef08a'} onChange={(e) => setForm({ ...form, cor: e.target.value })} className="h-10 w-12 cursor-pointer rounded border border-border bg-background p-1" />
+                  <span>Gerar / escolher cor</span>
+                </label>
+                <span className="text-xs text-muted-foreground">{isCustomHex(form.cor) ? form.cor.toUpperCase() : 'Escolha uma cor personalizada ou use uma cor rápida:'}</span>
+              </div>
               <div className="flex gap-2 flex-wrap">
                 {CORES.map((c) => (
                   <button
