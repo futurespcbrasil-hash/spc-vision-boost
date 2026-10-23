@@ -45,6 +45,8 @@ const dbToLead = (row: any): Lead => ({
   createdAt: row.created_at?.split('T')[0] || '',
   address: row.address || '',
   funnel: row.funnel || 'spc',
+  planValue: row.plan_value == null ? null : Number(row.plan_value),
+  biro: row.biro || '',
 });
 
 const dbToEvent = (row: any): ScheduleEvent => ({
@@ -129,6 +131,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         assigned_to: lead.assignedTo || null,
         last_interaction_at: lead.lastInteractionAt || null,
         funnel: (lead as any).funnel || 'spc',
+        plan_value: lead.planValue ?? null,
+        biro: lead.biro || null,
       }).select().single();
       if (error || !data) {
         console.error('[CRM] Falha ao cadastrar lead:', error);
@@ -161,6 +165,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         interactions: lead.interactions as any,
         assigned_to: lead.assignedTo || null,
         funnel: (lead as any).funnel || 'spc',
+        plan_value: lead.planValue ?? null,
+        biro: lead.biro || null,
       }).eq('id', lead.id);
       if (error) throw error;
       return true;
