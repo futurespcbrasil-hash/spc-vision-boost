@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
   let event: any;
   try { event = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   const eventName = str(event?.event);
-  if (!["message", "message.any", "message.ack", "state.change", "session.status"].includes(eventName)) {
+  if (!["message", "message.any", "message.ack", "message.revoked", "message.revoke", "message.deleted", "message.delete", "state.change", "session.status"].includes(eventName)) {
     return json({ accepted: true, ignored: true });
   }
 
@@ -60,6 +60,32 @@ Deno.serve(async (req: Request) => {
   }
 
   if (eventName === "message.ack") return json({ accepted: true });
+
+  // Revogações/remissões feitas no celular precisam refletir no CRM sem esperar
+  // que o cliente reabra a conversa. Mantemos um marcador no histórico, como o WhatsApp.
+  if (["message.revoked", "message.revoke", "message.deleted", "message.delete"].includes(eventName)) {
+    const revokeId = str(payload?.revokedMessageId?._serialized || payload?.revokedMessageId ||
+      payload?.messageId?._serialized || payload?.messageId || payload?.id?._serialized ||
+      payload?.id || payload?.key?.id || payload?._data?.id?.id);
+    if (!revokeId) return json({ accepted: true, ignored: true, reason: "missing message id" });
+    const { data: oldMessage, error: findError } = await db.from("whatsapp_messages")
+      .select("id,chat_id,timestamp,wa_message_id").eq("instance_id", instance.id)
+      .eq("wa_message_id", revokeId).maybeSingle();
+    if (findError) return json({ error: "Revoked message lookup failed" }, 500);
+    if (!oldMessage) return json({ accepted: true, notFound: true });
+    const { error: revokeError } = await db.from("whatsapp_messages")
+      .update({ text: "[message_revoke]", raw: payload }).eq("id", oldMessage.id);
+    if (revokeError) return json({ error: "Failed to update revoked message" }, 500);
+    const { data: latestRows } = await db.from("whatsapp_messages").select("text,timestamp")
+      .eq("chat_id", oldMessage.chat_id).order("timestamp", { ascending: false }).limit(20);
+    const latest = (latestRows || []).find((row: any) => row.text !== "[message_revoke]");
+    await db.from("whatsapp_chats").update({
+      last_message: latest ? (latest.text || "") : "[message_revoke]",
+      last_message_at: latest?.timestamp || oldMessage.timestamp,
+      updated_at: new Date().toISOString(),
+    }).eq("id", oldMessage.chat_id);
+    return json({ accepted: true, revoked: true });
+  }
 
   const fromMe = payload?.fromMe === true || payload?.from_me === true || payload?.key?.fromMe === true;
   // Em alguns eventos message.any de saída, WAHA fornece chatId mas não preenche to.
