@@ -81,6 +81,7 @@ export default function WhatsAppConversas() {
   const [firstMessage, setFirstMessage] = useState('');
   const [startingNumberChat, setStartingNumberChat] = useState(false);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
   const pendingInitialScrollRef = useRef(true);
   const activeChatIdRef = useRef('');
@@ -89,13 +90,19 @@ export default function WhatsAppConversas() {
   const sendLockRef = useRef(false);
   const scrollMessagesToBottom = useCallback((force = false) => {
     if (!force && !stickToBottomRef.current) return;
-    // Aguarda o React aplicar as mensagens e a altura final dos balões antes de rolar.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    // A lista pode mudar de altura depois do primeiro paint (texto, mídia, fonte).
+    // Recalcula o fim em dois frames e usa o scroll container real, não a página.
+    const scroll = () => {
       const viewport = messagesViewportRef.current;
-      if (viewport && (force || stickToBottomRef.current)) {
-        viewport.scrollTop = viewport.scrollHeight;
-      }
-    }));
+      if (!viewport || (!force && !stickToBottomRef.current)) return;
+      viewport.scrollTop = viewport.scrollHeight;
+      if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ block: 'end', behavior: 'auto' });
+      viewport.scrollTop = viewport.scrollHeight;
+    };
+    requestAnimationFrame(() => {
+      scroll();
+      requestAnimationFrame(scroll);
+    });
   }, []);
 
   const selectedChat = useMemo(() => chats.find((chat) => chat.id === selectedChatId) || null, [chats, selectedChatId]);
@@ -210,12 +217,13 @@ export default function WhatsAppConversas() {
   useLayoutEffect(() => {
     if (loadingMessages && pendingInitialScrollRef.current) return;
     if (pendingInitialScrollRef.current) {
-      const viewport = messagesViewportRef.current;
-      if (viewport) viewport.scrollTop = viewport.scrollHeight;
-      pendingInitialScrollRef.current = false;
       stickToBottomRef.current = true;
+      scrollMessagesToBottom(true);
+      pendingInitialScrollRef.current = false;
       return;
     }
+    // Mensagens recém-enviadas ou recebidas: se o usuário estava no fim,
+    // acompanha a última mensagem; se rolou para cima para ler, não o sequestra.
     scrollMessagesToBottom();
   }, [messages, loadingMessages, selectedChatId, scrollMessagesToBottom]);
 
@@ -403,6 +411,7 @@ export default function WhatsAppConversas() {
                   </div>
                 </div>)}
                 {!loadingMessages && messages.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Sem mensagens registradas para esta conversa.</p>}
+                <div ref={messagesEndRef} aria-hidden="true" className="h-px w-full" />
               </div>
             </div>
             <div className="p-3 border-t flex items-center gap-2">
