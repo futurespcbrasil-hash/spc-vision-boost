@@ -13,25 +13,23 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import Auth from "@/pages/Auth";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
-// Recarrega automaticamente uma única vez quando um deploy deixa um chunk antigo em cache.
+// Tenta carregar um módulo novamente sem reiniciar o CRM inteiro.
+// Uma falha de chunk não deve descartar o estado das outras telas nem provocar reloads em cascata.
 const lazyWithRetry = (importer: () => Promise<{ default: ComponentType<any> }>) =>
   lazy(async () => {
     try {
-      const module = await importer();
-      try { sessionStorage.removeItem("spc-chunk-load-retry"); } catch { /* storage indisponível */ }
-      return module;
-    } catch (error) {
-      let alreadyRetried = false;
+      return await importer();
+    } catch (firstError) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
       try {
-        alreadyRetried = sessionStorage.getItem("spc-chunk-load-retry") === "1";
-        if (alreadyRetried) sessionStorage.removeItem("spc-chunk-load-retry");
-        else sessionStorage.setItem("spc-chunk-load-retry", "1");
-      } catch { /* storage indisponível */ }
-      if (!alreadyRetried) {
-        window.location.reload();
-        return new Promise<{ default: ComponentType<any> }>(() => {});
+        return await importer();
+      } catch (retryError) {
+        console.error("[CRM] Não foi possível carregar um módulo após nova tentativa.", {
+          firstError,
+          retryError,
+        });
+        throw retryError;
       }
-      throw error;
     }
   });
 
