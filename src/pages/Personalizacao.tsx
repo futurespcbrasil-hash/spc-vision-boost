@@ -1,141 +1,26 @@
-import { Check, Monitor, Moon, Palette, RotateCcw, Sun, Wallpaper } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Check, ImagePlus, LoaderCircle, Monitor, Moon, Palette, RotateCcw, Sun, Trash2, Wallpaper } from 'lucide-react';
+import { toast } from 'sonner';
 import { useThemePreference, type CRMTheme } from '@/components/ThemePreferenceProvider';
 
-const options: {
-  id: CRMTheme;
-  title: string;
-  description: string;
-  icon: typeof Sun;
-  swatches: string[];
-}[] = [
-  {
-    id: 'future',
-    title: 'Padrão Future',
-    description: 'Identidade roxa atual, com contraste elegante e detalhes da marca.',
-    icon: Palette,
-    swatches: ['#5423B8', '#7C3AED', '#F8F6FC', '#FFFFFF'],
-  },
-  {
-    id: 'light',
-    title: 'Claro',
-    description: 'Interface clara e arejada para ambientes bem iluminados.',
-    icon: Sun,
-    swatches: ['#6D35D4', '#F4F2F8', '#FFFFFF', '#DCD6E8'],
-  },
-  {
-    id: 'dark',
-    title: 'Escuro',
-    description: 'Tons escuros para trabalhar com conforto em ambientes de pouca luz.',
-    icon: Moon,
-    swatches: ['#A78BFA', '#11101A', '#1C1A27', '#383447'],
-  },
-  {
-    id: 'transparent',
-    title: 'Transparente',
-    description: 'Superfícies translúcidas com efeito de vidro. O papel de parede será configurado na próxima etapa.',
-    icon: Wallpaper,
-    swatches: ['#6D35D4', '#FFFFFFB8', '#EDE7FA99', '#B8A7D966'],
-  },
+const options: { id: CRMTheme; title: string; description: string; icon: typeof Sun; swatches: string[] }[] = [
+ { id:'future', title:'Padrão Future', description:'Identidade roxa da Future, com contraste elegante e detalhes da marca.', icon:Palette, swatches:['#5423B8','#7C3AED','#F8F6FC','#FFFFFF'] },
+ { id:'light', title:'Claro', description:'Interface clara e arejada para ambientes bem iluminados.', icon:Sun, swatches:['#6D35D4','#F4F2F8','#FFFFFF','#DCD6E8'] },
+ { id:'dark', title:'Escuro', description:'Tons escuros para trabalhar com conforto em ambientes de pouca luz.', icon:Moon, swatches:['#A78BFA','#11101A','#1C1A27','#383447'] },
+ { id:'transparent', title:'Transparente', description:'Superfícies translúcidas com efeito de vidro e papel de parede próprio.', icon:Wallpaper, swatches:['#6D35D4','#FFFFFFB8','#EDE7FA99','#B8A7D966'] },
 ];
-
-const ThemePreview = ({ theme }: { theme: CRMTheme }) => (
-  <div className={`theme-preview theme-preview-${theme}`} aria-hidden="true">
-    <div className="theme-preview-sidebar">
-      <span />
-      <span />
-      <span />
-      <span />
-    </div>
-    <div className="theme-preview-main">
-      <div className="theme-preview-topbar"><span /><span /></div>
-      <div className="theme-preview-cards">
-        <span /><span /><span />
-      </div>
-      <div className="theme-preview-panel">
-        <i /><i /><i /><i />
-      </div>
-    </div>
-  </div>
-);
+const ThemePreview = ({theme}:{theme:CRMTheme}) => <div className={`theme-preview theme-preview-${theme}`} aria-hidden="true"><div className="theme-preview-sidebar"><span/><span/><span/><span/></div><div className="theme-preview-main"><div className="theme-preview-topbar"><span/><span/></div><div className="theme-preview-cards"><span/><span/><span/></div><div className="theme-preview-panel"><i/><i/><i/><i/></div></div></div>;
 
 const Personalizacao = () => {
-  const { theme, setTheme, resetTheme } = useThemePreference();
-
-  return (
-    <div className="mx-auto w-full max-w-6xl space-y-8 animate-fade-in">
-      <header className="space-y-3">
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-          <Palette size={14} /> EXPERIÊNCIA PERSONALIZADA
-        </div>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Personalização</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Ajuste a aparência do Vision para combinar com seu ambiente de trabalho. A escolha é individual para este usuário neste navegador.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={resetTheme}
-            className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-primary/5 sm:self-auto"
-          >
-            <RotateCcw size={15} /> Restaurar padrão
-          </button>
-        </div>
-      </header>
-
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Escolha seu tema</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Você pode trocar de tema quando quiser.</p>
-        </div>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {options.map((option) => {
-            const Icon = option.icon;
-            const selected = theme === option.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => setTheme(option.id)}
-                className={`theme-option group rounded-2xl border bg-card p-3 text-left transition-all duration-200 ${selected ? 'theme-option-selected border-primary ring-2 ring-primary/15' : 'border-border/80 hover:-translate-y-0.5 hover:border-primary/35'}`}
-              >
-                <ThemePreview theme={option.id} />
-                <div className="flex items-start gap-3 px-1 pt-4">
-                  <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                    <Icon size={19} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 font-semibold text-foreground">{option.title}</span>
-                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">{option.description}</span>
-                  </span>
-                  {selected && <Check size={18} className="mt-1 shrink-0 text-primary" />}
-                </div>
-                <div className="mt-4 flex gap-1.5 px-1 pb-1">
-                  {option.swatches.map((color) => (
-                    <span key={color} className="h-2 flex-1 rounded-full" style={{ backgroundColor: color }} />
-                  ))}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6">
-        <div className="flex items-start gap-3">
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Monitor size={19} /></span>
-          <div>
-            <h2 className="font-semibold text-foreground">Sobre sua personalização</h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              O tema selecionado é salvo separadamente por usuário neste navegador. A opção Transparente já aplica superfícies translúcidas; o envio de papel de parede com compactação automática será ativado na etapa de armazenamento seguro de imagens.
-            </p>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
+ const {theme,setTheme,resetTheme,wallpaperUrl,wallpaperBusy,uploadWallpaper,removeWallpaper}=useThemePreference();
+ const fileRef=useRef<HTMLInputElement>(null); const [removing,setRemoving]=useState(false);
+ const upload=async(file?:File)=>{if(!file)return;try{await uploadWallpaper(file);toast.success('Papel de parede aplicado e compactado com sucesso.')}catch(e){toast.error(e instanceof Error?e.message:'Não foi possível salvar o papel de parede.')}finally{if(fileRef.current)fileRef.current.value='';}};
+ const remove=async()=>{setRemoving(true);try{await removeWallpaper();toast.success('Papel de parede removido.')}catch(e){toast.error(e instanceof Error?e.message:'Não foi possível remover o papel de parede.')}finally{setRemoving(false);}};
+ return <div className="mx-auto w-full max-w-6xl space-y-8 animate-fade-in">
+  <header className="space-y-3"><div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"><Palette size={14}/> EXPERIÊNCIA PERSONALIZADA</div><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Personalização</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Ajuste a aparência do Vision ao seu ambiente. Tema e papel de parede são individuais para sua conta neste navegador.</p></div><button type="button" onClick={resetTheme} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-primary/5 sm:self-auto"><RotateCcw size={15}/> Restaurar tema Future</button></div></header>
+  <section className="space-y-4"><div><h2 className="text-lg font-semibold text-foreground">Escolha seu tema</h2><p className="mt-1 text-sm text-muted-foreground">A alteração é aplicada imediatamente e pode ser desfeita quando quiser.</p></div><div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">{options.map(o=>{const Icon=o.icon,selected=theme===o.id;return <button key={o.id} type="button" aria-pressed={selected} onClick={()=>setTheme(o.id)} className={`theme-option group rounded-2xl border bg-card p-3 text-left transition-all duration-200 ${selected?'theme-option-selected border-primary ring-2 ring-primary/15':'border-border/80 hover:-translate-y-0.5 hover:border-primary/35'}`}><ThemePreview theme={o.id}/><div className="flex items-start gap-3 px-1 pt-4"><span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${selected?'bg-primary text-primary-foreground':'bg-muted text-muted-foreground'}`}><Icon size={19}/></span><span className="min-w-0 flex-1"><span className="flex items-center gap-2 font-semibold text-foreground">{o.title}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{o.description}</span></span>{selected&&<Check size={18} className="mt-1 shrink-0 text-primary"/>}</div><div className="mt-4 flex gap-1.5 px-1 pb-1">{o.swatches.map(c=><span key={c} className="h-2 flex-1 rounded-full" style={{backgroundColor:c}}/>)}</div></button>})}</div></section>
+  <section className="overflow-hidden rounded-2xl border border-border/80 bg-card"><div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]"><div className="space-y-5 p-5 sm:p-7"><div className="flex items-start gap-3"><span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><ImagePlus size={20}/></span><div><h2 className="font-semibold text-foreground">Seu papel de parede</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Personalize o modo Transparente com uma foto, textura ou imagem da sua marca. Imagens grandes, inclusive 4K, são redimensionadas e convertidas para WebP no próprio navegador antes do envio.</p></div></div><div className="space-y-2 text-sm text-muted-foreground"><p>• JPG, PNG, WebP ou AVIF; arquivo original de até 50 MB.</p><p>• Dimensão máxima de 2560 × 1440 e compactação automática para até 8 MB.</p><p>• Armazenamento privado: somente sua conta pode acessar a imagem.</p></div><input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" aria-label="Selecionar imagem de papel de parede" onChange={e=>void upload(e.target.files?.[0])}/><div className="flex flex-wrap gap-3"><button type="button" disabled={wallpaperBusy} onClick={()=>fileRef.current?.click()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60">{wallpaperBusy?<LoaderCircle size={17} className="animate-spin"/>:<ImagePlus size={17}/ >}{wallpaperBusy?'Compactando e salvando…':wallpaperUrl?'Trocar papel de parede':'Enviar imagem'}</button>{wallpaperUrl&&<button type="button" disabled={removing||wallpaperBusy} onClick={()=>void remove()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-destructive/5 hover:text-destructive disabled:opacity-60">{removing?<LoaderCircle size={16} className="animate-spin"/>:<Trash2 size={16}/>} Remover imagem</button>}</div></div><div className="wallpaper-settings-preview relative min-h-[240px] overflow-hidden border-t border-border/70 bg-muted lg:border-l lg:border-t-0"><div className="absolute inset-0" style={{backgroundImage:wallpaperUrl?`linear-gradient(135deg,rgba(35,16,67,.15),rgba(255,255,255,.1)),url("${wallpaperUrl}")`:'radial-gradient(ellipse at 15% 15%,rgba(139,92,246,.48),transparent 45%),radial-gradient(ellipse at 85% 90%,rgba(56,189,248,.32),transparent 42%),linear-gradient(135deg,#ede9fe,#dbeafe)',backgroundPosition:'center',backgroundSize:'cover'}}/><div className="absolute inset-0 flex items-center justify-center p-6"><div className="w-full max-w-[280px] rounded-2xl border border-white/60 bg-white/65 p-4 shadow-xl backdrop-blur-xl"><div className="mb-4 flex items-center gap-2"><span className="h-7 w-7 rounded-lg bg-violet-700"/><span className="h-2 w-24 rounded-full bg-slate-700/35"/><span className="ml-auto h-5 w-5 rounded-full bg-violet-500/25"/></div><div className="grid grid-cols-3 gap-2"><span className="h-12 rounded-lg border border-white/70 bg-white/75"/><span className="h-12 rounded-lg border border-white/70 bg-white/75"/><span className="h-12 rounded-lg border border-white/70 bg-white/75"/></div><div className="mt-3 space-y-2 rounded-lg border border-white/60 bg-white/55 p-3"><span className="block h-2 w-3/4 rounded-full bg-slate-700/25"/><span className="block h-2 w-full rounded-full bg-slate-700/15"/><span className="block h-2 w-2/3 rounded-full bg-slate-700/15"/></div></div></div><span className="absolute bottom-3 left-3 rounded-full border border-white/50 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 backdrop-blur-md">Prévia do efeito Transparente</span></div></div></section>
+  <section className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Monitor size={19}/></span><div><h2 className="font-semibold text-foreground">Preferências individuais</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">O tema e o caminho da imagem são guardados por conta neste navegador. A imagem fica em um bucket privado e não é gravada como base64 no banco. A sincronização automática entre dispositivos exigirá salvar a preferência no servidor em uma etapa futura.</p></div></div></section>
+ </div>;
 };
-
 export default Personalizacao;
