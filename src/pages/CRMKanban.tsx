@@ -938,7 +938,7 @@ const CRMKanban = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    {(isCustom || customStages.length === 0) && canManageCustomStage(stage.key) && (
+                    {canManageCustomStage(stage.key) && (
                       <>
                         <button onClick={() => { setEditingColumn(stage.key); setEditColLabel(stage.label); }} className="text-muted-foreground hover:text-primary transition p-0.5" title="Renomear"><Edit3 size={11} /></button>
                         <button onClick={() => handleDeleteColumn(stage.key)} className="text-muted-foreground hover:text-destructive transition p-0.5" title="Excluir coluna"><Trash2 size={11} /></button>
@@ -1057,7 +1057,7 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
         const daysSince = reference > 0 ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : 0;
         const signalColor = daysSince <= 10 ? '#22c55e' : daysSince <= 30 ? '#eab308' : '#ef4444';
         const progress = Math.min(100, (daysSince / 30) * 100);
-        const createdLabel = lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+        const createdLabel = lead.createdAt ? new Date(`${lead.createdAt}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
         return (
           <div className="mb-1.5" title={`Criado em ${createdLabel}; sem interação há ${daysSince} dia(s)`}>
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
