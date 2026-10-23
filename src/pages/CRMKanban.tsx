@@ -193,13 +193,15 @@ const CRMKanban = () => {
     if (focusCard) {
       const targetFunnel = String((target as any).funnel || 'spc');
       if (targetFunnel !== activeSector) setActiveSector(targetFunnel);
+      setExpandedStages(previous => new Set(previous).add(target.status as KanbanStage));
       window.setTimeout(() => {
-        const card = document.getElementById(`lead-card-${target.id}`);
+        const cards = Array.from(document.querySelectorAll(`[id="lead-card-${target.id}"]`)) as HTMLElement[];
+        const card = cards.find(element => element.offsetParent !== null) || cards[0];
         if (!card) return;
         card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         card.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
         window.setTimeout(() => card.classList.remove('ring-2', 'ring-primary', 'ring-offset-2'), 1800);
-      }, targetFunnel !== activeSector ? 500 : 180);
+      }, targetFunnel !== activeSector ? 650 : 250);
       return;
     }
     setSelectedLead(target);
