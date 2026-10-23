@@ -812,7 +812,7 @@ const WhatsAppChat = () => {
     const tempId = `temp-${Date.now()}`;
     setMessages(prev => [...prev, {
       id: tempId, chat_id: selected.id, from_me: true, text: msg,
-      message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null,
+      message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null, reply_to: replyingTo?.wa_message_id || null,
     }]);
     setTimeout(() => {
       if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -824,9 +824,10 @@ const WhatsAppChat = () => {
         setSelected(prev => prev?.id === selected.id ? { ...prev, assigned_to: user.id } : prev);
         setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: user.id } : chat));
       }
-      await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, msg);
+      await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, msg, replyingTo?.wa_message_id || undefined);
       await touchLeadInteraction(selected);
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent', reply_to: replyingTo?.wa_message_id || null } : m));
+      setReplyingTo(null);
 
     } catch (e: any) {
       setMessages(prev => prev.filter(m => m.id !== tempId));
@@ -1711,6 +1712,31 @@ const WhatsAppChat = () => {
                               : 'bg-white text-slate-900 border border-slate-200/80 rounded-tl-xs dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-700/60'
                           }`}
                         >
+                          <div className="flex items-center justify-end gap-1 -mt-1 -mr-1">
+                            {pinnedMessageIds.includes(m.id) && <Pin size={12} className="text-primary" />}
+                            {favoriteMessageIds.includes(m.id) && <Star size={12} className="text-amber-500 fill-amber-500" />}
+                            {selectedMessageIds.includes(m.id) && <CheckSquare size={13} className="text-primary" />}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild><button type="button" className="rounded p-1 opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10" title="Ações da mensagem" aria-label="Ações da mensagem"><ChevronDown size={14} /></button></DropdownMenuTrigger>
+                              <DropdownMenuContent align={m.from_me ? 'end' : 'start'} className="w-56">
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('details', m)}><Info size={14} className="mr-2" />Dados da mensagem</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('reply', m)}><Reply size={14} className="mr-2" />Responder</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('copy', m)}><Copy size={14} className="mr-2" />Copiar</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('forward', m)}><Forward size={14} className="mr-2" />Encaminhar</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('pin', m)}><Pin size={14} className="mr-2" />{pinnedMessageIds.includes(m.id) ? 'Desafixar' : 'Fixar'}</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('favorite', m)}><Star size={14} className="mr-2" />{favoriteMessageIds.includes(m.id) ? 'Remover dos favoritos' : 'Favoritar'}</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('select', m)}><CheckSquare size={14} className="mr-2" />{selectedMessageIds.includes(m.id) ? 'Desmarcar seleção' : 'Selecionar'}</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('save', m)}><Download size={14} className="mr-2" />Salvar como</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('share', m)}><Share2 size={14} className="mr-2" />Compartilhar</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('open', m)}><ExternalLink size={14} className="mr-2" />Abrir com</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          {m.reply_to && (() => {
+                            const quoted = messages.find(item => item.wa_message_id === m.reply_to);
+                            return quoted ? <div className="rounded-md border-l-2 border-primary/70 bg-black/5 dark:bg-white/5 px-2 py-1 text-[11px] opacity-80"><span className="font-semibold">{quoted.from_me ? 'Você' : chatTitle(selected)}</span><p className="truncate">{quoted.text || 'Mídia'}</p></div> : null;
+                          })()}
                           {!m.from_me && isGroupChat(selected) && m.sender && (
                             <p className="font-bold text-[11px] text-emerald-700 dark:text-emerald-300">
                               {senderLabel(m.sender)}
@@ -1836,7 +1862,17 @@ const WhatsAppChat = () => {
               </div>
 
               
-              {/* Input Bar - Travada no rodapé */}
+              {replyingTo && (
+                <div className="border-t bg-card px-4 py-2 flex items-center gap-3">
+                  <Reply size={16} className="text-primary shrink-0" />
+                  <div className="min-w-0 flex-1 border-l-2 border-primary pl-2">
+                    <p className="text-xs font-semibold text-primary">Respondendo {replyingTo.from_me ? 'sua mensagem' : chatTitle(selected)}</p>
+                    <p className="text-xs text-muted-foreground truncate">{replyingTo.text || 'Mídia'}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setReplyingTo(null)} title="Cancelar resposta"><Trash2 size={14} /></Button>
+                </div>
+              )}
+              {/* Input Bar - Travada no rodapé */
               <div className="p-3 border-t bg-card flex items-center gap-3 flex-shrink-0 relative z-[100] sticky bottom-0 border-b md:border-b-0 shadow-[0_-8px_30px_rgba(0,0,0,0.15)] pb-safe-bottom">
                 {/* hidden pickers */}
                 <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleFilePicked(e, 'document')} />
@@ -2243,7 +2279,21 @@ const WhatsAppChat = () => {
       </DialogContent>
     </Dialog>
 
-    {/* Salvar contato */}
+    <Dialog open={!!messageDetails} onOpenChange={open => { if (!open) setMessageDetails(null); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Dados da mensagem</DialogTitle></DialogHeader>
+        {messageDetails && <div className="space-y-3 text-sm">
+          <div><p className="text-xs text-muted-foreground">Remetente</p><p>{messageDetails.from_me ? 'Você / equipe' : (messageDetails.sender ? senderLabel(messageDetails.sender) : chatTitle(selected))}</p></div>
+          <div><p className="text-xs text-muted-foreground">Data e hora</p><p>{new Date(messageDetails.timestamp).toLocaleString('pt-BR')}</p></div>
+          <div><p className="text-xs text-muted-foreground">Tipo</p><p>{messageDetails.message_type || 'Mensagem'}</p></div>
+          <div><p className="text-xs text-muted-foreground">Status</p><p>{messageDetails.status || 'Não informado'}</p></div>
+          <div><p className="text-xs text-muted-foreground">Identificador</p><p className="break-all font-mono text-xs">{messageDetails.wa_message_id || messageDetails.id}</p></div>
+        </div>}
+        <DialogFooter><Button variant="outline" onClick={() => setMessageDetails(null)}>Fechar</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Salvar contato */
     <Dialog open={saveContactOpen} onOpenChange={setSaveContactOpen}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
