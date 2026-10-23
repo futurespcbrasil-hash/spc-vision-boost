@@ -904,6 +904,8 @@ const CRMKanban = () => {
                       onObsChange={handleCardObsChange}
                       teamMembers={teamMembers}
                       currentUserId={user?.id || ''}
+                      assigneeColor={getLeadAssigneePreference(lead.assignedTo)?.color}
+                      assigneeName={getLeadAssigneePreference(lead.assignedTo)?.display_name || teamMembers.find(member => member.user_id === lead.assignedTo)?.display_name}
                       onAssign={handleAssignLead}
                       onOpenHistory={handleOpenLeadHistory}
                       onDelete={(l) => { if (!canEditLead(l)) return toast({ title: 'Apenas visualização', description: 'Gestores não excluem leads de vendedores.', variant: 'destructive' }); if (confirm('Excluir este lead?')) deleteLead(l.id); }}
