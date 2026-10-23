@@ -321,6 +321,7 @@ Deno.serve(async (req: Request) => {
             if (!Number.isNaN(parsedTime.getTime())) lastMessageAt = parsedTime.toISOString();
           }
           const lastText = typeof last === "string" ? last : String(last?.body || last?.text || last?.caption || "");
+          const lastMessageFromMe = last?.fromMe === true || last?.from_me === true || last?.key?.fromMe === true;
           const hasLastMedia = !!(last?.hasMedia || last?.media || last?.mimetype);
           // /chats pode retornar todos os contatos. Sincronizar somente conversas com histórico real.
           if (!lastMessageAt && !lastText.trim() && !hasLastMedia) continue;
@@ -342,7 +343,7 @@ Deno.serve(async (req: Request) => {
           // WAHA pode apresentar o mesmo contato com JIDs @c.us e @lid.
           // Reaproveitar o registro por telefone para não criar uma segunda conversa.
           let existing: any = null;
-          const exact = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count")
+          const exact = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at")
             .eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
           if (exact.error) throw exact.error;
           existing = exact.data;
@@ -353,12 +354,17 @@ Deno.serve(async (req: Request) => {
             existing = byPhone.data;
           }
           if (existing) {
+            const previousMessageAt = existing.last_message_at ? new Date(existing.last_message_at).getTime() : 0;
+            const currentMessageAt = record.last_message_at ? new Date(record.last_message_at).getTime() : 0;
+            const hasNewInboundMessage = currentMessageAt > previousMessageAt && !lastMessageFromMe;
             const { error } = await db.from("whatsapp_chats").update({
               ...record,
               wa_chat_id: existing.wa_chat_id,
               contact_number: existing.contact_number || number,
               contact_name: contactName || existing.contact_name,
-              unread_count: Math.max(Number(existing.unread_count || 0), record.unread_count),
+              // Não ressuscitar avisos já dispensados só porque a WAHA repetiu unreadCount antigo.
+              // Um novo inbound atualiza o contador; uma atividade de saída não o aumenta.
+              unread_count: hasNewInboundMessage ? record.unread_count : Number(existing.unread_count || 0),
             }).eq("id", existing.id);
             if (!error) synced++;
             else throw error;
