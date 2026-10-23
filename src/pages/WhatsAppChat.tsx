@@ -972,6 +972,15 @@ const WhatsAppChat = () => {
         if (uniqueMatches.length > 1) throw new Error('Há mais de um lead com este telefone. Revise os cadastros antes de vincular.');
         if (uniqueMatches.length === 1) {
           const existing = uniqueMatches[0];
+          if (leadFunnel === 'spc' && (leadPlanValue.trim() || leadBiro.trim())) {
+            const planValue = leadPlanValue.trim() ? Number(leadPlanValue.replace(/\./g, '').replace(',', '.')) : null;
+            if (planValue !== null && !Number.isFinite(planValue)) throw new Error('Informe um valor de plano válido.');
+            const { error: detailsError } = await supabase.from('leads').update({
+              ...(planValue !== null ? { plan_value: planValue } : {}),
+              ...(leadBiro.trim() ? { biro: leadBiro.trim() } : {}),
+            }).eq('id', existing.id);
+            if (detailsError) throw detailsError;
+          }
           if (leadAssignee && leadAssignee !== existing.assigned_to) {
             const { error: assignError } = await supabase.rpc('assign_lead_to_user', { p_lead_id: existing.id, p_assignee: leadAssignee });
             if (assignError) throw assignError;
