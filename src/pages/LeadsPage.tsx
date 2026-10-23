@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppState } from '@/context/AppContext';
 import { Lead, KANBAN_STAGES, KanbanStage } from '@/data/spcData';
 import { Plus, Search, Phone, MessageCircle, Upload, X, Mail, User2, Edit3, Trash2, Save, Globe, MapPin, Loader2, UserPlus, Building2 } from 'lucide-react';
@@ -28,6 +28,17 @@ const LeadsPage = () => {
   const canEditLead = (lead: Lead) => isGestor || !lead.userId || lead.userId === user?.id;
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const leadDraftKey = user?.id ? `crm_lead_form_draft_${user.id}_${selectedSector}` : undefined;
+  useEffect(() => {
+    if (!leadDraftKey) return;
+    try {
+      if (localStorage.getItem(leadDraftKey)) setShowForm(true);
+    } catch { /* armazenamento indisponível */ }
+  }, [leadDraftKey]);
+  const clearLeadDraft = () => {
+    if (!leadDraftKey) return;
+    try { localStorage.removeItem(leadDraftKey); } catch { /* armazenamento indisponível */ }
+  };
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<Lead | null>(null);
@@ -177,7 +188,7 @@ const LeadsPage = () => {
         </div>
       </div>
 
-      {showForm && <LeadForm onAdd={(lead) => { addLead({ ...lead, funnel: selectedSector } as any); setShowForm(false); }} onCancel={() => setShowForm(false)} />}
+      {showForm && <LeadForm draftKey={leadDraftKey} onAdd={(lead) => { addLead({ ...lead, funnel: selectedSector } as any); clearLeadDraft(); setShowForm(false); }} onCancel={() => { clearLeadDraft(); setShowForm(false); }} />}
 
       {/* Internet Search Modal */}
       {showSearchModal && (
@@ -413,12 +424,29 @@ const LeadsPage = () => {
   );
 };
 
-const LeadForm = ({ onAdd, onCancel }: { onAdd: (lead: Lead) => void; onCancel: () => void }) => {
-  const [form, setForm] = useState({
-    name: '', company: '', phone: '', whatsapp: '', cpfCnpj: '', email: '',
-    type: 'PJ' as 'PF' | 'PJ', origin: '', product: 'SPC Maxi', status: 'lead_novo' as KanbanStage,
-    observations: '',
+const LeadForm = ({ onAdd, onCancel, draftKey }: { onAdd: (lead: Lead) => void; onCancel: () => void; draftKey?: string }) => {
+  const [form, setForm] = useState(() => {
+    const initial = {
+      name: '', company: '', phone: '', whatsapp: '', cpfCnpj: '', email: '',
+      type: 'PJ' as 'PF' | 'PJ', origin: '', product: 'SPC Maxi', status: 'lead_novo' as KanbanStage,
+      observations: '',
+    };
+    if (!draftKey) return initial;
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) return { ...initial, ...JSON.parse(saved), cpfCnpj: '' };
+    } catch { /* rascunho ausente ou inválido */ }
+    return initial;
   });
+
+  // Não persistir CPF/CNPJ no navegador; os demais campos são restaurados ao voltar ao formulário.
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      const { cpfCnpj: _sensitiveIdentifier, ...safeDraft } = form;
+      localStorage.setItem(draftKey, JSON.stringify(safeDraft));
+    } catch { /* armazenamento indisponível ou quota excedida */ }
+  }, [form, draftKey]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
