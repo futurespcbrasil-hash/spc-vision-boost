@@ -915,7 +915,6 @@ const CRMKanban = () => {
             const isExpanded = expandedStages.has(stage.key as KanbanStage);
             const visibleLeads = isExpanded ? stageLeads : stageLeads.slice(0, MAX_VISIBLE);
             const hasMore = stageLeads.length > MAX_VISIBLE;
-            const isCustom = customStages.some(s => s.key === stage.key);
 
             return (
               <div
@@ -1014,8 +1013,18 @@ interface LeadCardProps {
 
 const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick, onStatusChange, onObsChange, teamMembers, currentUserId, assigneeColor, assigneeName, onAssign, onStartConversation, onOpenHistory, onDelete, onEdit }: LeadCardProps) => {
   const [showObs, setShowObs] = useState(false);
-  const [showWhatsappOptions, setShowWhatsappOptions] = useState(false);
   const [obsText, setObsText] = useState(lead.observations || '');
+  const interactionDates = [
+    lead.lastInteractionAt ? new Date(lead.lastInteractionAt).getTime() : 0,
+    ...(Array.isArray(lead.interactions) ? lead.interactions.map(item => item?.date ? new Date(item.date).getTime() : 0) : []),
+  ].filter(value => Number.isFinite(value) && value > 0);
+  const lastInteraction = interactionDates.length ? Math.max(...interactionDates) : 0;
+  const createdTimestamp = lead.createdAt ? new Date(`${lead.createdAt}T12:00:00`).getTime() : 0;
+  const interactionReference = lastInteraction || createdTimestamp;
+  const daysSinceInteraction = interactionReference > 0 ? Math.max(0, Math.floor((Date.now() - interactionReference) / 86400000)) : 0;
+  const interactionColor = daysSinceInteraction <= 10 ? '#22c55e' : daysSinceInteraction <= 30 ? '#eab308' : '#ef4444';
+  const interactionProgress = Math.min(100, daysSinceInteraction / 30 * 100);
+  const createdLabel = lead.createdAt ? new Date(`${lead.createdAt}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   return (
     <div
@@ -1025,6 +1034,7 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={`kanban-card animate-slide-in cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all ${isDragging ? 'kanban-card-dragging' : ''}`}
+      style={{ borderColor: interactionColor, boxShadow: `0 0 0 1px ${interactionColor}44` }}
     >
       <div className="flex items-start justify-between mb-1.5">
         <span className="font-medium text-sm text-foreground">{lead.name}</span>
@@ -1044,36 +1054,20 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
         </div>
       )}
 
-      {/* Lead age and last interaction */}
-      {(() => {
-        const interactions = Array.isArray(lead.interactions) ? lead.interactions : [];
-        const interactionTimes = [
-          lead.lastInteractionAt ? new Date(lead.lastInteractionAt).getTime() : 0,
-          ...interactions.map(item => item?.date ? new Date(item.date).getTime() : 0),
-        ].filter(value => Number.isFinite(value) && value > 0);
-        const latestInteraction = interactionTimes.length ? Math.max(...interactionTimes) : 0;
-        const createdTime = lead.createdAt ? new Date(lead.createdAt).getTime() : 0;
-        const reference = latestInteraction || (Number.isFinite(createdTime) ? createdTime : 0);
-        const daysSince = reference > 0 ? Math.max(0, Math.floor((Date.now() - reference) / 86400000)) : 0;
-        const signalColor = daysSince <= 10 ? '#22c55e' : daysSince <= 30 ? '#eab308' : '#ef4444';
-        const progress = Math.min(100, (daysSince / 30) * 100);
-        const createdLabel = lead.createdAt ? new Date(`${lead.createdAt}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-        return (
-          <div className="mb-1.5" title={`Criado em ${createdLabel}; sem interação há ${daysSince} dia(s)`}>
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Clock size={11} />
-              <span>Criado: {createdLabel}</span>
-              <span className="ml-auto inline-flex items-center gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: signalColor }} />
-                {daysSince === 0 ? 'Interação hoje' : `há ${daysSince} ${daysSince === 1 ? 'dia' : 'dias'} sem interação`}
-              </span>
-            </div>
-            <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden" aria-label={`${progress.toFixed(0)}% do ciclo de 30 dias sem interação`}>
-              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, backgroundColor: signalColor }} />
-            </div>
-          </div>
-        );
-      })()}
+      {/* Data de criação e contador de inatividade */}
+      <div className="mb-1.5" title={`Criado em ${createdLabel}; sem interação há ${daysSinceInteraction} dia(s)`}>
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Clock size={11} />
+          <span>Criado: {createdLabel}</span>
+          <span className="ml-auto inline-flex items-center gap-1.5">
+            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: interactionColor }} />
+            {daysSinceInteraction === 0 ? 'Interação hoje' : `há ${daysSinceInteraction} ${daysSinceInteraction === 1 ? 'dia' : 'dias'} sem interação`}
+          </span>
+        </div>
+        <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden" aria-label={`${interactionProgress.toFixed(0)}% do ciclo de 30 dias sem interação`}>
+          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${interactionProgress}%`, backgroundColor: interactionColor }} />
+        </div>
+      </div>
 
       {/* Status selector */}
       <div className="mb-1.5" onClick={e => e.stopPropagation()}>
@@ -1117,49 +1111,9 @@ const LeadCard = ({ lead, allStages, onDragStart, onDragEnd, isDragging, onClick
       </div>
       
       <div className="flex items-center gap-2 mt-1">
-        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition" title="Ligar"><Phone size={13} /></a>
-        <div className="relative" onClick={e => e.stopPropagation()}>
-          <button
-            type="button"
-            onClick={() => setShowWhatsappOptions(value => !value)}
-            className="text-muted-foreground hover:text-success transition"
-            title="Opções do WhatsApp"
-            aria-label={`Opções do WhatsApp para ${lead.name}`}
-            aria-expanded={showWhatsappOptions}
-          >
-            <MessageCircle size={13} />
-          </button>
-          {showWhatsappOptions && (
-            <div className="absolute left-0 top-full z-50 mt-1 min-w-[190px] rounded-lg border border-border bg-popover p-1 shadow-xl">
-              <button
-                type="button"
-                onClick={() => {
-                  const digits = (lead.whatsapp || lead.phone || '').replace(/\D/g, '');
-                  if (digits.length < 10) {
-                    setShowWhatsappOptions(false);
-                    return;
-                  }
-                  const number = digits.startsWith('55') ? digits : `55${digits}`;
-                  window.open(`https://wa.me/${number}`, '_blank', 'noopener,noreferrer');
-                  setShowWhatsappOptions(false);
-                }}
-                className="w-full rounded-md px-3 py-2 text-left text-xs text-popover-foreground hover:bg-muted"
-              >
-                Chamar no WhatsApp Web
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowWhatsappOptions(false);
-                  onStartConversation(lead);
-                }}
-                className="w-full rounded-md px-3 py-2 text-left text-xs text-popover-foreground hover:bg-muted"
-              >
-                Iniciar conversa
-              </button>
-            </div>
-          )}
-        </div>
+        <button type="button" onClick={e => { e.stopPropagation(); onStartConversation(lead); }} className="text-muted-foreground hover:text-success transition" title="Conversar no WhatsApp do CRM" aria-label={`Conversar com ${lead.name} no WhatsApp do CRM`}>
+          <MessageCircle size={13} />
+        </button>
         {lead.email && <a href={`mailto:${lead.email}`} onClick={e => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition"><Mail size={13} /></a>}
         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()} title="Atribuir responsável">
           <UserPlus size={13} className="text-muted-foreground shrink-0" />
