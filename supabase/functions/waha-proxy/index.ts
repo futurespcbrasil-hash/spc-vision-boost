@@ -251,7 +251,7 @@ Deno.serve(async (req: Request) => {
         target.searchParams.delete("token");
         await callWaha(`/api/sessions/${encodeURIComponent(inst.provider_instance_name)}`, "PUT", { config: { webhooks: [{
           url: target.toString(),
-          events: ["message", "message.any", "message.ack", "state.change", "session.status"],
+          events: ["message", "message.any", "message.ack", "message.revoked", "message.revoke", "message.deleted", "message.delete", "state.change", "session.status"],
           customHeaders: [{ name: "X-WAHA-Webhook-Secret", value: hookSecret }],
         }] } });
         return json({ success: true });
@@ -404,11 +404,15 @@ Deno.serve(async (req: Request) => {
           chat = insertedChat;
         }
         let synced = 0;
+        const remoteMessageIds = new Set<string>();
+        const remoteTimestamps: string[] = [];
+        let remoteMessagesComplete = messages.length > 0;
         if (chat?.id) {
           for (const msg of messages) {
             const rawId = msg?.id?._serialized || msg?.id || msg?.key?.id || msg?.messageId;
             const waMessageId = typeof rawId === "string" ? rawId : "";
-            if (!waMessageId) continue;
+            if (!waMessageId) { remoteMessagesComplete = false; continue; }
+            remoteMessageIds.add(waMessageId);
             const fromMe = msg?.fromMe === true || msg?.from_me === true || msg?.key?.fromMe === true;
             // WAHA pode devolver timestamps como segundos, milissegundos ou strings numéricas.
             // Também pode colocar o tempo em _data.t. Date(stringNumérica) não é confiável:
@@ -431,9 +435,12 @@ Deno.serve(async (req: Request) => {
               return null;
             };
             const sentAt = parseWahaTime(rawTime) || "1970-01-01T00:00:00.000Z";
+            if (sentAt !== "1970-01-01T00:00:00.000Z") remoteTimestamps.push(sentAt);
             const rawType = String(msg?.type || msg?.media?.mimetype || "").toLowerCase();
+            const isRevoked = rawType.includes("revok") || rawType.includes("protocol") || msg?.isRevoked === true || msg?._data?.isRevoked === true;
             const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
               : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
+            const messageText = isRevoked ? "[message_revoke]" : String(msg?.body || msg?.text || "");
             const { error } = await db.from("whatsapp_messages").upsert({
               chat_id: chat.id,
               instance_id: inst.id,
@@ -441,7 +448,7 @@ Deno.serve(async (req: Request) => {
               from_me: fromMe,
               sender: fromMe ? "me" : number,
               message_type: messageType,
-              text: String(msg?.body || msg?.text || ""),
+              text: messageText,
               media_url: msg?.media?.url || msg?.mediaUrl || null,
               media_mime: msg?.media?.mimetype || null,
               media_filename: msg?.media?.filename || null,
@@ -451,6 +458,49 @@ Deno.serve(async (req: Request) => {
               sent_by: fromMe ? inst.owner_id : null,
             }, { onConflict: "instance_id,wa_message_id" });
             if (!error) synced++;
+          }
+          // Reconcile the recent remote window: the old implementation only upserted
+          // messages and therefore never removed records deleted on the phone. Only reconcile
+          // when WAHA returned identifiable messages with valid timestamps, and never touch
+          // messages older than the first item in the fetched remote window.
+          if (remoteMessagesComplete && remoteTimestamps.length > 0) {
+            const oldestRemote = remoteTimestamps.reduce((a, b) => a < b ? a : b);
+            const { data: localWindow, error: localWindowError } = await db.from("whatsapp_messages")
+              .select("id,wa_message_id,timestamp")
+              .eq("chat_id", chat.id)
+              .gte("timestamp", oldestRemote);
+            if (localWindowError) throw localWindowError;
+            const staleIds = (localWindow || [])
+              .filter((row: any) => row.wa_message_id && !remoteMessageIds.has(String(row.wa_message_id)))
+              .map((row: any) => row.id);
+            if (staleIds.length > 0) {
+              const { error: deleteError } = await db.from("whatsapp_messages").delete().in("id", staleIds);
+              if (deleteError) throw deleteError;
+            }
+            const newestRemote = messages
+              .map((msg: any) => {
+                const id = msg?.id?._serialized || msg?.id || msg?.key?.id || msg?.messageId;
+                const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ?? msg?._data?.t ?? msg?._data?.timestamp;
+                let parsed: number | null = null;
+                if (typeof rawTime === "number" && rawTime > 0) parsed = rawTime < 10_000_000_000 ? rawTime * 1000 : rawTime;
+                else if (typeof rawTime === "string" && rawTime.trim()) {
+                  const numeric = Number(rawTime);
+                  parsed = Number.isFinite(numeric) && numeric > 0 ? (numeric < 10_000_000_000 ? numeric * 1000 : numeric) : new Date(rawTime).getTime();
+                }
+                return { msg, id: String(id || ""), time: parsed || 0 };
+              })
+              .filter((item: any) => item.id && item.time > 0)
+              .sort((a: any, b: any) => b.time - a.time)[0];
+            if (newestRemote) {
+              const latestText = String(newestRemote.msg?.body || newestRemote.msg?.text || "");
+              const latestType = String(newestRemote.msg?.type || "").toLowerCase();
+              await db.from("whatsapp_chats").update({
+                last_message: latestType.includes("revok") || newestRemote.msg?.isRevoked === true
+                  ? "[message_revoke]" : latestText || (newestRemote.msg?.hasMedia ? "[mídia]" : ""),
+                last_message_at: new Date(newestRemote.time).toISOString(),
+                updated_at: new Date().toISOString(),
+              }).eq("id", chat.id);
+            }
           }
         }
         return json({ messages, synced });
