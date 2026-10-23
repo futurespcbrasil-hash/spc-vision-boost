@@ -16,7 +16,7 @@ const timestamp = (v: unknown) => {
     const d = new Date(v);
     if (!Number.isNaN(d.getTime())) return d.toISOString();
   }
-  return new Date().toISOString();
+  return "1970-01-01T00:00:00.000Z";
 };
 
 Deno.serve(async (req: Request) => {
@@ -86,7 +86,7 @@ Deno.serve(async (req: Request) => {
   const rawType = str(payload?.type || payload?.media?.mimetype).toLowerCase();
   const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
     : rawType.includes("video") ? "video" : payload?.hasMedia ? "document" : "text";
-  const sentAt = timestamp(payload?.timestamp || payload?.t);
+  const sentAt = timestamp(payload?.timestamp ?? payload?.t ?? payload?._data?.t ?? payload?._data?.timestamp);
   const mediaUrl = str(payload?.media?.url || payload?.mediaUrl) || null;
   const avatar = str(payload?._data?.profilePicThumbObj?.eurl || payload?.profilePictureUrl) || null;
 
