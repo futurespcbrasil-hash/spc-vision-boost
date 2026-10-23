@@ -87,6 +87,7 @@ export default function WhatsAppConversas() {
   const activeChatIdRef = useRef('');
   const selectedChatRef = useRef<Chat | null>(null);
   const messageLoadSequenceRef = useRef(0);
+  const messagesLoadedForChatRef = useRef('');
   const sendLockRef = useRef(false);
   const scrollMessagesToBottom = useCallback((force = false) => {
     if (!force && !stickToBottomRef.current) return;
@@ -174,6 +175,7 @@ export default function WhatsAppConversas() {
       if (loadSequence !== messageLoadSequenceRef.current || activeChatIdRef.current !== chat.id) return;
       // A consulta vem do mais recente para o mais antigo; renderizar em ordem cronológica.
       setMessages(((data || []) as Message[]).reverse());
+      messagesLoadedForChatRef.current = chat.id;
       await (supabase as any).from('whatsapp_chats').update({ unread_count: 0 }).eq('id', chat.id);
       setChats((current) => current.map((item) => item.id === chat.id ? { ...item, unread_count: 0 } : item));
     } catch (e) {
@@ -216,6 +218,7 @@ export default function WhatsAppConversas() {
   useEffect(() => {
     activeChatIdRef.current = selectedChatId;
     pendingInitialScrollRef.current = Boolean(selectedChatId);
+    messagesLoadedForChatRef.current = '';
     stickToBottomRef.current = true;
     messageLoadSequenceRef.current += 1;
     // Zera o viewport ao trocar conversa para evitar que o scroll anterior sobreviva
@@ -226,21 +229,19 @@ export default function WhatsAppConversas() {
   // Primeiro carregamento da conversa sempre termina no fim. Depois, só acompanha
   // novas mensagens se o usuário já estava no fim; scroll manual para cima é respeitado.
   useLayoutEffect(() => {
-    // Não consumir o scroll inicial antes de terminar a consulta. Na troca de chat,
-    // o estado loadingMessages pode ainda refletir a conversa anterior durante um render.
+    if (!selectedChatId) return;
+    // Só aplicar o scroll inicial quando loadMessages confirmar que os dados desta
+    // conversa foram recebidos. O loading state pode estar falso no primeiro render,
+    // antes do useEffect iniciar a consulta.
     if (pendingInitialScrollRef.current) {
-      if (loadingMessages) return;
-      if (!selectedChatId) return;
+      if (messagesLoadedForChatRef.current !== selectedChatId || loadingMessages) return;
       stickToBottomRef.current = true;
       scrollMessagesToBottom(true);
       pendingInitialScrollRef.current = false;
       return;
     }
-    // Após o carregamento completo, forçar o final na primeira renderização da conversa.
-    // Em atualizações posteriores, só acompanhar o final se o usuário já estava nele.
-    if (!loadingMessages && selectedChatId && messages.length >= 0) {
-      scrollMessagesToBottom();
-    }
+    // Nas atualizações seguintes, acompanhar o fim somente se o usuário já estava nele.
+    scrollMessagesToBottom();
   }, [messages, loadingMessages, selectedChatId, scrollMessagesToBottom]);
 
   useEffect(() => {
