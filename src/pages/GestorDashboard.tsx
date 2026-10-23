@@ -147,9 +147,10 @@ const GestorDashboard = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-7 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Painel do Gestor</h1>
+        <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-xs font-semibold text-primary mb-2"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> VISÃO EXECUTIVA</div>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Painel do Gestor</h1>
         <p className="text-muted-foreground text-sm mt-1">Acompanhe o desempenho da equipe e identifique oportunidades de crescimento</p>
       </div>
 
