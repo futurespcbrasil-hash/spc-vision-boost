@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
-import { Users, UserPlus, Search, Edit2, Trash2, Loader2, Save, X } from 'lucide-react';
+import { Users, UserPlus, Search, Edit2, Trash2, Loader2, Save, X, History, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
   Dialog,
@@ -17,6 +17,7 @@ interface Vendedor {
   nome: string;
   cidade: string | null;
   percentual_comissao: number;
+  tipo_comissao?: string | null;
   email: string | null;
   chave_pix: string | null;
   dados_bancarios: string | null;
@@ -27,6 +28,7 @@ const CadastroVendedores = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVendedor, setEditingVendedor] = useState<Vendedor | null>(null);
+  const [historicoVendedor, setHistoricoVendedor] = useState<Vendedor | null>(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -37,6 +39,32 @@ const CadastroVendedores = () => {
     chave_pix: '',
     dados_bancarios: '',
   });
+
+
+  const { data: importacoesHistoricas = [], isLoading: loadingHistorico } = useQuery({
+    queryKey: ['historico_comissoes_vendedor'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('importacoes_comissoes').select('id, nome_importacao, created_at, dados_processados').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!historicoVendedor,
+  });
+
+  const historicoDoVendedor = useMemo(() => {
+    if (!historicoVendedor) return [];
+    const normalizar = (valor: string) => valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const nomeAlvo = normalizar(historicoVendedor.nome);
+    return importacoesHistoricas.flatMap((imp: any) => {
+      const processados = (imp.dados_processados || {}) as Record<string, any[]>;
+      const entrada = Object.entries(processados).find(([nome, vendas]) => normalizar(nome) === nomeAlvo && Array.isArray(vendas) && vendas.length > 0);
+      if (!entrada) return [];
+      const [nome, vendas] = entrada;
+      const totalVendido = vendas.reduce((soma, venda: any) => soma + Number(venda.valorVenda || 0), 0);
+      const totalComissao = vendas.reduce((soma, venda: any) => soma + Number(venda.comissao || 0), 0);
+      return [{ id: imp.id, nomeImportacao: imp.nome_importacao, criadoEm: imp.created_at, nome, vendas, totalVendido, totalComissao }];
+    });
+  }, [historicoVendedor, importacoesHistoricas]);
 
   const { data: vendedores, isLoading } = useQuery({
     queryKey: ['vendedores_comissoes'],
@@ -308,7 +336,7 @@ const CadastroVendedores = () => {
                 filteredVendedores?.map((vendedor) => (
                   <tr key={vendedor.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-medium">{vendedor.nome}</div>
+                      <button type="button" onClick={() => setHistoricoVendedor(vendedor)} className="font-semibold text-left text-primary hover:underline inline-flex items-center gap-1" title="Abrir cadastro e histórico do vendedor">{vendedor.nome}<ChevronRight size={14} /></button>
                       <div className="text-[10px] text-muted-foreground">{vendedor.email || 'Sem email'}</div>
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">{vendedor.cidade || '-'}</td>
@@ -359,6 +387,44 @@ const CadastroVendedores = () => {
           </table>
         </div>
       </div>
+
+      <Dialog open={!!historicoVendedor} onOpenChange={(open) => !open && setHistoricoVendedor(null)}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><History size={20} className="text-primary" />{historicoVendedor?.nome} — cadastro e histórico de comissões</DialogTitle>
+          </DialogHeader>
+          {historicoVendedor && <div className="space-y-5">
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">E-mail</div><div className="font-medium break-all">{historicoVendedor.email || 'Não informado'}</div></div>
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Cidade</div><div className="font-medium">{historicoVendedor.cidade || 'Não informada'}</div></div>
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Regra cadastrada</div><div className="font-medium">{historicoVendedor.tipo_comissao === 'fixo' ? Number(historicoVendedor.percentual_comissao || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ' por venda' : historicoVendedor.tipo_comissao === 'custo' ? Number(historicoVendedor.percentual_comissao || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ' de custo por venda' : Number(historicoVendedor.percentual_comissao || 0).toLocaleString('pt-BR') + '%'}</div></div>
+              <div className="rounded-lg border border-border p-3"><div className="text-xs text-muted-foreground">Chave PIX</div><div className="font-medium break-all">{historicoVendedor.chave_pix || 'Não informada'}</div></div>
+              <div className="rounded-lg border border-border p-3 sm:col-span-2"><div className="text-xs text-muted-foreground">Dados bancários</div><div className="font-medium whitespace-pre-wrap">{historicoVendedor.dados_bancarios || 'Não informados'}</div></div>
+            </section>
+            <section className="space-y-3">
+              <h3 className="font-semibold text-base">Histórico de relatórios</h3>
+              {loadingHistorico ? <div className="py-8 text-center"><Loader2 className="animate-spin mx-auto text-primary" size={28} /></div> :
+                historicoDoVendedor.length === 0 ? <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Ainda não há relatórios históricos salvos para este vendedor.</div> :
+                historicoDoVendedor.map((relatorio: any) => <article key={relatorio.id} className="rounded-xl border border-border overflow-hidden">
+                  <div className="bg-muted/30 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div><div className="font-semibold">{relatorio.nomeImportacao || 'Importação sem nome'}</div><div className="text-xs text-muted-foreground">{new Date(relatorio.criadoEm).toLocaleString('pt-BR')} · {relatorio.vendas.length} vendas</div></div>
+                    <div className="flex flex-wrap gap-4 text-sm"><span>Vendido: <strong>{relatorio.totalVendido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span><span>Comissão: <strong className="text-primary">{relatorio.totalComissao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span></div>
+                  </div>
+                  <div className="overflow-x-auto"><table className="w-full text-left text-xs">
+                    <thead className="bg-muted/20 text-muted-foreground"><tr><th className="p-3">Cliente</th><th className="p-3">Protocolo</th><th className="p-3">Produto</th><th className="p-3">Valor venda</th><th className="p-3">Comissão</th><th className="p-3">Regra aplicada</th></tr></thead>
+                    <tbody className="divide-y divide-border">{relatorio.vendas.map((venda: any, index: number) => <tr key={(venda.protocolo || 'venda') + '-' + index}>
+                      <td className="p-3">{venda.cliente || '—'}</td><td className="p-3">{venda.protocolo || '—'}</td><td className="p-3">{venda.produto || '—'}</td>
+                      <td className="p-3 whitespace-nowrap">{Number(venda.valorVenda || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="p-3 whitespace-nowrap font-medium">{Number(venda.comissao || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="p-3 whitespace-nowrap">{venda.tipoRegra === 'fixo' ? 'Valor fixo' : venda.tipoRegra === 'custo' ? 'Custo por venda' : (venda.regra ?? '—') + (venda.regra !== undefined ? '%' : '')}</td>
+                    </tr>)}</tbody>
+                  </table></div>
+                </article>)
+              }
+            </section>
+          </div>}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
