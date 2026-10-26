@@ -209,6 +209,7 @@ const WhatsAppChat = () => {
   const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
   const [favoriteMessageIds, setFavoriteMessageIds] = useState<string[]>([]);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [selectionMode, setSelectionMode] = useState(false);
   const messageFlagKey = 'whatsapp_message_flags_' + (user?.id || 'anonymous') + '_' + (instanceId || 'none');
 
   // Abre uma conversa do CRM apenas depois de carregar as conversas da instância
@@ -514,8 +515,9 @@ const WhatsAppChat = () => {
       }
       if (action === 'forward') {
         if (!content && !message.media_url) return toast({ title: 'Conteúdo indisponível', description: 'Esta mensagem não tem texto nem mídia acessível.' });
+        setSelectionMode(true);
         setSelectedMessageIds(prev => prev.includes(message.id) ? prev : [...prev, message.id]);
-        toast({ title: 'Mensagem selecionada para encaminhar', description: 'Selecione outras mensagens se quiser e depois clique em Encaminhar.' });
+        toast({ title: 'Modo de seleção ativado', description: 'Marque as caixas das outras mensagens e depois clique em Encaminhar.' });
         return;
       }
       if (action === 'pin') {
@@ -529,6 +531,7 @@ const WhatsAppChat = () => {
         toast({ title: next.includes(message.id) ? 'Mensagem favoritada' : 'Favorito removido' }); return;
       }
       if (action === 'select') {
+        setSelectionMode(true);
         setSelectedMessageIds(prev => prev.includes(message.id) ? prev.filter(id => id !== message.id) : [...prev, message.id]); return;
       }
       if (action === 'save' || action === 'open') {
@@ -870,6 +873,7 @@ const WhatsAppChat = () => {
       setMessages([]);
     }
     setSelectedMessageIds([]);
+    setSelectionMode(false);
     let cancelled = false;
     // Carrega primeiro o histórico local para resposta rápida e, em seguida,
     // sincroniza as mensagens reais da WAHA (até 100) ao abrir cada conversa.
@@ -967,6 +971,17 @@ const WhatsAppChat = () => {
     }, 30000);
     return () => { cancelled = true; window.clearInterval(poll); window.clearInterval(remoteSync); supabase.removeChannel(ch); };
   }, [selected?.id, loadMessages, instanceId, touchLeadInteraction]);
+
+  // Persiste atualizações em tempo real no cache correto, sem associar mensagens ao chat errado.
+  useEffect(() => {
+    if (!selected?.id || messagesChatIdRef.current !== selected.id) return;
+    const cacheKey = `${user?.id || 'anonymous'}:${instanceId}:${selected.id}`;
+    const currentMessages = messagesRef.current;
+    messagesCacheRef.current.set(cacheKey, currentMessages);
+    try {
+      if (user?.id) localStorage.setItem(`whatsapp_messages_cache_${user.id}_${instanceId}_${selected.id}`, JSON.stringify(currentMessages));
+    } catch { /* cache em memória permanece disponível */ }
+  }, [messages, selected?.id, instanceId, user?.id]);
 
   const handleSend = async () => {
     if (!text.trim() || !selected || !instanceId) return;
@@ -1120,6 +1135,7 @@ const WhatsAppChat = () => {
       const wasForwarding = forwardMessages.length > 0;
       setForwardMessages([]);
       setSelectedMessageIds([]);
+      setSelectionMode(false);
       toast({ title: wasForwarding ? `${forwardMessages.length} mensagem(ns) encaminhada(s)` : newChatMessage.trim() ? 'Mensagem enviada' : 'Conversa aberta' });
     } catch (e: any) {
       toast({ title: 'Falha ao iniciar conversa', description: e.message, variant: 'destructive' });
@@ -1954,7 +1970,7 @@ const WhatsAppChat = () => {
                   <Button variant="ghost" size="icon" className="h-7 w-7" title="Desafixar mensagem" onClick={() => saveMessageFlags(pinnedMessageIds.slice(0, -1), favoriteMessageIds)}><PinOff size={13}/></Button>
                 </div>
               )}
-              {selectedMessageIds.length > 0 && (
+              {(selectionMode || selectedMessageIds.length > 0) && (
                 <div className="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2">
                   <span className="text-xs font-medium">{selectedMessageIds.length} selecionada(s)</span>
                   <Button variant="outline" size="sm" className="h-7" onClick={() => setSelectedMessageIds(messages.filter(m => m.message_type !== 'reaction' && m.text !== '[crm_deleted]').map(m => m.id))}>Selecionar todas</Button>
@@ -1968,7 +1984,7 @@ const WhatsAppChat = () => {
                     setNewChatOpen(true);
                   }}><Forward size={13} className="mr-1"/>Encaminhar</Button>
                   <Button variant="outline" size="sm" className="h-7" onClick={() => void handleMessageAction('share', messages.find(m => m.id === selectedMessageIds[0])!)} disabled={!messages.some(m => m.id === selectedMessageIds[0])}><Share2 size={13} className="mr-1"/>Compartilhar</Button>
-                  <Button variant="ghost" size="sm" className="h-7" onClick={() => setSelectedMessageIds([])}>Cancelar seleção</Button>
+                  <Button variant="ghost" size="sm" className="h-7" onClick={() => { setSelectedMessageIds([]); setSelectionMode(false); }}>Cancelar seleção</Button>
                 </div>
               )}
               {/* Chat Message Canvas */}
@@ -2009,7 +2025,7 @@ const WhatsAppChat = () => {
                           }`}
                         >
                           <div className="flex items-center justify-end gap-1 -mt-1 -mr-1">
-                            {selectedMessageIds.length > 0 && (
+                            {selectionMode && (
                               <button type="button" title={selectedMessageIds.includes(m.id) ? 'Desmarcar mensagem' : 'Selecionar mensagem'}
                                 aria-label={selectedMessageIds.includes(m.id) ? 'Desmarcar mensagem' : 'Selecionar mensagem'}
                                 aria-pressed={selectedMessageIds.includes(m.id)}
