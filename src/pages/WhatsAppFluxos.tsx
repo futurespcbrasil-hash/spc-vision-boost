@@ -25,7 +25,7 @@ const makeOption = (index: number): FlowOption => ({
 });
 const newFlow = (instanceId = ''): Omit<Flow, 'id' | 'created_at' | 'updated_at'> => ({
   instance_id: instanceId, name: 'Novo fluxo de atendimento',
-  welcome_message: 'Olá! Bom dia, tudo bem? 😊\\nSeja muito bem-vindo(a) à Future Soluções!',
+  welcome_message: 'Olá! Bom dia, tudo bem? 😊\nSeja muito bem-vindo(a) à Future Soluções!',
   menu_message: 'Para agilizar seu atendimento, selecione uma opção:',
   fallback_message: 'Não consegui identificar sua opção. Digite o número de uma das opções do menu.',
   options: [makeOption(0), makeOption(1), makeOption(2)], is_active: false,
