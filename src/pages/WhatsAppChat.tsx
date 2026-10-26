@@ -15,7 +15,7 @@ import {
   CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
   Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
   Pin, PinOff, Eye, Bell, Copy, Forward, Star, Reply, Share2, Download, ExternalLink, Info, CheckSquare,
-  Phone, Ban, Flag, Link as LinkIcon, Contact, X, File, Image, Film
+  Phone, Ban, Flag, Link as LinkIcon, Contact
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -1431,9 +1431,9 @@ const WhatsAppChat = () => {
     if (!selected) return;
     const name = chatTitle(selected);
     const phone = formatNumber(selected.contact_number);
-    const vcard = `BEGIN:VCARD\\nVERSION:3.0\\nFN:${name}\\nTEL;TYPE=CELL:${selected.contact_number}\\nEND:VCARD`;
+    const vcard = `BEGIN:VCARD\nVERSION:3.0\nFN:${name}\nTEL;TYPE=CELL:${selected.contact_number}\nEND:VCARD`;
     try {
-      await navigator.clipboard.writeText(`${name}\\n${phone}\\n\\n${vcard}`);
+      await navigator.clipboard.writeText(`${name}\n${phone}\n\n${vcard}`);
       toast({ title: 'Contato preparado para compartilhar', description: 'Nome e telefone copiados. Cole no destino desejado.' });
     } catch {
       toast({ title: 'Não foi possível copiar o contato', description: 'Verifique a permissão de área de transferência do navegador.', variant: 'destructive' });
@@ -1447,7 +1447,7 @@ const WhatsAppChat = () => {
     setSaveContactOpen(true);
   };
 
-  const contactLinks = messages.filter(m => /https?:\\/\\/|www\\./i.test(m.text || ''));
+  const contactLinks = messages.filter(m => /https?:\/\/|www\./i.test(m.text || ''));
   const contactMedia = messages.filter(m => !!m.media_url && /image|photo|sticker|video|audio|ptt/i.test(m.message_type || ''));
   const contactDocs = messages.filter(m => !!m.media_url && /document|file|application|pdf/i.test(`${m.message_type || ''} ${m.media_mime || ''}`));
   const panelMessages = contactPanelTab === 'media' ? contactMedia : contactPanelTab === 'links' ? contactLinks : contactPanelTab === 'docs' ? contactDocs : [];
