@@ -153,8 +153,10 @@ Deno.serve(async (req: Request) => {
     }
   };
 
-  const updateLeadInteractionForNumber = async (numberValue: string, messageText: string) => {
-    let target = String(numberValue || "").split("@")[0].replace(/\D/g, "");
+  const updateLeadInteractionForNumber = async (inst: any, numberValue: string, chatId: string, messageText: string) => {
+    const { data: chatRecord } = await db.from("whatsapp_chats").select("contact_number")
+      .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
+    let target = String(chatRecord?.contact_number || numberValue || "").split("@")[0].replace(/\D/g, "");
     if (target.length >= 20 && target.length % 2 === 0 && target.slice(0, target.length / 2) === target.slice(target.length / 2)) {
       target = target.slice(0, target.length / 2);
     }
@@ -163,7 +165,6 @@ Deno.serve(async (req: Request) => {
 
     const { data: leadRows, error: leadLookupError } = await db.from("leads")
       .select("id,phone,whatsapp,interactions")
-      .not("phone", "is", null)
       .limit(2000);
     if (leadLookupError) {
       console.error("[WAHA] Não foi possível localizar lead para registrar interação:", leadLookupError.message);
@@ -328,7 +329,7 @@ Deno.serve(async (req: Request) => {
         if (replyTo) payload.reply_to = replyTo;
         const result = await callWaha("/api/sendText", "POST", payload);
         await persistOutbound(inst, chatId, String(body.text).trim(), "text", result, number, replyTo);
-        const leadInteractionUpdated = await updateLeadInteractionForNumber(chatId, String(body.text));
+        const leadInteractionUpdated = await updateLeadInteractionForNumber(inst, number, chatId, String(body.text));
         return json({ ...result, lead_interaction_updated: leadInteractionUpdated });
       }
       case "send_media": {
