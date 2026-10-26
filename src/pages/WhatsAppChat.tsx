@@ -761,9 +761,13 @@ const WhatsAppChat = () => {
     const list = await Promise.all(sourceMessages.map(async (message) => {
       const url = message.media_url || '';
       const previous = previousById.get(message.id);
-      if (!url || !/localhost:3000\/api\/files\//i.test(url)) return message;
+      const needsResolution = /localhost:3000\/api\/files\//i.test(url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(url);
+      if (!url || !needsResolution) return message;
       // Evita refazer a requisição em cada polling se esta mídia já foi resolvida nesta sessão.
-      if (previous?.media_url && !/localhost:3000\/api\/files\//i.test(previous.media_url)) {
+      const previousNeedsResolution = previous?.media_url
+        ? /localhost:3000\/api\/files\//i.test(previous.media_url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(previous.media_url)
+        : false;
+      if (previous?.media_url && !previousNeedsResolution) {
         return { ...message, media_url: previous.media_url };
       }
       if (!selected?.instance_id) return message;
