@@ -546,8 +546,8 @@ const WhatsAppChat = () => {
           popup.opener = null;
           try {
             const needsResolve = !!message.media_url && (
-              /localhost:3000\\/api\\/files\\//i.test(message.media_url) ||
-              /\\/storage\\/v1\\/object\\/(sign|public)\\/chat-media\\//i.test(message.media_url)
+              /localhost:3000\/api\/files\//i.test(message.media_url) ||
+              /\/storage\/v1\/object\/(sign|public)\/chat-media\//i.test(message.media_url)
             );
             if (needsResolve && selected?.instance_id) {
               const resolved = await waha.resolveMedia(selected.instance_id, message.id);
