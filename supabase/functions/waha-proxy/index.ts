@@ -163,26 +163,36 @@ Deno.serve(async (req: Request) => {
     if (target.startsWith("55") && (target.length === 12 || target.length === 13)) target = target.slice(2);
     if (target.length < 10) return false;
 
-    const { data: leadRows, error: leadLookupError } = await db.from("leads")
-      .select("id,phone,whatsapp,interactions")
-      .limit(2000);
-    if (leadLookupError) {
-      console.error("[WAHA] Não foi possível localizar lead para registrar interação:", leadLookupError.message);
-      return false;
-    }
     const normalizeLeadNumber = (value: unknown) => {
-      let digits = String(value || "").replace(/\D/g, "");
+      let digits = String(value || "").split("@")[0].replace(/\D/g, "");
       if (digits.length >= 20 && digits.length % 2 === 0 && digits.slice(0, digits.length / 2) === digits.slice(digits.length / 2)) {
         digits = digits.slice(0, digits.length / 2);
       }
       if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
       return digits;
     };
-    const lead = (leadRows || []).find((row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
+    const matchesTarget = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
       const candidate = normalizeLeadNumber(value);
       return candidate && (candidate === target || (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
-    }));
-    if (!lead) return false;
+    });
+    // Pagina o conjunto de leads para não deixar de atualizar um lead antigo
+    // que esteja além dos primeiros registros retornados pelo Postgres.
+    let lead: any = null;
+    for (let offset = 0; offset < 10000; offset += 1000) {
+      const { data: leadRows, error: leadLookupError } = await db.from("leads")
+        .select("id,phone,whatsapp,interactions")
+        .range(offset, offset + 999);
+      if (leadLookupError) {
+        console.error("[WAHA] Não foi possível localizar lead para registrar interação:", leadLookupError.message);
+        return false;
+      }
+      lead = (leadRows || []).find(matchesTarget) || null;
+      if (lead || !leadRows || leadRows.length < 1000) break;
+    }
+    if (!lead) {
+      console.warn("[WAHA] Nenhum lead corresponde ao telefone de destino:", target.slice(-4));
+      return false;
+    }
 
     const now = new Date().toISOString();
     const existingInteractions = Array.isArray(lead.interactions) ? lead.interactions : [];
