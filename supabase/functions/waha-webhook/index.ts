@@ -236,11 +236,12 @@ Deno.serve(async (req: Request) => {
       if (activeCycle?.id) {
         await db.from("whatsapp_service_sessions").update({ last_activity_at: sentAt, updated_at: new Date().toISOString() }).eq("id", activeCycle.id);
       } else {
-        const { error: cycleCreateError } = await db.from("whatsapp_service_sessions").insert({
+        const { data: createdCycle, error: cycleCreateError } = await db.from("whatsapp_service_sessions").insert({
           chat_id: chatId, instance_id: instance.id, assigned_to: str(existingChat?.assigned_to) || null,
           created_by: instance.owner_id, status: "in_progress", started_at: sentAt, last_activity_at: sentAt,
-        });
+        }).select("id").maybeSingle();
         if (cycleCreateError && !String(cycleCreateError.message || "").includes("idx_whatsapp_service_sessions_one_active_per_chat")) throw cycleCreateError;
+        newServiceCycleStarted = !!createdCycle?.id;
       }
     } catch (cycleError) {
       console.error("[waha-webhook] Could not update service cycle:", cycleError);
@@ -258,13 +259,12 @@ Deno.serve(async (req: Request) => {
           .select("*").eq("instance_id", instance.id).eq("chat_id", chatId).maybeSingle();
         if (sessionError) throw sessionError;
 
-        const assignedTo = str(existingChat?.assigned_to);
+        let assignedTo = str(existingChat?.assigned_to);
         const menuText = [
           str(flow.welcome_message).trim(), str(flow.menu_message).trim(),
           ...(Array.isArray(flow.options) ? flow.options.map((option: any, index: number) => `${index + 1} — ${str(option?.label).trim()}`) : []),
           "Digite o número da opção desejada.",
-        ].filter(Boolean).join("\n\n");
-        const sendAutomaticText = async (text: string) => {
+        ].filter(Boolean).join("\n\n");\n\n        const sendAutomaticText = async (text: string) => {
           const configuredUrl = Deno.env.get("WAHA_API_URL") || "";
           const apiUrl = configuredUrl.endsWith("/") ? configuredUrl.slice(0, -1) : configuredUrl;
           const apiKey = Deno.env.get("WAHA_API_KEY");
@@ -277,6 +277,28 @@ Deno.serve(async (req: Request) => {
           if (!response.ok) throw new Error(`WAHA sendText HTTP ${response.status}: ${(await response.text()).slice(0, 400)}`);
           return await response.json().catch(() => ({}));
         };
+
+        // Atendimento novo após encerramento: reinicia o menu, mesmo que a sessão
+        // anterior tenha sido roteada para um atendente. A nova escolha volta a
+        // determinar o destino, sem alterar a avaliação do ciclo encerrado.
+        if (newServiceCycleStarted) {
+          if (assignedTo) {
+            await db.from("whatsapp_chats").update({ assigned_to: null, updated_at: new Date().toISOString() }).eq("id", chatId);
+            await db.from("whatsapp_chat_assignment_history").insert({
+              chat_id: chatId, previous_assignee: assignedTo, new_assignee: null, changed_by: instance.owner_id,
+            });
+            assignedTo = "";
+          }
+          await db.from("whatsapp_flow_sessions").upsert({
+            flow_id: flow.id, instance_id: instance.id, chat_id: chatId, wa_chat_id: waChatId,
+            status: "awaiting_choice", selected_option_key: null, target_label: null, assigned_to: null,
+            last_inbound_message_id: messageId || null,
+            last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          }, { onConflict: "instance_id,chat_id" });
+          await sendAutomaticText(menuText);
+          return json({ accepted: true, new_service_cycle: true, menu_resent: true });
+        }
+
 
         if (flowSession?.status === "awaiting_choice" && assignedTo) {
           await db.from("whatsapp_flow_sessions").update({
