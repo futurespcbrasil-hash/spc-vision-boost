@@ -103,26 +103,50 @@ export default function WhatsAppConversas() {
   const messageLoadSequenceRef = useRef(0);
   const messagesLoadedForChatRef = useRef('');
   const sendLockRef = useRef(false);
+  const scrollFrameIdsRef = useRef<number[]>([]);
+
+  const cancelScrollFrames = useCallback(() => {
+    for (const frameId of scrollFrameIdsRef.current) {
+      window.cancelAnimationFrame(frameId);
+    }
+    scrollFrameIdsRef.current = [];
+  }, []);
+
   const scrollMessagesToBottom = useCallback((force = false) => {
     if (!force && !stickToBottomRef.current) return;
-    // Usa exclusivamente o viewport do chat: scrollIntoView pode rolar também a página
-    // externa e não garante que o painel de mensagens fique no fim.
+
+    // A message burst can trigger several layout effects. Cancel stale scroll work
+    // so only the newest sequence runs, and cancel any remaining frames on unmount.
+    cancelScrollFrames();
+
     const scroll = () => {
       const viewport = messagesViewportRef.current;
       if (!viewport || (!force && !stickToBottomRef.current)) return;
       viewport.scrollTop = viewport.scrollHeight;
-      // Segunda leitura força o browser a recalcular o layout já atualizado.
+      // Keep the existing layout correction for media that finishes rendering late.
       void viewport.offsetHeight;
       viewport.scrollTop = viewport.scrollHeight;
     };
-    requestAnimationFrame(() => {
+
+    const schedule = (callback: () => void) => {
+      let frameId = 0;
+      frameId = window.requestAnimationFrame(() => {
+        scrollFrameIdsRef.current = scrollFrameIdsRef.current.filter((id) => id !== frameId);
+        callback();
+      });
+      scrollFrameIdsRef.current.push(frameId);
+    };
+
+    schedule(() => {
       scroll();
-      requestAnimationFrame(() => {
+      schedule(() => {
         scroll();
-        requestAnimationFrame(scroll);
+        schedule(scroll);
       });
     });
-  }, []);
+  }, [cancelScrollFrames]);
+
+  useEffect(() => () => cancelScrollFrames(), [cancelScrollFrames]);
 
   const startEditingMessage = (msg: Message) => {
     if (!msg.from_me || !msg.wa_message_id || msg.message_type !== 'text') {
