@@ -36,6 +36,7 @@ interface Message {
   message_type: string; status: string | null; timestamp: string; media_url: string | null;
   wa_message_id?: string | null; reply_to?: string | null; sender?: string | null;
   media_mime?: string | null;
+  media_filename?: string | null;
 }
 interface QuickReply { id: string; shortcut: string; text: string; }
 interface WhatsAppNotification { id: string; title: string; body: string; chat_id: string | null; created_at: string; read_at: string | null; }
@@ -322,6 +323,7 @@ const WhatsAppChat = () => {
   const [newChatSearch, setNewChatSearch] = useState('');
   const [newChatNumber, setNewChatNumber] = useState('');
   const [newChatMessage, setNewChatMessage] = useState('');
+  const [forwardMediaMessage, setForwardMediaMessage] = useState<Message | null>(null);
   const [startingChat, setStartingChat] = useState(false);
 
   // Attachments / audio
@@ -502,7 +504,8 @@ const WhatsAppChat = () => {
         toast({ title: 'Copiado para a área de transferência' }); return;
       }
       if (action === 'forward') {
-        if (!content) return toast({ title: 'Encaminhamento de mídia indisponível', description: 'Salve a mídia e anexe-a à conversa de destino.' });
+        if (!content && !message.media_url) return toast({ title: 'Conteúdo indisponível', description: 'Esta mensagem não tem texto nem mídia acessível.' });
+        setForwardMediaMessage(message.media_url ? message : null);
         setNewChatNumber('');
         setNewChatMessage(content);
         setNewChatOpen(true); return;
@@ -532,7 +535,8 @@ const WhatsAppChat = () => {
         }
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = message.media_url ? ('whatsapp-arquivo-' + message.id) : ('mensagem-whatsapp-' + message.id + '.txt');
+        const fallbackExt = (message.media_mime || '').split('/')[1]?.split(';')[0] || 'bin';
+        anchor.download = message.media_url ? (message.media_filename || ('whatsapp-arquivo-' + message.id + '.' + fallbackExt)) : ('mensagem-whatsapp-' + message.id + '.txt');
         document.body.appendChild(anchor); anchor.click(); anchor.remove();
         if (url.startsWith('blob:')) URL.revokeObjectURL(url);
         return;
@@ -749,7 +753,7 @@ const WhatsAppChat = () => {
 
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
     const { data } = await supabase.from('whatsapp_messages')
-      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,media_filename,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     // Repara links históricos localhost da WAHA: arquiva no bucket privado e gera URL temporária.
     const sourceMessages = ((data as Message[]) || []).filter(message => message.text !== '[crm_deleted]');
@@ -1026,7 +1030,9 @@ const WhatsAppChat = () => {
     const number = digits.length <= 11 ? `55${digits}` : digits;
     setStartingChat(true);
     try {
-      if (newChatMessage.trim()) {
+      if (forwardMediaMessage?.media_url) {
+        await waha.sendMedia(instanceId, number, forwardMediaMessage.media_url, forwardMediaMessage.message_type || 'document', newChatMessage.trim() || undefined, forwardMediaMessage.media_mime || 'application/octet-stream', forwardMediaMessage.media_filename || 'arquivo');
+      } else if (newChatMessage.trim()) {
         await waha.sendText(instanceId, number, newChatMessage.trim());
       }
       await loadChats();
@@ -1035,8 +1041,8 @@ const WhatsAppChat = () => {
       const chat = (data as Chat[])?.[0];
       if (chat) setSelected(chat);
       setNewChatOpen(false);
-      setNewChatNumber(''); setNewChatMessage(''); setNewChatSearch('');
-      toast({ title: newChatMessage.trim() ? 'Mensagem enviada' : 'Conversa aberta' });
+      setNewChatNumber(''); setNewChatMessage(''); setNewChatSearch(''); setForwardMediaMessage(null);
+      toast({ title: forwardMediaMessage?.media_url ? 'Mídia encaminhada' : newChatMessage.trim() ? 'Mensagem enviada' : 'Conversa aberta' });
     } catch (e: any) {
       toast({ title: 'Falha ao iniciar conversa', description: e.message, variant: 'destructive' });
     } finally { setStartingChat(false); }
@@ -1048,6 +1054,7 @@ const WhatsAppChat = () => {
     setNewChatNumber(number);
     setNewChatOpen(true);
     setNewChatMessage('');
+    setForwardMediaMessage(null);
   };
 
   const handleSync = async () => {
