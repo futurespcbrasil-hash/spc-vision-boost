@@ -380,7 +380,7 @@ Deno.serve(async (req: Request) => {
         let parsedMediaUrl: URL;
         try { parsedMediaUrl = new URL(body.media_url); } catch { return json({ error: "URL de mídia inválida." }, 400); }
         if (["localhost", "127.0.0.1", "::1"].includes(parsedMediaUrl.hostname) && parsedMediaUrl.pathname.startsWith("/api/files/")) {
-          const match = parsedMediaUrl.pathname.match(/^\\/api\\/files\\/([A-Za-z0-9._-]+)\\/([A-Za-z0-9._-]+)$/);
+          const match = parsedMediaUrl.pathname.match(/^\/api\/files\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
           if (!match || match[1] !== inst.provider_instance_name) return json({ error: "Caminho da mídia inválido para esta instância." }, 403);
           source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey } });
         } else {
