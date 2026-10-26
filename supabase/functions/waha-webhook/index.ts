@@ -283,6 +283,8 @@ Deno.serve(async (req: Request) => {
         // anterior tenha sido roteada para um atendente. A nova escolha volta a
         // determinar o destino, sem alterar a avaliação do ciclo encerrado.
         if (newServiceCycleStarted) {
+          await db.from("whatsapp_service_sessions").update({ assigned_to: null, updated_at: new Date().toISOString() })
+            .eq("chat_id", chatId).is("closed_at", null);
           if (assignedTo) {
             await db.from("whatsapp_chats").update({ assigned_to: null, updated_at: new Date().toISOString() }).eq("id", chatId);
             await db.from("whatsapp_chat_assignment_history").insert({
