@@ -377,6 +377,47 @@ Deno.serve(async (req: Request) => {
         await persistOutbound(inst, chatId, typeof body.caption === "string" ? body.caption : "", mediaType, result, number);
         return json({ ...result, media_type: mediaType });
       }
+      case "resolve_media": {
+        const inst = await getOwnedInstance();
+        const messageId = typeof body.message_id === "string" ? body.message_id : "";
+        if (!messageId) return json({ error: "message_id é obrigatório." }, 400);
+        const { data: message, error: messageError } = await db.from("whatsapp_messages")
+          .select("id,instance_id,media_url,media_mime,media_filename,raw,message_type")
+          .eq("id", messageId).eq("instance_id", inst.id).maybeSingle();
+        if (messageError) throw messageError;
+        if (!message || !message.media_url) return json({ error: "Mensagem ou mídia não encontrada." }, 404);
+        const raw = message.raw && typeof message.raw === "object" && !Array.isArray(message.raw) ? message.raw as Record<string, unknown> : {};
+        const existingPath = typeof raw.crm_media_storage_path === "string" ? raw.crm_media_storage_path : "";
+        let storagePath = existingPath;
+        if (!storagePath) {
+          let parsed: URL;
+          try { parsed = new URL(message.media_url); } catch { return json({ error: "URL da mídia inválida." }, 400); }
+          if (!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) || !parsed.pathname.startsWith("/api/files/")) {
+            return json({ url: message.media_url, stored: false });
+          }
+          const relative = parsed.pathname;
+          const safePath = relative.match(/^\/api\/files\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
+          if (!safePath) return json({ error: "Caminho da mídia inválido." }, 400);
+          const remote = await fetch(`${wahaUrl}${relative}`, { headers: { "X-Api-Key": wahaKey } });
+          if (!remote.ok) return json({ error: `A WAHA não conseguiu recuperar a mídia (HTTP ${remote.status}).` }, 502);
+          const blob = await remote.blob();
+          if (blob.size > 50 * 1024 * 1024) return json({ error: "A mídia excede o limite de 50 MB para recuperação." }, 413);
+          const originalName = (message.media_filename || safePath[2]).replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 160) || safePath[2];
+          storagePath = `archive/${inst.id}/${message.id}-${originalName}`;
+          const { error: uploadError } = await db.storage.from("chat-media").upload(storagePath, blob, {
+            contentType: message.media_mime || remote.headers.get("content-type") || blob.type || "application/octet-stream",
+            upsert: true,
+          });
+          if (uploadError) throw uploadError;
+          const { error: rawError } = await db.from("whatsapp_messages").update({
+            raw: { ...raw, crm_media_storage_path: storagePath, crm_media_archived_at: new Date().toISOString() },
+          }).eq("id", message.id).eq("instance_id", inst.id);
+          if (rawError) throw rawError;
+        }
+        const { data: signed, error: signError } = await db.storage.from("chat-media").createSignedUrl(storagePath, 60 * 60);
+        if (signError || !signed?.signedUrl) throw signError || new Error("Não foi possível gerar link temporário para a mídia.");
+        return json({ url: signed.signedUrl, stored: true, storage_path: storagePath });
+      }
       case "get_chats": {
         const inst = await getOwnedInstance();
         // Overview inclui última mensagem e dados de exibição; fallback para /chats em versões antigas.
