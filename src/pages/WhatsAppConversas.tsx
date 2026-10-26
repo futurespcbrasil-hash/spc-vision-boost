@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAppState } from '@/context/AppContext';
 import { waha } from '@/services/ryzeService';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Paperclip, Search, User, RefreshCw, Loader2, Copy, MessageCircle, CheckCircle2, Phone } from 'lucide-react';
+import { Send, Paperclip, Search, User, RefreshCw, Loader2, Copy, MessageCircle, CheckCircle2, Phone, Pencil, Check, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -64,12 +65,16 @@ const renderMessageText = (text: string, onPhoneClick: (number: string) => void)
 
 export default function WhatsAppConversas() {
   const { user } = useAuth();
+  const { leads, updateLead } = useAppState();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState('');
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState('');
+  const [editingMessageText, setEditingMessageText] = useState('');
+  const [savingMessageEdit, setSavingMessageEdit] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -109,6 +114,71 @@ export default function WhatsAppConversas() {
       });
     });
   }, []);
+
+  const normalizeLeadPhone = (value: string) => {
+    let digits = value.replace(/\D/g, '');
+    if (digits.length >= 20 && digits.length % 2 === 0 && digits.slice(0, digits.length / 2) === digits.slice(digits.length / 2)) {
+      digits = digits.slice(0, digits.length / 2);
+    }
+    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+    return digits;
+  };
+
+  const markLeadInteraction = useCallback(async (number: string, text: string) => {
+    const target = normalizeLeadPhone(number);
+    if (!target || target.length < 10) return;
+    const lead = leads.find((item) => [item.whatsapp, item.phone].some((candidate) => {
+      const candidateNumber = normalizeLeadPhone(candidate || '');
+      return candidateNumber && (candidateNumber === target ||
+        (candidateNumber.length >= 10 && target.length >= 10 && candidateNumber.slice(-10) === target.slice(-10)));
+    }));
+    if (!lead) return;
+    const now = new Date().toISOString();
+    const interaction = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `wa-${Date.now()}`,
+      date: now,
+      type: 'whatsapp' as const,
+      content: `Mensagem enviada pelo WhatsApp: ${text.trim().slice(0, 500)}`,
+    };
+    const saved = await updateLead({
+      ...lead,
+      lastInteractionAt: now,
+      interactions: [...(Array.isArray(lead.interactions) ? lead.interactions : []), interaction],
+    });
+    if (!saved) toast.error('A mensagem foi enviada, mas não foi possível atualizar a última interação do lead no CRM.');
+  }, [leads, updateLead]);
+
+  const startEditingMessage = (msg: Message) => {
+    if (!msg.from_me || !msg.wa_message_id || msg.message_type !== 'text') {
+      toast.error('Só é possível editar mensagens de texto enviadas por esta conta.');
+      return;
+    }
+    setEditingMessageId(msg.id);
+    setEditingMessageText(msg.text || '');
+  };
+
+  const cancelEditingMessage = () => {
+    setEditingMessageId('');
+    setEditingMessageText('');
+  };
+
+  const saveMessageEdit = async (msg: Message) => {
+    const text = editingMessageText.trim();
+    if (!text || !selectedChat || !msg.wa_message_id || savingMessageEdit) return;
+    setSavingMessageEdit(true);
+    try {
+      await waha.editMessage(msg.instance_id, selectedChat.id, msg.id, text);
+      setMessages((current) => current.map((item) => item.id === msg.id ? { ...item, text } : item));
+      setChats((current) => current.map((item) => item.id === selectedChat.id && item.last_message === msg.text
+        ? { ...item, last_message: text } : item));
+      cancelEditingMessage();
+      toast.success('Mensagem editada no WhatsApp.');
+    } catch (e) {
+      toast.error('Não foi possível editar a mensagem: ' + errorText(e));
+    } finally {
+      setSavingMessageEdit(false);
+    }
+  };
 
   const selectedChat = useMemo(() => chats.find((chat) => chat.id === selectedChatId) || null, [chats, selectedChatId]);
   selectedChatRef.current = selectedChat;
@@ -317,6 +387,7 @@ export default function WhatsAppConversas() {
     setStartingNumberChat(true);
     try {
       await waha.sendText(instanceId, normalizeBrazilNumber(actionNumber), firstMessage.trim());
+      await markLeadInteraction(actionNumber, firstMessage.trim());
       setNumberDialogOpen(false);
       setFirstMessage('');
       await loadChats(true);
@@ -351,6 +422,7 @@ export default function WhatsAppConversas() {
     setSending(true);
     try {
       await waha.sendText(instanceId, selectedChat.wa_chat_id || selectedChat.contact_number, text);
+      await markLeadInteraction(selectedChat.contact_number || selectedChat.wa_chat_id, text);
       setMessage('');
 
       // A Edge Function persiste o envio. Recarregamos apenas o histórico da
@@ -435,7 +507,27 @@ export default function WhatsAppConversas() {
                 {messages.map((msg) => <div key={msg.id} className={'flex ' + (msg.from_me ? 'justify-end' : 'justify-start')}>
                   <div className={'max-w-[80%] px-3 py-2 rounded-xl text-sm ' + (msg.from_me ? 'bg-green-100 text-green-950' : 'bg-muted text-foreground')}>
                     {msg.media_filename && <div className="flex items-center gap-2 mb-1 text-xs font-medium"><Paperclip size={12} />{msg.media_filename}</div>}
-                    <p className="whitespace-pre-wrap break-words">{msg.text ? renderMessageText(msg.text, openNumberActions) : (msg.message_type !== 'text' ? '[' + msg.message_type + ']' : '')}</p>
+                    {editingMessageId === msg.id ? (
+                      <div className="min-w-[220px] space-y-2">
+                        <Input autoFocus value={editingMessageText} onChange={(e) => setEditingMessageText(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void saveMessageEdit(msg); } if (e.key === 'Escape') cancelEditingMessage(); }}
+                          disabled={savingMessageEdit} aria-label="Editar mensagem" />
+                        <div className="flex justify-end gap-1">
+                          <Button type="button" size="sm" variant="ghost" onClick={cancelEditingMessage} disabled={savingMessageEdit}><X size={14} className="mr-1" />Cancelar</Button>
+                          <Button type="button" size="sm" onClick={() => void saveMessageEdit(msg)} disabled={!editingMessageText.trim() || savingMessageEdit}>
+                            {savingMessageEdit ? <Loader2 size={14} className="mr-1 animate-spin" /> : <Check size={14} className="mr-1" />}Salvar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <p className="whitespace-pre-wrap break-words flex-1">{msg.text ? renderMessageText(msg.text, openNumberActions) : (msg.message_type !== 'text' ? '[' + msg.message_type + ']' : '')}</p>
+                        {msg.from_me && msg.wa_message_id && msg.message_type === 'text' && (
+                          <button type="button" onClick={() => startEditingMessage(msg)} title="Editar mensagem no WhatsApp" aria-label="Editar mensagem"
+                            className="shrink-0 rounded p-1 opacity-60 hover:opacity-100 hover:bg-black/5"><Pencil size={13} /></button>
+                        )}
+                      </div>
+                    )}
                     <p className="text-[10px] mt-1 text-right opacity-70">{fullTimeLabel(msg.timestamp)}{msg.from_me && msg.status ? ' · ' + msg.status : ''}</p>
                     {msg.error && <p className="text-xs text-red-700 mt-1">{msg.error}</p>}
                   </div>
