@@ -704,8 +704,8 @@ const WhatsAppChat = () => {
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   };
 
-  // Mantém o chat no fim ao abrir/trocar conversa, ao atualizar mensagens e durante a digitação.
-  // O viewport é o elemento interno do ScrollArea, não a página inteira.
+  // Ao abrir/trocar conversa inicia no fim. Não reagir a cada alteração de messages:
+  // isso roubava o scroll manual do usuário enquanto lia mensagens antigas.
   useEffect(() => {
     if (!selected) return;
     let secondFrame = 0;
@@ -717,7 +717,7 @@ const WhatsAppChat = () => {
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
     };
-  }, [selected?.id, messages]);
+  }, [selected?.id]);
 
   // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
   const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
@@ -813,6 +813,7 @@ const WhatsAppChat = () => {
             const activeChat = selectedRef.current;
             if (activeChat?.id === chatId) void touchLeadInteraction(activeChat, m.timestamp);
           }
+          const shouldFollowIncoming = isMessagesViewportNearBottom();
           setMessages(prev => {
             if (prev.some(x => x.id === m.id || (!!m.wa_message_id && x.wa_message_id === m.wa_message_id))) return prev;
             // descarta o balão otimista equivalente
@@ -820,9 +821,12 @@ const WhatsAppChat = () => {
               (x.text || '').trim() === (m.text || '').trim()));
             return [...cleaned, m];
           });
-          // Esta tela deve acompanhar a mensagem mais recente como o WhatsApp oficial.
-          requestAnimationFrame(() => scrollToBottom(false));
-          window.setTimeout(() => scrollToBottom(false), 80);
+          // Segue novas mensagens somente se o usuário já estava no fim; se estiver
+          // lendo o histórico, preserva a posição para permitir scroll manual.
+          if (shouldFollowIncoming) {
+            requestAnimationFrame(() => scrollToBottom(false));
+            window.setTimeout(() => scrollToBottom(false), 80);
+          }
 
           // Notificação Push se não for minha e a janela estiver oculta ou outro chat selecionado
           if (!m.from_me && (document.hidden || selectedRef.current?.id !== chatId)) {
