@@ -433,11 +433,21 @@ Deno.serve(async (req: Request) => {
             .eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
           if (exact.error) throw exact.error;
           existing = exact.data;
-          if (!existing && !isGroup && number.length >= 10 && !waChatId.endsWith("@lid")) {
+          if (!existing && !isGroup && number.length >= 10) {
+            const phoneKey = (value: unknown) => {
+              let digits = String(value || "").split("@")[0].replace(/\D/g, "");
+              if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+                if (digits.length === 13 && digits[4] === "9") digits = digits.slice(0, 4) + digits.slice(5);
+              } else if (digits.length === 11 && digits[2] === "9") {
+                digits = digits.slice(0, 2) + digits.slice(3);
+              }
+              return digits;
+            };
             const byPhone = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message")
-              .eq("instance_id", inst.id).eq("contact_number", number).eq("is_group", false).limit(1).maybeSingle();
+              .eq("instance_id", inst.id).eq("is_group", false).limit(500);
             if (byPhone.error) throw byPhone.error;
-            existing = byPhone.data;
+            const targetKey = phoneKey(number);
+            existing = (byPhone.data || []).find((item: any) => phoneKey(item.contact_number) === targetKey) || null;
           }
           if (existing) {
             const previousMessageAt = existing.last_message_at ? new Date(existing.last_message_at).getTime() : 0;
@@ -445,7 +455,9 @@ Deno.serve(async (req: Request) => {
             const hasNewInboundMessage = !lastMessageFromMe && (currentMessageAt > previousMessageAt || (currentMessageAt === previousMessageAt && String(record.last_message || "") !== String(existing.last_message || "")));
             const { error } = await db.from("whatsapp_chats").update({
               ...record,
-              wa_chat_id: existing.wa_chat_id,
+              // Quando o identificador LID aparece, torná-lo canônico para que
+              // o histórico remoto continue abrindo no JID correto.
+              wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
               contact_number: existing.contact_number || number,
               contact_name: contactName || existing.contact_name,
               // Não ressuscitar avisos já dispensados só porque a WAHA repetiu unreadCount antigo.
