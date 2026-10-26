@@ -538,7 +538,31 @@ const WhatsAppChat = () => {
         let url = message.media_url || '';
         if (!url && content) url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
         if (!url) return toast({ title: 'Conteúdo indisponível' });
-        if (action === 'open') { window.open(url, '_blank', 'noopener,noreferrer'); return; }
+        if (action === 'open') {
+          // Abrir a janela sincronamente para evitar bloqueio de pop-up e renovar
+          // links assinados expirados antes de navegar para o arquivo.
+          const popup = window.open('about:blank', '_blank');
+          if (!popup) throw new Error('Permita pop-ups para abrir arquivos do WhatsApp.');
+          popup.opener = null;
+          try {
+            const needsResolve = !!message.media_url && (
+              /localhost:3000\\/api\\/files\\//i.test(message.media_url) ||
+              /\\/storage\\/v1\\/object\\/(sign|public)\\/chat-media\\//i.test(message.media_url)
+            );
+            if (needsResolve && selected?.instance_id) {
+              const resolved = await waha.resolveMedia(selected.instance_id, message.id);
+              if (typeof resolved?.url === 'string' && resolved.url) {
+                url = resolved.url;
+                setMessages(current => current.map(item => item.id === message.id ? { ...item, media_url: url } : item));
+              }
+            }
+            popup.location.replace(url);
+          } catch (openError) {
+            popup.close();
+            throw openError;
+          }
+          return;
+        }
         if (message.media_url) {
           const response = await fetch(url);
           if (!response.ok) throw new Error('Não foi possível baixar a mídia.');
@@ -2073,7 +2097,7 @@ const WhatsAppChat = () => {
                                 className={m.message_type === 'sticker'
                                   ? 'w-32 h-32 object-contain'
                                   : 'max-h-80 w-full object-contain cursor-pointer hover:opacity-90'}
-                                onClick={() => window.open(m.media_url!, '_blank')}
+                                onClick={() => { void handleMessageAction('open', m); }}
                                 onError={async (e) => {
                                   const target = e.currentTarget;
                                   const attempts = Number(target.dataset.retryCount || '0');
