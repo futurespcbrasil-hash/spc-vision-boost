@@ -13,7 +13,7 @@ as $$
     when length(digits) = 11 and substr(digits, 3, 1) = '9' then left(digits, 2) || substr(digits, 4)
     else digits
   end
-  from (select regexp_replace(coalesce(value, ''), '\\D', '', 'g') as digits) normalized
+  from (select regexp_replace(coalesce(value, ''), '\D', '', 'g') as digits) normalized
 $$;
 
 create or replace function public.link_whatsapp_chat_to_existing_lead()
