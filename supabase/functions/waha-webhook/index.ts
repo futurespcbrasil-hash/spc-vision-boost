@@ -207,7 +207,24 @@ Deno.serve(async (req: Request) => {
           rating: Number(trimmedReply), rating_received_at: sentAt, survey_status: "responded", updated_at: new Date().toISOString(),
         }).eq("id", pendingSurvey.id).is("rating", null).select("id").maybeSingle();
         if (ratingError) throw ratingError;
-        if (updatedRating) return json({ accepted: true, satisfaction_rating: Number(trimmedReply) });
+        if (updatedRating) {
+          // Confirmação imediata ao cliente após registrar a nota.
+          const thankYou = "Obrigado por avaliar o atendimento da Future Soluções! ⭐\n\nSua nota foi registrada. Este atendimento está encerrado. Se precisar de algo mais, é só nos chamar novamente.";
+          const configuredUrl = Deno.env.get("WAHA_API_URL") || "";
+          const apiUrl = configuredUrl.endsWith("/") ? configuredUrl.slice(0, -1) : configuredUrl;
+          const apiKey = Deno.env.get("WAHA_API_KEY");
+          if (apiUrl && apiKey) {
+            const response = await fetch(`${apiUrl}/api/sendText`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+              body: JSON.stringify({ session, chatId: waChatId, text: thankYou }),
+            });
+            if (!response.ok) console.error("[waha-webhook] Could not send rating thank-you:", response.status);
+          } else {
+            console.error("[waha-webhook] WAHA_API_URL/WAHA_API_KEY missing; rating saved but thank-you was not sent.");
+          }
+          return json({ accepted: true, satisfaction_rating: Number(trimmedReply), thank_you_attempted: true });
+        }
       }
       // Não descartar uma pesquisa por uma resposta numérica recebida durante a corrida de gravação.
       if (pendingSurvey && !isRatingReply) {
