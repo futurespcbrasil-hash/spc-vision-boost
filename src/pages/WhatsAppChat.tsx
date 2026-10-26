@@ -751,8 +751,35 @@ const WhatsAppChat = () => {
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
+    // Repara links históricos localhost da WAHA: arquiva no bucket privado e gera URL temporária.
+    const sourceMessages = ((data as Message[]) || []).filter(message => message.text !== '[crm_deleted]');
+    const previousById = new Map(messagesRef.current.map(message => [message.id, message]));
+    const list = await Promise.all(sourceMessages.map(async (message) => {
+      const url = message.media_url || '';
+      const previous = previousById.get(message.id);
+      if (!url || !/localhost:3000\/api\/files\//i.test(url)) return message;
+      // Evita refazer a requisição em cada polling se esta mídia já foi resolvida nesta sessão.
+      if (previous?.media_url && !/localhost:3000\/api\/files\//i.test(previous.media_url)) {
+        return { ...message, media_url: previous.media_url };
+      }
+      if (!selected?.instance_id) return message;
+      try {
+        const result = await waha.resolveMedia(selected.instance_id, message.id);
+        return typeof result?.url === 'string' && result.url ? { ...message, media_url: result.url } : message;
+      } catch (error) {
+        console.warn('Não foi possível recuperar mídia histórica do WhatsApp', message.id, error);
+        return message;
+      }
+    })).then(items => items.sort((a, b) => {
+      const at = Date.parse(a.timestamp || '');
+      const bt = Date.parse(b.timestamp || '');
+      const av = Number.isFinite(at) ? at : 0;
+      const bv = Number.isFinite(bt) ? bt : 0;
+      return av - bv || String(a.id).localeCompare(String(b.id));
+    }));
     // Marcadores internos de exclusão nunca aparecem na interface.
-    const list = ((data as Message[]) || [])
+    const sortedList = list;
+    const orderedList = sortedList
       .filter(message => message.text !== '[crm_deleted]')
       .slice()
       .sort((a, b) => {
@@ -763,21 +790,21 @@ const WhatsAppChat = () => {
         return av - bv || String(a.id).localeCompare(String(b.id));
       });
     const previous = messagesRef.current;
-    const merged = dropConfirmedTemps(list, previous);
+    const merged = dropConfirmedTemps(orderedList, previous);
     const changed = previous.length !== merged.length || previous.some((message, index) => {
       const next = merged[index];
       return !next || message.id !== next.id || message.text !== next.text || message.status !== next.status || message.media_url !== next.media_url;
     });
     if (changed) {
       messagesRef.current = merged;
-      setMessages(current => dropConfirmedTemps(list, current));
+      setMessages(current => dropConfirmedTemps(orderedList, current));
     }
     // Na carga inicial vai para a última mensagem; no polling só acompanha se novas mensagens chegaram
     // e o usuário já estava próximo do final. Ao ler mensagens antigas, preserva a posição.
     if (!silent || (changed && isMessagesViewportNearBottom())) {
       window.setTimeout(() => scrollToBottom(!silent), 100);
     }
-  }, []);
+  }, [selected?.instance_id]);
 
   useEffect(() => {
     if (!selected) return;
