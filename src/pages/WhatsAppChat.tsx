@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -293,6 +293,7 @@ const WhatsAppChat = () => {
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesViewportRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<Chat | null>(null);
   const messagesRef = useRef<Message[]>([]);
@@ -692,33 +693,31 @@ const WhatsAppChat = () => {
 
 
   // Controla a rolagem no viewport real, sem deslocar a página inteira.
-  const getMessagesViewport = () => {
-    const root = scrollRef.current as unknown as HTMLElement | null;
-    return (root?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null) || root;
-  };
+  const getMessagesViewport = () => messagesViewportRef.current;
   const isMessagesViewportNearBottom = (threshold = 120) => {
     const viewport = getMessagesViewport();
     if (!viewport) return true;
     return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= threshold;
   };
   const scrollToBottom = (smooth = false) => {
-    // scrollRef não está ligado ao viewport da lista; o marcador fica dentro do painel
-    // real de mensagens e faz a rolagem chegar ao último balão de forma consistente.
-    const end = messagesEndRef.current;
-    if (!end) return;
-    end.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' });
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   };
 
   // Mantém o chat no fim ao abrir/trocar conversa, ao atualizar mensagens e durante a digitação.
   // O viewport é o elemento interno do ScrollArea, não a página inteira.
   useEffect(() => {
     if (!selected) return;
-    let frame = 0;
-    const first = window.requestAnimationFrame(() => {
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
       scrollToBottom(false);
-      frame = window.requestAnimationFrame(() => scrollToBottom(false));
+      secondFrame = window.requestAnimationFrame(() => scrollToBottom(false));
     });
-    return () => { window.cancelAnimationFrame(first); if (frame) window.cancelAnimationFrame(frame); };
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
   }, [selected?.id, messages.length]);
 
   // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
@@ -1760,10 +1759,22 @@ const WhatsAppChat = () => {
               </div>
 
               {/* Chat Message Canvas */}
-              <div className="flex-1 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 scroll-smooth custom-scrollbar relative flex flex-col">
+              <div ref={messagesViewportRef} className="flex-1 min-h-0 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 custom-scrollbar relative flex flex-col">
                 <div className="flex flex-col min-h-full space-y-3 max-w-5xl mx-auto pb-4 w-full">
-                  <div className="flex-1" /> {/* Push messages down if few */}
-                  {messages.filter(m => m.message_type !== 'reaction').map(m => {
+                  <div className="flex-1 min-h-0" /> {/* Alinha no rodapé quando há poucas mensagens */}
+                  {messages.filter(m => m.message_type !== 'reaction').map((m, messageIndex, visibleMessages) => {
+                    const currentDate = new Date(m.timestamp || '');
+                    const validCurrentDate = Number.isFinite(currentDate.getTime()) && currentDate.getTime() > 0;
+                    const previousMessage = messageIndex > 0 ? visibleMessages[messageIndex - 1] : null;
+                    const previousDate = previousMessage ? new Date(previousMessage.timestamp || '') : null;
+                    const showDateDivider = validCurrentDate && (!previousDate || !Number.isFinite(previousDate.getTime()) || currentDate.toDateString() !== previousDate.toDateString());
+                    const today = new Date();
+                    const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+                    const dateLabel = currentDate.toDateString() === today.toDateString()
+                      ? 'Hoje'
+                      : currentDate.toDateString() === yesterday.toDateString()
+                        ? 'Ontem'
+                        : currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
                     const reactions = messages.filter(
                       r => r.message_type === 'reaction' && !!r.reply_to && r.reply_to === m.wa_message_id
                     );
@@ -1772,7 +1783,9 @@ const WhatsAppChat = () => {
                       : '';
 
                     return (
-                      <div key={m.id} className={`flex ${m.from_me ? 'justify-end' : 'justify-start'}`}>
+                      <React.Fragment key={m.id}>
+                      {showDateDivider && <div className="sticky top-1 z-10 flex justify-center py-1"><span className="rounded-full border bg-background/90 px-3 py-1 text-[10px] font-medium text-muted-foreground shadow-sm">{dateLabel}</span></div>}
+                      <div className={`flex ${m.from_me ? 'justify-end' : 'justify-start'}`}>
                         <div
                           className={`max-w-[85%] md:max-w-[70%] p-3 shadow-xs rounded-2xl text-xs space-y-1 ${
                             m.from_me
@@ -1908,6 +1921,7 @@ const WhatsAppChat = () => {
                           )}
                         </div>
                       </div>
+                      </React.Fragment>
                     );
                   })}
 
