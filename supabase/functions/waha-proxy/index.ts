@@ -391,6 +391,9 @@ Deno.serve(async (req: Request) => {
         const fileBlob = await source.blob();
         if (!fileBlob.size) return json({ error: "O arquivo está vazio." }, 400);
         if (fileBlob.size > 50 * 1024 * 1024) return json({ error: "O arquivo excede o limite de 50 MB." }, 413);
+        const actualMime = (!mimetype || mimetype === "application/octet-stream")
+          ? (source.headers.get("content-type") || fileBlob.type || mimetype)
+          : mimetype;
         const bytes = new Uint8Array(await fileBlob.arrayBuffer());
         let binary = "";
         const chunkSize = 0x8000;
@@ -398,12 +401,12 @@ Deno.serve(async (req: Request) => {
           binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
         }
         const data = btoa(binary);
-        const file = { mimetype: mimetype || source.headers.get("content-type") || "application/octet-stream", filename, data };
+        const file = { mimetype: actualMime, filename, data };
         const payload: Record<string, unknown> = { session: inst.provider_instance_name, chatId, file };
         if (typeof body.caption === "string" && body.caption) payload.caption = body.caption;
-        const endpoint = ["image", "photo", "sticker", "gif"].includes(mediaType)
+        const endpoint = ["image", "photo", "sticker", "gif"].includes(mediaType) || actualMime.startsWith("image/")
           ? "/api/sendImage"
-          : mediaType === "video" || mimetype.startsWith("video/")
+          : mediaType === "video" || actualMime.startsWith("video/")
             ? "/api/sendVideo"
             : "/api/sendFile";
         const result = await callWaha(endpoint, "POST", payload);
@@ -418,7 +421,7 @@ Deno.serve(async (req: Request) => {
           }
         } catch { /* URL externa: não associar caminho de armazenamento */ }
         await persistOutbound(inst, chatId, typeof body.caption === "string" ? body.caption : "", mediaType, result, number, undefined, {
-          url: body.media_url, mime: mimetype, filename, storagePath,
+          url: body.media_url, mime: actualMime, filename, storagePath,
         });
         return json({ ...result, media_type: mediaType });
       }
