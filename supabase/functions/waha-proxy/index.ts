@@ -412,23 +412,62 @@ Deno.serve(async (req: Request) => {
         let source: Response;
         let parsedMediaUrl: URL;
         try { parsedMediaUrl = new URL(body.media_url); } catch { return json({ error: "URL de mídia inválida." }, 400); }
-        if (["localhost", "127.0.0.1", "::1"].includes(parsedMediaUrl.hostname) && parsedMediaUrl.pathname.startsWith("/api/files/")) {
-          const match = parsedMediaUrl.pathname.match(/^\/api\/files\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
-          if (!match || match[1] !== inst.provider_instance_name) return json({ error: "Caminho da mídia inválido para esta instância." }, 403);
-          source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey } });
-        } else {
-          if (parsedMediaUrl.protocol !== "https:" && parsedMediaUrl.protocol !== "http:") return json({ error: "Protocolo de mídia inválido." }, 400);
-          const supabaseHost = new URL(supabaseUrl).hostname;
-          const wahaHost = new URL(wahaUrl).hostname;
-          if (![supabaseHost, wahaHost].includes(parsedMediaUrl.hostname)) {
-            return json({ error: "A mídia precisa estar no armazenamento autorizado do CRM ou na WAHA." }, 403);
+
+        const maxMediaBytes = 50 * 1024 * 1024;
+        const supabaseOrigin = new URL(supabaseUrl).origin;
+        const wahaOrigin = new URL(wahaUrl).origin;
+        const localWahaFile = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(parsedMediaUrl.hostname)
+          && parsedMediaUrl.pathname.startsWith("/api/files/");
+        const wahaFileMatch = parsedMediaUrl.pathname.match(/^\/api\/files\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
+        const isSupabaseChatMedia = parsedMediaUrl.origin === supabaseOrigin
+          && (parsedMediaUrl.pathname.startsWith("/storage/v1/object/sign/chat-media/")
+            || parsedMediaUrl.pathname.startsWith("/storage/v1/object/public/chat-media/"));
+        const isWahaMedia = parsedMediaUrl.origin === wahaOrigin
+          && !!wahaFileMatch
+          && wahaFileMatch[1] === inst.provider_instance_name;
+
+        if (localWahaFile) {
+          if (!wahaFileMatch || wahaFileMatch[1] !== inst.provider_instance_name) {
+            return json({ error: "Caminho da mídia inválido para esta instância." }, 403);
           }
+          source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey } });
+        } else if (isSupabaseChatMedia) {
           source = await fetch(body.media_url);
+        } else if (isWahaMedia) {
+          source = await fetch(body.media_url, { headers: { "X-Api-Key": wahaKey } });
+        } else {
+          return json({ error: "A mídia precisa estar no armazenamento chat-media autorizado ou nos arquivos da sessão WAHA atual." }, 403);
         }
+
         if (!source.ok) return json({ error: `Não foi possível obter o arquivo para envio (HTTP ${source.status}).` }, 502);
-        const fileBlob = await source.blob();
-        if (!fileBlob.size) return json({ error: "O arquivo está vazio." }, 400);
-        if (fileBlob.size > 50 * 1024 * 1024) return json({ error: "O arquivo excede o limite de 50 MB." }, 413);
+        const declaredSize = Number(source.headers.get("content-length") || 0);
+        if (Number.isFinite(declaredSize) && declaredSize > maxMediaBytes) {
+          await source.body?.cancel().catch(() => null);
+          return json({ error: "O arquivo excede o limite de 50 MB." }, 413);
+        }
+
+        // Enforce the limit while streaming; checking Blob.size after blob() would
+        // already have buffered an arbitrarily large response in Edge Function memory.
+        const reader = source.body?.getReader();
+        if (!reader) return json({ error: "O arquivo está vazio ou não possui conteúdo." }, 400);
+        const chunks: Uint8Array[] = [];
+        let totalBytes = 0;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            totalBytes += value.byteLength;
+            if (totalBytes > maxMediaBytes) {
+              await reader.cancel().catch(() => null);
+              return json({ error: "O arquivo excede o limite de 50 MB." }, 413);
+            }
+            chunks.push(value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        if (!totalBytes) return json({ error: "O arquivo está vazio." }, 400);
+        const fileBlob = new Blob(chunks, { type: source.headers.get("content-type") || "" });
         const actualMime = (!mimetype || mimetype === "application/octet-stream")
           ? (source.headers.get("content-type") || fileBlob.type || mimetype)
           : mimetype;
