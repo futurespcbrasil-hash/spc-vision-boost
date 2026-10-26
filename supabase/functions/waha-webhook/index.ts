@@ -339,10 +339,24 @@ Deno.serve(async (req: Request) => {
               || normalized === `${key}.` || normalized === `${key}-` || normalized === `${key} —`;
           });
           if (!option) {
-            await sendAutomaticText([str(flow.fallback_message).trim(), menuText].filter(Boolean).join("\n\n"));
+            // Reexibe somente o menu, sem mensagem de erro adicional. Limita respostas
+            // automáticas para não inundar o cliente se ele enviar várias mensagens inválidas.
+            const now = new Date();
+            const lastInvalidReplyAt = flowSession.last_invalid_reply_at
+              ? new Date(flowSession.last_invalid_reply_at).getTime()
+              : 0;
+            const shouldResendMenu = !Number.isFinite(lastInvalidReplyAt)
+              || lastInvalidReplyAt <= 0
+              || now.getTime() - lastInvalidReplyAt >= 30_000;
+            if (shouldResendMenu) {
+              await sendAutomaticText(menuText);
+            }
             await db.from("whatsapp_flow_sessions").update({
-              flow_id: flow.id, last_inbound_message_id: messageId || null,
-              last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+              flow_id: flow.id,
+              last_inbound_message_id: messageId || null,
+              last_invalid_reply_at: shouldResendMenu ? now.toISOString() : flowSession.last_invalid_reply_at,
+              last_interaction_at: now.toISOString(),
+              updated_at: now.toISOString(),
             }).eq("id", flowSession.id);
           } else {
             const targetUserId = str(option?.target_user_id) || null;
