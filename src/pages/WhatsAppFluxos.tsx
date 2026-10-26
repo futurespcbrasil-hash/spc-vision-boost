@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { ArrowDown, ArrowUp, Bot, Check, CircleAlert, GitBranch, Loader2, MessageSquareText, Plus, Save, Trash2, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bot, CircleAlert, Loader2, MessageSquareText, Plus, Save, Trash2, Users } from 'lucide-react';
 
 type Instance = { id: string; name: string; status: string; phone: string | null };
 type Agent = { user_id: string; display_name: string; email?: string | null };
@@ -32,7 +32,7 @@ const newFlow = (instanceId = ''): Omit<Flow, 'id' | 'created_at' | 'updated_at'
 });
 
 const WhatsAppFluxos = () => {
-  const { user } = useAuth();
+  const { user, canManageUsers } = useAuth();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [flows, setFlows] = useState<Flow[]>([]);
