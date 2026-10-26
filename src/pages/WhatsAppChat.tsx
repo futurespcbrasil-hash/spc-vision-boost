@@ -1062,6 +1062,9 @@ const WhatsAppChat = () => {
             await waha.sendText(instanceId, number, item.text.trim());
           }
         }
+        if (newChatMessage.trim()) {
+          await waha.sendText(instanceId, number, newChatMessage.trim());
+        }
       } else if (newChatMessage.trim()) {
         await waha.sendText(instanceId, number, newChatMessage.trim());
       }
