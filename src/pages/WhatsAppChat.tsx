@@ -470,6 +470,20 @@ const WhatsAppChat = () => {
     const copyContent = content || message.media_url || '';
     try {
       if (action === 'details') { setMessageDetails(message); return; }
+      if (action === 'delete') {
+        if (message.id.startsWith('temp-')) throw new Error('Aguarde o envio terminar antes de excluir a mensagem.');
+        const confirmed = window.confirm('Excluir esta mensagem do histórico do CRM? Se ela também foi apagada no celular, a sincronização será refletida aqui.');
+        if (!confirmed) return;
+        const { error } = await supabase.from('whatsapp_messages').delete().eq('id', message.id);
+        if (error) throw error;
+        setMessages(prev => prev.filter(item => item.id !== message.id));
+        messagesRef.current = messagesRef.current.filter(item => item.id !== message.id);
+        setPinnedMessageIds(prev => prev.filter(id => id !== message.id));
+        setFavoriteMessageIds(prev => prev.filter(id => id !== message.id));
+        setSelectedMessageIds(prev => prev.filter(id => id !== message.id));
+        toast({ title: 'Mensagem removida do histórico do CRM' });
+        return;
+      }
       if (action === 'reply') { setReplyingTo(message); window.setTimeout(() => inputRef.current?.focus(), 50); return; }
       if (action === 'copy') {
         if (!copyContent) return toast({ title: 'Nada para copiar' });
@@ -689,6 +703,18 @@ const WhatsAppChat = () => {
     if (!viewport) return;
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   };
+
+  // Mantém o chat no fim ao abrir/trocar conversa, ao atualizar mensagens e durante a digitação.
+  // O viewport é o elemento interno do ScrollArea, não a página inteira.
+  useEffect(() => {
+    if (!selected) return;
+    let frame = 0;
+    const first = window.requestAnimationFrame(() => {
+      scrollToBottom(false);
+      frame = window.requestAnimationFrame(() => scrollToBottom(false));
+    });
+    return () => { window.cancelAnimationFrame(first); if (frame) window.cancelAnimationFrame(frame); };
+  }, [selected?.id, messages.length, text]);
 
   // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
   const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
@@ -1747,6 +1773,8 @@ const WhatsAppChat = () => {
                                 <DropdownMenuItem onSelect={() => void handleMessageAction('pin', m)}><Pin size={14} className="mr-2" />{pinnedMessageIds.includes(m.id) ? 'Desafixar' : 'Fixar'}</DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => void handleMessageAction('favorite', m)}><Star size={14} className="mr-2" />{favoriteMessageIds.includes(m.id) ? 'Remover dos favoritos' : 'Favoritar'}</DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => void handleMessageAction('select', m)}><CheckSquare size={14} className="mr-2" />{selectedMessageIds.includes(m.id) ? 'Desmarcar seleção' : 'Selecionar'}</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => void handleMessageAction('delete', m)} className="text-destructive focus:text-destructive"><Trash2 size={14} className="mr-2" />Excluir do chat</DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onSelect={() => void handleMessageAction('save', m)}><Download size={14} className="mr-2" />Salvar como</DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => void handleMessageAction('share', m)}><Share2 size={14} className="mr-2" />Compartilhar</DropdownMenuItem>
