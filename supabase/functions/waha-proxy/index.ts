@@ -154,14 +154,8 @@ Deno.serve(async (req: Request) => {
   };
 
   const updateLeadInteractionForNumber = async (inst: any, numberValue: string, chatId: string, messageText: string) => {
-    const { data: chatRecord } = await db.from("whatsapp_chats").select("contact_number")
+    const { data: chatRecord } = await db.from("whatsapp_chats").select("contact_number,contact_name")
       .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
-    let target = String(chatRecord?.contact_number || numberValue || "").split("@")[0].replace(/\D/g, "");
-    if (target.length >= 20 && target.length % 2 === 0 && target.slice(0, target.length / 2) === target.slice(target.length / 2)) {
-      target = target.slice(0, target.length / 2);
-    }
-    if (target.startsWith("55") && (target.length === 12 || target.length === 13)) target = target.slice(2);
-    if (target.length < 10) return false;
 
     const normalizeLeadNumber = (value: unknown) => {
       let digits = String(value || "").split("@")[0].replace(/\D/g, "");
@@ -171,13 +165,23 @@ Deno.serve(async (req: Request) => {
       if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
       return digits;
     };
-    const matchesTarget = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
+    // WAHA pode entregar números em formatos diferentes (JID @c.us, @lid e
+    // contact_number com DDI/DDD divergentes). Testa todas as fontes disponíveis.
+    const targets = [...new Set([chatRecord?.contact_number, numberValue, chatId]
+      .map(normalizeLeadNumber).filter((value) => value.length >= 10))];
+    if (!targets.length) return false;
+
+    const exactMatch = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
       const candidate = normalizeLeadNumber(value);
-      return candidate && (candidate === target || (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
+      return candidate && targets.some(target => candidate === target || (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
     });
-    // Pagina o conjunto de leads para não deixar de atualizar um lead antigo
-    // que esteja além dos primeiros registros retornados pelo Postgres.
-    let lead: any = null;
+    const suffixMatch = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
+      const candidate = normalizeLeadNumber(value);
+      return candidate && targets.some(target => candidate.length >= 8 && target.length >= 8 && candidate.slice(-8) === target.slice(-8));
+    });
+
+    let leadsFound: any[] = [];
+    // Pagina todos os leads para localizar também registros antigos.
     for (let offset = 0; offset < 10000; offset += 1000) {
       const { data: leadRows, error: leadLookupError } = await db.from("leads")
         .select("id,phone,whatsapp,interactions")
@@ -186,11 +190,28 @@ Deno.serve(async (req: Request) => {
         console.error("[WAHA] Não foi possível localizar lead para registrar interação:", leadLookupError.message);
         return false;
       }
-      lead = (leadRows || []).find(matchesTarget) || null;
-      if (lead || !leadRows || leadRows.length < 1000) break;
+      const rows = leadRows || [];
+      leadsFound.push(...rows.filter(exactMatch));
+      if (rows.length < 1000) break;
+    }
+
+    let lead = leadsFound.length === 1 ? leadsFound[0] : null;
+    if (!lead && leadsFound.length === 0) {
+      let suffixMatches: any[] = [];
+      for (let offset = 0; offset < 10000; offset += 1000) {
+        const { data: leadRows, error: leadLookupError } = await db.from("leads")
+          .select("id,phone,whatsapp,interactions")
+          .range(offset, offset + 999);
+        if (leadLookupError) return false;
+        const rows = leadRows || [];
+        suffixMatches.push(...rows.filter(suffixMatch));
+        if (rows.length < 1000) break;
+      }
+      // Só usa o sufixo curto se identificar um único lead, evitando atualizar homônimos telefônicos.
+      if (suffixMatches.length === 1) lead = suffixMatches[0];
     }
     if (!lead) {
-      console.warn("[WAHA] Nenhum lead corresponde ao telefone de destino:", target.slice(-4));
+      console.warn("[WAHA] Não foi possível identificar um único lead para o telefone:", targets[0].slice(-4), "matches:", leadsFound.length);
       return false;
     }
 
@@ -210,6 +231,7 @@ Deno.serve(async (req: Request) => {
       console.error("[WAHA] Falha ao atualizar interação do lead:", interactionError.message);
       return false;
     }
+    console.info("[WAHA] Interação registrada no lead:", lead.id);
     return true;
   };
 
