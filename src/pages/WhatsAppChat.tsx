@@ -1967,14 +1967,29 @@ const WhatsAppChat = () => {
                                   ? 'w-32 h-32 object-contain'
                                   : 'max-h-80 w-full object-contain cursor-pointer hover:opacity-90'}
                                 onClick={() => window.open(m.media_url!, '_blank')}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
+                                onError={async (e) => {
+                                  const target = e.currentTarget;
+                                  // Tenta renovar o link assinado/recuperar a mídia antes de exibir erro.
+                                  if (!target.dataset.retried && selected?.instance_id) {
+                                    target.dataset.retried = '1';
+                                    try {
+                                      const result = await waha.resolveMedia(selected.instance_id, m.id);
+                                      if (typeof result?.url === 'string' && result.url && result.url !== m.media_url) {
+                                        setMessages(current => current.map(item => item.id === m.id ? { ...item, media_url: result.url } : item));
+                                        target.src = result.url;
+                                        return;
+                                      }
+                                    } catch (error) {
+                                      console.warn('Falha ao renovar imagem do WhatsApp', m.id, error);
+                                    }
+                                  }
                                   target.style.display = 'none';
                                   const parent = target.parentElement;
-                                  if (parent) {
+                                  if (parent && !parent.querySelector('[data-media-error="true"]')) {
                                     const errorMsg = document.createElement('div');
+                                    errorMsg.dataset.mediaError = 'true';
                                     errorMsg.className = 'p-4 text-xs text-muted-foreground flex flex-col items-center gap-2';
-                                    errorMsg.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-20"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>Erro ao carregar imagem</span>`;
+                                    errorMsg.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-20"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>Não foi possível carregar a imagem</span>`;
                                     parent.appendChild(errorMsg);
                                   }
                                 }}
