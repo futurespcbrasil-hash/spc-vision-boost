@@ -164,6 +164,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         observations: lead.observations,
         interactions: lead.interactions as any,
         assigned_to: lead.assignedTo || null,
+        last_interaction_at: lead.lastInteractionAt || null,
         funnel: (lead as any).funnel || 'spc',
         plan_value: lead.planValue ?? null,
         biro: lead.biro || null,
