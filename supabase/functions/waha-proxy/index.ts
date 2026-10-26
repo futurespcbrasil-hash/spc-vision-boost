@@ -385,6 +385,11 @@ Deno.serve(async (req: Request) => {
           source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey } });
         } else {
           if (parsedMediaUrl.protocol !== "https:" && parsedMediaUrl.protocol !== "http:") return json({ error: "Protocolo de mídia inválido." }, 400);
+          const supabaseHost = new URL(supabaseUrl).hostname;
+          const wahaHost = new URL(wahaUrl).hostname;
+          if (![supabaseHost, wahaHost].includes(parsedMediaUrl.hostname)) {
+            return json({ error: "A mídia precisa estar no armazenamento autorizado do CRM ou na WAHA." }, 403);
+          }
           source = await fetch(body.media_url);
         }
         if (!source.ok) return json({ error: `Não foi possível obter o arquivo para envio (HTTP ${source.status}).` }, 502);
