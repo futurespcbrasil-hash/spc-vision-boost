@@ -265,7 +265,9 @@ Deno.serve(async (req: Request) => {
           str(flow.welcome_message).trim(), str(flow.menu_message).trim(),
           ...(Array.isArray(flow.options) ? flow.options.map((option: any, index: number) => `${index + 1} — ${str(option?.label).trim()}`) : []),
           "Digite o número da opção desejada.",
-        ].filter(Boolean).join("\n\n");\n\n        const sendAutomaticText = async (text: string) => {
+        ].filter(Boolean).join("\n\n");
+
+        const sendAutomaticText = async (text: string) => {
           const configuredUrl = Deno.env.get("WAHA_API_URL") || "";
           const apiUrl = configuredUrl.endsWith("/") ? configuredUrl.slice(0, -1) : configuredUrl;
           const apiKey = Deno.env.get("WAHA_API_KEY");
