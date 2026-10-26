@@ -371,12 +371,42 @@ Deno.serve(async (req: Request) => {
         const inst = await getOwnedInstance();
         if (!number || typeof body.media_url !== "string" || !body.media_url) return json({ error: "Número e URL da mídia são obrigatórios." }, 400);
         const chatId = await resolveChatId(inst.provider_instance_name, number);
-        const mediaType = String(body.media_type || "document");
+        const mediaType = String(body.media_type || "document").toLowerCase();
         const mimetype = typeof body.media_mime === "string" ? body.media_mime : "application/octet-stream";
         const filename = typeof body.filename === "string" && body.filename.trim() ? body.filename.trim().slice(0, 180) : "arquivo";
-        const payload: Record<string, unknown> = { session: inst.provider_instance_name, chatId, file: { url: body.media_url, mimetype, filename } };
+        // Baixa o conteúdo no servidor e envia BASE64 à WAHA. Isso evita que o WhatsApp receba
+        // uma URL como mensagem/anexo e garante que a WAHA envie os bytes reais do arquivo.
+        let source: Response;
+        let parsedMediaUrl: URL;
+        try { parsedMediaUrl = new URL(body.media_url); } catch { return json({ error: "URL de mídia inválida." }, 400); }
+        if (["localhost", "127.0.0.1", "::1"].includes(parsedMediaUrl.hostname) && parsedMediaUrl.pathname.startsWith("/api/files/")) {
+          const match = parsedMediaUrl.pathname.match(/^\\/api\\/files\\/([A-Za-z0-9._-]+)\\/([A-Za-z0-9._-]+)$/);
+          if (!match || match[1] !== inst.provider_instance_name) return json({ error: "Caminho da mídia inválido para esta instância." }, 403);
+          source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey } });
+        } else {
+          if (parsedMediaUrl.protocol !== "https:" && parsedMediaUrl.protocol !== "http:") return json({ error: "Protocolo de mídia inválido." }, 400);
+          source = await fetch(body.media_url);
+        }
+        if (!source.ok) return json({ error: `Não foi possível obter o arquivo para envio (HTTP ${source.status}).` }, 502);
+        const fileBlob = await source.blob();
+        if (!fileBlob.size) return json({ error: "O arquivo está vazio." }, 400);
+        if (fileBlob.size > 50 * 1024 * 1024) return json({ error: "O arquivo excede o limite de 50 MB." }, 413);
+        const bytes = new Uint8Array(await fileBlob.arrayBuffer());
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+        }
+        const data = btoa(binary);
+        const file = { mimetype: mimetype || source.headers.get("content-type") || "application/octet-stream", filename, data };
+        const payload: Record<string, unknown> = { session: inst.provider_instance_name, chatId, file };
         if (typeof body.caption === "string" && body.caption) payload.caption = body.caption;
-        const result = await callWaha("/api/sendFile", "POST", payload);
+        const endpoint = ["image", "photo", "sticker", "gif"].includes(mediaType)
+          ? "/api/sendImage"
+          : mediaType === "video" || mimetype.startsWith("video/")
+            ? "/api/sendVideo"
+            : "/api/sendFile";
+        const result = await callWaha(endpoint, "POST", payload);
         let storagePath: string | undefined;
         try {
           const mediaUrl = new URL(body.media_url);
