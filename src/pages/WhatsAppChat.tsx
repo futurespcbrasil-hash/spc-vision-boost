@@ -1412,11 +1412,11 @@ const WhatsAppChat = () => {
     let sessionId: string | null = null;
     try {
       const db = supabase as any;
-      const { data: activeSession, error: activeError } = await db.from('whatsapp_service_sessions').select('id').eq('chat_id', selected.id).is('closed_at', null).order('started_at', { ascending: false }).limit(1).maybeSingle();
+      const { data: activeSession, error: activeError } = await db.from('whatsapp_service_sessions').select('id,started_at').eq('chat_id', selected.id).is('closed_at', null).order('started_at', { ascending: false }).limit(1).maybeSingle();
       if (activeError) throw activeError;
       const now = new Date();
       let startedAt = now.toISOString();
-      if (activeSession?.id) { sessionId = activeSession.id; }
+      if (activeSession?.id) { sessionId = activeSession.id; if (activeSession.started_at) startedAt = activeSession.started_at; }
       else {
         const { data: firstMessage, error: firstMessageError } = await db.from('whatsapp_messages').select('timestamp').eq('chat_id', selected.id).order('timestamp', { ascending: true }).limit(1).maybeSingle();
         if (firstMessageError) throw firstMessageError;
