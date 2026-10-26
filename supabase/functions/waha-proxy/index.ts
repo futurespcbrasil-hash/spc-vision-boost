@@ -409,6 +409,9 @@ Deno.serve(async (req: Request) => {
         let synced = 0;
         const remoteMessageIds = new Set<string>();
         const remoteTimestamps: string[] = [];
+        // IDs excluídos pelo usuário/telefone são tombstones permanentes: a WAHA pode
+        // devolver uma cópia antiga e não devemos ressuscitá-la via upsert.
+        const deletedRemoteIds = new Set<string>();
         let remoteMessagesComplete = messages.length > 0;
         if (chat?.id) {
           for (const msg of messages) {
@@ -439,6 +442,13 @@ Deno.serve(async (req: Request) => {
             };
             const sentAt = parseWahaTime(rawTime) || "1970-01-01T00:00:00.000Z";
             if (sentAt !== "1970-01-01T00:00:00.000Z") remoteTimestamps.push(sentAt);
+            const { data: existingMessage, error: existingMessageError } = await db.from("whatsapp_messages")
+              .select("id,text").eq("instance_id", inst.id).eq("wa_message_id", waMessageId).maybeSingle();
+            if (existingMessageError) throw existingMessageError;
+            if (existingMessage?.text === "[crm_deleted]") {
+              deletedRemoteIds.add(waMessageId);
+              continue;
+            }
             const rawType = String(msg?.type || msg?.media?.mimetype || "").toLowerCase();
             const isRevoked = rawType.includes("revok") || rawType.includes("protocol") || msg?.isRevoked === true || msg?._data?.isRevoked === true;
             const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
@@ -492,7 +502,7 @@ Deno.serve(async (req: Request) => {
                 }
                 return { msg, id: String(id || ""), time: parsed || 0 };
               })
-              .filter((item: any) => item.id && item.time > 0)
+              .filter((item: any) => item.id && item.time > 0 && !deletedRemoteIds.has(item.id))
               .sort((a: any, b: any) => b.time - a.time)[0];
             if (newestRemote) {
               const latestText = String(newestRemote.msg?.body || newestRemote.msg?.text || "");
