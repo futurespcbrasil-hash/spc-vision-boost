@@ -767,33 +767,44 @@ const WhatsAppChat = () => {
     // Repara links históricos localhost da WAHA: arquiva no bucket privado e gera URL temporária.
     const sourceMessages = ((data as Message[]) || []).filter(message => message.text !== '[crm_deleted]');
     const previousById = new Map(messagesRef.current.map(message => [message.id, message]));
-    const list = await Promise.all(sourceMessages.map(async (message) => {
-      const url = message.media_url || '';
-      const previous = previousById.get(message.id);
-      const needsResolution = /localhost:3000\/api\/files\//i.test(url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(url);
-      if (!url || !needsResolution) return message;
-      // Evita refazer a requisição em cada polling se esta mídia já foi resolvida nesta sessão.
-      const previousNeedsResolution = previous?.media_url
-        ? /localhost:3000\/api\/files\//i.test(previous.media_url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(previous.media_url)
-        : false;
-      if (previous?.media_url && !previousNeedsResolution) {
-        return { ...message, media_url: previous.media_url };
+    // Limita a quatro recuperações simultâneas: abrir um histórico com muitas mídias
+    // não deve disparar dezenas de downloads/URLs assinadas ao mesmo tempo.
+    const resolvedItems: Message[] = new Array(sourceMessages.length);
+    let nextMediaIndex = 0;
+    const resolveWorker = async () => {
+      while (nextMediaIndex < sourceMessages.length) {
+        const index = nextMediaIndex++;
+        const message = sourceMessages[index];
+        const url = message.media_url || '';
+        const previous = previousById.get(message.id);
+        const needsResolution = /localhost:3000\/api\/files\//i.test(url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(url);
+        if (!url || !needsResolution) { resolvedItems[index] = message; continue; }
+        // Evita refazer a requisição em cada polling se esta mídia já foi resolvida nesta sessão.
+        const previousNeedsResolution = previous?.media_url
+          ? /localhost:3000\/api\/files\//i.test(previous.media_url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(previous.media_url)
+          : false;
+        if (previous?.media_url && !previousNeedsResolution) {
+          resolvedItems[index] = { ...message, media_url: previous.media_url };
+          continue;
+        }
+        if (!selected?.instance_id) { resolvedItems[index] = message; continue; }
+        try {
+          const result = await waha.resolveMedia(selected.instance_id, message.id);
+          resolvedItems[index] = typeof result?.url === 'string' && result.url ? { ...message, media_url: result.url } : message;
+        } catch (error) {
+          console.warn('Não foi possível recuperar mídia histórica do WhatsApp', message.id, error);
+          resolvedItems[index] = message;
+        }
       }
-      if (!selected?.instance_id) return message;
-      try {
-        const result = await waha.resolveMedia(selected.instance_id, message.id);
-        return typeof result?.url === 'string' && result.url ? { ...message, media_url: result.url } : message;
-      } catch (error) {
-        console.warn('Não foi possível recuperar mídia histórica do WhatsApp', message.id, error);
-        return message;
-      }
-    })).then(items => items.sort((a, b) => {
+    };
+    await Promise.all(Array.from({ length: Math.min(4, sourceMessages.length) }, () => resolveWorker()));
+    const list = resolvedItems.sort((a, b) => {
       const at = Date.parse(a.timestamp || '');
       const bt = Date.parse(b.timestamp || '');
       const av = Number.isFinite(at) ? at : 0;
       const bv = Number.isFinite(bt) ? bt : 0;
       return av - bv || String(a.id).localeCompare(String(b.id));
-    }));
+    });
     // Marcadores internos de exclusão nunca aparecem na interface.
     const sortedList = list;
     const orderedList = sortedList
