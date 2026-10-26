@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     return chatId;
   };
 
-  const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any, recipient: string, replyTo?: string) => {
+  const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any, recipient: string, replyTo?: string, media?: { url: string; mime: string; filename: string; storagePath?: string }) => {
     const now = new Date().toISOString();
     let digits = String(recipient || chatId).split("@")[0].replace(/\D/g, "");
     let { data: existing } = await db.from("whatsapp_chats")
@@ -146,7 +146,10 @@ Deno.serve(async (req: Request) => {
         const { error } = await db.from("whatsapp_messages").insert({
           chat_id: chatIdDb, instance_id: inst.id, wa_message_id: typeof rawId === "string" ? rawId : null,
           from_me: true, sender: "me", message_type: messageType, text: text || null,
-          status: "sent", timestamp: now, raw: result || {}, sent_by: inst.owner_id, reply_to: replyTo || null,
+          media_url: media?.url || null, media_mime: media?.mime || null, media_filename: media?.filename || null,
+          status: "sent", timestamp: now,
+          raw: { ...(result && typeof result === "object" ? result : {}), ...(media?.storagePath ? { crm_media_storage_path: media.storagePath } : {}) },
+          sent_by: inst.owner_id, reply_to: replyTo || null,
         });
         if (error) throw new Error("Mensagem enviada, mas falhou gravar o histórico no CRM: " + error.message);
       }
@@ -374,7 +377,19 @@ Deno.serve(async (req: Request) => {
         const payload: Record<string, unknown> = { session: inst.provider_instance_name, chatId, file: { url: body.media_url, mimetype, filename } };
         if (typeof body.caption === "string" && body.caption) payload.caption = body.caption;
         const result = await callWaha("/api/sendFile", "POST", payload);
-        await persistOutbound(inst, chatId, typeof body.caption === "string" ? body.caption : "", mediaType, result, number);
+        let storagePath: string | undefined;
+        try {
+          const mediaUrl = new URL(body.media_url);
+          const marker = "/storage/v1/object/sign/chat-media/";
+          const markerIndex = mediaUrl.pathname.indexOf(marker);
+          if (markerIndex >= 0) {
+            const candidate = decodeURIComponent(mediaUrl.pathname.slice(markerIndex + marker.length));
+            if (candidate.startsWith(`${user.id}/`) && !candidate.includes("..")) storagePath = candidate;
+          }
+        } catch { /* URL externa: não associar caminho de armazenamento */ }
+        await persistOutbound(inst, chatId, typeof body.caption === "string" ? body.caption : "", mediaType, result, number, undefined, {
+          url: body.media_url, mime: mimetype, filename, storagePath,
+        });
         return json({ ...result, media_type: mediaType });
       }
       case "resolve_media": {
