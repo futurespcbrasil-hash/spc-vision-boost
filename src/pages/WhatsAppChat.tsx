@@ -70,12 +70,12 @@ const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
 
 const uploadMedia = async (file: Blob, filename: string, userId: string) => {
   const path = `${userId}/${Date.now()}-${filename.replace(/[^\w.\-]/g, '_')}`;
-  const { error } = await supabase.storage.from('whatsapp-media').upload(path, file, {
+  const { error } = await supabase.storage.from('chat-media').upload(path, file, {
     contentType: (file as File).type || 'application/octet-stream',
     upsert: false,
   });
   if (error) throw error;
-  const { data, error: sErr } = await supabase.storage.from('whatsapp-media').createSignedUrl(path, 15 * 60);
+  const { data, error: sErr } = await supabase.storage.from('chat-media').createSignedUrl(path, 15 * 60);
   if (sErr || !data?.signedUrl) throw sErr || new Error('Não foi possível gerar o link do arquivo');
   return data.signedUrl;
 };
