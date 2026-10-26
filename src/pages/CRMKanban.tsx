@@ -26,7 +26,11 @@ const CRMKanban = () => {
   const sectorLabel = sectors.find(s => s.key === funnel)?.label || funnel;
   const { leads: allLeads, moveLeadToStage, updateLead, deleteLead, addLead, refreshLeads } = useAppState();
   // Protege a renderização contra registros incompletos vindos de cache/realtime.
-  const leads = (Array.isArray(allLeads) ? allLeads : []).filter(l => !!l && ((l as any).funnel || 'spc') === funnel);
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const leads = (Array.isArray(allLeads) ? allLeads : []).filter(l =>
+    !!l && ((l as any).funnel || 'spc') === funnel &&
+    (assigneeFilter === 'all' || (assigneeFilter === 'unassigned' ? !l.assignedTo : l.assignedTo === assigneeFilter))
+  );
   const baseStages = KANBAN_STAGES;
   const addLeadDraftKey = user ? `crm_kanban_new_lead_draft_${user.id}_${funnel}` : undefined;
   const readAddLeadDraft = () => {
@@ -696,6 +700,26 @@ const CRMKanban = () => {
           >
             <Plus size={16} /> Adicionar Coluna
           </button>
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border bg-card">
+            <User2 size={16} className="text-muted-foreground shrink-0" />
+            <select
+              aria-label="Filtrar leads por responsável"
+              value={assigneeFilter}
+              onChange={e => setAssigneeFilter(e.target.value)}
+              className="max-w-[190px] bg-transparent text-sm text-foreground outline-none"
+            >
+              <option value="all">Todos os responsáveis</option>
+              <option value="unassigned">Sem responsável</option>
+              {teamMembers.map(member => (
+                <option key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</option>
+              ))}
+            </select>
+            {assigneeFilter !== 'all' && (
+              <button type="button" onClick={() => setAssigneeFilter('all')} title="Limpar filtro de responsável" aria-label="Limpar filtro de responsável" className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted">
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
