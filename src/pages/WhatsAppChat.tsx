@@ -14,7 +14,8 @@ import {
   Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
   CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
   Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
-  Pin, PinOff, Eye, Bell, Copy, Forward, Star, Reply, Share2, Download, ExternalLink, Info, CheckSquare
+  Pin, PinOff, Eye, Bell, Copy, Forward, Star, Reply, Share2, Download, ExternalLink, Info, CheckSquare,
+  Phone, Ban, Flag, Link as LinkIcon, Contact, X, File, Image, Film
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -304,6 +305,10 @@ const WhatsAppChat = () => {
   const profilePicFetched = useRef<Set<string>>(new Set());
   const [instanceUnread, setInstanceUnread] = useState<Record<string, number>>({});
 
+  // Painel de detalhes do contato e conteúdo compartilhado na conversa.
+  const [contactPanelOpen, setContactPanelOpen] = useState(false);
+  const [contactPanelTab, setContactPanelTab] = useState<'info' | 'media' | 'links' | 'docs'>('info');
+  const [contactSearch, setContactSearch] = useState('');
   // Salvar contato
   const [saveContactOpen, setSaveContactOpen] = useState(false);
   const [contactNameInput, setContactNameInput] = useState('');
@@ -1422,6 +1427,45 @@ const WhatsAppChat = () => {
     new Set(messages.filter(m => !m.from_me && m.sender).map(m => String(m.sender)))
   );
 
+  const handleShareContact = async () => {
+    if (!selected) return;
+    const name = chatTitle(selected);
+    const phone = formatNumber(selected.contact_number);
+    const vcard = `BEGIN:VCARD\\nVERSION:3.0\\nFN:${name}\\nTEL;TYPE=CELL:${selected.contact_number}\\nEND:VCARD`;
+    try {
+      await navigator.clipboard.writeText(`${name}\\n${phone}\\n\\n${vcard}`);
+      toast({ title: 'Contato preparado para compartilhar', description: 'Nome e telefone copiados. Cole no destino desejado.' });
+    } catch {
+      toast({ title: 'Não foi possível copiar o contato', description: 'Verifique a permissão de área de transferência do navegador.', variant: 'destructive' });
+    }
+  };
+
+  const openContactEditor = () => {
+    if (!selected) return;
+    setContactNameInput(hasRealName(selected) ? selected.contact_name || '' : '');
+    setContactPanelOpen(false);
+    setSaveContactOpen(true);
+  };
+
+  const contactLinks = messages.filter(m => /https?:\\/\\/|www\\./i.test(m.text || ''));
+  const contactMedia = messages.filter(m => !!m.media_url && /image|photo|sticker|video|audio|ptt/i.test(m.message_type || ''));
+  const contactDocs = messages.filter(m => !!m.media_url && /document|file|application|pdf/i.test(`${m.message_type || ''} ${m.media_mime || ''}`));
+  const panelMessages = contactPanelTab === 'media' ? contactMedia : contactPanelTab === 'links' ? contactLinks : contactPanelTab === 'docs' ? contactDocs : [];
+  const filteredPanelMessages = panelMessages.filter(m => !contactSearch.trim() || `${m.text || ''} ${m.media_url || ''}`.toLowerCase().includes(contactSearch.toLowerCase()));
+
+  const handleContactAction = (action: 'clear' | 'block' | 'report') => {
+    if (!selected) return;
+    if (action === 'clear') {
+      toast({ title: 'Limpeza do histórico requer confirmação', description: 'Para preservar registros e auditoria, a exclusão em massa será implementada após definir o escopo: apenas no CRM ou também no WhatsApp.' });
+      return;
+    }
+    if (action === 'block') {
+      toast({ title: 'Bloqueio não executado', description: 'A integração WAHA atualmente usada nesta tela não expõe uma operação de bloqueio confirmada. Não vamos simular um bloqueio real.' });
+      return;
+    }
+    toast({ title: 'Denúncia não enviada ao WhatsApp', description: 'A integração atual não confirma suporte à denúncia oficial. Use esta opção somente após implementarmos um fluxo interno auditável.' });
+  };
+
   // Salvar nome do contato
   const handleSaveContact = async () => {
     if (!selected || !contactNameInput.trim()) return;
@@ -1705,19 +1749,23 @@ const WhatsAppChat = () => {
                     <ArrowLeft size={18} />
                   </Button>
 
-                  {selected.avatar_url ? (
-                    <img src={selected.avatar_url} alt={chatTitle(selected)} className="w-10 h-10 rounded-full object-cover" />
-                  ) : (
-                    <div className={`w-10 h-10 rounded-full ${getAvatarColor(chatTitle(selected))} flex items-center justify-center font-bold text-sm`}>
-                      {getInitials(chatTitle(selected))}
-                    </div>
-                  )}
+                  <button type="button" onClick={() => { if (isGroupChat(selected)) setGroupInfoOpen(true); else { setContactPanelTab('info'); setContactSearch(''); setContactPanelOpen(true); } }} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Abrir perfil do contato">
+                    {selected.avatar_url ? (
+                      <img src={selected.avatar_url} alt={chatTitle(selected)} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full ${getAvatarColor(chatTitle(selected))} flex items-center justify-center font-bold text-sm`}>
+                        {getInitials(chatTitle(selected))}
+                      </div>
+                    )}
+                  </button>
 
                   <div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => { if (isGroupChat(selected)) setGroupInfoOpen(true); }}
-                        className={`font-semibold text-sm text-foreground ${isGroupChat(selected) ? 'hover:underline' : 'cursor-default'}`}
+                        onClick={() => { if (isGroupChat(selected)) setGroupInfoOpen(true); else { setContactPanelTab('info'); setContactSearch(''); setContactPanelOpen(true); } }}
+                        className="font-semibold text-sm text-foreground hover:underline text-left"
+                        title={isGroupChat(selected) ? 'Ver participantes do grupo' : 'Abrir perfil do contato'}
+                        aria-label={isGroupChat(selected) ? 'Ver participantes do grupo' : 'Abrir perfil do contato'}
                       >
                         {chatTitle(selected)}
                       </button>
@@ -1757,17 +1805,25 @@ const WhatsAppChat = () => {
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" title="Mais opções da conversa" aria-label="Mais opções da conversa"><MoreVertical size={17}/></Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuContent align="end" className="w-60">
+                      <DropdownMenuItem onSelect={() => { setContactPanelTab('info'); setContactPanelOpen(true); }}><Contact size={14} className="mr-2"/>Dados do contato</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void handleShareContact()}><Share2 size={14} className="mr-2"/>Compartilhar contato</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={openContactEditor}><User size={14} className="mr-2"/>Editar contato</DropdownMenuItem>
+                      <DropdownMenuSeparator/>
                       <DropdownMenuItem onSelect={handleOpenLeadDialog} disabled={!!selected.lead_id}><GitBranch size={14} className="mr-2"/>{selected.lead_id ? 'Lead já cadastrado' : 'Cadastrar no Kanban'}</DropdownMenuItem>
                       <DropdownMenuItem onSelect={handleOpenStatusDialog}><GitBranch size={14} className="mr-2"/>Status do Kanban</DropdownMenuItem>
                       <DropdownMenuSeparator/>
                       <DropdownMenuItem onSelect={() => { setTransferAssignee(selected.assigned_to || ''); setTransferDialogOpen(true); }}><Forward size={14} className="mr-2"/>Transferir atendimento</DropdownMenuItem>
+                      <DropdownMenuSeparator/>
+                      <DropdownMenuItem onSelect={() => handleContactAction('clear')}><Trash2 size={14} className="mr-2"/>Limpar conversa</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => handleContactAction('block')}><Ban size={14} className="mr-2"/>Bloquear contato</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => handleContactAction('report')} className="text-destructive focus:text-destructive"><Flag size={14} className="mr-2"/>Denunciar contato</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <Button variant="ghost" size="icon" onClick={handleSyncMessages} title="Atualizar mensagens" className="h-9 w-9 text-muted-foreground hover:text-foreground">
                     <RefreshCw size={17} />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground">
+                  <Button variant="ghost" size="icon" onClick={() => { setContactPanelTab('links'); setContactSearch(''); setContactPanelOpen(true); }} title="Pesquisar links e conteúdo da conversa" aria-label="Pesquisar na conversa" className="h-9 w-9 text-muted-foreground hover:text-foreground">
                     <Search size={17} />
                   </Button>
 
@@ -2412,6 +2468,64 @@ const WhatsAppChat = () => {
           <div><p className="text-xs text-muted-foreground">Identificador</p><p className="break-all font-mono text-xs">{messageDetails.wa_message_id || messageDetails.id}</p></div>
         </div>}
         <DialogFooter><Button variant="outline" onClick={() => setMessageDetails(null)}>Fechar</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Perfil do contato e conteúdo compartilhado */}
+    <Dialog open={contactPanelOpen} onOpenChange={setContactPanelOpen}>
+      <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto p-0 gap-0">
+        <DialogHeader className="p-5 pb-3 border-b">
+          <div className="flex items-start gap-3 pr-7">
+            {selected?.avatar_url ? <img src={selected.avatar_url} alt={selected ? chatTitle(selected) : 'Contato'} className="h-16 w-16 rounded-full object-cover"/> : <div className={`h-16 w-16 shrink-0 rounded-full ${getAvatarColor(selected ? chatTitle(selected) : '')} flex items-center justify-center text-lg font-bold`}>{getInitials(selected ? chatTitle(selected) : '?')}</div>}
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="break-words">{selected ? chatTitle(selected) : 'Contato'}</DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">{selected ? formatNumber(selected.contact_number) : ''}</p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Button size="sm" variant="outline" onClick={() => { if (selected) window.location.href = `tel:${onlyDigits(selected.contact_number)}`; }}><Phone size={14} className="mr-1.5"/>Ligar</Button>
+                <Button size="sm" variant="outline" onClick={() => { if (selected) window.open(`https://web.whatsapp.com/send?phone=${onlyDigits(selected.contact_number)}`, '_blank', 'noopener,noreferrer'); }}><Video size={14} className="mr-1.5"/>Vídeo / WhatsApp</Button>
+                <Button size="sm" variant="outline" onClick={openContactEditor}><User size={14} className="mr-1.5"/>Editar</Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><Button size="icon" variant="outline" aria-label="Mais ações do contato"><MoreVertical size={16}/></Button></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => void handleShareContact()}><Share2 size={14} className="mr-2"/>Compartilhar contato</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleContactAction('clear')}><Trash2 size={14} className="mr-2"/>Limpar conversa</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleContactAction('block')}><Ban size={14} className="mr-2"/>Bloquear contato</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleContactAction('report')} className="text-destructive focus:text-destructive"><Flag size={14} className="mr-2"/>Denunciar contato</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </DialogHeader>
+        <div className="p-5 space-y-5">
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Informações adicionais</h3>
+            <div className="rounded-lg border divide-y">
+              <div className="flex items-center gap-3 p-3"><User size={16} className="text-muted-foreground"/><div className="min-w-0"><p className="text-xs text-muted-foreground">Nome</p><p className="text-sm font-medium break-words">{selected ? chatTitle(selected) : '—'}</p></div></div>
+              <div className="flex items-center gap-3 p-3"><Phone size={16} className="text-muted-foreground"/><div><p className="text-xs text-muted-foreground">Telefone</p><p className="text-sm font-medium">{selected ? formatNumber(selected.contact_number) : '—'}</p></div><Button size="icon" variant="ghost" className="ml-auto h-8 w-8" title="Copiar telefone" onClick={() => { if (selected) void navigator.clipboard.writeText(formatNumber(selected.contact_number)).then(() => toast({title:'Telefone copiado'})).catch(() => toast({title:'Não foi possível copiar',variant:'destructive'})); }}><Copy size={14}/></Button></div>
+              <div className="flex items-center gap-3 p-3"><UserPlus size={16} className="text-muted-foreground"/><div><p className="text-xs text-muted-foreground">Responsável</p><p className="text-sm font-medium">{selected?.assigned_to ? agentColors[selected.assigned_to]?.display_name || 'Responsável atribuído' : 'Sem responsável'}</p></div></div>
+              <div className="flex items-center gap-3 p-3"><GitBranch size={16} className="text-muted-foreground"/><div><p className="text-xs text-muted-foreground">Lead / Kanban</p><p className="text-sm font-medium">{selected?.lead_id ? 'Lead vinculado' : 'Ainda não vinculado a um lead'}</p></div><Button size="sm" variant="ghost" className="ml-auto" onClick={() => { setContactPanelOpen(false); if (!selected?.lead_id) handleOpenLeadDialog(); else handleOpenStatusDialog(); }}>{selected?.lead_id ? 'Ver status' : 'Cadastrar'}</Button></div>
+            </div>
+          </section>
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Mídia, links e documentos</h3>
+            <div className="grid grid-cols-4 gap-1 rounded-lg bg-muted/60 p-1">
+              {([{key:'media',label:'Mídia',count:contactMedia.length},{key:'links',label:'Links',count:contactLinks.length},{key:'docs',label:'Docs',count:contactDocs.length},{key:'info',label:'Tudo',count:messages.length}] as const).map(tab => <button key={tab.key} type="button" onClick={() => {setContactPanelTab(tab.key);setContactSearch('');}} className={`rounded-md px-2 py-2 text-xs font-medium transition-colors ${contactPanelTab===tab.key?'bg-background shadow-sm':'text-muted-foreground hover:text-foreground'}`}>{tab.label}<span className="ml-1 opacity-70">{tab.count}</span></button>)}
+            </div>
+            {contactPanelTab !== 'info' && <Input value={contactSearch} onChange={e => setContactSearch(e.target.value)} placeholder="Filtrar conteúdo desta conversa..." className="h-9"/>}
+            {contactPanelTab === 'info' ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><MessageSquare size={16}/> {messages.length} mensagens carregadas nesta conversa</div> : <div className="max-h-64 overflow-y-auto rounded-lg border divide-y">
+              {filteredPanelMessages.map(m => <div key={m.id} className="flex items-center gap-3 p-3 min-w-0">
+                {contactPanelTab === 'media' ? <ImageIcon size={18} className="shrink-0 text-muted-foreground"/> : contactPanelTab === 'links' ? <LinkIcon size={18} className="shrink-0 text-muted-foreground"/> : <FileText size={18} className="shrink-0 text-muted-foreground"/>}
+                <div className="min-w-0 flex-1"><p className="text-sm truncate">{m.text || (contactPanelTab === 'links' ? 'Link na mensagem' : m.media_mime || m.message_type || 'Arquivo')}</p><p className="text-[11px] text-muted-foreground">{new Date(m.timestamp).toLocaleString('pt-BR')} · {m.from_me ? 'Enviado' : 'Recebido'}</p></div>
+                {m.media_url && <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" title="Abrir arquivo" onClick={() => window.open(m.media_url!, '_blank', 'noopener,noreferrer')}><ExternalLink size={14}/></Button>}
+                {contactPanelTab === 'links' && m.text && <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" title="Copiar mensagem/link" onClick={() => void navigator.clipboard.writeText(m.text || '').then(() => toast({title:'Link/mensagem copiado'}))}><Copy size={14}/></Button>}
+              </div>)}
+              {filteredPanelMessages.length === 0 && <p className="p-6 text-center text-sm text-muted-foreground">Nenhum item deste tipo foi encontrado nas mensagens carregadas.</p>}
+            </div>}
+            <p className="text-[11px] text-muted-foreground">A lista considera as mensagens atualmente carregadas pelo CRM; mídias antigas podem não aparecer até serem sincronizadas.</p>
+          </section>
+        </div>
+        <DialogFooter className="border-t p-4"><Button variant="outline" onClick={() => setContactPanelOpen(false)}>Fechar</Button></DialogFooter>
       </DialogContent>
     </Dialog>
 
