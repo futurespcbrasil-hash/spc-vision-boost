@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Paperclip, Search, User, RefreshCw, Loader2, Copy, MessageCircle, CheckCircle2, Phone, Pencil, Check, X } from 'lucide-react';
+import { Send, Paperclip, Search, User, RefreshCw, Loader2, Copy, MessageCircle, CheckCircle2, Phone, Pencil, Check, X, ChevronDown } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -353,8 +354,9 @@ export default function WhatsAppConversas() {
     if (!instanceId || !selectedInstance || !numberVerified || !firstMessage.trim() || startingNumberChat) return;
     setStartingNumberChat(true);
     try {
-      await waha.sendText(instanceId, normalizeBrazilNumber(actionNumber), firstMessage.trim());
+      const sent: any = await waha.sendText(instanceId, normalizeBrazilNumber(actionNumber), firstMessage.trim());
       refreshLeads();
+      if (sent?.lead_interaction_updated === false) toast.warning('Mensagem enviada, mas não localizei um lead com esse telefone. Confira o WhatsApp/telefone cadastrado no Kanban.');
       setNumberDialogOpen(false);
       setFirstMessage('');
       await loadChats(true);
@@ -388,8 +390,9 @@ export default function WhatsAppConversas() {
     stickToBottomRef.current = true;
     setSending(true);
     try {
-      await waha.sendText(instanceId, selectedChat.wa_chat_id || selectedChat.contact_number, text);
+      const sent: any = await waha.sendText(instanceId, selectedChat.contact_number || selectedChat.wa_chat_id, text);
       refreshLeads();
+      if (sent?.lead_interaction_updated === false) toast.warning('Mensagem enviada, mas não localizei um lead com esse telefone. Confira o WhatsApp/telefone cadastrado no Kanban.');
       setMessage('');
 
       // A Edge Function persiste o envio. Recarregamos apenas o histórico da
@@ -490,8 +493,19 @@ export default function WhatsAppConversas() {
                       <div className="flex items-start gap-2">
                         <p className="whitespace-pre-wrap break-words flex-1">{msg.text ? renderMessageText(msg.text, openNumberActions) : (msg.message_type !== 'text' ? '[' + msg.message_type + ']' : '')}</p>
                         {msg.from_me && msg.wa_message_id && msg.message_type === 'text' && (
-                          <button type="button" onClick={() => startEditingMessage(msg)} title="Editar mensagem no WhatsApp" aria-label="Editar mensagem"
-                            className="shrink-0 rounded p-1 opacity-60 hover:opacity-100 hover:bg-black/5"><Pencil size={13} /></button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button type="button" title="Opções da mensagem" aria-label="Opções da mensagem"
+                                className="shrink-0 rounded p-1 opacity-70 hover:opacity-100 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                <ChevronDown size={15} />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="z-[100]">
+                              <DropdownMenuItem onSelect={() => startEditingMessage(msg)}>
+                                <Pencil size={14} className="mr-2" />Editar mensagem
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                       </div>
                     )}
