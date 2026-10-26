@@ -2482,7 +2482,7 @@ const WhatsAppChat = () => {
               <p className="text-sm text-muted-foreground mt-1">{selected ? formatNumber(selected.contact_number) : ''}</p>
               <div className="flex flex-wrap gap-2 mt-3">
                 <Button size="sm" variant="outline" onClick={() => { if (selected) window.location.href = `tel:${onlyDigits(selected.contact_number)}`; }}><Phone size={14} className="mr-1.5"/>Ligar</Button>
-                <Button size="sm" variant="outline" onClick={() => { if (selected) window.open(`https://web.whatsapp.com/send?phone=${onlyDigits(selected.contact_number)}`, '_blank', 'noopener,noreferrer'); }}><Video size={14} className="mr-1.5"/>Vídeo / WhatsApp</Button>
+                <Button size="sm" variant="outline" onClick={() => { if (selected) window.open(`https://web.whatsapp.com/send?phone=${onlyDigits(selected.contact_number)}`, '_blank', 'noopener,noreferrer'); }}><MessageSquare size={14} className="mr-1.5"/>Abrir WhatsApp</Button>
                 <Button size="sm" variant="outline" onClick={openContactEditor}><User size={14} className="mr-1.5"/>Editar</Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild><Button size="icon" variant="outline" aria-label="Mais ações do contato"><MoreVertical size={16}/></Button></DropdownMenuTrigger>
