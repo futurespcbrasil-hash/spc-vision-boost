@@ -140,6 +140,8 @@ const WhatsAppFluxos = () => {
     finally { setDeleting(false); }
   };
 
+  if (!canManageUsers) return <div className="mx-auto max-w-2xl p-6"><Alert><CircleAlert className="h-4 w-4" /><AlertDescription>Somente o administrador ou um gestor pode criar, editar, ativar ou excluir fluxos de atendimento.</AlertDescription></Alert></div>;
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
