@@ -61,26 +61,59 @@ Deno.serve(async (req: Request) => {
     return data;
   };
 
-  const getOwnedInstance = async () => {
+  const getOwnedInstance = async (access?: {
+    chatDbId?: string; waChatId?: string; recipient?: string; messageDbId?: string; allowAnyAssigned?: boolean;
+  }) => {
     if (!instanceId) throw new Error("instance_id é obrigatório.");
-    const { data, error } = await db.from("whatsapp_instances").select("*").eq("id", instanceId).eq("owner_id", user.id).maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error("Instância não encontrada ou sem permissão.");
-    if (data.provider === "waha" && data.provider_instance_name) return data;
-
-    // Migração sob demanda: cria uma sessão WAHA nova e preserva o ID antigo da Ryze
-    // para auditoria/rollback. Não apaga nem modifica a sessão antiga no provedor anterior.
-    const safeName = String(data.name || "whatsapp").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "whatsapp";
-    const newSession = `u${user.id.replaceAll("-", "").slice(0, 8)}-${safeName}-${crypto.randomUUID().slice(0, 6)}`;
-    await callWaha("/api/sessions", "POST", { name: newSession, start: false, config: { webhooks: [] } });
-    const { data: migrated, error: migrationError } = await db.from("whatsapp_instances")
-      .update({ provider: "waha", provider_instance_name: newSession, status: "created", qr_code: null })
-      .eq("id", data.id).eq("owner_id", user.id).select("*").single();
-    if (migrationError) {
-      await callWaha(`/api/sessions/${encodeURIComponent(newSession)}`, "DELETE").catch(() => null);
-      throw migrationError;
+    const { data: owned, error: ownerError } = await db.from("whatsapp_instances")
+      .select("*").eq("id", instanceId).eq("owner_id", user.id).maybeSingle();
+    if (ownerError) throw ownerError;
+    if (owned) {
+      if (owned.provider === "waha" && owned.provider_instance_name) return owned;
+      const safeName = String(owned.name || "whatsapp").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "whatsapp";
+      const newSession = "u" + user.id.replaceAll("-", "").slice(0, 8) + "-" + safeName + "-" + crypto.randomUUID().slice(0, 6);
+      await callWaha("/api/sessions", "POST", { name: newSession, start: false, config: { webhooks: [] } });
+      const { data: migrated, error: migrationError } = await db.from("whatsapp_instances")
+        .update({ provider: "waha", provider_instance_name: newSession, status: "created", qr_code: null })
+        .eq("id", owned.id).eq("owner_id", user.id).select("*").single();
+      if (migrationError) {
+        await callWaha("/api/sessions/" + encodeURIComponent(newSession), "DELETE").catch(() => null);
+        throw migrationError;
+      }
+      return migrated;
     }
-    return migrated;
+    if (!access) throw new Error("Instância não encontrada ou sem permissão.");
+    const { data: sharedInstance, error: sharedError } = await db.from("whatsapp_instances")
+      .select("*").eq("id", instanceId).maybeSingle();
+    if (sharedError) throw sharedError;
+    if (!sharedInstance || sharedInstance.provider !== "waha" || !sharedInstance.provider_instance_name) {
+      throw new Error("Instância não encontrada ou sem permissão.");
+    }
+    let requestedChatId = access.chatDbId || "";
+    if (access.messageDbId) {
+      const { data: messageRow, error: messageLookupError } = await db.from("whatsapp_messages")
+        .select("chat_id").eq("id", access.messageDbId).eq("instance_id", instanceId).maybeSingle();
+      if (messageLookupError) throw messageLookupError;
+      if (!messageRow?.chat_id) throw new Error("Mensagem não encontrada ou sem permissão.");
+      requestedChatId = messageRow.chat_id;
+    }
+    let assignedQuery = db.from("whatsapp_chats").select("id,wa_chat_id,contact_number")
+      .eq("instance_id", instanceId).eq("assigned_to", user.id);
+    if (requestedChatId) assignedQuery = assignedQuery.eq("id", requestedChatId);
+    if (access.waChatId) assignedQuery = assignedQuery.eq("wa_chat_id", access.waChatId);
+    if (access.allowAnyAssigned) assignedQuery = assignedQuery.limit(1);
+    const { data: assignedChats, error: assignedError } = await assignedQuery;
+    if (assignedError) throw assignedError;
+    let permitted = assignedChats || [];
+    if (access.recipient) {
+      const recipient = String(access.recipient).trim();
+      const digits = recipient.replace(/[^0-9]/g, "");
+      permitted = permitted.filter((chat: any) => chat.wa_chat_id === recipient
+        || String(chat.contact_number || "").replace(/[^0-9]/g, "") === digits
+        || chat.wa_chat_id.split("@")[0].replace(/[^0-9]/g, "") === digits);
+    }
+    if (!permitted.length) throw new Error("Você só pode acessar conversas atribuídas a você.");
+    return sharedInstance;
   };
   // Resolve telefones novos pelo endpoint oficial da WAHA. No Brasil, o WhatsApp
   // pode exigir um LID em vez do JID baseado no telefone; enviar diretamente para
@@ -356,7 +389,7 @@ Deno.serve(async (req: Request) => {
         });
       }
       case "send_text": {
-        const inst = await getOwnedInstance();
+        const inst = await getOwnedInstance({ recipient: number });
         if (!number || typeof body.text !== "string" || !body.text.trim()) return json({ error: "Número e texto são obrigatórios." }, 400);
         const chatId = await resolveChatId(inst.provider_instance_name, number);
         const replyTo = typeof body.reply_to === "string" && body.reply_to.trim() ? body.reply_to.trim() : undefined;
@@ -368,7 +401,7 @@ Deno.serve(async (req: Request) => {
         return json({ ...result, lead_interaction_updated: leadInteractionUpdated });
       }
       case "send_media": {
-        const inst = await getOwnedInstance();
+        const inst = await getOwnedInstance({ recipient: number });
         if (!number || typeof body.media_url !== "string" || !body.media_url) return json({ error: "Número e URL da mídia são obrigatórios." }, 400);
         const chatId = await resolveChatId(inst.provider_instance_name, number);
         const mediaType = String(body.media_type || "document").toLowerCase();
@@ -431,8 +464,9 @@ Deno.serve(async (req: Request) => {
         return json({ ...result, media_type: mediaType });
       }
       case "resolve_media": {
-        const inst = await getOwnedInstance();
         const messageId = typeof body.message_id === "string" ? body.message_id : "";
+        if (!messageId) return json({ error: "message_id é obrigatório." }, 400);
+        const inst = await getOwnedInstance({ messageDbId: messageId });
         if (!messageId) return json({ error: "message_id é obrigatório." }, 400);
         const { data: message, error: messageError } = await db.from("whatsapp_messages")
           .select("id,instance_id,media_url,media_mime,media_filename,raw,message_type")
@@ -489,7 +523,7 @@ Deno.serve(async (req: Request) => {
         return json({ url: signed.signedUrl, stored: true, storage_path: storagePath });
       }
       case "get_chats": {
-        const inst = await getOwnedInstance();
+        const inst = await getOwnedInstance({ allowAnyAssigned: true });
         // Overview inclui última mensagem e dados de exibição; fallback para /chats em versões antigas.
         let rawChats: any;
         try {
@@ -497,9 +531,19 @@ Deno.serve(async (req: Request) => {
         } catch {
           rawChats = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats`);
         }
-        const chats = Array.isArray(rawChats) ? rawChats
+        let chats = Array.isArray(rawChats) ? rawChats
           : Array.isArray(rawChats?.chats) ? rawChats.chats
           : Array.isArray(rawChats?.items) ? rawChats.items : [];
+        if (inst.owner_id !== user.id) {
+          const { data: assignedRows, error: assignedRowsError } = await db.from("whatsapp_chats")
+            .select("wa_chat_id").eq("instance_id", inst.id).eq("assigned_to", user.id);
+          if (assignedRowsError) throw assignedRowsError;
+          const allowedIds = new Set((assignedRows || []).map((row: any) => String(row.wa_chat_id)));
+          chats = chats.filter((chat: any) => {
+            const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
+            return typeof rawId === "string" && allowedIds.has(rawId);
+          });
+        }
         let synced = 0;
         for (const chat of chats) {
           const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
@@ -591,7 +635,7 @@ Deno.serve(async (req: Request) => {
         return json({ contacts });
       }
       case "edit_message": {
-        const inst = await getOwnedInstance();
+        const inst = await getOwnedInstance({ chatDbId: typeof body.chat_id === "string" ? body.chat_id.trim() : "" });
         const chatDbId = typeof body.chat_id === "string" ? body.chat_id.trim() : "";
         const messageDbId = typeof body.message_id === "string" ? body.message_id.trim() : "";
         const editedText = typeof body.text === "string" ? body.text.trim() : "";
@@ -626,8 +670,8 @@ Deno.serve(async (req: Request) => {
         return json({ success: true, message_id: messageRow.id, text: editedText, remote: remoteResult });
       }
       case "get_messages": {
-        const inst = await getOwnedInstance();
         const waChatId = typeof body.wa_chat_id === "string" ? body.wa_chat_id : "";
+        const inst = await getOwnedInstance({ waChatId });
         if (!waChatId) return json({ error: "wa_chat_id é obrigatório." }, 400);
         const rawMessages = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats/${encodeURIComponent(waChatId)}/messages?limit=100`);
         const messages = Array.isArray(rawMessages) ? rawMessages : Array.isArray(rawMessages?.messages) ? rawMessages.messages : [];
@@ -766,8 +810,8 @@ Deno.serve(async (req: Request) => {
         return json({ messages, synced });
       }
       case "get_profile_pic": {
-        const inst = await getOwnedInstance();
         const chatId = typeof body.wa_chat_id === "string" ? body.wa_chat_id : "";
+        const inst = await getOwnedInstance({ waChatId: chatId });
         if (!chatId) return json({ error: "wa_chat_id é obrigatório." }, 400);
         const pic = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/contacts/${encodeURIComponent(chatId)}/profile-picture`).catch(() => null);
         return json({ url: pic?.url || pic?.profilePictureUrl || null });
