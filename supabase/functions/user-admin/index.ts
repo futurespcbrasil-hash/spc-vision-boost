@@ -47,21 +47,78 @@ Deno.serve(async (req: Request) => {
     const action = String(body.action || "");
 
     if (action === "list") {
-      const { data: listed, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      if (listError) throw listError;
-      const ids = (listed.users || []).map((u) => u.id);
-      const [{ data: profiles }, { data: userRoles }, { data: perms }] = await Promise.all([
-        admin.from("profiles").select("user_id,display_name,email").in("user_id", ids),
-        admin.from("user_roles").select("user_id,role").in("user_id", ids),
-        admin.from("user_module_permissions").select("user_id,module_key,can_access").in("user_id", ids),
-      ]);
+      // Fetch every page: the Auth admin API returns at most 1,000 users per page.
+      const pageSize = 1000;
+      let page = 1;
+      const listedUsers: Array<{
+        id: string;
+        email?: string;
+        user_metadata?: { display_name?: string };
+        created_at: string;
+      }> = [];
+
+      while (true) {
+        const { data: listed, error: listError } = await admin.auth.admin.listUsers({
+          page,
+          perPage: pageSize,
+        });
+        if (listError) throw listError;
+
+        const pageUsers = listed?.users ?? [];
+        listedUsers.push(...pageUsers);
+        if (pageUsers.length < pageSize) break;
+        page += 1;
+      }
+
+      if (listedUsers.length === 0) return json({ users: [] });
+
+      // Keep .in() requests bounded to avoid excessively large PostgREST URLs.
+      const chunkSize = 500;
+      const profiles: Array<{ user_id: string; display_name: string | null; email: string | null }> = [];
+      const userRoles: Array<{ user_id: string; role: string }> = [];
+      const perms: Array<{ user_id: string; module_key: string; can_access: boolean }> = [];
+
+      for (let offset = 0; offset < listedUsers.length; offset += chunkSize) {
+        const ids = listedUsers.slice(offset, offset + chunkSize).map((u) => u.id);
+        const [profileResult, roleResult, permissionResult] = await Promise.all([
+          admin.from("profiles").select("user_id,display_name,email").in("user_id", ids),
+          admin.from("user_roles").select("user_id,role").in("user_id", ids),
+          admin.from("user_module_permissions").select("user_id,module_key,can_access").in("user_id", ids),
+        ]);
+
+        if (profileResult.error) throw profileResult.error;
+        if (roleResult.error) throw roleResult.error;
+        if (permissionResult.error) throw permissionResult.error;
+
+        profiles.push(...(profileResult.data ?? []));
+        userRoles.push(...(roleResult.data ?? []));
+        perms.push(...(permissionResult.data ?? []));
+      }
+
+      // Build lookup maps once instead of repeatedly scanning every result for each user.
+      const profileByUser = new Map(profiles.map((profile) => [profile.user_id, profile]));
+      const roleByUser = new Map<string, string>();
+      for (const item of userRoles) {
+        if (!roleByUser.has(item.user_id)) roleByUser.set(item.user_id, item.role);
+      }
+
+      const permissionsByUser = new Map<string, Array<{ module_key: string; can_access: boolean }>>();
+      for (const permission of perms) {
+        const userPermissions = permissionsByUser.get(permission.user_id) ?? [];
+        userPermissions.push({
+          module_key: permission.module_key,
+          can_access: permission.can_access,
+        });
+        permissionsByUser.set(permission.user_id, userPermissions);
+      }
+
       return json({
-        users: (listed.users || []).map((u) => ({
+        users: listedUsers.map((u) => ({
           id: u.id,
           email: u.email || "",
-          name: profiles?.find((p) => p.user_id === u.id)?.display_name || u.user_metadata?.display_name || "",
-          role: userRoles?.find((r) => r.user_id === u.id)?.role || "vendedor",
-          permissions: (perms || []).filter((p) => p.user_id === u.id).map((p) => ({ module_key: p.module_key, can_access: p.can_access })),
+          name: profileByUser.get(u.id)?.display_name || u.user_metadata?.display_name || "",
+          role: roleByUser.get(u.id) || "vendedor",
+          permissions: permissionsByUser.get(u.id) ?? [],
           created_at: u.created_at,
         })),
       });
