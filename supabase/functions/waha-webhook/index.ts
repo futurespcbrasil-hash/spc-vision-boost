@@ -61,8 +61,7 @@ Deno.serve(async (req: Request) => {
 
   if (eventName === "message.ack") return json({ accepted: true });
 
-  // Revogações/remissões feitas no celular precisam refletir no CRM sem esperar
-  // que o cliente reabra a conversa. Mantemos um marcador no histórico, como o WhatsApp.
+  // Exclusões/revogações no telefone são refletidas no CRM em tempo real via Realtime.
   if (["message.revoked", "message.revoke", "message.deleted", "message.delete"].includes(eventName)) {
     const revokeId = str(payload?.revokedMessageId?._serialized || payload?.revokedMessageId ||
       payload?.messageId?._serialized || payload?.messageId || payload?.id?._serialized ||
@@ -71,20 +70,19 @@ Deno.serve(async (req: Request) => {
     const { data: oldMessage, error: findError } = await db.from("whatsapp_messages")
       .select("id,chat_id,timestamp,wa_message_id").eq("instance_id", instance.id)
       .eq("wa_message_id", revokeId).maybeSingle();
-    if (findError) return json({ error: "Revoked message lookup failed" }, 500);
+    if (findError) return json({ error: "Deleted message lookup failed" }, 500);
     if (!oldMessage) return json({ accepted: true, notFound: true });
-    const { error: revokeError } = await db.from("whatsapp_messages")
-      .update({ text: "[message_revoke]", raw: payload }).eq("id", oldMessage.id);
-    if (revokeError) return json({ error: "Failed to update revoked message" }, 500);
+    const { error: deleteError } = await db.from("whatsapp_messages").delete().eq("id", oldMessage.id);
+    if (deleteError) return json({ error: "Failed to delete message from CRM" }, 500);
     const { data: latestRows } = await db.from("whatsapp_messages").select("text,timestamp")
-      .eq("chat_id", oldMessage.chat_id).order("timestamp", { ascending: false }).limit(20);
-    const latest = (latestRows || []).find((row: any) => row.text !== "[message_revoke]");
+      .eq("chat_id", oldMessage.chat_id).order("timestamp", { ascending: false }).limit(1);
+    const latest = latestRows?.[0];
     await db.from("whatsapp_chats").update({
-      last_message: latest ? (latest.text || "") : "[message_revoke]",
+      last_message: latest ? (latest.text || "") : "",
       last_message_at: latest?.timestamp || oldMessage.timestamp,
       updated_at: new Date().toISOString(),
     }).eq("id", oldMessage.chat_id);
-    return json({ accepted: true, revoked: true });
+    return json({ accepted: true, deleted: true });
   }
 
   const fromMe = payload?.fromMe === true || payload?.from_me === true || payload?.key?.fromMe === true;
