@@ -97,7 +97,7 @@ const WhatsAppFluxos = () => {
   const save = async () => {
     if (!draft.name.trim() || !draft.instance_id) { toast.error('Informe o nome do fluxo e selecione uma instância WhatsApp.'); return; }
     if (!draft.options.length) { toast.error('Adicione pelo menos uma opção ao menu.'); return; }
-    if (draft.options.some(o => !o.label.trim() || !o.target_label.trim())) { toast.error('Preencha o texto e o setor de destino de todas as opções.'); return; }
+    if (draft.options.some(o => !o.label.trim() || !o.target_label.trim() || !o.target_user_id)) { toast.error('Preencha o texto, o setor e o responsável de todas as opções.'); return; }
     const keys = draft.options.map((o, i) => String(i + 1));
     const options = draft.options.map((o, i) => ({ ...o, key: keys[i], label: o.label.trim(), target_label: o.target_label.trim() }));
     setSaving(true);
@@ -207,7 +207,7 @@ const WhatsAppFluxos = () => {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1"><Label>Texto exibido ao cliente</Label><Input value={option.label} onChange={e => updateOption(option.id, 'label', e.target.value)} placeholder="Ex.: Financeiro - Contas a pagar" /></div>
                   <div className="space-y-1"><Label>Setor de destino</Label><Input value={option.target_label} onChange={e => updateOption(option.id, 'target_label', e.target.value)} placeholder="Ex.: Financeiro" /></div>
-                  <div className="space-y-1"><Label>Responsável (opcional)</Label><Select value={option.target_user_id || 'none'} onValueChange={value => updateOption(option.id, 'target_user_id', value === 'none' ? '' : value)}><SelectTrigger><SelectValue placeholder="Deixar na fila / sem responsável" /></SelectTrigger><SelectContent><SelectItem value="none">Sem responsável específico</SelectItem>{agents.map(a => <SelectItem key={a.user_id} value={a.user_id}>{a.display_name || a.email || a.user_id}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label>Responsável pelo atendimento</Label><Select value={option.target_user_id || 'none'} onValueChange={value => updateOption(option.id, 'target_user_id', value === 'none' ? '' : value)}><SelectTrigger><SelectValue placeholder="Selecione o responsável" /></SelectTrigger><SelectContent><SelectItem value="none">Selecione um responsável</SelectItem>{agents.map(a => <SelectItem key={a.user_id} value={a.user_id}>{a.display_name || a.email || a.user_id}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-1"><Label>Resposta ao selecionar</Label><Input value={option.reply_message} onChange={e => updateOption(option.id, 'reply_message', e.target.value)} placeholder="Mensagem de confirmação" /></div>
                 </div>
               </div>)}
@@ -227,7 +227,7 @@ const WhatsAppFluxos = () => {
           </CardContent>
         </Card>
       </div>
-      <p className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="h-4 w-4" /> O destino pode ser identificado por setor e, opcionalmente, atribuído a um responsável. As opções ficam salvas no banco, não no navegador.</p>
+      <p className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="h-4 w-4" /> Cada opção encaminha a conversa para o setor e para o responsável selecionado. As opções ficam salvas no banco, não no navegador.</p>
     </div>
   );
 };
