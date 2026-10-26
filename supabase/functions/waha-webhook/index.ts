@@ -190,6 +190,7 @@ Deno.serve(async (req: Request) => {
 
   // Ciclos de atendimento: consome a nota da pesquisa antes das automações e
   // inicia novo ciclo quando o cliente volta a falar após um atendimento encerrado.
+  let newServiceCycleStarted = false;
   if (!fromMe && !waChatId.endsWith("@g.us") && chatId) {
     try {
       const trimmedReply = body.trim();
