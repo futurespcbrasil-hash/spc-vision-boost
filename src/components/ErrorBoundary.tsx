@@ -10,8 +10,9 @@ class ErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: any) {
-    console.error('[ErrorBoundary]', error, info);
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    // Keep technical details in developer diagnostics; never render them to end users.
+    console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
   render() {
@@ -21,12 +22,8 @@ class ErrorBoundary extends Component<Props, State> {
           <div className="max-w-lg w-full bg-card border border-destructive/40 rounded-xl p-6 space-y-4">
             <h2 className="text-xl font-bold text-destructive">Ocorreu um erro inesperado</h2>
             <p className="text-sm text-muted-foreground">
-              A página encontrou um problema. Veja o detalhe abaixo e tente recarregar.
+              Não foi possível carregar esta tela. Tente novamente ou volte ao início.
             </p>
-            <pre className="text-xs bg-muted/40 rounded p-3 overflow-auto max-h-60 text-foreground whitespace-pre-wrap">
-              {this.state.error.message}
-              {this.state.error.stack ? '\n\n' + this.state.error.stack : ''}
-            </pre>
             <div className="flex gap-2">
               <button
                 onClick={() => { this.setState({ error: null }); window.location.href = '/'; }}
