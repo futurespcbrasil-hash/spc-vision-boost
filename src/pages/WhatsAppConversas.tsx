@@ -65,7 +65,7 @@ const renderMessageText = (text: string, onPhoneClick: (number: string) => void)
 
 export default function WhatsAppConversas() {
   const { user } = useAuth();
-  const { leads, updateLead } = useAppState();
+  const { refreshLeads } = useAppState();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState('');
   const [chats, setChats] = useState<Chat[]>([]);
@@ -114,39 +114,6 @@ export default function WhatsAppConversas() {
       });
     });
   }, []);
-
-  const normalizeLeadPhone = (value: string) => {
-    let digits = value.replace(/\D/g, '');
-    if (digits.length >= 20 && digits.length % 2 === 0 && digits.slice(0, digits.length / 2) === digits.slice(digits.length / 2)) {
-      digits = digits.slice(0, digits.length / 2);
-    }
-    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
-    return digits;
-  };
-
-  const markLeadInteraction = useCallback(async (number: string, text: string) => {
-    const target = normalizeLeadPhone(number);
-    if (!target || target.length < 10) return;
-    const lead = leads.find((item) => [item.whatsapp, item.phone].some((candidate) => {
-      const candidateNumber = normalizeLeadPhone(candidate || '');
-      return candidateNumber && (candidateNumber === target ||
-        (candidateNumber.length >= 10 && target.length >= 10 && candidateNumber.slice(-10) === target.slice(-10)));
-    }));
-    if (!lead) return;
-    const now = new Date().toISOString();
-    const interaction = {
-      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `wa-${Date.now()}`,
-      date: now,
-      type: 'whatsapp' as const,
-      content: `Mensagem enviada pelo WhatsApp: ${text.trim().slice(0, 500)}`,
-    };
-    const saved = await updateLead({
-      ...lead,
-      lastInteractionAt: now,
-      interactions: [...(Array.isArray(lead.interactions) ? lead.interactions : []), interaction],
-    });
-    if (!saved) toast.error('A mensagem foi enviada, mas não foi possível atualizar a última interação do lead no CRM.');
-  }, [leads, updateLead]);
 
   const startEditingMessage = (msg: Message) => {
     if (!msg.from_me || !msg.wa_message_id || msg.message_type !== 'text') {
@@ -387,7 +354,7 @@ export default function WhatsAppConversas() {
     setStartingNumberChat(true);
     try {
       await waha.sendText(instanceId, normalizeBrazilNumber(actionNumber), firstMessage.trim());
-      await markLeadInteraction(actionNumber, firstMessage.trim());
+      refreshLeads();
       setNumberDialogOpen(false);
       setFirstMessage('');
       await loadChats(true);
@@ -422,7 +389,7 @@ export default function WhatsAppConversas() {
     setSending(true);
     try {
       await waha.sendText(instanceId, selectedChat.wa_chat_id || selectedChat.contact_number, text);
-      await markLeadInteraction(selectedChat.contact_number || selectedChat.wa_chat_id, text);
+      refreshLeads();
       setMessage('');
 
       // A Edge Function persiste o envio. Recarregamos apenas o histórico da
