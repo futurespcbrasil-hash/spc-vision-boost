@@ -2000,16 +2000,27 @@ const WhatsAppChat = () => {
                                 e.preventDefault();
                                 try {
                                   const response = await fetch(m.media_url!);
+                                  if (!response.ok) throw new Error('Falha ao baixar o arquivo');
                                   const blob = await response.blob();
                                   const url = window.URL.createObjectURL(blob);
                                   const a = document.createElement('a');
                                   a.href = url;
-                                  // Tenta extrair nome do arquivo da URL ou usa padrão
-                                  const fileName = m.text || (m.media_mime?.includes('pdf') ? 'documento.pdf' : 'arquivo');
-                                  a.download = fileName.endsWith('.pdf') || !m.media_mime?.includes('pdf') ? fileName : `${fileName}.pdf`;
+                                  const mimeExt: Record<string, string> = {
+                                    'application/pdf': '.pdf',
+                                    'application/msword': '.doc',
+                                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+                                    'application/vnd.ms-excel': '.xls',
+                                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+                                    'text/plain': '.txt',
+                                    'text/csv': '.csv',
+                                    'application/zip': '.zip',
+                                  };
+                                  const fallbackName = m.text?.trim() || 'whatsapp-arquivo-' + m.id;
+                                  const ext = mimeExt[m.media_mime || ''] || '';
+                                  a.download = m.media_filename || (fallbackName.includes('.') ? fallbackName : fallbackName + ext);
                                   document.body.appendChild(a);
                                   a.click();
-                                  window.URL.revokeObjectURL(url);
+                                  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
                                   document.body.removeChild(a);
                                 } catch (err) {
                                   window.open(m.media_url!, '_blank');
