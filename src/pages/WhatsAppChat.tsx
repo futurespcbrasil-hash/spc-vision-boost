@@ -15,7 +15,7 @@ import {
   CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
   Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
   Pin, PinOff, Eye, Bell, Copy, Forward, Star, Reply, Share2, Download, ExternalLink, Info, CheckSquare,
-  Phone, Ban, Flag, Link as LinkIcon, Contact
+  Phone, Ban, Flag, Link as LinkIcon, Contact, CheckCircle2
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -301,6 +301,7 @@ const WhatsAppChat = () => {
   const [transferringChat, setTransferringChat] = useState(false);
   const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [closingService, setClosingService] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'todos' | 'grupos' | 'aguardando' | 'resolvidos'>('todos');
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -1404,6 +1405,44 @@ const WhatsAppChat = () => {
     } finally { setLoadingHistory(false); }
   };
 
+  const handleCloseService = async () => {
+    if (!selected || !instanceId || !user || isGroupChat(selected) || closingService) return;
+    if (!window.confirm('Encerrar este atendimento e enviar uma pesquisa de satisfação de 1 a 5 estrelas ao cliente?')) return;
+    setClosingService(true);
+    let sessionId: string | null = null;
+    try {
+      const db = supabase as any;
+      const { data: activeSession, error: activeError } = await db.from('whatsapp_service_sessions').select('id').eq('chat_id', selected.id).is('closed_at', null).order('started_at', { ascending: false }).limit(1).maybeSingle();
+      if (activeError) throw activeError;
+      const now = new Date();
+      let startedAt = now.toISOString();
+      if (activeSession?.id) { sessionId = activeSession.id; }
+      else {
+        const { data: firstMessage, error: firstMessageError } = await db.from('whatsapp_messages').select('timestamp').eq('chat_id', selected.id).order('timestamp', { ascending: true }).limit(1).maybeSingle();
+        if (firstMessageError) throw firstMessageError;
+        if (firstMessage?.timestamp) startedAt = firstMessage.timestamp;
+        const { data: created, error: createError } = await db.from('whatsapp_service_sessions').insert({ chat_id: selected.id, instance_id: selected.instance_id, assigned_to: selected.assigned_to || user.id, created_by: user.id, status: 'in_progress', started_at: startedAt, last_activity_at: now.toISOString() }).select('id').single();
+        if (createError) throw createError;
+        sessionId = created.id;
+      }
+      const started = new Date(startedAt).getTime();
+      const durationSeconds = Number.isFinite(started) ? Math.max(0, Math.floor((now.getTime() - started) / 1000)) : 0;
+      const { error: closeError } = await db.from('whatsapp_service_sessions').update({ status: 'closed', closed_at: now.toISOString(), duration_seconds: durationSeconds, last_activity_at: now.toISOString(), close_reason: 'agent_closed', survey_status: 'pending', updated_at: now.toISOString() }).eq('id', sessionId);
+      if (closeError) throw closeError;
+      const survey = 'Como você avalia o atendimento da Future Soluções? ⭐\n\nResponda com uma nota de 1 a 5:\n1 ⭐ — Muito ruim\n2 ⭐⭐ — Ruim\n3 ⭐⭐⭐ — Regular\n4 ⭐⭐⭐⭐ — Bom\n5 ⭐⭐⭐⭐⭐ — Excelente';
+      try {
+        await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, survey);
+        const { error: surveyUpdateError } = await db.from('whatsapp_service_sessions').update({ survey_status: 'sent', survey_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', sessionId);
+        if (surveyUpdateError) throw surveyUpdateError;
+        toast({ title: 'Atendimento encerrado', description: 'Pesquisa de satisfação enviada ao cliente.' });
+      } catch (sendError: any) {
+        await db.from('whatsapp_service_sessions').update({ survey_status: 'failed', updated_at: new Date().toISOString() }).eq('id', sessionId);
+        throw new Error('Atendimento encerrado, mas não foi possível enviar a pesquisa: ' + (sendError?.message || 'erro de envio'));
+      }
+    } catch (e: any) {
+      toast({ title: 'Não foi possível encerrar o atendimento', description: e.message || 'Tente novamente.', variant: 'destructive' });
+    } finally { setClosingService(false); }
+  };
   const handleTransferChat = async () => {
     if (!selected || !user || !transferAssignee) return;
     if (transferAssignee === selected.assigned_to) { toast({ title: 'Esta conversa já está atribuída a esse usuário.' }); return; }
@@ -1966,6 +2005,7 @@ const WhatsAppChat = () => {
                       <DropdownMenuItem onSelect={handleOpenStatusDialog}><GitBranch size={14} className="mr-2"/>Status do Kanban</DropdownMenuItem>
                       <DropdownMenuSeparator/>
                       <DropdownMenuItem onSelect={() => { setTransferAssignee(selected.assigned_to || ''); setTransferDialogOpen(true); }}><Forward size={14} className="mr-2"/>Transferir atendimento</DropdownMenuItem>
+                      {!isGroupChat(selected) && <DropdownMenuItem onSelect={() => void handleCloseService()} disabled={closingService} className="text-destructive focus:text-destructive"><CheckCircle2 size={14} className="mr-2"/>{closingService ? 'Encerrando atendimento…' : 'Encerrar atendimento'}</DropdownMenuItem>
                       <DropdownMenuSeparator/>
                       <DropdownMenuItem onSelect={() => handleContactAction('clear')}><Trash2 size={14} className="mr-2"/>Limpar conversa</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => handleContactAction('block')}><Ban size={14} className="mr-2"/>Bloquear contato</DropdownMenuItem>
