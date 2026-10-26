@@ -188,6 +188,39 @@ Deno.serve(async (req: Request) => {
     if (error) return json({ error: "Failed to persist message" }, 500);
   }
 
+  // Ciclos de atendimento: consome a nota da pesquisa antes das automações e
+  // inicia novo ciclo quando o cliente volta a falar após um atendimento encerrado.
+  if (!fromMe && !waChatId.endsWith("@g.us") && chatId) {
+    try {
+      const trimmedReply = body.trim();
+      const { data: pendingSurvey, error: surveyLookupError } = await db.from("whatsapp_service_sessions")
+        .select("id,survey_status,survey_sent_at,closed_at").eq("chat_id", chatId).eq("status", "closed")
+        .in("survey_status", ["sent", "pending"]).order("closed_at", { ascending: false }).limit(1).maybeSingle();
+      if (surveyLookupError) throw surveyLookupError;
+      const surveyAge = pendingSurvey?.survey_sent_at ? Date.now() - new Date(pendingSurvey.survey_sent_at).getTime() : Infinity;
+      if (pendingSurvey && /^[1-5]$/.test(trimmedReply) && surveyAge >= 0 && surveyAge <= 7 * 24 * 60 * 60 * 1000) {
+        const { error: ratingError } = await db.from("whatsapp_service_sessions").update({
+          rating: Number(trimmedReply), rating_received_at: sentAt, survey_status: "responded", updated_at: new Date().toISOString(),
+        }).eq("id", pendingSurvey.id).is("rating", null);
+        if (ratingError) throw ratingError;
+        return json({ accepted: true, satisfaction_rating: Number(trimmedReply) });
+      }
+      const { data: activeCycle, error: activeCycleError } = await db.from("whatsapp_service_sessions")
+        .select("id").eq("chat_id", chatId).is("closed_at", null).order("started_at", { ascending: false }).limit(1).maybeSingle();
+      if (activeCycleError) throw activeCycleError;
+      if (activeCycle?.id) {
+        await db.from("whatsapp_service_sessions").update({ last_activity_at: sentAt, updated_at: new Date().toISOString() }).eq("id", activeCycle.id);
+      } else {
+        const { error: cycleCreateError } = await db.from("whatsapp_service_sessions").insert({
+          chat_id: chatId, instance_id: instance.id, assigned_to: str(existingChat?.assigned_to) || null,
+          created_by: instance.owner_id, status: "in_progress", started_at: sentAt, last_activity_at: sentAt,
+        });
+        if (cycleCreateError && !String(cycleCreateError.message || "").includes("idx_whatsapp_service_sessions_one_active_per_chat")) throw cycleCreateError;
+      }
+    } catch (cycleError) {
+      console.error("[waha-webhook] Could not update service cycle:", cycleError);
+    }
+  }
   // Native CRM automation: only incoming direct text messages; never interrupt a human.
   if (!fromMe && !waChatId.endsWith("@g.us") && body.trim() && chatId) {
     try {
