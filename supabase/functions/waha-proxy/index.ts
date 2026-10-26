@@ -423,7 +423,8 @@ Deno.serve(async (req: Request) => {
             // WAHA pode devolver timestamps como segundos, milissegundos ou strings numéricas.
             // Também pode colocar o tempo em _data.t. Date(stringNumérica) não é confiável:
             // mensagens antigas acabavam recebendo "agora" e apareciam no lugar errado.
-            const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ?? msg?._data?.t ?? msg?._data?.timestamp ?? null;
+            const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ??
+              msg?._data?.messageTimestamp ?? msg?._data?.timestamp ?? msg?._data?.t ?? msg?.key?.timestamp ?? null;
             const parseWahaTime = (value: unknown): string | null => {
               if (typeof value === "number" && Number.isFinite(value) && value > 0) {
                 const d = new Date(value < 10_000_000_000 ? value * 1000 : value);
@@ -440,11 +441,16 @@ Deno.serve(async (req: Request) => {
               }
               return null;
             };
-            const sentAt = parseWahaTime(rawTime) || "1970-01-01T00:00:00.000Z";
-            if (sentAt !== "1970-01-01T00:00:00.000Z") remoteTimestamps.push(sentAt);
+            const parsedSentAt = parseWahaTime(rawTime);
             const { data: existingMessage, error: existingMessageError } = await db.from("whatsapp_messages")
-              .select("id,text").eq("instance_id", inst.id).eq("wa_message_id", waMessageId).maybeSingle();
+              .select("id,text,timestamp").eq("instance_id", inst.id).eq("wa_message_id", waMessageId).maybeSingle();
             if (existingMessageError) throw existingMessageError;
+            // Não sobrescreve uma data real já salva com epoch quando a WAHA omite timestamp.
+            const existingTime = existingMessage?.timestamp && Date.parse(existingMessage.timestamp) > 0
+              ? new Date(existingMessage.timestamp).toISOString()
+              : null;
+            const sentAt = parsedSentAt || existingTime || new Date().toISOString();
+            remoteTimestamps.push(sentAt);
             if (existingMessage?.text === "[crm_deleted]") {
               deletedRemoteIds.add(waMessageId);
               continue;
