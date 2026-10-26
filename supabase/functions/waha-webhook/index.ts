@@ -232,10 +232,22 @@ Deno.serve(async (req: Request) => {
         await db.from("whatsapp_service_sessions").update({ survey_status: "skipped", updated_at: new Date().toISOString() }).eq("id", pendingSurvey.id).in("survey_status", ["sent", "pending"]);
       }
       const { data: activeCycle, error: activeCycleError } = await db.from("whatsapp_service_sessions")
-        .select("id").eq("chat_id", chatId).is("closed_at", null).order("started_at", { ascending: false }).limit(1).maybeSingle();
+        .select("id,started_at").eq("chat_id", chatId).is("closed_at", null).order("started_at", { ascending: false }).limit(1).maybeSingle();
       if (activeCycleError) throw activeCycleError;
       if (activeCycle?.id) {
         await db.from("whatsapp_service_sessions").update({ last_activity_at: sentAt, updated_at: new Date().toISOString() }).eq("id", activeCycle.id);
+        // Se a resposta da pesquisa chegou antes do fechamento ser persistido, o "1–5"
+        // pode ter criado um ciclo acidental. Reconhece essa corrida pela coincidência
+        // dos horários e reinicia o menu na próxima mensagem real do cliente.
+        const { data: latestRatedCycle, error: ratedCycleError } = await db.from("whatsapp_service_sessions")
+          .select("rating_received_at").eq("chat_id", chatId).eq("status", "closed")
+          .eq("survey_status", "responded").not("rating_received_at", "is", null)
+          .order("rating_received_at", { ascending: false }).limit(1).maybeSingle();
+        if (ratedCycleError) throw ratedCycleError;
+        if (latestRatedCycle?.rating_received_at && activeCycle.started_at) {
+          const startDelta = Math.abs(new Date(activeCycle.started_at).getTime() - new Date(latestRatedCycle.rating_received_at).getTime());
+          if (startDelta <= 2 * 60 * 1000) newServiceCycleStarted = true;
+        }
       } else {
         const { data: createdCycle, error: cycleCreateError } = await db.from("whatsapp_service_sessions").insert({
           chat_id: chatId, instance_id: instance.id, assigned_to: str(existingChat?.assigned_to) || null,
@@ -284,7 +296,7 @@ Deno.serve(async (req: Request) => {
         // Atendimento novo após encerramento: reinicia o menu, mesmo que a sessão
         // anterior tenha sido roteada para um atendente. A nova escolha volta a
         // determinar o destino, sem alterar a avaliação do ciclo encerrado.
-        if (newServiceCycleStarted) {
+        if (newServiceCycleStarted && flowSession?.status !== "awaiting_choice") {
           await db.from("whatsapp_service_sessions").update({ assigned_to: null, updated_at: new Date().toISOString() })
             .eq("chat_id", chatId).is("closed_at", null);
           if (assignedTo) {
