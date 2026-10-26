@@ -2314,7 +2314,7 @@ const WhatsAppChat = () => {
       </DialogContent>
     </Dialog>
 
-    {/* Salvar contato */
+    {/* Salvar contato */}
     <Dialog open={saveContactOpen} onOpenChange={setSaveContactOpen}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
