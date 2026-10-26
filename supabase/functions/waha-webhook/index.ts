@@ -125,11 +125,11 @@ Deno.serve(async (req: Request) => {
   const mediaUrl = str(payload?.media?.url || payload?.mediaUrl) || null;
   const avatar = str(payload?._data?.profilePicThumbObj?.eurl || payload?.profilePictureUrl) || null;
 
-  let { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id")
+  let { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
     .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
   // Se a WAHA alternar entre JID telefônico e LID, reutilize a conversa pelo telefone conhecido.
   if (!existingChat && contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
-    const lookup = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id")
+    const lookup = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
       .eq("instance_id", instance.id).eq("contact_number", contactNumber).eq("is_group", false).limit(1).maybeSingle();
     existingChat = lookup.data;
   }
@@ -169,6 +169,96 @@ Deno.serve(async (req: Request) => {
         sent_by: fromMe ? instance.owner_id : null,
     });
     if (error) return json({ error: "Failed to persist message" }, 500);
+  }
+
+  // Native CRM automation: only incoming direct text messages; never interrupt a human.
+  if (!fromMe && !waChatId.endsWith("@g.us") && body.trim() && chatId) {
+    try {
+      const { data: flow, error: flowError } = await db.from("whatsapp_flows")
+        .select("id,welcome_message,menu_message,fallback_message,options")
+        .eq("instance_id", instance.id).eq("is_active", true).maybeSingle();
+      if (flowError) throw flowError;
+      if (flow) {
+        const { data: flowSession, error: sessionError } = await db.from("whatsapp_flow_sessions")
+          .select("*").eq("instance_id", instance.id).eq("chat_id", chatId).maybeSingle();
+        if (sessionError) throw sessionError;
+
+        const assignedTo = str(existingChat?.assigned_to);
+        const menuText = [
+          str(flow.welcome_message).trim(), str(flow.menu_message).trim(),
+          ...(Array.isArray(flow.options) ? flow.options.map((option: any, index: number) => `${index + 1} — ${str(option?.label).trim()}`) : []),
+          "Digite o número da opção desejada.",
+        ].filter(Boolean).join("\n\n");
+        const sendAutomaticText = async (text: string) => {
+          const configuredUrl = Deno.env.get("WAHA_API_URL") || "";
+          const apiUrl = configuredUrl.endsWith("/") ? configuredUrl.slice(0, -1) : configuredUrl;
+          const apiKey = Deno.env.get("WAHA_API_KEY");
+          if (!apiUrl || !apiKey) throw new Error("WAHA_API_URL/WAHA_API_KEY não configurados para automações.");
+          const response = await fetch(`${apiUrl}/api/sendText`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+            body: JSON.stringify({ session, chatId: waChatId, text }),
+          });
+          if (!response.ok) throw new Error(`WAHA sendText HTTP ${response.status}: ${(await response.text()).slice(0, 400)}`);
+          return await response.json().catch(() => ({}));
+        };
+
+        if (flowSession?.status === "awaiting_choice" && assignedTo) {
+          await db.from("whatsapp_flow_sessions").update({
+            flow_id: flow.id, status: "paused", updated_at: new Date().toISOString(),
+            last_interaction_at: new Date().toISOString(),
+          }).eq("id", flowSession.id);
+        } else if (!flowSession && !assignedTo) {
+          await sendAutomaticText(menuText);
+          await db.from("whatsapp_flow_sessions").upsert({
+            flow_id: flow.id, instance_id: instance.id, chat_id: chatId, wa_chat_id: waChatId,
+            status: "awaiting_choice", last_inbound_message_id: messageId || null,
+            last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          }, { onConflict: "instance_id,chat_id" });
+        } else if (flowSession?.status === "awaiting_choice" && !assignedTo) {
+          const normalized = body.trim().toLocaleLowerCase("pt-BR");
+          const options = Array.isArray(flow.options) ? flow.options : [];
+          const option = options.find((item: any, index: number) => {
+            const key = str(item?.key) || String(index + 1);
+            const label = str(item?.label).trim().toLocaleLowerCase("pt-BR");
+            return normalized === key.toLocaleLowerCase("pt-BR") || normalized === label
+              || normalized === `${key}.` || normalized === `${key}-` || normalized === `${key} —`;
+          });
+          if (!option) {
+            await sendAutomaticText([str(flow.fallback_message).trim(), menuText].filter(Boolean).join("\n\n"));
+            await db.from("whatsapp_flow_sessions").update({
+              flow_id: flow.id, last_inbound_message_id: messageId || null,
+              last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+            }).eq("id", flowSession.id);
+          } else {
+            const targetUserId = str(option?.target_user_id) || null;
+            const targetLabel = str(option?.target_label).trim() || str(option?.label).trim();
+            const reply = str(option?.reply_message).trim() || `Certo! Seu atendimento será direcionado para ${targetLabel}.`;
+            await sendAutomaticText(reply);
+            await db.from("whatsapp_flow_sessions").update({
+              flow_id: flow.id, status: "routed", selected_option_key: str(option?.key),
+              target_label: targetLabel, assigned_to: targetUserId,
+              last_inbound_message_id: messageId || null,
+              last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+            }).eq("id", flowSession.id);
+            if (targetUserId) {
+              await db.from("whatsapp_chats").update({ assigned_to: targetUserId, updated_at: new Date().toISOString() }).eq("id", chatId);
+              await db.from("whatsapp_chat_assignment_history").insert({
+                chat_id: chatId, previous_assignee: assignedTo || null,
+                new_assignee: targetUserId, changed_by: instance.owner_id,
+              });
+              await db.from("whatsapp_notifications").insert({
+                user_id: targetUserId, title: `Novo atendimento · ${targetLabel}`,
+                body: `Uma conversa foi direcionada pelo menu automático: ${contactName || persistedContactNumber}.`,
+                chat_id: chatId, created_by: instance.owner_id,
+              });
+            }
+          }
+        }
+      }
+    } catch (automationError) {
+      console.error("[waha-webhook] WhatsApp flow automation failed", automationError);
+    }
   }
   return json({ accepted: true });
 });
