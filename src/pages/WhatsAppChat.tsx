@@ -302,6 +302,7 @@ const WhatsAppChat = () => {
   const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [closingService, setClosingService] = useState(false);
+  const [closeServiceDialogOpen, setCloseServiceDialogOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'todos' | 'grupos' | 'aguardando' | 'resolvidos'>('todos');
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -1405,9 +1406,9 @@ const WhatsAppChat = () => {
     } finally { setLoadingHistory(false); }
   };
 
-  const handleCloseService = async () => {
+  const handleCloseService = async (sendSurvey: boolean) => {
     if (!selected || !instanceId || !user || isGroupChat(selected) || closingService) return;
-    if (!window.confirm('Encerrar este atendimento e enviar uma pesquisa de satisfação de 1 a 5 estrelas ao cliente?')) return;
+    setCloseServiceDialogOpen(false);
     setClosingService(true);
     let sessionId: string | null = null;
     try {
@@ -1427,11 +1428,28 @@ const WhatsAppChat = () => {
       }
       const started = new Date(startedAt).getTime();
       const durationSeconds = Number.isFinite(started) ? Math.max(0, Math.floor((now.getTime() - started) / 1000)) : 0;
-      const { error: closeError } = await db.from('whatsapp_service_sessions').update({ status: 'closed', closed_at: now.toISOString(), duration_seconds: durationSeconds, last_activity_at: now.toISOString(), close_reason: 'agent_closed', survey_status: 'pending', updated_at: now.toISOString() }).eq('id', sessionId);
+      const { error: closeError } = await db.from('whatsapp_service_sessions').update({
+        status: 'closed', closed_at: now.toISOString(), duration_seconds: durationSeconds,
+        last_activity_at: now.toISOString(), close_reason: 'agent_closed',
+        survey_status: sendSurvey ? 'pending' : 'skipped', updated_at: now.toISOString()
+      }).eq('id', sessionId);
       if (closeError) throw closeError;
-      const survey = 'Como você avalia o atendimento da Future Soluções? ⭐\n\nResponda com uma nota de 1 a 5:\n1 ⭐ — Muito ruim\n2 ⭐⭐ — Ruim\n3 ⭐⭐⭐ — Regular\n4 ⭐⭐⭐⭐ — Bom\n5 ⭐⭐⭐⭐⭐ — Excelente';
+
+      const recipient = selected.wa_chat_id || selected.contact_number;
+      if (!sendSurvey) {
+        const closingMessage = 'Agradecemos o seu contato com a Future Soluções! 😊\\n\\nEste atendimento foi encerrado. Se precisar de ajuda novamente, é só nos enviar uma mensagem. Estamos à disposição!';
+        try {
+          await waha.sendText(instanceId, recipient, closingMessage);
+          toast({ title: 'Atendimento encerrado', description: 'Mensagem de encerramento enviada sem pesquisa de satisfação.' });
+        } catch (sendError: any) {
+          toast({ title: 'Atendimento encerrado, mas a mensagem não foi enviada', description: sendError?.message || 'Confira a conexão do WhatsApp e envie a mensagem manualmente.', variant: 'destructive' });
+        }
+        return;
+      }
+
+      const survey = 'Como você avalia o atendimento da Future Soluções? ⭐\\n\\nResponda com uma nota de 1 a 5:\\n1 ⭐ — Muito ruim\\n2 ⭐⭐ — Ruim\\n3 ⭐⭐⭐ — Regular\\n4 ⭐⭐⭐⭐ — Bom\\n5 ⭐⭐⭐⭐⭐ — Excelente';
       try {
-        await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, survey);
+        await waha.sendText(instanceId, recipient, survey);
         const { error: surveyUpdateError } = await db.from('whatsapp_service_sessions').update({ survey_status: 'sent', survey_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', sessionId);
         if (surveyUpdateError) throw surveyUpdateError;
         toast({ title: 'Atendimento encerrado', description: 'Pesquisa de satisfação enviada ao cliente.' });
@@ -2005,7 +2023,7 @@ const WhatsAppChat = () => {
                       <DropdownMenuItem onSelect={handleOpenStatusDialog}><GitBranch size={14} className="mr-2"/>Status do Kanban</DropdownMenuItem>
                       <DropdownMenuSeparator/>
                       <DropdownMenuItem onSelect={() => { setTransferAssignee(selected.assigned_to || ''); setTransferDialogOpen(true); }}><Forward size={14} className="mr-2"/>Transferir atendimento</DropdownMenuItem>
-                      {!isGroupChat(selected) && <DropdownMenuItem onSelect={() => void handleCloseService()} disabled={closingService} className="text-destructive focus:text-destructive"><CheckCircle2 size={14} className="mr-2"/>{closingService ? 'Encerrando atendimento…' : 'Encerrar atendimento'}</DropdownMenuItem>}
+                      {!isGroupChat(selected) && <DropdownMenuItem onSelect={() => setCloseServiceDialogOpen(true)} disabled={closingService} className="text-destructive focus:text-destructive"><CheckCircle2 size={14} className="mr-2"/>{closingService ? 'Encerrando atendimento…' : 'Encerrar atendimento'}</DropdownMenuItem>}
                       <DropdownMenuSeparator/>
                       <DropdownMenuItem onSelect={() => handleContactAction('clear')}><Trash2 size={14} className="mr-2"/>Limpar conversa</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => handleContactAction('block')}><Ban size={14} className="mr-2"/>Bloquear contato</DropdownMenuItem>
@@ -2814,6 +2832,34 @@ const WhatsAppChat = () => {
           <p className="text-xs text-muted-foreground">A conversa e o lead vinculado, se houver, serão atribuídos ao usuário escolhido e a transferência será registrada no histórico de responsáveis.</p>
         </div>
         <DialogFooter><Button variant="outline" onClick={() => setTransferDialogOpen(false)}>Cancelar</Button><Button onClick={() => void handleTransferChat()} disabled={!transferAssignee || transferringChat}>{transferringChat ? <Loader2 size={14} className="mr-2 animate-spin"/> : <Forward size={14} className="mr-2"/>}Transferir</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={closeServiceDialogOpen} onOpenChange={setCloseServiceDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Encerrar atendimento</DialogTitle></DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p>Como deseja encerrar este atendimento?</p>
+          <div className="rounded-lg border p-3">
+            <p className="font-medium">Encerrar e enviar pesquisa de satisfação</p>
+            <p className="mt-1 text-muted-foreground">O cliente receberá a pesquisa de 1 a 5 estrelas.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="font-medium">Encerrar sem pesquisa</p>
+            <p className="mt-1 text-muted-foreground">O cliente receberá somente a mensagem de encerramento, sem pedido de avaliação.</p>
+          </div>
+        </div>
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
+          <Button variant="outline" onClick={() => setCloseServiceDialogOpen(false)} disabled={closingService}>Cancelar</Button>
+          <Button variant="secondary" onClick={() => void handleCloseService(false)} disabled={closingService}>
+            {closingService ? <Loader2 size={14} className="mr-2 animate-spin"/> : <CheckCircle2 size={14} className="mr-2"/>}
+            Encerrar sem avaliação
+          </Button>
+          <Button onClick={() => void handleCloseService(true)} disabled={closingService}>
+            {closingService ? <Loader2 size={14} className="mr-2 animate-spin"/> : <Star size={14} className="mr-2"/>}
+            Encerrar e enviar pesquisa
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
 
