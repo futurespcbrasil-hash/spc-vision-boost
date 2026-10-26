@@ -107,9 +107,19 @@ Deno.serve(async (req: Request) => {
     if (duplicateError) return json({ error: "Message deduplication lookup failed" }, 500);
     if (duplicate) return json({ accepted: true, duplicate: true });
   }
-  const remote = candidateRemote || waChatId;
-  const phoneSource = candidateRemote && !candidateRemote.endsWith("@lid") ? candidateRemote : waChatId;
-  const contactNumber = phoneSource.split("@")[0].replace(/\D/g, "");
+  // WAHA/WhatsApp may send a private LID as the chat ID. Never treat LID digits as a phone number.
+  const alternateRemote = str(
+    payload?.remoteJidAlt || payload?.key?.remoteJidAlt ||
+    payload?._data?.remoteJidAlt || payload?._data?.key?.remoteJidAlt ||
+    payload?._data?.id?.remoteJidAlt || payload?._data?.id?._serializedAlt
+  );
+  const alternatePhoneJid = [alternateRemote, str(payload?.from), str(payload?.to),
+    str(payload?._data?.id?.remote), str(payload?.chatId)]
+    .find((value) => value.includes("@c.us") && !value.endsWith("@lid")) || "";
+  const phoneSource = alternatePhoneJid ||
+    (candidateRemote && !candidateRemote.endsWith("@lid") ? candidateRemote :
+      (!waChatId.endsWith("@lid") ? waChatId : ""));
+  const contactNumber = phoneSource ? phoneSource.split("@")[0].replace(/\D/g, "") : "";
   const incomingName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName);
   const body = str(payload?.body || payload?.text);
   const rawType = str(payload?.type).toLowerCase();
@@ -127,17 +137,24 @@ Deno.serve(async (req: Request) => {
 
   let { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
     .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
-  // Se a WAHA alternar entre JID telefônico e LID, reutilize a conversa pelo telefone conhecido.
+  // If WAHA alternates between a phone JID and a LID, match by the alternate phone JID.
   if (!existingChat && contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
     const lookup = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
       .eq("instance_id", instance.id).eq("contact_number", contactNumber).eq("is_group", false).limit(1).maybeSingle();
     existingChat = lookup.data;
   }
-  const persistedContactNumber = waChatId.endsWith("@lid") && existingChat?.contact_number
-    ? existingChat.contact_number : contactNumber;
-  const previousName = str(existingChat?.contact_name);
+  const lidDigits = waChatId.endsWith("@lid") ? waChatId.split("@")[0].replace(/\D/g, "") : "";
   const previousNumber = str(existingChat?.contact_number).replace(/\D/g, "");
-  const contactName = incomingName || (previousName && previousName.replace(/\D/g, "") !== previousNumber ? previousName : "") || persistedContactNumber;
+  const persistedContactNumber = waChatId.endsWith("@lid")
+    ? (previousNumber && previousNumber !== lidDigits ? str(existingChat?.contact_number) : contactNumber)
+    : contactNumber;
+  const previousName = str(existingChat?.contact_name).trim();
+  const savedNameIsUseful = !!previousName &&
+    previousName.replace(/\D/g, "") !== previousNumber &&
+    !/^salvar contato$/i.test(previousName) &&
+    !/^\+?[\d\s().-]+$/.test(previousName);
+  // A CRM-saved contact name takes precedence over WhatsApp's profile/push name.
+  const contactName = (savedNameIsUseful ? previousName : "") || incomingName || persistedContactNumber || "Contato do WhatsApp";
   let chatId = existingChat?.id as string | undefined;
   if (chatId) {
     await db.from("whatsapp_chats").update({
