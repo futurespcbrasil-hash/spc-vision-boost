@@ -402,15 +402,29 @@ Deno.serve(async (req: Request) => {
         if (messageError) throw messageError;
         if (!message || !message.media_url) return json({ error: "Mensagem ou mídia não encontrada." }, 404);
         const raw = message.raw && typeof message.raw === "object" && !Array.isArray(message.raw) ? message.raw as Record<string, unknown> : {};
-        const existingPath = typeof raw.crm_media_storage_path === "string" && raw.crm_media_storage_path.startsWith(`archive/${inst.id}/`)
+        const existingPath = typeof raw.crm_media_storage_path === "string" &&
+          (raw.crm_media_storage_path.startsWith(`archive/${inst.id}/`) || raw.crm_media_storage_path.startsWith(`${user.id}/`))
           ? raw.crm_media_storage_path : "";
         let storagePath = existingPath;
         if (!storagePath) {
           let parsed: URL;
           try { parsed = new URL(message.media_url); } catch { return json({ error: "URL da mídia inválida." }, 400); }
-          if (!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) || !parsed.pathname.startsWith("/api/files/")) {
+          const storageMarker = "/storage/v1/object/sign/chat-media/";
+          const storageIndex = parsed.pathname.indexOf(storageMarker);
+          if (storageIndex >= 0) {
+            const candidate = decodeURIComponent(parsed.pathname.slice(storageIndex + storageMarker.length));
+            if ((candidate.startsWith(`${user.id}/`) || candidate.startsWith(`archive/${inst.id}/`)) && !candidate.includes("..")) {
+              storagePath = candidate;
+              const { error: rawError } = await db.from("whatsapp_messages").update({
+                raw: { ...raw, crm_media_storage_path: storagePath, crm_media_archived_at: new Date().toISOString() },
+              }).eq("id", message.id).eq("instance_id", inst.id);
+              if (rawError) throw rawError;
+            }
+          }
+          if (!storagePath && (!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) || !parsed.pathname.startsWith("/api/files/"))) {
             return json({ url: message.media_url, stored: false });
           }
+          if (!storagePath) {
           const relative = parsed.pathname;
           const safePath = relative.match(/^\/api\/files\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
           if (!safePath) return json({ error: "Caminho da mídia inválido." }, 400);
@@ -430,6 +444,7 @@ Deno.serve(async (req: Request) => {
             raw: { ...raw, crm_media_storage_path: storagePath, crm_media_archived_at: new Date().toISOString() },
           }).eq("id", message.id).eq("instance_id", inst.id);
           if (rawError) throw rawError;
+          }
         }
         const { data: signed, error: signError } = await db.storage.from("chat-media").createSignedUrl(storagePath, 60 * 60);
         if (signError || !signed?.signedUrl) throw signError || new Error("Não foi possível gerar link temporário para a mídia.");
