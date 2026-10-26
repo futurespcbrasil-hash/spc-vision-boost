@@ -2005,7 +2005,7 @@ const WhatsAppChat = () => {
                       <DropdownMenuItem onSelect={handleOpenStatusDialog}><GitBranch size={14} className="mr-2"/>Status do Kanban</DropdownMenuItem>
                       <DropdownMenuSeparator/>
                       <DropdownMenuItem onSelect={() => { setTransferAssignee(selected.assigned_to || ''); setTransferDialogOpen(true); }}><Forward size={14} className="mr-2"/>Transferir atendimento</DropdownMenuItem>
-                      {!isGroupChat(selected) && <DropdownMenuItem onSelect={() => void handleCloseService()} disabled={closingService} className="text-destructive focus:text-destructive"><CheckCircle2 size={14} className="mr-2"/>{closingService ? 'Encerrando atendimento…' : 'Encerrar atendimento'}</DropdownMenuItem>
+                      {!isGroupChat(selected) && <DropdownMenuItem onSelect={() => void handleCloseService()} disabled={closingService} className="text-destructive focus:text-destructive"><CheckCircle2 size={14} className="mr-2"/>{closingService ? 'Encerrando atendimento…' : 'Encerrar atendimento'}</DropdownMenuItem>}
                       <DropdownMenuSeparator/>
                       <DropdownMenuItem onSelect={() => handleContactAction('clear')}><Trash2 size={14} className="mr-2"/>Limpar conversa</DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => handleContactAction('block')}><Ban size={14} className="mr-2"/>Bloquear contato</DropdownMenuItem>
