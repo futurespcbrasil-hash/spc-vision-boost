@@ -384,6 +384,41 @@ Deno.serve(async (req: Request) => {
         const contacts = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/contacts`);
         return json({ contacts });
       }
+      case "edit_message": {
+        const inst = await getOwnedInstance();
+        const chatDbId = typeof body.chat_id === "string" ? body.chat_id.trim() : "";
+        const messageDbId = typeof body.message_id === "string" ? body.message_id.trim() : "";
+        const editedText = typeof body.text === "string" ? body.text.trim() : "";
+        if (!chatDbId || !messageDbId || !editedText) {
+          return json({ error: "Conversa, mensagem e texto editado são obrigatórios." }, 400);
+        }
+        const { data: chat, error: chatError } = await db.from("whatsapp_chats")
+          .select("id,instance_id,wa_chat_id,last_message")
+          .eq("id", chatDbId).eq("instance_id", inst.id).maybeSingle();
+        if (chatError) throw chatError;
+        if (!chat) return json({ error: "Conversa não encontrada nesta instância." }, 404);
+        const { data: messageRow, error: messageError } = await db.from("whatsapp_messages")
+          .select("id,chat_id,instance_id,wa_message_id,from_me,text,message_type,raw")
+          .eq("id", messageDbId).eq("chat_id", chat.id).eq("instance_id", inst.id).maybeSingle();
+        if (messageError) throw messageError;
+        if (!messageRow) return json({ error: "Mensagem não encontrada." }, 404);
+        if (!messageRow.from_me) return json({ error: "Só é possível editar mensagens enviadas por esta conta." }, 403);
+        if (!messageRow.wa_message_id) return json({ error: "Esta mensagem não possui ID remoto para edição no WhatsApp." }, 409);
+        if (messageRow.message_type !== "text" && messageRow.message_type !== "image" && messageRow.message_type !== "video" && messageRow.message_type !== "document") {
+          return json({ error: "Este tipo de mensagem não permite edição de texto." }, 400);
+        }
+        const remotePath = `/api/${encodeURIComponent(inst.provider_instance_name)}/chats/${encodeURIComponent(chat.wa_chat_id)}/messages/${encodeURIComponent(messageRow.wa_message_id)}`;
+        const remoteResult = await callWaha(remotePath, "PUT", { text: editedText });
+        const { error: updateError } = await db.from("whatsapp_messages").update({
+          text: editedText,
+          raw: { ...(messageRow.raw && typeof messageRow.raw === "object" ? messageRow.raw : {}), crm_edited_at: new Date().toISOString(), crm_edit_response: remoteResult },
+        }).eq("id", messageRow.id);
+        if (updateError) throw updateError;
+        if (chat.last_message === messageRow.text) {
+          await db.from("whatsapp_chats").update({ last_message: editedText, updated_at: new Date().toISOString() }).eq("id", chat.id);
+        }
+        return json({ success: true, message_id: messageRow.id, text: editedText, remote: remoteResult });
+      }
       case "get_messages": {
         const inst = await getOwnedInstance();
         const waChatId = typeof body.wa_chat_id === "string" ? body.wa_chat_id : "";
