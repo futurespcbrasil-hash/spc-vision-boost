@@ -821,8 +821,9 @@ const WhatsAppChat = () => {
               (x.text || '').trim() === (m.text || '').trim()));
             return [...cleaned, m];
           });
-          const shouldFollowLatest = isMessagesViewportNearBottom();
-          if (shouldFollowLatest) requestAnimationFrame(() => scrollToBottom(true));
+          // Esta tela deve acompanhar a mensagem mais recente como o WhatsApp oficial.
+          requestAnimationFrame(() => scrollToBottom(false));
+          window.setTimeout(() => scrollToBottom(false), 80);
 
           // Notificação Push se não for minha e a janela estiver oculta ou outro chat selecionado
           if (!m.from_me && (document.hidden || selectedRef.current?.id !== chatId)) {
@@ -881,9 +882,7 @@ const WhatsAppChat = () => {
       message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null, reply_to: replyingTo?.wa_message_id || null,
     }]);
     requestAnimationFrame(() => scrollToBottom(false));
-    setTimeout(() => {
-      if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, 100);
+    window.setTimeout(() => scrollToBottom(false), 80);
     try {
       if (!selected.assigned_to && user) {
         const { error: assignError } = await (supabase as any).rpc('take_over_whatsapp_chat', { p_chat_id: selected.id });
@@ -1778,8 +1777,10 @@ const WhatsAppChat = () => {
                     const reactions = messages.filter(
                       r => r.message_type === 'reaction' && !!r.reply_to && r.reply_to === m.wa_message_id
                     );
-                    const timeStr = m.timestamp
-                      ? new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                    const messageDate = new Date(m.timestamp || '');
+                    const hasValidTimestamp = Number.isFinite(messageDate.getTime()) && messageDate.getTime() > 0;
+                    const timeStr = hasValidTimestamp
+                      ? messageDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
                       : '';
 
                     return (
