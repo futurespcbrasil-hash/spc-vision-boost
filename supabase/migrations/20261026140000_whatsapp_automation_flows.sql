@@ -33,7 +33,7 @@ create table if not exists public.whatsapp_flow_sessions (
   last_interaction_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique(instance_id, wa_chat_id)
+  unique(instance_id, chat_id)
 );
 
 alter table public.whatsapp_flows enable row level security;
