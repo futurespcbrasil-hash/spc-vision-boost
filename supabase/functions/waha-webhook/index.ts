@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
   const mediaMime = str(payload?.media?.mimetype || payload?.mimetype).toLowerCase();
   const mediaName = str(payload?.media?.filename || payload?.media?.fileName || payload?.filename).toLowerCase();
   // WAHA pode marcar imagem enviada como documentWithCaption/document; o MIME real prevalece.
-  const messageType = mediaMime.startsWith("image/") || rawType.includes("image") || rawType.includes("sticker") || /\\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(mediaName)
+  const messageType = mediaMime.startsWith("image/") || rawType.includes("image") || rawType.includes("sticker") || /\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(mediaName)
     ? (rawType.includes("sticker") ? "sticker" : rawType.includes("gif") || mediaMime === "image/gif" ? "gif" : "image")
     : mediaMime.startsWith("audio/") || rawType.includes("audio") || rawType.includes("ptt") ? "audio"
     : mediaMime.startsWith("video/") || rawType.includes("video") ? "video"
