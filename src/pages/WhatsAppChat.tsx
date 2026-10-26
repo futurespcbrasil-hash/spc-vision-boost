@@ -474,7 +474,10 @@ const WhatsAppChat = () => {
         if (message.id.startsWith('temp-')) throw new Error('Aguarde o envio terminar antes de excluir a mensagem.');
         const confirmed = window.confirm('Excluir esta mensagem do histórico do CRM? Se ela também foi apagada no celular, a sincronização será refletida aqui.');
         if (!confirmed) return;
-        const { error } = await supabase.from('whatsapp_messages').delete().eq('id', message.id);
+        // Marcador persistente impede que a sincronização remota ressuscite a mensagem.
+        const { error } = await supabase.from('whatsapp_messages')
+          .update({ text: '[crm_deleted]', status: 'deleted', raw: { crm_deleted: true, deleted_at: new Date().toISOString() } })
+          .eq('id', message.id);
         if (error) throw error;
         setMessages(prev => prev.filter(item => item.id !== message.id));
         messagesRef.current = messagesRef.current.filter(item => item.id !== message.id);
@@ -714,7 +717,7 @@ const WhatsAppChat = () => {
       frame = window.requestAnimationFrame(() => scrollToBottom(false));
     });
     return () => { window.cancelAnimationFrame(first); if (frame) window.cancelAnimationFrame(frame); };
-  }, [selected?.id, messages.length, text]);
+  }, [selected?.id, messages.length]);
 
   // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
   const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
@@ -740,7 +743,17 @@ const WhatsAppChat = () => {
     const { data } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
-    const list = ((data as Message[]) || []).slice().reverse();
+    // Marcadores internos de exclusão nunca aparecem na interface.
+    const list = ((data as Message[]) || [])
+      .filter(message => message.text !== '[crm_deleted]')
+      .slice()
+      .sort((a, b) => {
+        const at = Date.parse(a.timestamp || '');
+        const bt = Date.parse(b.timestamp || '');
+        const av = Number.isFinite(at) ? at : 0;
+        const bv = Number.isFinite(bt) ? bt : 0;
+        return av - bv || String(a.id).localeCompare(String(b.id));
+      });
     const previous = messagesRef.current;
     const merged = dropConfirmedTemps(list, previous);
     const changed = previous.length !== merged.length || previous.some((message, index) => {
@@ -819,6 +832,11 @@ const WhatsAppChat = () => {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
           const m = payload.new as Message;
+          if (m.text === '[crm_deleted]') {
+            setMessages(prev => prev.filter(x => x.id !== m.id && (!m.wa_message_id || x.wa_message_id !== m.wa_message_id)));
+            messagesRef.current = messagesRef.current.filter(x => x.id !== m.id && (!m.wa_message_id || x.wa_message_id !== m.wa_message_id));
+            return;
+          }
           setMessages(prev => prev.map(x => x.id === m.id ? m : x));
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'whatsapp_messages' },
@@ -861,6 +879,7 @@ const WhatsAppChat = () => {
       id: tempId, chat_id: selected.id, from_me: true, text: msg,
       message_type: 'text', status: 'pending', timestamp: new Date().toISOString(), media_url: null, reply_to: replyingTo?.wa_message_id || null,
     }]);
+    requestAnimationFrame(() => scrollToBottom(false));
     setTimeout(() => {
       if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, 100);
