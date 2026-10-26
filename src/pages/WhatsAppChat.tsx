@@ -702,9 +702,11 @@ const WhatsAppChat = () => {
     return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= threshold;
   };
   const scrollToBottom = (smooth = false) => {
-    const viewport = getMessagesViewport();
-    if (!viewport) return;
-    viewport.scrollTo({ top: viewport.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    // scrollRef não está ligado ao viewport da lista; o marcador fica dentro do painel
+    // real de mensagens e faz a rolagem chegar ao último balão de forma consistente.
+    const end = messagesEndRef.current;
+    if (!end) return;
+    end.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' });
   };
 
   // Mantém o chat no fim ao abrir/trocar conversa, ao atualizar mensagens e durante a digitação.
