@@ -287,6 +287,9 @@ const WhatsAppChat = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const unreadNotifications = notifications.filter(item => !item.read_at).length;
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferAssignee, setTransferAssignee] = useState('');
+  const [transferringChat, setTransferringChat] = useState(false);
   const [assignmentHistory, setAssignmentHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'todos' | 'grupos' | 'aguardando' | 'resolvidos'>('todos');
@@ -1244,6 +1247,30 @@ const WhatsAppChat = () => {
     } finally { setLoadingHistory(false); }
   };
 
+  const handleTransferChat = async () => {
+    if (!selected || !user || !transferAssignee) return;
+    if (transferAssignee === selected.assigned_to) { toast({ title: 'Esta conversa já está atribuída a esse usuário.' }); return; }
+    setTransferringChat(true);
+    try {
+      const previousAssignee = selected.assigned_to;
+      const { error: chatError } = await (supabase as any).from('whatsapp_chats').update({ assigned_to: transferAssignee }).eq('id', selected.id);
+      if (chatError) throw chatError;
+      if (selected.lead_id) {
+        const { error: leadError } = await supabase.rpc('assign_lead_to_user', { p_lead_id: selected.lead_id, p_assignee: transferAssignee });
+        if (leadError) throw leadError;
+      }
+      const { error: historyError } = await (supabase as any).from('whatsapp_chat_assignment_history').insert({ chat_id: selected.id, previous_assignee: previousAssignee, new_assignee: transferAssignee, changed_by: user.id });
+      if (historyError) throw historyError;
+      const recipient = leadAssignees.find(member => member.user_id === transferAssignee);
+      setSelected(prev => prev?.id === selected.id ? { ...prev, assigned_to: transferAssignee } : prev);
+      setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: transferAssignee } : chat));
+      setTransferDialogOpen(false); setTransferAssignee('');
+      toast({ title: 'Conversa transferida', description: 'Responsabilidade transferida para ' + (recipient?.display_name || recipient?.email || 'o usuário selecionado') + '.' });
+    } catch (e: any) {
+      toast({ title: 'Falha ao transferir conversa', description: e.message || 'Confira as permissões e tente novamente.', variant: 'destructive' });
+    } finally { setTransferringChat(false); }
+  };
+
   const handleTakeOver = async () => {
     if (!selected || !user) return;
     try {
@@ -1705,7 +1732,6 @@ const WhatsAppChat = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{instances.find(i => i.id === instanceId)?.name || 'Instância'}</span>
                       {selected.assigned_to && agentColors[selected.assigned_to] && <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: agentColors[selected.assigned_to].color }} />{agentColors[selected.assigned_to].display_name}</span>}
                       {!isGroupChat(selected) && hasRealName(selected) && (
                         <span className="font-mono">{formatNumber(selected.contact_number)}</span>
@@ -1727,36 +1753,24 @@ const WhatsAppChat = () => {
                     title="Assumir responsabilidade por esta conversa"
                     className="h-8 gap-1 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
                   ><UserPlus size={13}/><span className="hidden sm:inline">Assumir</span></Button>}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenLeadDialog}
-                    disabled={!!selected.lead_id}
-                    title={selected.lead_id ? "Lead já cadastrado" : "Cadastrar como Lead no Funil"}
-                    className="h-8 gap-1 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
-                  >
-                    <GitBranch size={13}/>
-                    <span className="hidden sm:inline">{selected.lead_id ? 'Lead cadastrado' : 'Lead no Funil'}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenStatusDialog}
-                    title="Alterar coluna do Kanban"
-                    className="h-8 gap-1 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                  >
-                    <GitBranch size={13}/>
-                    <span className="hidden sm:inline">Status do Kanban</span>
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" title="Mais opções da conversa" aria-label="Mais opções da conversa"><MoreVertical size={17}/></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onSelect={handleOpenLeadDialog} disabled={!!selected.lead_id}><GitBranch size={14} className="mr-2"/>{selected.lead_id ? 'Lead já cadastrado' : 'Cadastrar no Kanban'}</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={handleOpenStatusDialog}><GitBranch size={14} className="mr-2"/>Status do Kanban</DropdownMenuItem>
+                      <DropdownMenuSeparator/>
+                      <DropdownMenuItem onSelect={() => { setTransferAssignee(selected.assigned_to || ''); setTransferDialogOpen(true); }}><Forward size={14} className="mr-2"/>Transferir atendimento</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button variant="ghost" size="icon" onClick={handleSyncMessages} title="Atualizar mensagens" className="h-9 w-9 text-muted-foreground hover:text-foreground">
                     <RefreshCw size={17} />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground">
                     <Search size={17} />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground">
-                    <MoreVertical size={17} />
-                  </Button>
+
                 </div>
               </div>
 
@@ -2403,6 +2417,21 @@ const WhatsAppChat = () => {
             {savingContact ? 'Salvando...' : 'Salvar'}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Transferir atendimento</DialogTitle></DialogHeader>
+        <div className="space-y-2">
+          <Label>Transferir conversa para</Label>
+          <Select value={transferAssignee} onValueChange={setTransferAssignee}>
+            <SelectTrigger><SelectValue placeholder="Selecione um usuário do CRM"/></SelectTrigger>
+            <SelectContent>{leadAssignees.map(member => <SelectItem key={member.user_id} value={member.user_id}>{member.display_name || member.email || 'Usuário'}</SelectItem>)}</SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">A conversa e o lead vinculado, se houver, serão atribuídos ao usuário escolhido e a transferência será registrada no histórico de responsáveis.</p>
+        </div>
+        <DialogFooter><Button variant="outline" onClick={() => setTransferDialogOpen(false)}>Cancelar</Button><Button onClick={() => void handleTransferChat()} disabled={!transferAssignee || transferringChat}>{transferringChat ? <Loader2 size={14} className="mr-2 animate-spin"/> : <Forward size={14} className="mr-2"/>}Transferir</Button></DialogFooter>
       </DialogContent>
     </Dialog>
 
