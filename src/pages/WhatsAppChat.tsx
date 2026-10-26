@@ -82,6 +82,12 @@ const uploadMedia = async (file: Blob, filename: string, userId: string) => {
 };
 
 const onlyDigits = (v: string) => v.replace(/\D/g, '');
+const canonicalWhatsAppPhone = (value: string) => {
+  let digits = onlyDigits(value);
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+  if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
+  return digits;
+};
 
 // Aceita valores brasileiros (1.000,00) e valores digitados com ponto decimal (1000.00).
 const parsePlanValue = (raw: string): number | null => {
@@ -323,7 +329,7 @@ const WhatsAppChat = () => {
   const [newChatSearch, setNewChatSearch] = useState('');
   const [newChatNumber, setNewChatNumber] = useState('');
   const [newChatMessage, setNewChatMessage] = useState('');
-  const [forwardMediaMessage, setForwardMediaMessage] = useState<Message | null>(null);
+  const [forwardMessages, setForwardMessages] = useState<Message[]>([]);
   const [startingChat, setStartingChat] = useState(false);
 
   // Attachments / audio
@@ -505,10 +511,9 @@ const WhatsAppChat = () => {
       }
       if (action === 'forward') {
         if (!content && !message.media_url) return toast({ title: 'Conteúdo indisponível', description: 'Esta mensagem não tem texto nem mídia acessível.' });
-        setForwardMediaMessage(message.media_url ? message : null);
-        setNewChatNumber('');
-        setNewChatMessage(content);
-        setNewChatOpen(true); return;
+        setSelectedMessageIds(prev => prev.includes(message.id) ? prev : [...prev, message.id]);
+        toast({ title: 'Mensagem selecionada para encaminhar', description: 'Selecione outras mensagens se quiser e depois clique em Encaminhar.' });
+        return;
       }
       if (action === 'pin') {
         const next = pinnedMessageIds.includes(message.id) ? pinnedMessageIds.filter(id => id !== message.id) : [...pinnedMessageIds, message.id];
@@ -594,14 +599,18 @@ const WhatsAppChat = () => {
     // Proteção contra JID @c.us e LID do mesmo telefone aparecendo duas vezes.
     const unique = new Map<string, Chat>();
     for (const row of (data || []) as Chat[]) {
-      if (!row.wa_chat_id || row.wa_chat_id === 'status@broadcast') continue;
-      const phone = onlyDigits(row.contact_number || '');
-      const key = !row.is_group && phone.length >= 10 ? phone : row.wa_chat_id;
+      if (!row.wa_chat_id || row.wa_chat_id === 'status@broadcast' || row.wa_chat_id.endsWith('@newsletter') || row.wa_chat_id.endsWith('@broadcast')) continue;
+      const phone = canonicalWhatsAppPhone(row.contact_number || '');
+      const key = !row.is_group && phone.length >= 9 && !row.wa_chat_id.endsWith('@g.us')
+        ? `phone:${phone}`
+        : row.is_group ? `group:${row.wa_chat_id}` : `chat:${row.id}`;
       const previous = unique.get(key);
       if (!previous) { unique.set(key, row); continue; }
       const rowTime = new Date(row.last_message_at || 0).getTime();
       const previousTime = new Date(previous.last_message_at || 0).getTime();
-      if (rowTime > previousTime) unique.set(key, row);
+      const rowHasName = hasRealName(row);
+      const previousHasName = hasRealName(previous);
+      if ((rowHasName && !previousHasName) || (rowHasName === previousHasName && rowTime > previousTime)) unique.set(key, row);
     }
     const list = [...unique.values()].sort((a, b) => {
       if (!!a.is_pinned !== !!b.is_pinned) return a.is_pinned ? -1 : 1;
@@ -1034,8 +1043,25 @@ const WhatsAppChat = () => {
     const number = digits.length <= 11 ? `55${digits}` : digits;
     setStartingChat(true);
     try {
-      if (forwardMediaMessage?.media_url) {
-        await waha.sendMedia(instanceId, number, forwardMediaMessage.media_url, forwardMediaMessage.message_type || 'document', newChatMessage.trim() || undefined, forwardMediaMessage.media_mime || 'application/octet-stream', forwardMediaMessage.media_filename || 'arquivo');
+      if (forwardMessages.length > 0) {
+        for (const item of forwardMessages) {
+          if (item.media_url) {
+            let mediaUrl = item.media_url;
+            try {
+              const resolved = await waha.resolveMedia(instanceId, item.id);
+              if (typeof resolved?.url === 'string' && resolved.url) mediaUrl = resolved.url;
+            } catch (resolveError) {
+              console.warn('[WhatsApp] Não foi possível renovar mídia para encaminhar; tentando URL atual.', item.id, resolveError);
+            }
+            await waha.sendMedia(
+              instanceId, number, mediaUrl, item.message_type || 'document',
+              item.text?.trim() || undefined, item.media_mime || 'application/octet-stream',
+              item.media_filename || (item.media_mime?.startsWith('image/') ? 'imagem' : 'arquivo')
+            );
+          } else if (item.text?.trim()) {
+            await waha.sendText(instanceId, number, item.text.trim());
+          }
+        }
       } else if (newChatMessage.trim()) {
         await waha.sendText(instanceId, number, newChatMessage.trim());
       }
@@ -1045,8 +1071,11 @@ const WhatsAppChat = () => {
       const chat = (data as Chat[])?.[0];
       if (chat) setSelected(chat);
       setNewChatOpen(false);
-      setNewChatNumber(''); setNewChatMessage(''); setNewChatSearch(''); setForwardMediaMessage(null);
-      toast({ title: forwardMediaMessage?.media_url ? 'Mídia encaminhada' : newChatMessage.trim() ? 'Mensagem enviada' : 'Conversa aberta' });
+      setNewChatNumber(''); setNewChatMessage(''); setNewChatSearch('');
+      const wasForwarding = forwardMessages.length > 0;
+      setForwardMessages([]);
+      setSelectedMessageIds([]);
+      toast({ title: wasForwarding ? `${forwardMessages.length} mensagem(ns) encaminhada(s)` : newChatMessage.trim() ? 'Mensagem enviada' : 'Conversa aberta' });
     } catch (e: any) {
       toast({ title: 'Falha ao iniciar conversa', description: e.message, variant: 'destructive' });
     } finally { setStartingChat(false); }
@@ -1058,7 +1087,7 @@ const WhatsAppChat = () => {
     setNewChatNumber(number);
     setNewChatOpen(true);
     setNewChatMessage('');
-    setForwardMediaMessage(null);
+    setForwardMessages([]);
   };
 
   const handleSync = async () => {
@@ -1884,6 +1913,15 @@ const WhatsAppChat = () => {
                 <div className="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2">
                   <span className="text-xs font-medium">{selectedMessageIds.length} selecionada(s)</span>
                   <Button variant="outline" size="sm" className="h-7" onClick={() => setSelectedMessageIds(messages.filter(m => m.message_type !== 'reaction' && m.text !== '[crm_deleted]').map(m => m.id))}>Selecionar todas</Button>
+                  <Button variant="outline" size="sm" className="h-7" onClick={() => {
+                    const picked = messages.filter(m => selectedMessageIds.includes(m.id) && m.message_type !== 'reaction' && m.text !== '[crm_deleted]');
+                    if (!picked.length) return;
+                    setForwardMessages(picked);
+                    setNewChatNumber('');
+                    setNewChatMessage('');
+                    setNewChatSearch('');
+                    setNewChatOpen(true);
+                  }}><Forward size={13} className="mr-1"/>Encaminhar</Button>
                   <Button variant="outline" size="sm" className="h-7" onClick={() => void handleMessageAction('share', messages.find(m => m.id === selectedMessageIds[0])!)} disabled={!messages.some(m => m.id === selectedMessageIds[0])}><Share2 size={13} className="mr-1"/>Compartilhar</Button>
                   <Button variant="ghost" size="sm" className="h-7" onClick={() => setSelectedMessageIds([])}>Cancelar seleção</Button>
                 </div>
@@ -1957,7 +1995,7 @@ const WhatsAppChat = () => {
                               {senderLabel(m.sender)}
                             </p>
                           )}
-                          {m.media_url && ['image', 'sticker', 'gif'].includes(m.message_type || '') && (
+                          {m.media_url && (['image', 'sticker', 'gif'].includes(m.message_type || '') || (m.media_mime || '').toLowerCase().startsWith('image/')) && (
                             <div className="relative rounded-lg overflow-hidden border bg-zinc-100 dark:bg-zinc-900 min-h-[100px] flex items-center justify-center">
                               <img
                                 src={m.media_url}
@@ -1969,18 +2007,18 @@ const WhatsAppChat = () => {
                                 onClick={() => window.open(m.media_url!, '_blank')}
                                 onError={async (e) => {
                                   const target = e.currentTarget;
-                                  // Tenta renovar o link assinado/recuperar a mídia antes de exibir erro.
-                                  if (!target.dataset.retried && selected?.instance_id) {
-                                    target.dataset.retried = '1';
+                                  const attempts = Number(target.dataset.retryCount || '0');
+                                  if (attempts < 3 && selected?.instance_id) {
+                                    target.dataset.retryCount = String(attempts + 1);
                                     try {
                                       const result = await waha.resolveMedia(selected.instance_id, m.id);
-                                      if (typeof result?.url === 'string' && result.url && result.url !== m.media_url) {
+                                      if (typeof result?.url === 'string' && result.url) {
                                         setMessages(current => current.map(item => item.id === m.id ? { ...item, media_url: result.url } : item));
                                         target.src = result.url;
                                         return;
                                       }
                                     } catch (error) {
-                                      console.warn('Falha ao renovar imagem do WhatsApp', m.id, error);
+                                      console.warn('Falha ao recuperar imagem do WhatsApp', m.id, error);
                                     }
                                   }
                                   target.style.display = 'none';
@@ -2301,9 +2339,9 @@ const WhatsAppChat = () => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare size={18} className="text-purple-600" />
-            Nova conversa
+            {forwardMessages.length > 0 ? 'Encaminhar mensagens' : 'Nova conversa'}
           </DialogTitle>
-          <p className="text-sm text-muted-foreground">Busque um contato existente ou digite um novo número.</p>
+          <p className="text-sm text-muted-foreground">{forwardMessages.length > 0 ? `Selecione o contato de destino para ${forwardMessages.length} mensagem(ns).` : 'Busque um contato existente ou digite um novo número.'}</p>
         </DialogHeader>
 
         <div className="space-y-4 py-1">
@@ -2328,7 +2366,7 @@ const WhatsAppChat = () => {
                   .map(c => (
                     <button
                       key={c.id}
-                      onClick={() => { setSelected(c); setNewChatOpen(false); setNewChatSearch(''); }}
+                      onClick={() => { setNewChatNumber(c.contact_number || c.wa_chat_id.split('@')[0]); setNewChatSearch(c.contact_name || c.contact_number || ''); }}
                       className="w-full flex items-center gap-2 p-2 text-left hover:bg-muted text-sm"
                     >
                       <div className={`w-8 h-8 rounded-full ${getAvatarColor(c.contact_name || c.contact_number)} flex items-center justify-center text-[11px] font-bold`}>
@@ -2366,10 +2404,10 @@ const WhatsAppChat = () => {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="new-msg">Mensagem</Label>
+            <Label htmlFor="new-msg">{forwardMessages.length > 0 ? 'Texto adicional (opcional)' : 'Mensagem'}</Label>
             <Input
               id="new-msg"
-              placeholder="Digite a primeira mensagem"
+              placeholder={forwardMessages.length > 0 ? 'Opcional — as mensagens selecionadas serão encaminhadas' : 'Digite a primeira mensagem'}
               value={newChatMessage}
               onChange={e => setNewChatMessage(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleStartNewChat()}
@@ -2381,7 +2419,7 @@ const WhatsAppChat = () => {
           <Button variant="outline" onClick={() => setNewChatOpen(false)}>Cancelar</Button>
           <Button onClick={handleStartNewChat} disabled={startingChat || !onlyDigits(newChatNumber)} className="gap-2">
             {startingChat ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            Enviar
+            {forwardMessages.length > 0 ? 'Encaminhar' : 'Enviar'}
           </Button>
         </DialogFooter>
       </DialogContent>
