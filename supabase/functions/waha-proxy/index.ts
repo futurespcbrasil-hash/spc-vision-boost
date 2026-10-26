@@ -153,6 +153,55 @@ Deno.serve(async (req: Request) => {
     }
   };
 
+  const updateLeadInteractionForNumber = async (numberValue: string, messageText: string) => {
+    let target = String(numberValue || "").split("@")[0].replace(/\D/g, "");
+    if (target.length >= 20 && target.length % 2 === 0 && target.slice(0, target.length / 2) === target.slice(target.length / 2)) {
+      target = target.slice(0, target.length / 2);
+    }
+    if (target.startsWith("55") && (target.length === 12 || target.length === 13)) target = target.slice(2);
+    if (target.length < 10) return false;
+
+    const { data: leadRows, error: leadLookupError } = await db.from("leads")
+      .select("id,phone,whatsapp,interactions")
+      .not("phone", "is", null)
+      .limit(2000);
+    if (leadLookupError) {
+      console.error("[WAHA] Não foi possível localizar lead para registrar interação:", leadLookupError.message);
+      return false;
+    }
+    const normalizeLeadNumber = (value: unknown) => {
+      let digits = String(value || "").replace(/\D/g, "");
+      if (digits.length >= 20 && digits.length % 2 === 0 && digits.slice(0, digits.length / 2) === digits.slice(digits.length / 2)) {
+        digits = digits.slice(0, digits.length / 2);
+      }
+      if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+      return digits;
+    };
+    const lead = (leadRows || []).find((row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
+      const candidate = normalizeLeadNumber(value);
+      return candidate && (candidate === target || (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
+    }));
+    if (!lead) return false;
+
+    const now = new Date().toISOString();
+    const existingInteractions = Array.isArray(lead.interactions) ? lead.interactions : [];
+    const interaction = {
+      id: `whatsapp-${crypto.randomUUID()}`,
+      date: now,
+      type: "whatsapp",
+      content: `Mensagem enviada pelo WhatsApp: ${messageText.trim().slice(0, 500)}`,
+    };
+    const { error: interactionError } = await db.from("leads").update({
+      last_interaction_at: now,
+      interactions: [...existingInteractions, interaction],
+    }).eq("id", lead.id);
+    if (interactionError) {
+      console.error("[WAHA] Falha ao atualizar interação do lead:", interactionError.message);
+      return false;
+    }
+    return true;
+  };
+
   const normalizeStatus = (status: string) => {
     if (["WORKING", "SCAN_QR_CODE", "STARTING", "STOPPED", "FAILED"].includes(status)) {
       return ({ WORKING: "connected", SCAN_QR_CODE: "qr", STARTING: "connecting", STOPPED: "disconnected", FAILED: "disconnected" } as Record<string, string>)[status];
@@ -279,7 +328,8 @@ Deno.serve(async (req: Request) => {
         if (replyTo) payload.reply_to = replyTo;
         const result = await callWaha("/api/sendText", "POST", payload);
         await persistOutbound(inst, chatId, String(body.text).trim(), "text", result, number, replyTo);
-        return json(result);
+        const leadInteractionUpdated = await updateLeadInteractionForNumber(chatId, String(body.text));
+        return json({ ...result, lead_interaction_updated: leadInteractionUpdated });
       }
       case "send_media": {
         const inst = await getOwnedInstance();
