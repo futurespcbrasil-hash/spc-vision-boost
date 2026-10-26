@@ -61,6 +61,7 @@ const ConsultaCNPJLote = lazyWithRetry(() => import("@/pages/cnpj/ConsultaCNPJLo
 const WhatsAppChat = lazyWithRetry(() => import("@/pages/WhatsAppChat"));
 const WhatsAppInstancias = lazyWithRetry(() => import("@/pages/WhatsAppInstancias"));
 const WhatsAppAjustes = lazyWithRetry(() => import("@/pages/WhatsAppAjustes"));
+const WhatsAppFluxos = lazyWithRetry(() => import("@/pages/WhatsAppFluxos"));
 const RelatoriosComissoes = lazyWithRetry(() => import("@/pages/RelatoriosComissoes"));
 const ComissoesIndicacoesSistema = lazyWithRetry(() => import("@/pages/ComissoesIndicacoesSistema"));
 const CadastroVendedores = lazyWithRetry(() => import("@/pages/CadastroVendedores"));
@@ -129,6 +130,7 @@ const ProtectedRoutes = () => {
             <Route path="/whatsapp" element={<WhatsAppChat />} />
             <Route path="/whatsapp/instancias" element={<WhatsAppInstancias />} />
             <Route path="/whatsapp/ajustes" element={<WhatsAppAjustes />} />
+            <Route path="/whatsapp/fluxos" element={<WhatsAppFluxos />} />
             <Route path="/relatorios-comissoes" element={<RelatoriosComissoes />} />
             <Route path="/comissoes/indicacoes-sistema" element={<ComissoesIndicacoesSistema />} />
             <Route path="/cadastro-vendedores" element={<CadastroVendedores />} />
