@@ -110,9 +110,15 @@ Deno.serve(async (req: Request) => {
   const contactNumber = phoneSource.split("@")[0].replace(/\D/g, "");
   const incomingName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName);
   const body = str(payload?.body || payload?.text);
-  const rawType = str(payload?.type || payload?.media?.mimetype).toLowerCase();
-  const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
-    : rawType.includes("video") ? "video" : payload?.hasMedia ? "document" : "text";
+  const rawType = str(payload?.type).toLowerCase();
+  const mediaMime = str(payload?.media?.mimetype || payload?.mimetype).toLowerCase();
+  const mediaName = str(payload?.media?.filename || payload?.media?.fileName || payload?.filename).toLowerCase();
+  // WAHA pode marcar imagem enviada como documentWithCaption/document; o MIME real prevalece.
+  const messageType = mediaMime.startsWith("image/") || rawType.includes("image") || rawType.includes("sticker") || /\\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(mediaName)
+    ? (rawType.includes("sticker") ? "sticker" : rawType.includes("gif") || mediaMime === "image/gif" ? "gif" : "image")
+    : mediaMime.startsWith("audio/") || rawType.includes("audio") || rawType.includes("ptt") ? "audio"
+    : mediaMime.startsWith("video/") || rawType.includes("video") ? "video"
+    : payload?.hasMedia || rawType.includes("document") || mediaMime ? "document" : "text";
   const sentAt = timestamp(payload?.timestamp ?? payload?.t ?? payload?._data?.t ?? payload?._data?.timestamp);
   const mediaUrl = str(payload?.media?.url || payload?.mediaUrl) || null;
   const avatar = str(payload?._data?.profilePicThumbObj?.eurl || payload?.profilePictureUrl) || null;
