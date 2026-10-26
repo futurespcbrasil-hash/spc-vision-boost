@@ -205,6 +205,9 @@ Deno.serve(async (req: Request) => {
         if (ratingError) throw ratingError;
         return json({ accepted: true, satisfaction_rating: Number(trimmedReply) });
       }
+      if (pendingSurvey) {
+        await db.from("whatsapp_service_sessions").update({ survey_status: "skipped", updated_at: new Date().toISOString() }).eq("id", pendingSurvey.id).in("survey_status", ["sent", "pending"]);
+      }
       const { data: activeCycle, error: activeCycleError } = await db.from("whatsapp_service_sessions")
         .select("id").eq("chat_id", chatId).is("closed_at", null).order("started_at", { ascending: false }).limit(1).maybeSingle();
       if (activeCycleError) throw activeCycleError;
