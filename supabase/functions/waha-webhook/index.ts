@@ -95,7 +95,9 @@ Deno.serve(async (req: Request) => {
     : payload?.from || payload?.chatId || payload?.chat_id);
   // payload.id é o ID DA MENSAGEM, não o ID da conversa.
   const waChatId = str(payload?.chatId || payload?.chat_id || payload?._data?.id?.remote || candidateRemote);
-  if (!waChatId) return json({ accepted: true, ignored: true });
+  if (!waChatId || waChatId === "status@broadcast" || waChatId.endsWith("@newsletter") || waChatId.endsWith("@broadcast")) {
+    return json({ accepted: true, ignored: true });
+  }
   // WAHA pode entregar message e message.any para a mesma mensagem. Deduplicar
   // antes de alterar unread_count/last_message para não contar o mesmo evento duas vezes.
   const messageId = str(payload?.id?._serialized || payload?.id || payload?.key?.id);
