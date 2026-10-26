@@ -72,10 +72,13 @@ Deno.serve(async (req: Request) => {
       .eq("wa_message_id", revokeId).maybeSingle();
     if (findError) return json({ error: "Deleted message lookup failed" }, 500);
     if (!oldMessage) return json({ accepted: true, notFound: true });
-    const { error: deleteError } = await db.from("whatsapp_messages").delete().eq("id", oldMessage.id);
+    const { error: deleteError } = await db.from("whatsapp_messages")
+      .update({ text: "[crm_deleted]", status: "deleted", raw: { crm_deleted: true, deleted_at: new Date().toISOString(), event: payload } })
+      .eq("id", oldMessage.id);
     if (deleteError) return json({ error: "Failed to delete message from CRM" }, 500);
     const { data: latestRows } = await db.from("whatsapp_messages").select("text,timestamp")
-      .eq("chat_id", oldMessage.chat_id).order("timestamp", { ascending: false }).limit(1);
+      .eq("chat_id", oldMessage.chat_id).neq("text", "[crm_deleted]")
+      .order("timestamp", { ascending: false }).limit(1);
     const latest = latestRows?.[0];
     await db.from("whatsapp_chats").update({
       last_message: latest ? (latest.text || "") : "",
