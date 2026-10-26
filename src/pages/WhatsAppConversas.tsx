@@ -38,6 +38,15 @@ const normalizeBrazilNumber = (value: string) => {
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return digits;
 };
+// WhatsApp pode expor o mesmo celular como @c.us e @lid, às vezes com
+// o nono dígito ausente em um dos identificadores. Canonicaliza para agrupar.
+const conversationPhoneKey = (value: string) => {
+  let digits = normalizeBrazilNumber(value);
+  if (digits.startsWith('55') && digits.length === 13 && digits[4] === '9') {
+    digits = digits.slice(0, 4) + digits.slice(5);
+  }
+  return digits;
+};
 const isPhoneNumber = (value: string) => {
   const digits = onlyDigits(value);
   return digits.length >= 10 && digits.length <= 13;
@@ -151,11 +160,36 @@ export default function WhatsAppConversas() {
   const selectedChat = useMemo(() => chats.find((chat) => chat.id === selectedChatId) || null, [chats, selectedChatId]);
   selectedChatRef.current = selectedChat;
   const selectedInstance = useMemo(() => instances.find((item) => item.id === instanceId) || null, [instances, instanceId]);
+  const deduplicatedChats = useMemo(() => {
+    const groups = new Map<string, Chat[]>();
+    for (const chat of chats) {
+      const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(chat.contact_number || chat.wa_chat_id);
+      const groupKey = key.length >= 10 ? key : `chat:${chat.id}`;
+      groups.set(groupKey, [...(groups.get(groupKey) || []), chat]);
+    }
+    return [...groups.values()].map((group) => {
+      if (group.length === 1) return group[0];
+      // Preferir o JID @lid quando há histórico nele; assim abrir a conversa
+      // carrega as mensagens corretas, mas usar o nome amigável do registro duplicado.
+      const chosen = [...group].sort((a, b) => {
+        const aLid = a.wa_chat_id.endsWith('@lid') ? 1 : 0;
+        const bLid = b.wa_chat_id.endsWith('@lid') ? 1 : 0;
+        if (aLid !== bLid) return bLid - aLid;
+        return Date.parse(b.last_message_at || '') - Date.parse(a.last_message_at || '');
+      })[0];
+      const friendlyName = group.map((item) => item.contact_name || '').find((name) =>
+        name && !/^\+?[\d\s().-]+$/.test(name) && !name.endsWith('@lid') && !name.endsWith('@c.us'));
+      const preferredNumber = group.map((item) => item.contact_number || '').find((number) => onlyDigits(number).length >= 12)
+        || chosen.contact_number;
+      return { ...chosen, contact_name: friendlyName || chosen.contact_name, contact_number: preferredNumber };
+    }).sort((a, b) => Date.parse(b.last_message_at || '') - Date.parse(a.last_message_at || ''));
+  }, [chats]);
+
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLocaleLowerCase();
-    return chats.filter((chat) => !q || (chat.contact_name || '').toLocaleLowerCase().includes(q)
+    return deduplicatedChats.filter((chat) => !q || (chat.contact_name || '').toLocaleLowerCase().includes(q)
       || (chat.contact_number || '').includes(q) || chat.wa_chat_id.toLocaleLowerCase().includes(q));
-  }, [chats, searchTerm]);
+  }, [deduplicatedChats, searchTerm]);
 
   const loadInstances = useCallback(async () => {
     if (!user) return;
