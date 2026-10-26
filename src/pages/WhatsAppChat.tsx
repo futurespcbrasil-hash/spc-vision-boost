@@ -718,7 +718,7 @@ const WhatsAppChat = () => {
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
     };
-  }, [selected?.id, messages.length]);
+  }, [selected?.id, messages]);
 
   // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
   const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
