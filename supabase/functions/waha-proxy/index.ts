@@ -479,12 +479,12 @@ Deno.serve(async (req: Request) => {
           if (remoteMessagesComplete && remoteTimestamps.length > 0) {
             const oldestRemote = remoteTimestamps.reduce((a, b) => a < b ? a : b);
             const { data: localWindow, error: localWindowError } = await db.from("whatsapp_messages")
-              .select("id,wa_message_id,timestamp")
+              .select("id,wa_message_id,timestamp,text")
               .eq("chat_id", chat.id)
               .gte("timestamp", oldestRemote);
             if (localWindowError) throw localWindowError;
             const staleIds = (localWindow || [])
-              .filter((row: any) => row.wa_message_id && !remoteMessageIds.has(String(row.wa_message_id)))
+              .filter((row: any) => row.wa_message_id && row.text !== "[crm_deleted]" && !remoteMessageIds.has(String(row.wa_message_id)))
               .map((row: any) => row.id);
             if (staleIds.length > 0) {
               const { error: deleteError } = await db.from("whatsapp_messages").delete().in("id", staleIds);
