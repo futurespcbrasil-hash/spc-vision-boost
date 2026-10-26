@@ -307,6 +307,9 @@ const WhatsAppChat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<Chat | null>(null);
   const messagesRef = useRef<Message[]>([]);
+  // Cache local por conversa: trocar de chat mostra o histórico imediatamente sem remontar mídias.
+  const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
+  const messagesChatIdRef = useRef<string>('');
   const draftRestorePending = useRef(false);
   const activeDraftKey = useRef('');
   const profilePicFetched = useRef<Set<string>>(new Set());
@@ -780,10 +783,12 @@ const WhatsAppChat = () => {
         const needsResolution = /localhost:3000\/api\/files\//i.test(url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(url);
         if (!url || !needsResolution) { resolvedItems[index] = message; continue; }
         // Evita refazer a requisição em cada polling se esta mídia já foi resolvida nesta sessão.
-        const previousNeedsResolution = previous?.media_url
-          ? /localhost:3000\/api\/files\//i.test(previous.media_url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(previous.media_url)
-          : false;
-        if (previous?.media_url && !previousNeedsResolution) {
+        // Reutiliza a URL já carregada em vez de renová-la em cada polling.
+        // Se expirar, o onError da mídia faz a renovação sob demanda.
+        const previousIsLocalSource = previous?.media_url
+          ? /localhost:3000\/api\/files\//i.test(previous.media_url)
+          : true;
+        if (previous?.media_url && !previousIsLocalSource) {
           resolvedItems[index] = { ...message, media_url: previous.media_url };
           continue;
         }
@@ -819,6 +824,12 @@ const WhatsAppChat = () => {
       });
     const previous = messagesRef.current;
     const merged = dropConfirmedTemps(orderedList, previous);
+    // Mantém a última lista já resolvida em memória e no navegador para reabrir instantaneamente.
+    const cacheKey = `${user?.id || 'anonymous'}:${instanceId}:${chatId}`;
+    messagesCacheRef.current.set(cacheKey, merged);
+    try {
+      if (user?.id) localStorage.setItem(`whatsapp_messages_cache_${user.id}_${instanceId}_${chatId}`, JSON.stringify(merged));
+    } catch { /* quota/armazenamento indisponível: cache em memória continua ativo */ }
     const changed = previous.length !== merged.length || previous.some((message, index) => {
       const next = merged[index];
       return !next || message.id !== next.id || message.text !== next.text || message.status !== next.status || message.media_url !== next.media_url;
@@ -832,13 +843,33 @@ const WhatsAppChat = () => {
     if (!silent || (changed && isMessagesViewportNearBottom())) {
       window.setTimeout(() => scrollToBottom(!silent), 100);
     }
-  }, [selected?.instance_id]);
+  }, [selected?.instance_id, user?.id, instanceId]);
 
   useEffect(() => {
     if (!selected) return;
     const chatId = selected.id;
-    messagesRef.current = [];
-    setMessages([]);
+    // Reaproveita o histórico anterior antes de consultar Supabase/WAHA.
+    const cacheKey = `${user?.id || 'anonymous'}:${instanceId}:${chatId}`;
+    let cached = messagesCacheRef.current.get(cacheKey);
+    if (!cached?.length && user?.id) {
+      try {
+        const saved = localStorage.getItem(`whatsapp_messages_cache_${user.id}_${instanceId}_${chatId}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) cached = parsed as Message[];
+        }
+      } catch { /* cache inválido: será reconstruído pelo banco */ }
+    }
+    messagesChatIdRef.current = chatId;
+    if (cached?.length) {
+      messagesCacheRef.current.set(cacheKey, cached);
+      messagesRef.current = cached;
+      setMessages(cached);
+    } else {
+      messagesRef.current = [];
+      setMessages([]);
+    }
+    setSelectedMessageIds([]);
     let cancelled = false;
     // Carrega primeiro o histórico local para resposta rápida e, em seguida,
     // sincroniza as mensagens reais da WAHA (até 100) ao abrir cada conversa.
@@ -1978,9 +2009,17 @@ const WhatsAppChat = () => {
                           }`}
                         >
                           <div className="flex items-center justify-end gap-1 -mt-1 -mr-1">
+                            {selectedMessageIds.length > 0 && (
+                              <button type="button" title={selectedMessageIds.includes(m.id) ? 'Desmarcar mensagem' : 'Selecionar mensagem'}
+                                aria-label={selectedMessageIds.includes(m.id) ? 'Desmarcar mensagem' : 'Selecionar mensagem'}
+                                aria-pressed={selectedMessageIds.includes(m.id)}
+                                onClick={() => setSelectedMessageIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id])}
+                                className={`rounded p-1 transition-colors ${selectedMessageIds.includes(m.id) ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10'}`}>
+                                <CheckSquare size={15} />
+                              </button>
+                            )}
                             {pinnedMessageIds.includes(m.id) && <Pin size={12} className="text-primary" />}
                             {favoriteMessageIds.includes(m.id) && <Star size={12} className="text-amber-500 fill-amber-500" />}
-                            {selectedMessageIds.includes(m.id) && <CheckSquare size={13} className="text-primary" />}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild><button type="button" className="rounded p-1 opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10" title="Ações da mensagem" aria-label="Ações da mensagem"><ChevronDown size={14} /></button></DropdownMenuTrigger>
                               <DropdownMenuContent align={m.from_me ? 'end' : 'start'} className="w-56">
@@ -2049,7 +2088,7 @@ const WhatsAppChat = () => {
                             </div>
                           )}
                           {m.media_url && m.message_type === 'video' && (
-                            <video src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-80 bg-black" preload="metadata" />
+                            <video key={m.id} src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-80 bg-black" preload="metadata" />
                           )}
                           {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').startsWith('audio')) && (
                             <div className="flex flex-col gap-1 min-w-[200px]">
