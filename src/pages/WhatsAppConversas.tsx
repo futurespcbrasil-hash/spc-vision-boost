@@ -103,6 +103,7 @@ export default function WhatsAppConversas() {
   const messageLoadSequenceRef = useRef(0);
   const messagesLoadedForChatRef = useRef('');
   const sendLockRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
   const scrollFrameIdsRef = useRef<number[]>([]);
 
   const cancelScrollFrames = useCallback(() => {
@@ -314,12 +315,20 @@ export default function WhatsAppConversas() {
   }, [instanceId, user?.id, loadChats, loadMessages]);
 
   // Fallback para buscar atualizações da WAHA caso um webhook/evento Realtime se perca.
+  // Evita concorrência entre ciclos e não faz polling remoto em abas ocultas.
   useEffect(() => {
     if (!instanceId) return;
     const interval = window.setInterval(() => {
-      void loadChats(true);
+      if (document.visibilityState !== 'visible' || refreshInFlightRef.current) return;
+
+      refreshInFlightRef.current = true;
       const current = selectedChatRef.current;
-      if (current) void loadMessages(current, true);
+      void Promise.all([
+        loadChats(true),
+        current ? loadMessages(current, true) : Promise.resolve(),
+      ]).finally(() => {
+        refreshInFlightRef.current = false;
+      });
     }, 30000);
     return () => window.clearInterval(interval);
   }, [instanceId, loadChats, loadMessages]);
