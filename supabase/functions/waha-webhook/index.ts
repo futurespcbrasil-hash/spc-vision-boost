@@ -197,15 +197,20 @@ Deno.serve(async (req: Request) => {
         .select("id,survey_status,survey_sent_at,closed_at").eq("chat_id", chatId).eq("status", "closed")
         .in("survey_status", ["sent", "pending"]).order("closed_at", { ascending: false }).limit(1).maybeSingle();
       if (surveyLookupError) throw surveyLookupError;
-      const surveyAge = pendingSurvey?.survey_sent_at ? Date.now() - new Date(pendingSurvey.survey_sent_at).getTime() : Infinity;
-      if (pendingSurvey && /^[1-5]$/.test(trimmedReply) && surveyAge >= 0 && surveyAge <= 7 * 24 * 60 * 60 * 1000) {
-        const { error: ratingError } = await db.from("whatsapp_service_sessions").update({
+      const surveyAge = pendingSurvey?.survey_sent_at ? Date.now() - new Date(pendingSurvey.survey_sent_at).getTime() : null;
+      // A resposta pode chegar antes de o envio da pesquisa terminar de gravar survey_sent_at.
+      // Aceitar respostas 1–5 enquanto a pesquisa estiver pendente, ou até 7 dias após o envio.
+      const isRatingReply = /^[1-5]$/.test(trimmedReply);
+      const surveyWithinWindow = surveyAge === null || (surveyAge >= -5 * 60 * 1000 && surveyAge <= 7 * 24 * 60 * 60 * 1000);
+      if (pendingSurvey && isRatingReply && surveyWithinWindow) {
+        const { data: updatedRating, error: ratingError } = await db.from("whatsapp_service_sessions").update({
           rating: Number(trimmedReply), rating_received_at: sentAt, survey_status: "responded", updated_at: new Date().toISOString(),
-        }).eq("id", pendingSurvey.id).is("rating", null);
+        }).eq("id", pendingSurvey.id).is("rating", null).select("id").maybeSingle();
         if (ratingError) throw ratingError;
-        return json({ accepted: true, satisfaction_rating: Number(trimmedReply) });
+        if (updatedRating) return json({ accepted: true, satisfaction_rating: Number(trimmedReply) });
       }
-      if (pendingSurvey) {
+      // Não descartar uma pesquisa por uma resposta numérica recebida durante a corrida de gravação.
+      if (pendingSurvey && !isRatingReply) {
         await db.from("whatsapp_service_sessions").update({ survey_status: "skipped", updated_at: new Date().toISOString() }).eq("id", pendingSurvey.id).in("survey_status", ["sent", "pending"]);
       }
       const { data: activeCycle, error: activeCycleError } = await db.from("whatsapp_service_sessions")
