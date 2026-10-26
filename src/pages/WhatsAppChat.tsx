@@ -1774,6 +1774,26 @@ const WhatsAppChat = () => {
                 </div>
               </div>
 
+              {pinnedMessageIds.length > 0 && (
+                <div className="mx-3 mt-2 flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-xs">
+                  <Pin size={14} className="text-primary shrink-0"/>
+                  <span className="font-medium">Mensagem fixada</span>
+                  <span className="truncate flex-1 text-muted-foreground">{messages.find(m => m.id === pinnedMessageIds[pinnedMessageIds.length - 1])?.text || 'Mensagem fixada nesta conversa'}</span>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => {
+                    const pinnedId = pinnedMessageIds[pinnedMessageIds.length - 1];
+                    document.getElementById('whatsapp-message-' + pinnedId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}>Ver</Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Desafixar mensagem" onClick={() => saveMessageFlags(pinnedMessageIds.slice(0, -1), favoriteMessageIds)}><PinOff size={13}/></Button>
+                </div>
+              )}
+              {selectedMessageIds.length > 0 && (
+                <div className="mx-3 mt-2 flex flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2">
+                  <span className="text-xs font-medium">{selectedMessageIds.length} selecionada(s)</span>
+                  <Button variant="outline" size="sm" className="h-7" onClick={() => setSelectedMessageIds(messages.filter(m => m.message_type !== 'reaction' && m.text !== '[crm_deleted]').map(m => m.id))}>Selecionar todas</Button>
+                  <Button variant="outline" size="sm" className="h-7" onClick={() => void handleMessageAction('share', messages.find(m => m.id === selectedMessageIds[0])!)} disabled={!messages.some(m => m.id === selectedMessageIds[0])}><Share2 size={13} className="mr-1"/>Compartilhar</Button>
+                  <Button variant="ghost" size="sm" className="h-7" onClick={() => setSelectedMessageIds([])}>Cancelar seleção</Button>
+                </div>
+              )}
               {/* Chat Message Canvas */}
               <div ref={messagesViewportRef} className="flex-1 min-h-0 overflow-y-auto p-4 bg-slate-100/70 dark:bg-zinc-950/70 custom-scrollbar relative flex flex-col">
                 <div className="flex flex-col min-h-full space-y-3 max-w-5xl mx-auto pb-4 w-full">
@@ -1803,7 +1823,7 @@ const WhatsAppChat = () => {
                     return (
                       <React.Fragment key={m.id}>
                       {showDateDivider && <div className="sticky top-1 z-10 flex justify-center py-1"><span className="rounded-full border bg-background/90 px-3 py-1 text-[10px] font-medium text-muted-foreground shadow-sm">{dateLabel}</span></div>}
-                      <div className={`flex ${m.from_me ? 'justify-end' : 'justify-start'}`}>
+                      <div id={`whatsapp-message-${m.id}`} className={`flex ${m.from_me ? 'justify-end' : 'justify-start'}`}>
                         <div
                           className={`max-w-[85%] md:max-w-[70%] p-3 shadow-xs rounded-2xl text-xs space-y-1 ${
                             m.from_me
