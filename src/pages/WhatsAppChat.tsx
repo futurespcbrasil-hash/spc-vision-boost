@@ -2104,7 +2104,20 @@ const WhatsAppChat = () => {
                             </div>
                           )}
                           {m.media_url && m.message_type === 'video' && (
-                            <video key={m.id} src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-80 bg-black" preload="metadata" />
+                            <video key={m.id} src={m.media_url} controls playsInline className="rounded-lg max-w-full max-h-80 bg-black" preload="metadata"
+                              onError={async (event) => {
+                                const video = event.currentTarget;
+                                if (video.dataset.mediaRetry === '1' || !selected?.instance_id) return;
+                                video.dataset.mediaRetry = '1';
+                                try {
+                                  const resolved = await waha.resolveMedia(selected.instance_id, m.id);
+                                  if (typeof resolved?.url === 'string' && resolved.url && resolved.url !== m.media_url) {
+                                    setMessages(current => current.map(item => item.id === m.id ? { ...item, media_url: resolved.url } : item));
+                                  }
+                                } catch (error) {
+                                  console.warn('[WhatsApp] Falha ao renovar vídeo', m.id, error);
+                                }
+                              }} />
                           )}
                           {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').startsWith('audio')) && (
                             <div className="flex flex-col gap-1 min-w-[200px]">
