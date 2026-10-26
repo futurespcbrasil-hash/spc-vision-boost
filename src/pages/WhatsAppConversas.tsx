@@ -41,10 +41,9 @@ const normalizeBrazilNumber = (value: string) => {
 // WhatsApp pode expor o mesmo celular como @c.us e @lid, às vezes com
 // o nono dígito ausente em um dos identificadores. Canonicaliza para agrupar.
 const conversationPhoneKey = (value: string) => {
-  let digits = normalizeBrazilNumber(value);
-  if (digits.startsWith('55') && digits.length === 13 && digits[4] === '9') {
-    digits = digits.slice(0, 4) + digits.slice(5);
-  }
+  let digits = onlyDigits(value);
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+  if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
   return digits;
 };
 const isPhoneNumber = (value: string) => {
@@ -163,6 +162,7 @@ export default function WhatsAppConversas() {
   const deduplicatedChats = useMemo(() => {
     const groups = new Map<string, Chat[]>();
     for (const chat of chats) {
+      if (chat.wa_chat_id === 'status@broadcast' || chat.wa_chat_id.endsWith('@newsletter') || chat.wa_chat_id.endsWith('@broadcast')) continue;
       const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(chat.contact_number || chat.wa_chat_id);
       const groupKey = key.length >= 10 ? key : `chat:${chat.id}`;
       groups.set(groupKey, [...(groups.get(groupKey) || []), chat]);
