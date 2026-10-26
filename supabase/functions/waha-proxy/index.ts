@@ -387,7 +387,8 @@ Deno.serve(async (req: Request) => {
         if (messageError) throw messageError;
         if (!message || !message.media_url) return json({ error: "Mensagem ou mídia não encontrada." }, 404);
         const raw = message.raw && typeof message.raw === "object" && !Array.isArray(message.raw) ? message.raw as Record<string, unknown> : {};
-        const existingPath = typeof raw.crm_media_storage_path === "string" ? raw.crm_media_storage_path : "";
+        const existingPath = typeof raw.crm_media_storage_path === "string" && raw.crm_media_storage_path.startsWith(`archive/${inst.id}/`)
+          ? raw.crm_media_storage_path : "";
         let storagePath = existingPath;
         if (!storagePath) {
           let parsed: URL;
@@ -398,6 +399,7 @@ Deno.serve(async (req: Request) => {
           const relative = parsed.pathname;
           const safePath = relative.match(/^\/api\/files\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
           if (!safePath) return json({ error: "Caminho da mídia inválido." }, 400);
+          if (safePath[1] !== inst.provider_instance_name) return json({ error: "A mídia não pertence à instância WhatsApp desta conversa." }, 403);
           const remote = await fetch(`${wahaUrl}${relative}`, { headers: { "X-Api-Key": wahaKey } });
           if (!remote.ok) return json({ error: `A WAHA não conseguiu recuperar a mídia (HTTP ${remote.status}).` }, 502);
           const blob = await remote.blob();
