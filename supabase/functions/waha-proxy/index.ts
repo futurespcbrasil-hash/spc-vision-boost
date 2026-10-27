@@ -150,7 +150,7 @@ Deno.serve(async (req: Request) => {
     let { data: existing } = await db.from("whatsapp_chats")
       .select("id,unread_count,contact_name,contact_number,wa_chat_id")
       .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
-    if (!existing && digits.length >= 10 && !chatId.endsWith("@g.us") && !chatId.endsWith("@lid")) {
+    if (!existing && digits.length >= 10 && !chatId.endsWith("@g.us")) {
       const lookup = await db.from("whatsapp_chats")
         .select("id,unread_count,contact_name,contact_number,wa_chat_id")
         .eq("instance_id", inst.id).eq("is_group", false).limit(500);
