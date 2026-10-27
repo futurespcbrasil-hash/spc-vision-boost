@@ -82,8 +82,17 @@ const uploadMedia = async (file: Blob, filename: string, userId: string) => {
 };
 
 const onlyDigits = (v: string) => v.replace(/\D/g, '');
+// Corrige números legados que foram concatenados duas vezes, sem alterar números legítimos.
+const collapseRepeatedPhoneDigits = (value: string) => {
+  const digits = onlyDigits(value);
+  if (digits.length % 2 === 0) {
+    const half = digits.slice(0, digits.length / 2);
+    if (half.length >= 10 && half.length <= 13 && half === digits.slice(digits.length / 2)) return half;
+  }
+  return digits;
+};
 const canonicalWhatsAppPhone = (value: string) => {
-  let digits = onlyDigits(value);
+  let digits = collapseRepeatedPhoneDigits(value);
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
   if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
   return digits;
@@ -922,9 +931,16 @@ const WhatsAppChat = () => {
   }, []);
 
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
-    const { data } = await supabase.from('whatsapp_messages')
+    // Impede uma consulta antiga ou lenta de sobrescrever o histórico da conversa atual.
+    const loadSequence = ++messageLoadSequenceRef.current;
+    const { data, error } = await supabase.from('whatsapp_messages')
       .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,media_filename,wa_message_id,reply_to,sender')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
+    if (error) {
+      console.warn('[WhatsApp] Falha ao carregar mensagens; mantendo o histórico atual:', error.message);
+      return;
+    }
+    if (loadSequence !== messageLoadSequenceRef.current || messagesChatIdRef.current !== chatId) return;
     // Repara links históricos localhost da WAHA: arquiva no bucket privado e gera URL temporária.
     const sourceMessages = ((data as Message[]) || []).filter(message => message.text !== '[crm_deleted]');
     const previousById = new Map(messagesRef.current.map(message => [message.id, message]));
@@ -961,6 +977,7 @@ const WhatsAppChat = () => {
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, sourceMessages.length) }, () => resolveWorker()));
+    if (loadSequence !== messageLoadSequenceRef.current || messagesChatIdRef.current !== chatId) return;
     const list = resolvedItems.sort((a, b) => {
       const at = Date.parse(a.timestamp || '');
       const bt = Date.parse(b.timestamp || '');
@@ -1251,7 +1268,7 @@ const WhatsAppChat = () => {
 
   // ── Nova conversa ───────────────────────────────────────
   const handleStartNewChat = async () => {
-    const digits = onlyDigits(newChatNumber);
+    const digits = collapseRepeatedPhoneDigits(newChatNumber);
     if (!digits || !instanceId) return;
     const number = digits.length <= 11 ? `55${digits}` : digits;
     setStartingChat(true);
@@ -2788,7 +2805,18 @@ const WhatsAppChat = () => {
               id="new-number"
               placeholder="54991811902"
               value={newChatNumber}
-              onChange={e => setNewChatNumber(e.target.value)}
+              onChange={e => {
+                const value = e.target.value;
+                const digits = onlyDigits(value);
+                if (digits.length >= 20 && digits.length <= 26 && digits.length % 2 === 0) {
+                  const half = digits.slice(0, digits.length / 2);
+                  if (half.length >= 10 && half.length <= 13 && half === digits.slice(digits.length / 2)) {
+                    setNewChatNumber(half);
+                    return;
+                  }
+                }
+                setNewChatNumber(value);
+              }}
             />
           </div>
 
