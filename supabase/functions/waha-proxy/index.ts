@@ -629,7 +629,7 @@ Deno.serve(async (req: Request) => {
         // Uma única leitura da tabela substitui as consultas exatas e por telefone
         // executadas dentro do loop (2N+ leituras para N conversas).
         const { data: existingRows, error: existingRowsError } = await db.from("whatsapp_chats")
-          .select("id,instance_id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message,is_group,assigned_to")
+          .select("id,instance_id,wa_chat_id,contact_number,contact_name,avatar_url,unread_count,last_message_at,last_message,is_group,archived,assigned_to")
           .eq("instance_id", inst.id).limit(2000);
         if (existingRowsError) throw existingRowsError;
 
@@ -733,9 +733,9 @@ Deno.serve(async (req: Request) => {
             wa_chat_id: waChatId,
             contact_number: number,
             contact_name: contactName,
-            avatar_url: chat?.picture || chat?.profilePictureUrl || null,
-            last_message: lastText || (hasLastMedia ? "[mídia]" : null),
-            last_message_at: lastMessageAt,
+            avatar_url: chat?.picture || chat?.profilePictureUrl || exactExisting?.avatar_url || null,
+            last_message: lastText || (hasLastMedia ? "[mídia]" : exactExisting?.last_message || null),
+            last_message_at: lastMessageAt || exactExisting?.last_message_at || null,
             unread_count: Number(chat?.unreadCount ?? chat?.unread_count ?? 0),
             is_group: isGroup,
             archived: false,
@@ -755,6 +755,9 @@ Deno.serve(async (req: Request) => {
               ...record,
               wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
               contact_number: existing.contact_number || number,
+              avatar_url: record.avatar_url || existing.avatar_url || null,
+              last_message: record.last_message || existing.last_message || null,
+              last_message_at: record.last_message_at || existing.last_message_at || null,
               contact_name: (() => {
                 const savedName = String(existing.contact_name || "").trim();
                 const savedNumber = String(existing.contact_number || "").replace(/\D/g, "");
@@ -767,15 +770,26 @@ Deno.serve(async (req: Request) => {
               })(),
               unread_count: hasNewInboundMessage ? record.unread_count : Number(existing.unread_count || 0),
             };
-            if (existing.wa_chat_id && existing.wa_chat_id !== updatedRecord.wa_chat_id) {
+            const identityChanged = !!existing.wa_chat_id && existing.wa_chat_id !== updatedRecord.wa_chat_id;
+            const fieldsChanged = identityChanged ||
+              existing.contact_number !== updatedRecord.contact_number ||
+              existing.contact_name !== updatedRecord.contact_name ||
+              existing.avatar_url !== updatedRecord.avatar_url ||
+              existing.last_message !== updatedRecord.last_message ||
+              (Date.parse(existing.last_message_at || "") || 0) !== (Date.parse(updatedRecord.last_message_at || "") || 0) ||
+              Number(existing.unread_count || 0) !== Number(updatedRecord.unread_count || 0) ||
+              Boolean(existing.is_group) !== Boolean(updatedRecord.is_group) ||
+              Boolean(existing.archived) !== Boolean(updatedRecord.archived);
+            if (identityChanged) {
               // Migração de alias (@c.us -> @lid): atualiza a linha existente para
               // não criar uma segunda conversa para o mesmo contato.
               const { error } = await db.from("whatsapp_chats").update(updatedRecord).eq("id", existing.id);
               if (error) throw error;
               synced++;
               existingByJid.delete(existing.wa_chat_id);
-            } else {
-              // Atualizações por JID e novas conversas são gravadas em lote abaixo.
+            } else if (fieldsChanged) {
+              // Só escreve conversas realmente alteradas; evita emitir um evento Realtime
+              // por contato em cada ciclo de sincronização da lista.
               bulkRecords.push(updatedRecord);
             }
             const updatedRow = { ...existing, ...updatedRecord, id: existing.id };
