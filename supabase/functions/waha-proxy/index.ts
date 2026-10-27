@@ -620,6 +620,35 @@ Deno.serve(async (req: Request) => {
             return typeof rawId === "string" && allowedIds.has(rawId);
           });
         }
+        // Uma única leitura da tabela substitui as consultas exatas e por telefone
+        // executadas dentro do loop (2N+ leituras para N conversas).
+        const { data: existingRows, error: existingRowsError } = await db.from("whatsapp_chats")
+          .select("id,instance_id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message,is_group,assigned_to")
+          .eq("instance_id", inst.id).limit(2000);
+        if (existingRowsError) throw existingRowsError;
+
+        const phoneKey = (value: unknown) => {
+          let digits = collapseRepeatedPhoneDigits(String(value || "").split("@")[0].replace(/\\D/g, ""));
+          if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+          if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
+          return digits;
+        };
+        const existingByJid = new Map<string, any>();
+        const existingByPhone = new Map<string, any>();
+        for (const row of existingRows || []) {
+          existingByJid.set(String(row.wa_chat_id || ""), row);
+          if (row.is_group) continue;
+          const key = phoneKey(row.contact_number);
+          if (key.length < 10) continue;
+          const previous = existingByPhone.get(key);
+          const rowIsLid = String(row.wa_chat_id || "").endsWith("@lid");
+          const previousIsLid = String(previous?.wa_chat_id || "").endsWith("@lid");
+          const rowTime = new Date(row.last_message_at || 0).getTime();
+          const previousTime = new Date(previous?.last_message_at || 0).getTime();
+          if (!previous || (rowIsLid && !previousIsLid) ||
+              (rowIsLid === previousIsLid && rowTime > previousTime)) existingByPhone.set(key, row);
+        }
+
         let synced = 0;
         for (const chat of chats) {
           const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
@@ -627,7 +656,12 @@ Deno.serve(async (req: Request) => {
           if (!waChatId) continue;
           // Não tratar status, listas de transmissão ou canais como conversas individuais.
           if (waChatId === "status@broadcast" || waChatId.endsWith("@newsletter") || waChatId.endsWith("@broadcast")) continue;
-          const number = waChatId.split("@")[0].replace(/\D/g, "");
+          const exactExisting = existingByJid.get(waChatId);
+          // Dígitos de @lid são identificadores privados, não números de telefone.
+          const rawNumber = waChatId.endsWith("@lid")
+            ? (chat?.number || chat?.phone || chat?.contact?.number || chat?.contact?.phone || exactExisting?.contact_number || "")
+            : waChatId.split("@")[0];
+          const number = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\\D/g, ""));
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
           let lastMessageAt: string | null = null;
@@ -642,9 +676,6 @@ Deno.serve(async (req: Request) => {
           const hasLastMedia = !!(last?.hasMedia || last?.media || last?.mimetype);
           // /chats pode retornar todos os contatos. Sincronizar somente conversas com histórico real.
           if (!lastMessageAt && !lastText.trim() && !hasLastMedia) continue;
-          // Em algumas respostas da WAHA, uma conversa de grupo chega com o JID
-          // do participante (@lid); o ID remoto da última mensagem ainda revela o @g.us.
-          // A última mensagem pode ter sido associada incorretamente a outro chat; classifique pelo JID/metadados do chat.
           const isGroup = waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true;
           const contactName = String(chat?.name || chat?.pushName || chat?.contact?.name || number || waChatId);
           const record = {
@@ -660,60 +691,53 @@ Deno.serve(async (req: Request) => {
             archived: false,
             updated_at: new Date().toISOString(),
           };
-          // WAHA pode apresentar o mesmo contato com JIDs @c.us e @lid.
-          // Reaproveitar o registro por telefone para não criar uma segunda conversa.
-          let existing: any = null;
-          const exact = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message")
-            .eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
-          if (exact.error) throw exact.error;
-          existing = exact.data;
-          if (!existing && !isGroup && number.length >= 10) {
-            const phoneKey = (value: unknown) => {
-              let digits = String(value || "").split("@")[0].replace(/\D/g, "");
-              if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
-                if (digits.length === 13 && digits[4] === "9") digits = digits.slice(0, 4) + digits.slice(5);
-              } else if (digits.length === 11 && digits[2] === "9") {
-                digits = digits.slice(0, 2) + digits.slice(3);
-              }
-              return digits;
-            };
-            const byPhone = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message")
-              .eq("instance_id", inst.id).eq("is_group", false).limit(500);
-            if (byPhone.error) throw byPhone.error;
-            const targetKey = phoneKey(number);
-            existing = (byPhone.data || []).find((item: any) => phoneKey(item.contact_number) === targetKey) || null;
+          // Reaproveita mapas em memória para não consultar o banco novamente por conversa.
+          let existing: any = exactExisting || null;
+          const normalizedPhone = phoneKey(number);
+          if (!existing && !isGroup && normalizedPhone.length >= 10) {
+            existing = existingByPhone.get(normalizedPhone) || null;
           }
           if (existing) {
             const previousMessageAt = existing.last_message_at ? new Date(existing.last_message_at).getTime() : 0;
             const currentMessageAt = record.last_message_at ? new Date(record.last_message_at).getTime() : 0;
             const hasNewInboundMessage = !lastMessageFromMe && (currentMessageAt > previousMessageAt || (currentMessageAt === previousMessageAt && String(record.last_message || "") !== String(existing.last_message || "")));
-            const { error } = await db.from("whatsapp_chats").update({
+            const updatedRecord = {
               ...record,
-              // Quando o identificador LID aparece, torná-lo canônico para que
-              // o histórico remoto continue abrindo no JID correto.
               wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
               contact_number: existing.contact_number || number,
-              // O nome salvo no CRM/agenda prevalece sobre o nome do perfil da própria conta WAHA.
               contact_name: (() => {
                 const savedName = String(existing.contact_name || "").trim();
-                const savedNumber = String(existing.contact_number || "").replace(/\D/g, "");
+                const savedNumber = String(existing.contact_number || "").replace(/\\D/g, "");
                 const savedNameIsUseful = !!savedName &&
-                  savedName.replace(/\D/g, "") !== savedNumber &&
+                  savedName.replace(/\\D/g, "") !== savedNumber &&
                   !/^salvar contato$/i.test(savedName) &&
-                  !/^\+?[\d\s().-]+$/.test(savedName) &&
+                  !/^\\+?[\\d\\s().-]+$/.test(savedName) &&
                   !/^contato do whatsapp$/i.test(savedName);
                 return savedNameIsUseful ? savedName : (contactName || savedName);
               })(),
-              // Não ressuscitar avisos já dispensados só porque a WAHA repetiu unreadCount antigo.
-              // Um novo inbound atualiza o contador; uma atividade de saída não o aumenta.
               unread_count: hasNewInboundMessage ? record.unread_count : Number(existing.unread_count || 0),
-            }).eq("id", existing.id);
-            if (!error) synced++;
-            else throw error;
+            };
+            const { error } = await db.from("whatsapp_chats").update(updatedRecord).eq("id", existing.id);
+            if (error) throw error;
+            synced++;
+            if (existing.wa_chat_id && existing.wa_chat_id !== updatedRecord.wa_chat_id) existingByJid.delete(existing.wa_chat_id);
+            const updatedRow = { ...existing, ...updatedRecord, id: existing.id };
+            existingByJid.set(String(updatedRow.wa_chat_id), updatedRow);
+            const updatedPhone = phoneKey(updatedRow.contact_number);
+            if (!isGroup && updatedPhone.length >= 10) existingByPhone.set(updatedPhone, updatedRow);
           } else {
-            const { error } = await db.from("whatsapp_chats").upsert(record, { onConflict: "instance_id,wa_chat_id" });
-            if (!error) synced++;
-            else throw error;
+            const { data: savedRow, error } = await db.from("whatsapp_chats")
+              .upsert(record, { onConflict: "instance_id,wa_chat_id" })
+              .select("id,instance_id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message,is_group,assigned_to")
+              .single();
+            if (error) throw error;
+            synced++;
+            existingByJid.set(String(savedRow.wa_chat_id), savedRow);
+            const savedPhone = phoneKey(savedRow.contact_number);
+            if (!isGroup && savedPhone.length >= 10) {
+              const previous = existingByPhone.get(savedPhone);
+              if (!previous || String(savedRow.wa_chat_id || "").endsWith("@lid")) existingByPhone.set(savedPhone, savedRow);
+            }
           }
         }
         return json({ chats, synced });
