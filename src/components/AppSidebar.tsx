@@ -11,7 +11,7 @@ import { waha } from '@/services/ryzeService';
 
 const AppSidebar = () => {
   const location = useLocation();
-  const { user, profile, role, signOut, canManageUsers, canAccessModule } = useAuth();
+  const { user, role, canManageUsers, canAccessModule } = useAuth();
   const [chatUnread, setChatUnread] = useState(0);
   const [whatsappUnread, setWhatsappUnread] = useState(0);
   const [kanbanUnread, setKanbanUnread] = useState(0);
@@ -92,6 +92,7 @@ const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [menuLayout, setMenuLayout] = useState<'vertical' | 'horizontal'>(() => { try { return localStorage.getItem('future-vision-menu-layout:' + (user?.id || 'guest')) === 'horizontal' ? 'horizontal' : 'vertical'; } catch { return 'vertical'; } });
   useEffect(() => {
+    try { setMenuLayout(localStorage.getItem('future-vision-menu-layout:' + (user?.id || 'guest')) === 'horizontal' ? 'horizontal' : 'vertical'); } catch { setMenuLayout('vertical'); }
     const syncLayout = (event: Event) => {
       const detail = (event as CustomEvent<{ userId?: string; layout?: 'vertical' | 'horizontal' }>).detail;
       if (detail?.userId === (user?.id || 'guest') && (detail.layout === 'vertical' || detail.layout === 'horizontal')) setMenuLayout(detail.layout);
@@ -99,7 +100,6 @@ const AppSidebar = () => {
     window.addEventListener('future-vision-menu-layout-change', syncLayout);
     return () => window.removeEventListener('future-vision-menu-layout-change', syncLayout);
   }, [user?.id]);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(location.pathname.startsWith('/perfil'));
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
   const [campaignsOpen, setCampaignsOpen] = useState(location.pathname.startsWith('/campanhas'));
