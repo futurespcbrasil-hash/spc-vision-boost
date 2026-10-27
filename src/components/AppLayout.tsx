@@ -1,9 +1,9 @@
-import { ReactNode, useEffect, useRef } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
-import { ShieldAlert } from 'lucide-react';
+import { BookOpen, LogOut, ShieldAlert, UserRound } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import CRMNotificationBell from '@/components/CRMNotificationBell';
@@ -39,7 +39,8 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
   const location = useLocation();
   const currentPathname = useRef(location.pathname);
   currentPathname.current = location.pathname;
-  const { user, canAccessModule, canManageUsers } = useAuth();
+  const { user, canAccessModule, canManageUsers, signOut } = useAuth();
+  const [profileActionsOpen, setProfileActionsOpen] = useState(false);
 
   // Unread internal-chat messages update the browser tab title and desktop notification.
   useEffect(() => {
@@ -107,7 +108,31 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
 
   return (
     <div className="flex min-h-screen bg-background">
-      <CRMNotificationBell />
+      <div className="fixed right-4 top-3 z-[60] flex items-center gap-2">
+        {user && (
+          <div className="relative">
+            <button type="button" onClick={() => setProfileActionsOpen(value => !value)} aria-label="Abrir opções do perfil" aria-expanded={profileActionsOpen} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition hover:bg-muted">
+              <UserRound size={18} />
+            </button>
+            {profileActionsOpen && (
+              <div className="absolute right-0 top-12 z-[70] w-48 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl">
+                <Link to="/perfil" onClick={() => setProfileActionsOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted">
+                  <UserRound size={15} /> Meu Perfil
+                </Link>
+                <button type="button" onClick={() => { setProfileActionsOpen(false); void signOut(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-muted">
+                  <LogOut size={15} /> Sair
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        <CRMNotificationBell />
+        {user && canAccessModule('manual') && (
+          <Link to="/portal" aria-label="Manuais" title="Manuais" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition hover:bg-muted">
+            <BookOpen size={18} />
+          </Link>
+        )}
+      </div>
       <div className="hidden md:block"><AppSidebar /></div>
       <main className={`flex-1 overflow-hidden ${useNoPadding ? 'pb-16 md:pb-0' : 'pb-20 md:pb-0'}`}>
         <div className={useNoPadding ? 'h-full' : 'p-4 sm:p-5 lg:p-7 xl:p-8 max-w-[1600px] mx-auto'}>
