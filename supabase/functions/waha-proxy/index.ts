@@ -618,7 +618,11 @@ Deno.serve(async (req: Request) => {
           const hasLastMedia = !!(last?.hasMedia || last?.media || last?.mimetype);
           // /chats pode retornar todos os contatos. Sincronizar somente conversas com histórico real.
           if (!lastMessageAt && !lastText.trim() && !hasLastMedia) continue;
-          const isGroup = waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true;
+          // Em algumas respostas da WAHA, uma conversa de grupo chega com o JID
+          // do participante (@lid); o ID remoto da última mensagem ainda revela o @g.us.
+          const lastRemoteId = last?.id?._serialized || last?.id || last?.key?.id || last?.messageId || "";
+          const lastMessageBelongsToGroup = typeof lastRemoteId === "string" && /\d+@g\.us(?:_|$)/i.test(lastRemoteId);
+          const isGroup = waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true || lastMessageBelongsToGroup;
           const contactName = String(chat?.name || chat?.pushName || chat?.contact?.name || number || waChatId);
           const record = {
             instance_id: inst.id,

@@ -886,15 +886,30 @@ const WhatsAppChat = () => {
     };
   }, [selected?.id]);
 
+  // Remove duplicatas antigas de cache/estado sem apagar mensagens do banco.
+  // IDs remotos são a chave preferencial; o ID local protege mensagens sem ID WAHA.
+  const deduplicateMessages = (items: Message[]) => {
+    const localIds = new Set<string>();
+    const remoteIds = new Set<string>();
+    return items.filter(message => {
+      if (localIds.has(message.id)) return false;
+      if (message.wa_message_id && remoteIds.has(message.wa_message_id)) return false;
+      localIds.add(message.id);
+      if (message.wa_message_id) remoteIds.add(message.wa_message_id);
+      return true;
+    });
+  };
+
   // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
   const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
+    const uniqueList = deduplicateMessages(list);
     const temps = prev.filter(m => m.id.startsWith('temp-'));
-    if (temps.length === 0) return list;
-    const keep = temps.filter(t => !list.some(s =>
+    if (temps.length === 0) return uniqueList;
+    const keep = temps.filter(t => !uniqueList.some(s =>
       s.from_me && (s.text || '').trim() === (t.text || '').trim() &&
       Math.abs(new Date(s.timestamp).getTime() - new Date(t.timestamp).getTime()) < 120000
     ));
-    return [...list, ...keep];
+    return deduplicateMessages([...uniqueList, ...keep]);
   };
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
@@ -999,12 +1014,13 @@ const WhatsAppChat = () => {
         const saved = localStorage.getItem(`whatsapp_messages_cache_${user.id}_${instanceId}_${chatId}`);
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) cached = parsed as Message[];
+          if (Array.isArray(parsed)) cached = deduplicateMessages(parsed as Message[]);
         }
       } catch { /* cache inválido: será reconstruído pelo banco */ }
     }
     messagesChatIdRef.current = chatId;
     if (cached?.length) {
+      cached = deduplicateMessages(cached);
       messagesCacheRef.current.set(cacheKey, cached);
       messagesRef.current = cached;
       setMessages(cached);
@@ -1057,7 +1073,7 @@ const WhatsAppChat = () => {
             // descarta o balão otimista equivalente
             const cleaned = prev.filter(x => !(x.id.startsWith('temp-') && m.from_me &&
               (x.text || '').trim() === (m.text || '').trim()));
-            return [...cleaned, m];
+            return deduplicateMessages([...cleaned, m]);
           });
           // Segue novas mensagens somente se o usuário já estava no fim; se estiver
           // lendo o histórico, preserva a posição para permitir scroll manual.
@@ -1580,15 +1596,17 @@ const WhatsAppChat = () => {
     if (transferAssignee === selected.assigned_to) { toast({ title: 'Esta conversa já está atribuída a esse usuário.' }); return; }
     setTransferringChat(true);
     try {
-      const previousAssignee = selected.assigned_to;
-      const { error: chatError } = await (supabase as any).from('whatsapp_chats').update({ assigned_to: transferAssignee }).eq('id', selected.id);
-      if (chatError) throw chatError;
-      if (selected.lead_id) {
-        const { error: leadError } = await supabase.rpc('assign_lead_to_user', { p_lead_id: selected.lead_id, p_assignee: transferAssignee });
-        if (leadError) throw leadError;
+      // Uma única RPC faz a transferência, sincroniza o lead e registra o histórico
+      // na mesma transação. Evita deixar a conversa transferida sem histórico.
+      const { data, error } = await (supabase as any).rpc('transfer_whatsapp_chat', {
+        p_chat_id: selected.id,
+        p_assignee: transferAssignee,
+      });
+      if (error) throw error;
+      if (data?.changed === false) {
+        toast({ title: 'Esta conversa já está atribuída a esse usuário.' });
+        return;
       }
-      const { error: historyError } = await (supabase as any).from('whatsapp_chat_assignment_history').insert({ chat_id: selected.id, previous_assignee: previousAssignee, new_assignee: transferAssignee, changed_by: user.id });
-      if (historyError) throw historyError;
       const recipient = leadAssignees.find(member => member.user_id === transferAssignee);
       setSelected(prev => prev?.id === selected.id ? { ...prev, assigned_to: transferAssignee } : prev);
       setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: transferAssignee } : chat));
