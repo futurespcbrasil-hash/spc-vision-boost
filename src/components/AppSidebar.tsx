@@ -90,12 +90,12 @@ const AppSidebar = () => {
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
   const [collapsed, setCollapsed] = useState(false);
-  const [submenuAnchor, setSubmenuAnchor] = useState({ left: 0 });
+  const [submenuAnchor, setSubmenuAnchor] = useState({ left: 0, bottom: 0 });
   const anchorSubmenu = (event: React.MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const dock = event.currentTarget.closest('aside');
     const dockRect = dock?.getBoundingClientRect();
-    setSubmenuAnchor({ left: dockRect ? rect.left - dockRect.left + rect.width / 2 : rect.left + rect.width / 2 });
+    setSubmenuAnchor({ left: rect.left + rect.width / 2, bottom: window.innerHeight - rect.top + 8 });
   };
   const closeOtherSubmenus = (except: string) => {
     if (except !== 'consultas') setConsultasOpen(false);
@@ -258,13 +258,13 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && consultasOpen && (
-          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[100] mb-2 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left } : undefined}>
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[100] mb-2 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-muted/90 text-foreground backdrop-blur-md p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
             {CONSULTAS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                    : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}>
                 <sub.icon size={14} />
                 <span>{sub.label}</span>
               </Link>
@@ -296,7 +296,7 @@ const AppSidebar = () => {
               )}
             </button>
             {(!collapsed || menuLayout === 'horizontal') && campaignsOpen && (
-              <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+              <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-muted/90 text-foreground backdrop-blur-md p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
                 {CAMPAIGNS_SUB.map((sub) => (
                   <Link
                     key={sub.to}
@@ -304,7 +304,7 @@ const AppSidebar = () => {
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                       ${location.pathname === sub.to
                         ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                        : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}
+                        : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}
                   >
                     <sub.icon size={14} />
                     <span>{sub.label}</span>
@@ -341,7 +341,7 @@ const AppSidebar = () => {
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                    : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}>
                 <sub.icon size={14} />
                 <span>{sub.label}</span>
               </Link>
@@ -378,7 +378,7 @@ const AppSidebar = () => {
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                    : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}>
                 <sub.icon size={14} />
                 <span>{sub.label}</span>
               </Link>
@@ -414,7 +414,7 @@ const AppSidebar = () => {
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                 ${location.pathname === '/financeiro/boletos'
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                  : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}>
               <FileText size={14} />
               <span>Envio de boletos</span>
             </Link>
@@ -422,7 +422,7 @@ const AppSidebar = () => {
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                 ${location.pathname === '/financeiro/clientes'
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                  : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}>
               <Users size={14} />
               <span>Clientes</span>
             </Link>
@@ -460,7 +460,7 @@ const AppSidebar = () => {
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                       ${location.pathname === sub.to
                         ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                        : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}
+                        : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}
                   >
                     <sub.icon size={14} />
                     <span>{sub.label}</span>
@@ -496,7 +496,7 @@ const AppSidebar = () => {
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                     ${location.pathname === '/indicacoes/clientes'
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}>
+                      : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}>
                   <Building2 size={14} />
                   <span>Clientes Indicados</span>
                 </Link>
@@ -533,7 +533,7 @@ const AppSidebar = () => {
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                   ${location.pathname === sub.to
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40'}`}
+                    : 'text-foreground/80 hover:text-foreground hover:bg-background/50'}`}
               >
                 <sub.icon size={14} />
                 <span>{sub.label}</span>
