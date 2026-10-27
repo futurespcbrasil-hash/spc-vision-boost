@@ -1343,6 +1343,10 @@ const WhatsAppChat = () => {
       } else if (newChatMessage.trim()) {
         await waha.sendText(instanceId, number, newChatMessage.trim());
       }
+      // O atalho do lead abre esta tela com a busca preenchida pelo telefone.
+      // Depois do envio, limpamos a busca para restaurar a caixa de entrada completa,
+      // em vez de deixar somente o contato recém-aberto visível até atualizar a página.
+      setSearch('');
       await loadChats();
       const { data } = await supabase.from('whatsapp_chats').select('*')
         .eq('instance_id', instanceId).ilike('contact_number', `%${digits}%`).limit(1);
