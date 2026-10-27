@@ -495,7 +495,7 @@ export default function WhatsAppConversas() {
     stickToBottomRef.current = true;
     setSending(true);
     try {
-      const sent: any = await waha.sendText(instanceId, selectedChat.contact_number || selectedChat.wa_chat_id, text);
+      const sent: any = await waha.sendText(instanceId, selectedChat.wa_chat_id || selectedChat.contact_number, text);
       refreshLeads();
       if (sent?.lead_interaction_updated === false) toast.warning('Mensagem enviada, mas não localizei um lead com esse telefone. Confira o WhatsApp/telefone cadastrado no Kanban.');
       setMessage('');
