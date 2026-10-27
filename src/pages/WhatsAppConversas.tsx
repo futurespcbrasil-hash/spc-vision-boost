@@ -111,6 +111,7 @@ export default function WhatsAppConversas() {
   const activeChatIdRef = useRef('');
   const selectedChatRef = useRef<Chat | null>(null);
   const messageLoadSequenceRef = useRef(0);
+  const chatLoadSequenceRef = useRef(0);
   const messagesLoadedForChatRef = useRef('');
   const sendLockRef = useRef(false);
   const refreshInFlightRef = useRef(false);
@@ -243,24 +244,34 @@ export default function WhatsAppConversas() {
     });
   }, [user]);
 
-  const loadChats = useCallback(async (refreshRemote = false) => {
-    if (!instanceId) { setChats([]); setSelectedChatId(''); setMessages([]); return; }
-    setLoading(true);
+  const loadChats = useCallback(async (refreshRemote = false, silent = false) => {
+    const loadSequence = ++chatLoadSequenceRef.current;
+    const targetInstanceId = instanceId;
+    if (!targetInstanceId) {
+      setChats([]); setSelectedChatId(''); setMessages([]); setLoading(false);
+      return;
+    }
+    if (!silent) setLoading(true);
     try {
       if (refreshRemote) {
-        const response: any = await waha.getChats(instanceId);
+        const response: any = await waha.getChats(targetInstanceId);
         if (response?.error) throw new Error(String(response.error));
       }
+      // Respostas lentas de uma instância/consulta anterior não podem sobrescrever a lista atual.
+      if (loadSequence !== chatLoadSequenceRef.current || targetInstanceId !== instanceId) return;
       const { data, error } = await (supabase as any).from('whatsapp_chats').select('*')
-        .eq('instance_id', instanceId).order('last_message_at', { ascending: false, nullsFirst: false });
+        .eq('instance_id', targetInstanceId).order('last_message_at', { ascending: false, nullsFirst: false });
       if (error) throw error;
+      if (loadSequence !== chatLoadSequenceRef.current || targetInstanceId !== instanceId) return;
       const rows = (data || []) as Chat[];
       setChats(rows);
       setSelectedChatId((current) => rows.some((item) => item.id === current) ? current : rows[0]?.id || '');
     } catch (e) {
-      toast.error('Não foi possível carregar as conversas: ' + errorText(e));
+      if (loadSequence === chatLoadSequenceRef.current && targetInstanceId === instanceId) {
+        toast.error('Não foi possível carregar as conversas: ' + errorText(e));
+      }
     } finally {
-      setLoading(false);
+      if (loadSequence === chatLoadSequenceRef.current) setLoading(false);
     }
   }, [instanceId]);
 
@@ -315,32 +326,49 @@ export default function WhatsAppConversas() {
   // Atualização em tempo real; as políticas RLS limitam os eventos às conversas do proprietário.
   useEffect(() => {
     if (!instanceId || !user) return;
+    let chatTimer: number | null = null;
+    let messageTimer: number | null = null;
+    const scheduleChats = () => {
+      if (chatTimer !== null) window.clearTimeout(chatTimer);
+      chatTimer = window.setTimeout(() => { void loadChats(false, true); }, 250);
+    };
+    const scheduleMessages = () => {
+      if (messageTimer !== null) window.clearTimeout(messageTimer);
+      messageTimer = window.setTimeout(() => {
+        const current = selectedChatRef.current;
+        if (current) void loadMessages(current, false);
+      }, 120);
+    };
     const channel = supabase.channel(`whatsapp-conversas-${user.id}-${instanceId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
-        () => { void loadChats(false); })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `instance_id=eq.${instanceId}` },
-        () => { const current = selectedChatRef.current; if (current) void loadMessages(current, false); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` }, scheduleChats)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `instance_id=eq.${instanceId}` }, scheduleMessages)
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => {
+      if (chatTimer !== null) window.clearTimeout(chatTimer);
+      if (messageTimer !== null) window.clearTimeout(messageTimer);
+      void supabase.removeChannel(channel);
+    };
   }, [instanceId, user?.id, loadChats, loadMessages]);
 
   // Fallback para buscar atualizações da WAHA caso um webhook/evento Realtime se perca.
   // Evita concorrência entre ciclos e não faz polling remoto em abas ocultas.
   useEffect(() => {
     if (!instanceId) return;
-    const interval = window.setInterval(() => {
+    const refreshVisible = () => {
       if (document.visibilityState !== 'visible' || refreshInFlightRef.current) return;
-
       refreshInFlightRef.current = true;
       const current = selectedChatRef.current;
       void Promise.all([
-        loadChats(true),
+        loadChats(true, true),
         current ? loadMessages(current, true) : Promise.resolve(),
-      ]).finally(() => {
-        refreshInFlightRef.current = false;
-      });
-    }, 30000);
-    return () => window.clearInterval(interval);
+      ]).finally(() => { refreshInFlightRef.current = false; });
+    };
+    const interval = window.setInterval(refreshVisible, 30000);
+    document.addEventListener('visibilitychange', refreshVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshVisible);
+    };
   }, [instanceId, loadChats, loadMessages]);
 
   useEffect(() => {
@@ -467,7 +495,7 @@ export default function WhatsAppConversas() {
     stickToBottomRef.current = true;
     setSending(true);
     try {
-      const sent: any = await waha.sendText(instanceId, selectedChat.contact_number || selectedChat.wa_chat_id, text);
+      const sent: any = await waha.sendText(instanceId, selectedChat.wa_chat_id || selectedChat.contact_number, text);
       refreshLeads();
       if (sent?.lead_interaction_updated === false) toast.warning('Mensagem enviada, mas não localizei um lead com esse telefone. Confira o WhatsApp/telefone cadastrado no Kanban.');
       setMessage('');

@@ -56,26 +56,41 @@ Deno.serve(async (req: Request) => {
   const sessionFromBody = typeof body.session === "string" ? body.session : "";
 
   const callWaha = async (path: string, method = "GET", payload?: unknown) => {
-    const response = await fetch(`${wahaUrl}${path}`, {
-      method,
-      headers: { "Content-Type": "application/json", "X-Api-Key": wahaKey },
-      ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
-    });
-    const raw = await response.text();
-    let data: any;
-    try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
-    if (!response.ok) {
-      // Preserva status e detalhe do provedor para diagnosticar 4xx/5xx.
-      // Nunca devolve links assinados ou credenciais que possam aparecer no corpo.
-      let detail = String(data?.message || data?.error || data?.detail || raw || "").trim();
-      if (typeof payload === "object" && payload !== null) {
-        const file = (payload as Record<string, any>).file;
-        if (typeof file?.url === "string" && file.url) detail = detail.split(file.url).join("[URL DO ARQUIVO REDIGIDA]");
+    // Sem timeout, uma requisição travada ao provedor pode manter a ação pendente
+    // indefinidamente e bloquear a interface. Não repetimos automaticamente envios:
+    // em timeout de POST, o resultado remoto pode ser incerto e retry poderia duplicar.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25_000);
+    try {
+      const response = await fetch(`${wahaUrl}${path}`, {
+        method,
+        headers: { "Content-Type": "application/json", "X-Api-Key": wahaKey },
+        ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
+        signal: controller.signal,
+      });
+      const raw = await response.text();
+      let data: any;
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
+      if (!response.ok) {
+        // Preserva status e detalhe do provedor para diagnosticar 4xx/5xx.
+        // Nunca devolve links assinados ou credenciais que possam aparecer no corpo.
+        let detail = String(data?.message || data?.error || data?.detail || raw || "").trim();
+        if (typeof payload === "object" && payload !== null) {
+          const file = (payload as Record<string, any>).file;
+          if (typeof file?.url === "string" && file.url) detail = detail.split(file.url).join("[URL DO ARQUIVO REDIGIDA]");
+        }
+        detail = detail.slice(0, 900);
+        throw new Error(`WAHA HTTP ${response.status}${detail ? ": " + detail : ""}`);
       }
-      detail = detail.slice(0, 900);
-      throw new Error(`WAHA HTTP ${response.status}${detail ? ": " + detail : ""}`);
+      return data;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Tempo limite de 25 segundos ao comunicar com a WAHA. Verifique o estado da conversa antes de repetir um envio, pois o WhatsApp pode já ter recebido a mensagem.");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return data;
   };
 
   const getOwnedInstance = async (access?: {
@@ -212,8 +227,17 @@ Deno.serve(async (req: Request) => {
   };
 
   const updateLeadInteractionForNumber = async (inst: any, numberValue: string, chatId: string, messageText: string) => {
-    const { data: chatRecord } = await db.from("whatsapp_chats").select("contact_number,contact_name")
-      .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
+    // Busca o chat e os telefones dos leads em paralelo; nunca percorre páginas
+    // sequencialmente enquanto mantém o envio do WhatsApp aguardando.
+    const [chatLookup, firstLeadPage] = await Promise.all([
+      db.from("whatsapp_chats").select("contact_number,contact_name")
+        .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle(),
+      db.from("leads").select("id,phone,whatsapp").range(0, 999),
+    ]);
+    if (firstLeadPage.error) {
+      console.error("[WAHA] Não foi possível localizar lead para registrar interação:", firstLeadPage.error.message);
+      return false;
+    }
 
     const normalizeLeadNumber = (value: unknown) => {
       let digits = String(value || "").split("@")[0].replace(/\D/g, "");
@@ -223,58 +247,58 @@ Deno.serve(async (req: Request) => {
       if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
       return digits;
     };
-    // WAHA pode entregar números em formatos diferentes (JID @c.us, @lid e
-    // contact_number com DDI/DDD divergentes). Testa todas as fontes disponíveis.
-    const targets = [...new Set([chatRecord?.contact_number, numberValue, chatId]
-      .map(normalizeLeadNumber).filter((value) => value.length >= 10))];
+    const targets = [...new Set([
+      chatLookup.data?.contact_number,
+      numberValue.endsWith("@lid") ? "" : numberValue,
+      chatId.endsWith("@lid") ? "" : chatId,
+    ].map(normalizeLeadNumber).filter((value) => value.length >= 10))];
     if (!targets.length) return false;
+
+    let leadRows = firstLeadPage.data || [];
+    // A maioria dos CRMs tem menos de 1.000 leads. Se atingir o limite do REST,
+    // consulta as páginas restantes em paralelo (até o limite de 10.000 já usado antes).
+    if (leadRows.length === 1000) {
+      const remainingPages = await Promise.all(Array.from({ length: 9 }, (_, page) =>
+        db.from("leads").select("id,phone,whatsapp").range((page + 1) * 1000, (page + 2) * 1000 - 1)
+      ));
+      const failedPage = remainingPages.find(page => page.error);
+      if (failedPage?.error) {
+        console.error("[WAHA] Falha ao consultar páginas adicionais de leads:", failedPage.error.message);
+        return false;
+      }
+      leadRows = [...leadRows, ...remainingPages.flatMap(page => page.data || [])];
+    }
 
     const exactMatch = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
       const candidate = normalizeLeadNumber(value);
-      return candidate && targets.some(target => candidate === target || (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
+      return candidate && targets.some(target => candidate === target ||
+        (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
     });
     const suffixMatch = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
       const candidate = normalizeLeadNumber(value);
       return candidate && targets.some(target => candidate.length >= 8 && target.length >= 8 && candidate.slice(-8) === target.slice(-8));
     });
 
-    let leadsFound: any[] = [];
-    // Pagina todos os leads para localizar também registros antigos.
-    for (let offset = 0; offset < 10000; offset += 1000) {
-      const { data: leadRows, error: leadLookupError } = await db.from("leads")
-        .select("id,phone,whatsapp,interactions")
-        .range(offset, offset + 999);
-      if (leadLookupError) {
-        console.error("[WAHA] Não foi possível localizar lead para registrar interação:", leadLookupError.message);
-        return false;
-      }
-      const rows = leadRows || [];
-      leadsFound.push(...rows.filter(exactMatch));
-      if (rows.length < 1000) break;
-    }
-
-    let lead = leadsFound.length === 1 ? leadsFound[0] : null;
-    if (!lead && leadsFound.length === 0) {
-      let suffixMatches: any[] = [];
-      for (let offset = 0; offset < 10000; offset += 1000) {
-        const { data: leadRows, error: leadLookupError } = await db.from("leads")
-          .select("id,phone,whatsapp,interactions")
-          .range(offset, offset + 999);
-        if (leadLookupError) return false;
-        const rows = leadRows || [];
-        suffixMatches.push(...rows.filter(suffixMatch));
-        if (rows.length < 1000) break;
-      }
+    const exactMatches = leadRows.filter(exactMatch);
+    let lead = exactMatches.length === 1 ? exactMatches[0] : null;
+    if (exactMatches.length === 0) {
+      const suffixMatches = leadRows.filter(suffixMatch);
       // Só usa o sufixo curto se identificar um único lead, evitando atualizar homônimos telefônicos.
       if (suffixMatches.length === 1) lead = suffixMatches[0];
     }
     if (!lead) {
-      console.warn("[WAHA] Não foi possível identificar um único lead para o telefone:", targets[0].slice(-4), "matches:", leadsFound.length);
+      console.warn("[WAHA] Não foi possível identificar um único lead para o telefone:", targets[0].slice(-4), "matches:", exactMatches.length);
       return false;
     }
 
+    const { data: leadDetails, error: detailsError } = await db.from("leads")
+      .select("interactions").eq("id", lead.id).maybeSingle();
+    if (detailsError) {
+      console.error("[WAHA] Falha ao carregar interações do lead:", detailsError.message);
+      return false;
+    }
     const now = new Date().toISOString();
-    const existingInteractions = Array.isArray(lead.interactions) ? lead.interactions : [];
+    const existingInteractions = Array.isArray(leadDetails?.interactions) ? leadDetails.interactions : [];
     const interaction = {
       id: `whatsapp-${crypto.randomUUID()}`,
       date: now,
@@ -291,13 +315,6 @@ Deno.serve(async (req: Request) => {
     }
     console.info("[WAHA] Interação registrada no lead:", lead.id);
     return true;
-  };
-
-  const normalizeStatus = (status: string) => {
-    if (["WORKING", "SCAN_QR_CODE", "STARTING", "STOPPED", "FAILED"].includes(status)) {
-      return ({ WORKING: "connected", SCAN_QR_CODE: "qr", STARTING: "connecting", STOPPED: "disconnected", FAILED: "disconnected" } as Record<string, string>)[status];
-    }
-    return status?.toLowerCase() || "unknown";
   };
 
   try {
@@ -589,7 +606,10 @@ Deno.serve(async (req: Request) => {
         let rawChats: any;
         try {
           rawChats = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats/overview`);
-        } catch {
+        } catch (error) {
+          // O fallback é útil para versões antigas, mas não deve reiniciar uma espera
+          // já vencida e dobrar a latência máxima quando a WAHA está travada.
+          if (error instanceof Error && error.message.startsWith("Tempo limite")) throw error;
           rawChats = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats`);
         }
         let chats = Array.isArray(rawChats) ? rawChats
@@ -605,31 +625,106 @@ Deno.serve(async (req: Request) => {
             return typeof rawId === "string" && allowedIds.has(rawId);
           });
         }
+        // Uma única leitura da tabela substitui as consultas exatas e por telefone
+        // executadas dentro do loop (2N+ leituras para N conversas).
+        const { data: existingRows, error: existingRowsError } = await db.from("whatsapp_chats")
+          .select("id,instance_id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message,is_group,assigned_to")
+          .eq("instance_id", inst.id).limit(2000);
+        if (existingRowsError) throw existingRowsError;
+
+        const parseRemoteTime = (value: unknown): number => {
+          if (typeof value === "number" && Number.isFinite(value) && value > 0) return value < 10_000_000_000 ? value * 1000 : value;
+          if (typeof value === "string" && value.trim()) {
+            const trimmed = value.trim();
+            const numeric = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
+            if (Number.isFinite(numeric) && numeric > 0) return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+            const parsed = Date.parse(trimmed);
+            return Number.isFinite(parsed) ? parsed : 0;
+          }
+          return 0;
+        };
+        const phoneKey = (value: unknown) => {
+          let digits = collapseRepeatedPhoneDigits(String(value || "").split("@")[0].replace(/\D/g, ""));
+          if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+          if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
+          return digits;
+        };
+        const existingByJid = new Map<string, any>();
+        const existingByPhone = new Map<string, any>();
+        for (const row of existingRows || []) {
+          existingByJid.set(String(row.wa_chat_id || ""), row);
+          if (row.is_group) continue;
+          const key = phoneKey(row.contact_number);
+          if (key.length < 10) continue;
+          const previous = existingByPhone.get(key);
+          const rowIsLid = String(row.wa_chat_id || "").endsWith("@lid");
+          const previousIsLid = String(previous?.wa_chat_id || "").endsWith("@lid");
+          const rowTime = new Date(row.last_message_at || 0).getTime();
+          const previousTime = new Date(previous?.last_message_at || 0).getTime();
+          if (!previous || (rowIsLid && !previousIsLid) ||
+              (rowIsLid === previousIsLid && rowTime > previousTime)) existingByPhone.set(key, row);
+        }
+
+        // Deduplica a resposta remota antes de persistir. A WAHA pode devolver @c.us e
+        // @lid para o mesmo telefone; preferimos @lid para manter o identificador do histórico.
+        const remoteChatsByKey = new Map<string, any>();
+        for (const candidate of chats) {
+          const candidateIdValue = candidate?.id?._serialized || candidate?.id || candidate?.chatId || candidate?.wa_chat_id;
+          const candidateId = typeof candidateIdValue === "string" ? candidateIdValue : "";
+          if (!candidateId || candidateId === "status@broadcast" || candidateId.endsWith("@newsletter") || candidateId.endsWith("@broadcast")) continue;
+          const candidateExisting = existingByJid.get(candidateId);
+          const candidateNumberValue = candidateId.endsWith("@lid")
+            ? (candidate?.number || candidate?.phone || candidate?.contact?.number || candidate?.contact?.phone || candidateExisting?.contact_number || "")
+            : candidateId.split("@")[0];
+          const candidatePhone = phoneKey(candidateNumberValue);
+          const candidateGroup = candidateId.endsWith("@g.us") || candidate?.isGroup === true || candidate?.is_group === true;
+          const candidateLast = candidate?.lastMessage || candidate?.last_message || {};
+          const candidateRawTime = candidateLast?.timestamp || candidate?.timestamp || candidate?.lastMessageAt || null;
+          const candidateText = typeof candidateLast === "string" ? candidateLast : String(candidateLast?.body || candidateLast?.text || candidateLast?.caption || "");
+          const candidateHasMedia = !!(candidateLast?.hasMedia || candidateLast?.media || candidateLast?.mimetype);
+          const candidateTime = parseRemoteTime(candidateRawTime);
+          const candidateHasHistory = !!(candidateTime || candidateText.trim() || candidateHasMedia);
+          if (!candidateHasHistory) continue;
+          const key = candidateGroup ? `group:${candidateId}`
+            : candidatePhone.length >= 10 ? `phone:${candidatePhone}` : `chat:${candidateId}`;
+          const previous = remoteChatsByKey.get(key);
+          if (!previous) { remoteChatsByKey.set(key, candidate); continue; }
+          const previousIdValue = previous?.id?._serialized || previous?.id || previous?.chatId || previous?.wa_chat_id;
+          const previousId = typeof previousIdValue === "string" ? previousIdValue : "";
+          const candidateIsLid = candidateId.endsWith("@lid");
+          const previousIsLid = previousId.endsWith("@lid");
+          const previousLast = previous?.lastMessage || previous?.last_message || {};
+          const previousTimeValue = previousLast?.timestamp || previous?.timestamp || previous?.lastMessageAt || 0;
+          const candidateTime = parseRemoteTime(candidateRawTime);
+          const previousTime = parseRemoteTime(previousTimeValue);
+          if ((candidateIsLid && !previousIsLid) ||
+              (candidateIsLid === previousIsLid && candidateTime > previousTime)) remoteChatsByKey.set(key, candidate);
+        }
+
+        const chatsToSync = [...remoteChatsByKey.values()];
+        const bulkRecords: Record<string, unknown>[] = [];
         let synced = 0;
-        for (const chat of chats) {
+        for (const chat of chatsToSync) {
           const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
           const waChatId = typeof rawId === "string" ? rawId : "";
           if (!waChatId) continue;
           // Não tratar status, listas de transmissão ou canais como conversas individuais.
           if (waChatId === "status@broadcast" || waChatId.endsWith("@newsletter") || waChatId.endsWith("@broadcast")) continue;
-          const number = waChatId.split("@")[0].replace(/\D/g, "");
+          const exactExisting = existingByJid.get(waChatId);
+          // Dígitos de @lid são identificadores privados, não números de telefone.
+          const rawNumber = waChatId.endsWith("@lid")
+            ? (chat?.number || chat?.phone || chat?.contact?.number || chat?.contact?.phone || exactExisting?.contact_number || "")
+            : waChatId.split("@")[0];
+          const number = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\D/g, ""));
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
-          let lastMessageAt: string | null = null;
-          if (typeof rawTime === "number" && rawTime > 0) {
-            lastMessageAt = new Date(rawTime < 10_000_000_000 ? rawTime * 1000 : rawTime).toISOString();
-          } else if (typeof rawTime === "string" && rawTime) {
-            const parsedTime = new Date(rawTime);
-            if (!Number.isNaN(parsedTime.getTime())) lastMessageAt = parsedTime.toISOString();
-          }
+          const parsedRemoteTime = parseRemoteTime(rawTime);
+          const lastMessageAt: string | null = parsedRemoteTime > 0 ? new Date(parsedRemoteTime).toISOString() : null;
           const lastText = typeof last === "string" ? last : String(last?.body || last?.text || last?.caption || "");
           const lastMessageFromMe = last?.fromMe === true || last?.from_me === true || last?.key?.fromMe === true;
           const hasLastMedia = !!(last?.hasMedia || last?.media || last?.mimetype);
           // /chats pode retornar todos os contatos. Sincronizar somente conversas com histórico real.
           if (!lastMessageAt && !lastText.trim() && !hasLastMedia) continue;
-          // Em algumas respostas da WAHA, uma conversa de grupo chega com o JID
-          // do participante (@lid); o ID remoto da última mensagem ainda revela o @g.us.
-          // A última mensagem pode ter sido associada incorretamente a outro chat; classifique pelo JID/metadados do chat.
           const isGroup = waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true;
           const contactName = String(chat?.name || chat?.pushName || chat?.contact?.name || number || waChatId);
           const record = {
@@ -645,40 +740,20 @@ Deno.serve(async (req: Request) => {
             archived: false,
             updated_at: new Date().toISOString(),
           };
-          // WAHA pode apresentar o mesmo contato com JIDs @c.us e @lid.
-          // Reaproveitar o registro por telefone para não criar uma segunda conversa.
-          let existing: any = null;
-          const exact = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message")
-            .eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
-          if (exact.error) throw exact.error;
-          existing = exact.data;
-          if (!existing && !isGroup && number.length >= 10) {
-            const phoneKey = (value: unknown) => {
-              let digits = String(value || "").split("@")[0].replace(/\D/g, "");
-              if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
-                if (digits.length === 13 && digits[4] === "9") digits = digits.slice(0, 4) + digits.slice(5);
-              } else if (digits.length === 11 && digits[2] === "9") {
-                digits = digits.slice(0, 2) + digits.slice(3);
-              }
-              return digits;
-            };
-            const byPhone = await db.from("whatsapp_chats").select("id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message")
-              .eq("instance_id", inst.id).eq("is_group", false).limit(500);
-            if (byPhone.error) throw byPhone.error;
-            const targetKey = phoneKey(number);
-            existing = (byPhone.data || []).find((item: any) => phoneKey(item.contact_number) === targetKey) || null;
+          // Reaproveita mapas em memória para não consultar o banco novamente por conversa.
+          let existing: any = exactExisting || null;
+          const normalizedPhone = phoneKey(number);
+          if (!existing && !isGroup && normalizedPhone.length >= 10) {
+            existing = existingByPhone.get(normalizedPhone) || null;
           }
           if (existing) {
             const previousMessageAt = existing.last_message_at ? new Date(existing.last_message_at).getTime() : 0;
             const currentMessageAt = record.last_message_at ? new Date(record.last_message_at).getTime() : 0;
             const hasNewInboundMessage = !lastMessageFromMe && (currentMessageAt > previousMessageAt || (currentMessageAt === previousMessageAt && String(record.last_message || "") !== String(existing.last_message || "")));
-            const { error } = await db.from("whatsapp_chats").update({
+            const updatedRecord = {
               ...record,
-              // Quando o identificador LID aparece, torná-lo canônico para que
-              // o histórico remoto continue abrindo no JID correto.
               wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
               contact_number: existing.contact_number || number,
-              // O nome salvo no CRM/agenda prevalece sobre o nome do perfil da própria conta WAHA.
               contact_name: (() => {
                 const savedName = String(existing.contact_name || "").trim();
                 const savedNumber = String(existing.contact_number || "").replace(/\D/g, "");
@@ -689,19 +764,34 @@ Deno.serve(async (req: Request) => {
                   !/^contato do whatsapp$/i.test(savedName);
                 return savedNameIsUseful ? savedName : (contactName || savedName);
               })(),
-              // Não ressuscitar avisos já dispensados só porque a WAHA repetiu unreadCount antigo.
-              // Um novo inbound atualiza o contador; uma atividade de saída não o aumenta.
               unread_count: hasNewInboundMessage ? record.unread_count : Number(existing.unread_count || 0),
-            }).eq("id", existing.id);
-            if (!error) synced++;
-            else throw error;
+            };
+            if (existing.wa_chat_id && existing.wa_chat_id !== updatedRecord.wa_chat_id) {
+              // Migração de alias (@c.us -> @lid): atualiza a linha existente para
+              // não criar uma segunda conversa para o mesmo contato.
+              const { error } = await db.from("whatsapp_chats").update(updatedRecord).eq("id", existing.id);
+              if (error) throw error;
+              synced++;
+              existingByJid.delete(existing.wa_chat_id);
+            } else {
+              // Atualizações por JID e novas conversas são gravadas em lote abaixo.
+              bulkRecords.push(updatedRecord);
+            }
+            const updatedRow = { ...existing, ...updatedRecord, id: existing.id };
+            existingByJid.set(String(updatedRow.wa_chat_id), updatedRow);
+            const updatedPhone = phoneKey(updatedRow.contact_number);
+            if (!isGroup && updatedPhone.length >= 10) existingByPhone.set(updatedPhone, updatedRow);
           } else {
-            const { error } = await db.from("whatsapp_chats").upsert(record, { onConflict: "instance_id,wa_chat_id" });
-            if (!error) synced++;
-            else throw error;
+            bulkRecords.push(record);
           }
         }
-        return json({ chats, synced });
+        if (bulkRecords.length) {
+          const { error } = await db.from("whatsapp_chats")
+            .upsert(bulkRecords, { onConflict: "instance_id,wa_chat_id" });
+          if (error) throw error;
+          synced += bulkRecords.length;
+        }
+        return json({ chats: chatsToSync, synced });
       }
       case "get_contacts": {
         const inst = await getOwnedInstance();
@@ -783,155 +873,186 @@ Deno.serve(async (req: Request) => {
         let synced = 0;
         const remoteMessageIds = new Set<string>();
         const remoteTimestamps: string[] = [];
-        // IDs excluídos pelo usuário/telefone são tombstones permanentes: a WAHA pode
-        // devolver uma cópia antiga e não devemos ressuscitá-la via upsert.
         const deletedRemoteIds = new Set<string>();
-        let remoteMessagesComplete = messages.length > 0;
-        if (chat?.id) {
-          for (const msg of messages) {
-            const rawId = msg?.id?._serialized || msg?.id || msg?.key?.id || msg?.messageId;
-            const waMessageId = typeof rawId === "string" ? rawId : "";
-            if (!waMessageId) { remoteMessagesComplete = false; continue; }
-            remoteMessageIds.add(waMessageId);
-
-            // Alguns históricos WAHA misturam mensagens de grupo no retorno de um
-            // chat @lid. Direciona cada mensagem pelo JID embutido no ID remoto.
-            const messageGroupJid = waMessageId.match(/\d+@g\.us/i)?.[0] || "";
-            let messageChatId = chat.id;
-            if (messageGroupJid && messageGroupJid !== waChatId) {
-              const { data: groupChat, error: groupLookupError } = await db.from("whatsapp_chats")
-                .select("id").eq("instance_id", inst.id).eq("wa_chat_id", messageGroupJid).maybeSingle();
-              if (groupLookupError) throw groupLookupError;
-              if (groupChat?.id) {
-                messageChatId = groupChat.id;
-              } else {
-                const { data: createdGroup, error: createGroupError } = await db.from("whatsapp_chats")
-                  .upsert({
-                    instance_id: inst.id,
-                    wa_chat_id: messageGroupJid,
-                    contact_number: messageGroupJid.split("@")[0],
-                    contact_name: messageGroupJid,
-                    is_group: true,
-                    updated_at: new Date().toISOString(),
-                  }, { onConflict: "instance_id,wa_chat_id" })
-                  .select("id").single();
-                if (createGroupError) throw createGroupError;
-                messageChatId = createdGroup.id;
-              }
-            }
-
-            const directJid = waMessageId.match(/\d+@c\.us/i)?.[0] || "";
-            if (isLidChat && directJid && !chat.contact_number) {
-              const directNumber = directJid.split("@")[0];
-              const { error: enrichChatError } = await db.from("whatsapp_chats")
-                .update({ contact_number: directNumber, contact_name: directNumber, updated_at: new Date().toISOString() })
-                .eq("id", chat.id).eq("instance_id", inst.id);
-              if (enrichChatError) throw enrichChatError;
-              chat.contact_number = directNumber;
-              chat.contact_name = directNumber;
-            }
-
-            const fromMe = msg?.fromMe === true || msg?.from_me === true || msg?.key?.fromMe === true;
-            // WAHA pode devolver timestamps como segundos, milissegundos ou strings numéricas.
-            // Também pode colocar o tempo em _data.t. Date(stringNumérica) não é confiável:
-            // mensagens antigas acabavam recebendo "agora" e apareciam no lugar errado.
-            const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ??
-              msg?._data?.messageTimestamp ?? msg?._data?.timestamp ?? msg?._data?.t ?? msg?.key?.timestamp ?? null;
-            const parseWahaTime = (value: unknown): string | null => {
-              if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-                const d = new Date(value < 10_000_000_000 ? value * 1000 : value);
-                return Number.isNaN(d.getTime()) ? null : d.toISOString();
-              }
-              if (typeof value === "string" && value.trim()) {
-                const numeric = Number(value.trim());
-                if (Number.isFinite(numeric) && numeric > 0) {
-                  const d = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
-                  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-                }
-                const d = new Date(value);
-                return Number.isNaN(d.getTime()) ? null : d.toISOString();
-              }
-              return null;
-            };
-            const parsedSentAt = parseWahaTime(rawTime);
-            const { data: existingMessage, error: existingMessageError } = await db.from("whatsapp_messages")
-              .select("id,text,timestamp").eq("instance_id", inst.id).eq("wa_message_id", waMessageId).maybeSingle();
-            if (existingMessageError) throw existingMessageError;
-            // Não sobrescreve uma data real já salva com epoch quando a WAHA omite timestamp.
-            const existingTime = existingMessage?.timestamp && Date.parse(existingMessage.timestamp) > 0
-              ? new Date(existingMessage.timestamp).toISOString()
-              : null;
-            const sentAt = parsedSentAt || existingTime || new Date().toISOString();
-            remoteTimestamps.push(sentAt);
-            if (existingMessage?.text === "[crm_deleted]") {
-              deletedRemoteIds.add(waMessageId);
-              continue;
-            }
-            const rawType = String(msg?.type || msg?.media?.mimetype || "").toLowerCase();
-            const isRevoked = rawType.includes("revok") || rawType.includes("protocol") || msg?.isRevoked === true || msg?._data?.isRevoked === true;
-            const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
-              : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
-            const messageText = isRevoked ? "[message_revoke]" : String(msg?.body || msg?.text || "");
-            const { error } = await db.from("whatsapp_messages").upsert({
-              chat_id: messageChatId,
-              instance_id: inst.id,
-              wa_message_id: waMessageId,
-              from_me: fromMe,
-              sender: fromMe ? "me" : number,
-              message_type: messageType,
-              text: messageText,
-              media_url: msg?.media?.url || msg?.mediaUrl || null,
-              media_mime: msg?.media?.mimetype || null,
-              media_filename: msg?.media?.filename || null,
-              status: msg?.ack ? String(msg.ack) : "received",
-              timestamp: sentAt,
-              raw: msg,
-              sent_by: fromMe ? inst.owner_id : null,
-            }, { onConflict: "instance_id,wa_message_id" });
-            if (!error) synced++;
+        const parseWahaTime = (value: unknown): string | null => {
+          if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+            const date = new Date(value < 10_000_000_000 ? value * 1000 : value);
+            return Number.isNaN(date.getTime()) ? null : date.toISOString();
           }
-          // Reconcile the recent remote window: the old implementation only upserted
-          // messages and therefore never removed records deleted on the phone. Only reconcile
-          // when WAHA returned identifiable messages with valid timestamps, and never touch
-          // messages older than the first item in the fetched remote window.
-          if (remoteMessagesComplete && remoteTimestamps.length > 0) {
-            const oldestRemote = remoteTimestamps.reduce((a, b) => a < b ? a : b);
-            const { data: localWindow, error: localWindowError } = await db.from("whatsapp_messages")
-              .select("id,wa_message_id,timestamp,text")
-              .eq("chat_id", chat.id)
-              .gte("timestamp", oldestRemote);
-            if (localWindowError) throw localWindowError;
-            const staleIds = (localWindow || [])
-              .filter((row: any) => row.wa_message_id && row.text !== "[crm_deleted]" && !remoteMessageIds.has(String(row.wa_message_id)))
-              .map((row: any) => row.id);
-            if (staleIds.length > 0) {
-              const { error: deleteError } = await db.from("whatsapp_messages").delete().in("id", staleIds);
-              if (deleteError) throw deleteError;
+          if (typeof value === "string" && value.trim()) {
+            const numeric = Number(value.trim());
+            if (Number.isFinite(numeric) && numeric > 0) {
+              const date = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
+              return Number.isNaN(date.getTime()) ? null : date.toISOString();
             }
-            const newestRemote = messages
-              .map((msg: any) => {
-                const id = msg?.id?._serialized || msg?.id || msg?.key?.id || msg?.messageId;
-                const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ?? msg?._data?.t ?? msg?._data?.timestamp;
-                let parsed: number | null = null;
-                if (typeof rawTime === "number" && rawTime > 0) parsed = rawTime < 10_000_000_000 ? rawTime * 1000 : rawTime;
-                else if (typeof rawTime === "string" && rawTime.trim()) {
-                  const numeric = Number(rawTime);
-                  parsed = Number.isFinite(numeric) && numeric > 0 ? (numeric < 10_000_000_000 ? numeric * 1000 : numeric) : new Date(rawTime).getTime();
-                }
-                return { msg, id: String(id || ""), time: parsed || 0 };
-              })
-              .filter((item: any) => item.id && item.time > 0 && !deletedRemoteIds.has(item.id))
-              .sort((a: any, b: any) => b.time - a.time)[0];
-            if (newestRemote) {
-              const latestText = String(newestRemote.msg?.body || newestRemote.msg?.text || "");
-              const latestType = String(newestRemote.msg?.type || "").toLowerCase();
-              await db.from("whatsapp_chats").update({
-                last_message: latestType.includes("revok") || newestRemote.msg?.isRevoked === true
-                  ? "[message_revoke]" : latestText || (newestRemote.msg?.hasMedia ? "[mídia]" : ""),
-                last_message_at: new Date(newestRemote.time).toISOString(),
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? null : date.toISOString();
+          }
+          return null;
+        };
+        const remoteEntries: Array<{ msg: any; id: string; sentAt: string | null; fromMe: boolean }> = [];
+        let remoteMessagesComplete = messages.length > 0;
+        for (const msg of messages) {
+          const rawId = msg?.id?._serialized || msg?.id || msg?.key?.id || msg?.messageId;
+          const waMessageId = typeof rawId === "string" ? rawId : "";
+          if (!waMessageId) {
+            remoteMessagesComplete = false;
+            continue;
+          }
+          remoteMessageIds.add(waMessageId);
+          const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ??
+            msg?._data?.messageTimestamp ?? msg?._data?.timestamp ?? msg?._data?.t ?? msg?.key?.timestamp ?? null;
+          const sentAt = parseWahaTime(rawTime);
+          if (sentAt) remoteTimestamps.push(sentAt);
+          else remoteMessagesComplete = false;
+          remoteEntries.push({
+            msg,
+            id: waMessageId,
+            sentAt,
+            fromMe: msg?.fromMe === true || msg?.from_me === true || msg?.key?.fromMe === true,
+          });
+        }
+
+        // Carrega IDs/tombstones em uma consulta, em vez de consultar cada mensagem
+        // individualmente (até 100 leituras sequenciais por abertura de conversa).
+        const existingByRemoteId = new Map<string, any>();
+        if (remoteMessageIds.size > 0) {
+          const { data: existingMessages, error: existingMessagesError } = await db.from("whatsapp_messages")
+            .select("id,chat_id,wa_message_id,text,timestamp")
+            .eq("instance_id", inst.id).in("wa_message_id", [...remoteMessageIds]);
+          if (existingMessagesError) throw existingMessagesError;
+          for (const row of existingMessages || []) {
+            existingByRemoteId.set(String(row.wa_message_id), row);
+            if (row.text === "[crm_deleted]") deletedRemoteIds.add(String(row.wa_message_id));
+          }
+        }
+
+        // Resolve todos os grupos mencionados no histórico com no máximo uma leitura e um upsert.
+        const groupJids = [...new Set(remoteEntries
+          .map(entry => entry.id.match(/\d+@g\.us/i)?.[0] || "")
+          .filter(jid => jid && jid !== waChatId))];
+        const groupByJid = new Map<string, any>();
+        if (groupJids.length > 0) {
+          const { data: existingGroups, error: existingGroupsError } = await db.from("whatsapp_chats")
+            .select("id,wa_chat_id").eq("instance_id", inst.id).in("wa_chat_id", groupJids);
+          if (existingGroupsError) throw existingGroupsError;
+          for (const group of existingGroups || []) groupByJid.set(String(group.wa_chat_id), group);
+          const missingGroups = groupJids.filter(jid => !groupByJid.has(jid));
+          if (missingGroups.length > 0) {
+            const { data: createdGroups, error: createGroupsError } = await db.from("whatsapp_chats")
+              .upsert(missingGroups.map(jid => ({
+                instance_id: inst.id,
+                wa_chat_id: jid,
+                contact_number: jid.split("@")[0],
+                contact_name: jid,
+                is_group: true,
                 updated_at: new Date().toISOString(),
-              }).eq("id", chat.id);
-            }
+              })), { onConflict: "instance_id,wa_chat_id" })
+              .select("id,wa_chat_id");
+            if (createGroupsError) throw createGroupsError;
+            for (const group of createdGroups || []) groupByJid.set(String(group.wa_chat_id), group);
+          }
+        }
+
+        const messageRecordsById = new Map<string, Record<string, unknown>>();
+        let directNumberToPersist = "";
+        for (const entry of remoteEntries) {
+          const { msg, id: waMessageId, sentAt: parsedSentAt, fromMe } = entry;
+          const existingMessage = existingByRemoteId.get(waMessageId);
+          // Tombstones são permanentes: uma sincronização antiga não pode ressuscitar exclusões.
+          if (existingMessage?.text === "[crm_deleted]") continue;
+
+          const messageGroupJid = waMessageId.match(/\d+@g\.us/i)?.[0] || "";
+          const messageChatId = messageGroupJid && messageGroupJid !== waChatId
+            ? groupByJid.get(messageGroupJid)?.id || chat.id
+            : chat.id;
+
+          const directJid = waMessageId.match(/\d+@c\.us/i)?.[0] || "";
+          if (isLidChat && directJid && !chat.contact_number && !directNumberToPersist) {
+            directNumberToPersist = directJid.split("@")[0];
+          }
+
+          const existingTime = existingMessage?.timestamp && Date.parse(existingMessage.timestamp) > 0
+            ? new Date(existingMessage.timestamp).toISOString()
+            : null;
+          // Se o provedor omitir o horário, preserva o horário já salvo; só usa "agora"
+          // quando a mensagem ainda não existe. A reconciliação só roda com timestamps remotos válidos.
+          const timestamp = parsedSentAt || existingTime || new Date().toISOString();
+          const rawType = String(msg?.type || msg?.media?.mimetype || "").toLowerCase();
+          const isRevoked = rawType.includes("revok") || rawType.includes("protocol") ||
+            msg?.isRevoked === true || msg?._data?.isRevoked === true;
+          const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
+            : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
+          const messageText = isRevoked ? "[message_revoke]" : String(msg?.body || msg?.text || "");
+          messageRecordsById.set(waMessageId, {
+            chat_id: messageChatId,
+            instance_id: inst.id,
+            wa_message_id: waMessageId,
+            from_me: fromMe,
+            sender: fromMe ? "me" : (number || chat.contact_number || ""),
+            message_type: messageType,
+            text: messageText,
+            media_url: msg?.media?.url || msg?.mediaUrl || null,
+            media_mime: msg?.media?.mimetype || null,
+            media_filename: msg?.media?.filename || null,
+            status: msg?.ack ? String(msg.ack) : "received",
+            timestamp,
+            raw: msg,
+            sent_by: fromMe ? inst.owner_id : null,
+          });
+        }
+
+        if (directNumberToPersist) {
+          const { error: enrichChatError } = await db.from("whatsapp_chats")
+            .update({ contact_number: directNumberToPersist, contact_name: directNumberToPersist, updated_at: new Date().toISOString() })
+            .eq("id", chat.id).eq("instance_id", inst.id);
+          if (enrichChatError) throw enrichChatError;
+          chat.contact_number = directNumberToPersist;
+          chat.contact_name = directNumberToPersist;
+        }
+
+        const messageRecords = [...messageRecordsById.values()];
+        if (messageRecords.length > 0) {
+          const { error: messagesUpsertError } = await db.from("whatsapp_messages")
+            .upsert(messageRecords, { onConflict: "instance_id,wa_message_id" });
+          if (messagesUpsertError) throw messagesUpsertError;
+          synced = messageRecords.length;
+        }
+
+        // Reconcilia exclusões somente quando todos os IDs e horários remotos são confiáveis.
+        if (remoteMessagesComplete && remoteTimestamps.length > 0) {
+          const oldestRemote = remoteTimestamps.reduce((a, b) => a < b ? a : b);
+          const { data: localWindow, error: localWindowError } = await db.from("whatsapp_messages")
+            .select("id,wa_message_id,timestamp,text")
+            .eq("chat_id", chat.id)
+            .gte("timestamp", oldestRemote);
+          if (localWindowError) throw localWindowError;
+          const staleIds = (localWindow || [])
+            .filter((row: any) => row.wa_message_id && row.text !== "[crm_deleted]" && !remoteMessageIds.has(String(row.wa_message_id)))
+            .map((row: any) => row.id);
+          if (staleIds.length > 0) {
+            const { error: deleteError } = await db.from("whatsapp_messages").delete().in("id", staleIds);
+            if (deleteError) throw deleteError;
+          }
+
+          const newestRemote = remoteEntries
+            .filter(entry => !deletedRemoteIds.has(entry.id) && entry.sentAt)
+            .filter(entry => {
+              const groupJid = entry.id.match(/\d+@g\.us/i)?.[0] || "";
+              return !groupJid || groupJid === waChatId || waChatId.endsWith("@g.us");
+            })
+            .sort((a, b) => Date.parse(b.sentAt || "") - Date.parse(a.sentAt || ""))[0];
+          if (newestRemote?.sentAt) {
+            const last = newestRemote.msg?.lastMessage || newestRemote.msg;
+            const latestText = String(last?.body || last?.text || "");
+            const latestType = String(last?.type || "").toLowerCase();
+            const { error: latestChatError } = await db.from("whatsapp_chats").update({
+              last_message: latestType.includes("revok") || newestRemote.msg?.isRevoked === true
+                ? "[message_revoke]" : latestText || (newestRemote.msg?.hasMedia ? "[mídia]" : ""),
+              last_message_at: newestRemote.sentAt,
+              updated_at: new Date().toISOString(),
+            }).eq("id", chat.id);
+            if (latestChatError) throw latestChatError;
           }
         }
         return json({ messages, synced });
