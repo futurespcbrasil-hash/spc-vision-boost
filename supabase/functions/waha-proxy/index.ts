@@ -750,14 +750,16 @@ Deno.serve(async (req: Request) => {
           if (existing) {
             const previousMessageAt = existing.last_message_at ? new Date(existing.last_message_at).getTime() : 0;
             const currentMessageAt = record.last_message_at ? new Date(record.last_message_at).getTime() : 0;
+            const remoteMessageIsNewer = currentMessageAt >= previousMessageAt;
             const hasNewInboundMessage = !lastMessageFromMe && (currentMessageAt > previousMessageAt || (currentMessageAt === previousMessageAt && String(record.last_message || "") !== String(existing.last_message || "")));
             const updatedRecord = {
               ...record,
               wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
               contact_number: existing.contact_number || number,
               avatar_url: record.avatar_url || existing.avatar_url || null,
-              last_message: record.last_message || existing.last_message || null,
-              last_message_at: record.last_message_at || existing.last_message_at || null,
+              // Uma resposta remota atrasada não pode regredir o preview nem a ordenação da conversa.
+              last_message: remoteMessageIsNewer ? (record.last_message || existing.last_message || null) : (existing.last_message || record.last_message || null),
+              last_message_at: remoteMessageIsNewer ? (record.last_message_at || existing.last_message_at || null) : (existing.last_message_at || record.last_message_at || null),
               contact_name: (() => {
                 const savedName = String(existing.contact_name || "").trim();
                 const savedNumber = String(existing.contact_number || "").replace(/\D/g, "");
