@@ -127,7 +127,7 @@ const AppSidebar = () => {
     { to: '/leads', icon: Users, label: 'Leads', moduleKey: 'leads' },
     { to: '/agenda', icon: Calendar, label: 'Agenda', moduleKey: 'agenda' },
     { to: '/relatorios', icon: FileBarChart, label: 'Relatórios', moduleKey: 'relatorios' },
-    { to: '/metas', icon: Target, label: 'Metas', moduleKey: 'metas' },
+    { to: '/metas', icon: Target, label: 'Metas SPC Brasil', moduleKey: 'metas' },
     { to: '/notas', icon: StickyNote, label: 'Notas', moduleKey: 'notas' },
     { to: '/chat', icon: MessageCircle, label: 'Chat Interno', moduleKey: 'chat' },
   ];
