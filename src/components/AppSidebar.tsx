@@ -239,6 +239,7 @@ const AppSidebar = () => {
         {['consultas_spc', 'consulta_cnpj', 'consulta_sintegra', 'consulta_cnpj_lote'].some(key => canAccessModule(key)) && (
           <>
         <button
+          onMouseEnter={() => closeOtherSubmenus('consultas')}
           onClick={(event) => { closeOtherSubmenus('consultas'); setConsultasOpen(!consultasOpen); anchorSubmenu(event); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/consultas')
@@ -276,6 +277,7 @@ const AppSidebar = () => {
         {canAccessModule('campaigns') && (
           <>
             <button
+              onMouseEnter={() => closeOtherSubmenus('campanhas')}
               onClick={(event) => { closeOtherSubmenus('campanhas'); setCampaignsOpen(!campaignsOpen); anchorSubmenu(event); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
                 ${location.pathname.startsWith('/campanhas')
@@ -351,6 +353,7 @@ const AppSidebar = () => {
         {canAccessModule('future_remote') && (
           <>
         <button
+          onMouseEnter={() => closeOtherSubmenus('remoto')}
           onClick={(event) => { closeOtherSubmenus('remoto'); setRemoteOpen(!remoteOpen); anchorSubmenu(event); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/future-remote')
@@ -387,6 +390,7 @@ const AppSidebar = () => {
         {canAccessModule('financeiro') && (
           <>
         <button
+          onMouseEnter={() => closeOtherSubmenus('financeiro')}
           onClick={(event) => { closeOtherSubmenus('financeiro'); setFinOpen(!finOpen); anchorSubmenu(event); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/financeiro')
@@ -429,6 +433,7 @@ const AppSidebar = () => {
         {(role === 'gestor' || canManageUsers) && canAccessModule('comissoes') && (
           <>
             <button
+              onMouseEnter={() => closeOtherSubmenus('comissoes')}
               onClick={(event) => { closeOtherSubmenus('comissoes'); setComissoesOpen(!comissoesOpen); anchorSubmenu(event); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
                 ${(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores') || location.pathname.startsWith('/comissoes/'))
@@ -467,6 +472,7 @@ const AppSidebar = () => {
         {role === 'atendimento' && canAccessModule('indicacoes_atendimento') && (
           <>
             <button
+              onMouseEnter={() => closeOtherSubmenus('indicacoes')}
               onClick={(event) => { closeOtherSubmenus('indicacoes'); setIndicacoesOpen(!indicacoesOpen); anchorSubmenu(event); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
                 ${location.pathname.startsWith('/indicacoes')
@@ -500,6 +506,7 @@ const AppSidebar = () => {
         {canAccessModule('parceiros') && (
           <>
         <button
+          onMouseEnter={() => closeOtherSubmenus('parceiros')}
           onClick={(event) => { closeOtherSubmenus('parceiros'); setParceirosOpen(!parceirosOpen); anchorSubmenu(event); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/parceiros-spc')
