@@ -42,18 +42,33 @@ const calcRow = (r: Row) => {
 };
 
 const Metas = () => {
-  const { user } = useAuth();
+  const { user, canManageUsers } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
+  const [targetUserId, setTargetUserId] = useState('');
+  const [goalUsers, setGoalUsers] = useState<{ user_id: string; display_name: string | null; email: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
+    setTargetUserId(current => current || user.id);
+    if (canManageUsers) {
+      void supabase.from('profiles').select('user_id,display_name,email').order('display_name').then(({ data, error }) => {
+        if (error) { console.error('[Metas SPC] Falha ao carregar usuários:', error); return; }
+        setGoalUsers((data || []).filter((item: any) => !!item.user_id));
+      });
+    }
+  }, [user, canManageUsers]);
+
+  useEffect(() => {
+    if (!user || !targetUserId) return;
+    let active = true;
+    setLoading(true);
     (async () => {
       const { data } = await supabase
         .from('metas_faturamento')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .order('ordem');
       const base: Row[] = MESES.map((m, i) => {
         const found = data?.find(d => d.ordem === i);
@@ -68,47 +83,49 @@ const Metas = () => {
       });
       let restored = base;
       try {
-        const rawDraft = localStorage.getItem(`crm_metas_draft_${user.id}`);
+        const rawDraft = localStorage.getItem(`crm_metas_draft_${targetUserId}`);
         if (rawDraft) {
           const draftRows = JSON.parse(rawDraft) as Row[];
           restored = base.map(row => {
             const draft = draftRows.find(item => item.ordem === row.ordem && item.dirty);
-            return draft ? { ...row, faturamento: draft.faturamento, salario: draft.salario, dirty: true } : row;
+            return draft ? { ...row, ponto_zero: Number(draft.ponto_zero ?? row.ponto_zero), faturamento: draft.faturamento, salario: draft.salario, dirty: true } : row;
           });
         }
       } catch { /* rascunho inválido ou armazenamento indisponível */ }
+      if (!active) return;
       setRows(restored);
       setLoading(false);
     })();
-  }, [user]);
+    return () => { active = false; };
+  }, [user?.id, targetUserId]);
 
   useEffect(() => {
     if (!user || loading) return;
-    const draftKey = `crm_metas_draft_${user.id}`;
+    const draftKey = `crm_metas_draft_${targetUserId}`;
     try {
-      const dirtyRows = rows.filter(row => row.dirty).map(({ ordem, faturamento, salario, dirty }) => ({ ordem, faturamento, salario, dirty }));
+      const dirtyRows = rows.filter(row => row.dirty).map(({ ordem, ponto_zero, faturamento, salario, dirty }) => ({ ordem, ponto_zero, faturamento, salario, dirty }));
       if (dirtyRows.length) localStorage.setItem(draftKey, JSON.stringify(dirtyRows));
       else localStorage.removeItem(draftKey);
     } catch { /* armazenamento indisponível */ }
-  }, [rows, user, loading]);
+  }, [rows, targetUserId, loading]);
 
   const update = (i: number, patch: Partial<Row>) =>
     setRows(r => r.map((x, idx) => idx === i ? { ...x, ...patch, dirty: true } : x));
 
   const saveAll = async () => {
-    if (!user) return;
+    if (!user || !targetUserId) return;
     setSaving(true);
     const dirty = rows.filter(r => r.dirty);
     const payload = dirty.map(r => ({
       ...(r.id ? { id: r.id } : {}),
-      user_id: user.id, ordem: r.ordem, referencia: r.referencia,
-      ponto_zero: PONTO_ZERO, faturamento: r.faturamento, salario: r.salario,
+      user_id: targetUserId, ordem: r.ordem, referencia: r.referencia,
+      ponto_zero: r.ponto_zero, faturamento: r.faturamento, salario: r.salario,
     }));
     const { error } = await supabase.from('metas_faturamento').upsert(payload, { onConflict: 'user_id,ordem' });
     if (error) toast.error('Erro ao salvar: ' + error.message);
     else {
       toast.success('Metas salvas');
-      const { data } = await supabase.from('metas_faturamento').select('*').eq('user_id', user.id).order('ordem');
+      const { data } = await supabase.from('metas_faturamento').select('*').eq('user_id', targetUserId).order('ordem');
       setRows(rs => rs.map(r => {
         const f = data?.find(d => d.ordem === r.ordem);
         return f ? { ...r, id: f.id, dirty: false } : { ...r, dirty: false };
@@ -157,10 +174,18 @@ const Metas = () => {
         </Button>
       </header>
 
+      {canManageUsers && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3">
+          <label htmlFor="metas-target-user" className="text-sm font-medium text-foreground">Visualizar metas de:</label>
+          <select id="metas-target-user" value={targetUserId} onChange={e => setTargetUserId(e.target.value)} className="min-w-56 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground">
+            {goalUsers.map(person => <option key={person.user_id} value={person.user_id}>{person.display_name || person.email || person.user_id}</option>)}
+          </select>
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Lock size={12}/> Ponto Zero</div>
-          <div className="text-lg font-bold text-foreground">{fmt(PONTO_ZERO)}</div>
+          {canManageUsers ? <Input aria-label="Ponto zero do usuário selecionado" type="number" min="0" step="0.01" value={rows[0]?.ponto_zero ?? PONTO_ZERO} onChange={e => { const value = Math.max(0, Number(e.target.value) || 0); setRows(current => current.map(row => ({ ...row, ponto_zero: value, dirty: true }))); }} className="mt-1 h-9 max-w-48 text-lg font-bold" /> : <div className="text-lg font-bold text-foreground">{fmt(rows[0]?.ponto_zero ?? PONTO_ZERO)}</div>}
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign size={12}/> Faturamento total</div>
