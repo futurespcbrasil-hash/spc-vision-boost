@@ -301,7 +301,7 @@ const Metas = () => {
       <Card className="p-4 bg-muted/30">
         <h4 className="font-semibold text-foreground mb-2">Regras aplicadas</h4>
         <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-          <li>O <b>Ponto Zero</b> é base fixa de cálculo da comissão ({fmt(PONTO_ZERO)}).</li>
+          <li>O <b>Ponto Zero</b> é base fixa de cálculo da comissão ({fmt(rows[0]?.ponto_zero ?? PONTO_ZERO)}).</li>
           <li>Crescimento % = (Faturamento − Ponto Zero) / Ponto Zero.</li>
           <li>Crescimento positivo aumenta a comissão pelo % aplicado sobre o salário vigente.</li>
           <li>Crescimento 0%: comissão permanece igual à anterior.</li>
