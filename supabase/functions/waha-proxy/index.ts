@@ -860,155 +860,186 @@ Deno.serve(async (req: Request) => {
         let synced = 0;
         const remoteMessageIds = new Set<string>();
         const remoteTimestamps: string[] = [];
-        // IDs excluídos pelo usuário/telefone são tombstones permanentes: a WAHA pode
-        // devolver uma cópia antiga e não devemos ressuscitá-la via upsert.
         const deletedRemoteIds = new Set<string>();
-        let remoteMessagesComplete = messages.length > 0;
-        if (chat?.id) {
-          for (const msg of messages) {
-            const rawId = msg?.id?._serialized || msg?.id || msg?.key?.id || msg?.messageId;
-            const waMessageId = typeof rawId === "string" ? rawId : "";
-            if (!waMessageId) { remoteMessagesComplete = false; continue; }
-            remoteMessageIds.add(waMessageId);
-
-            // Alguns históricos WAHA misturam mensagens de grupo no retorno de um
-            // chat @lid. Direciona cada mensagem pelo JID embutido no ID remoto.
-            const messageGroupJid = waMessageId.match(/\d+@g\.us/i)?.[0] || "";
-            let messageChatId = chat.id;
-            if (messageGroupJid && messageGroupJid !== waChatId) {
-              const { data: groupChat, error: groupLookupError } = await db.from("whatsapp_chats")
-                .select("id").eq("instance_id", inst.id).eq("wa_chat_id", messageGroupJid).maybeSingle();
-              if (groupLookupError) throw groupLookupError;
-              if (groupChat?.id) {
-                messageChatId = groupChat.id;
-              } else {
-                const { data: createdGroup, error: createGroupError } = await db.from("whatsapp_chats")
-                  .upsert({
-                    instance_id: inst.id,
-                    wa_chat_id: messageGroupJid,
-                    contact_number: messageGroupJid.split("@")[0],
-                    contact_name: messageGroupJid,
-                    is_group: true,
-                    updated_at: new Date().toISOString(),
-                  }, { onConflict: "instance_id,wa_chat_id" })
-                  .select("id").single();
-                if (createGroupError) throw createGroupError;
-                messageChatId = createdGroup.id;
-              }
-            }
-
-            const directJid = waMessageId.match(/\d+@c\.us/i)?.[0] || "";
-            if (isLidChat && directJid && !chat.contact_number) {
-              const directNumber = directJid.split("@")[0];
-              const { error: enrichChatError } = await db.from("whatsapp_chats")
-                .update({ contact_number: directNumber, contact_name: directNumber, updated_at: new Date().toISOString() })
-                .eq("id", chat.id).eq("instance_id", inst.id);
-              if (enrichChatError) throw enrichChatError;
-              chat.contact_number = directNumber;
-              chat.contact_name = directNumber;
-            }
-
-            const fromMe = msg?.fromMe === true || msg?.from_me === true || msg?.key?.fromMe === true;
-            // WAHA pode devolver timestamps como segundos, milissegundos ou strings numéricas.
-            // Também pode colocar o tempo em _data.t. Date(stringNumérica) não é confiável:
-            // mensagens antigas acabavam recebendo "agora" e apareciam no lugar errado.
-            const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ??
-              msg?._data?.messageTimestamp ?? msg?._data?.timestamp ?? msg?._data?.t ?? msg?.key?.timestamp ?? null;
-            const parseWahaTime = (value: unknown): string | null => {
-              if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-                const d = new Date(value < 10_000_000_000 ? value * 1000 : value);
-                return Number.isNaN(d.getTime()) ? null : d.toISOString();
-              }
-              if (typeof value === "string" && value.trim()) {
-                const numeric = Number(value.trim());
-                if (Number.isFinite(numeric) && numeric > 0) {
-                  const d = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
-                  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-                }
-                const d = new Date(value);
-                return Number.isNaN(d.getTime()) ? null : d.toISOString();
-              }
-              return null;
-            };
-            const parsedSentAt = parseWahaTime(rawTime);
-            const { data: existingMessage, error: existingMessageError } = await db.from("whatsapp_messages")
-              .select("id,text,timestamp").eq("instance_id", inst.id).eq("wa_message_id", waMessageId).maybeSingle();
-            if (existingMessageError) throw existingMessageError;
-            // Não sobrescreve uma data real já salva com epoch quando a WAHA omite timestamp.
-            const existingTime = existingMessage?.timestamp && Date.parse(existingMessage.timestamp) > 0
-              ? new Date(existingMessage.timestamp).toISOString()
-              : null;
-            const sentAt = parsedSentAt || existingTime || new Date().toISOString();
-            remoteTimestamps.push(sentAt);
-            if (existingMessage?.text === "[crm_deleted]") {
-              deletedRemoteIds.add(waMessageId);
-              continue;
-            }
-            const rawType = String(msg?.type || msg?.media?.mimetype || "").toLowerCase();
-            const isRevoked = rawType.includes("revok") || rawType.includes("protocol") || msg?.isRevoked === true || msg?._data?.isRevoked === true;
-            const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
-              : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
-            const messageText = isRevoked ? "[message_revoke]" : String(msg?.body || msg?.text || "");
-            const { error } = await db.from("whatsapp_messages").upsert({
-              chat_id: messageChatId,
-              instance_id: inst.id,
-              wa_message_id: waMessageId,
-              from_me: fromMe,
-              sender: fromMe ? "me" : number,
-              message_type: messageType,
-              text: messageText,
-              media_url: msg?.media?.url || msg?.mediaUrl || null,
-              media_mime: msg?.media?.mimetype || null,
-              media_filename: msg?.media?.filename || null,
-              status: msg?.ack ? String(msg.ack) : "received",
-              timestamp: sentAt,
-              raw: msg,
-              sent_by: fromMe ? inst.owner_id : null,
-            }, { onConflict: "instance_id,wa_message_id" });
-            if (!error) synced++;
+        const parseWahaTime = (value: unknown): string | null => {
+          if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+            const date = new Date(value < 10_000_000_000 ? value * 1000 : value);
+            return Number.isNaN(date.getTime()) ? null : date.toISOString();
           }
-          // Reconcile the recent remote window: the old implementation only upserted
-          // messages and therefore never removed records deleted on the phone. Only reconcile
-          // when WAHA returned identifiable messages with valid timestamps, and never touch
-          // messages older than the first item in the fetched remote window.
-          if (remoteMessagesComplete && remoteTimestamps.length > 0) {
-            const oldestRemote = remoteTimestamps.reduce((a, b) => a < b ? a : b);
-            const { data: localWindow, error: localWindowError } = await db.from("whatsapp_messages")
-              .select("id,wa_message_id,timestamp,text")
-              .eq("chat_id", chat.id)
-              .gte("timestamp", oldestRemote);
-            if (localWindowError) throw localWindowError;
-            const staleIds = (localWindow || [])
-              .filter((row: any) => row.wa_message_id && row.text !== "[crm_deleted]" && !remoteMessageIds.has(String(row.wa_message_id)))
-              .map((row: any) => row.id);
-            if (staleIds.length > 0) {
-              const { error: deleteError } = await db.from("whatsapp_messages").delete().in("id", staleIds);
-              if (deleteError) throw deleteError;
+          if (typeof value === "string" && value.trim()) {
+            const numeric = Number(value.trim());
+            if (Number.isFinite(numeric) && numeric > 0) {
+              const date = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
+              return Number.isNaN(date.getTime()) ? null : date.toISOString();
             }
-            const newestRemote = messages
-              .map((msg: any) => {
-                const id = msg?.id?._serialized || msg?.id || msg?.key?.id || msg?.messageId;
-                const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ?? msg?._data?.t ?? msg?._data?.timestamp;
-                let parsed: number | null = null;
-                if (typeof rawTime === "number" && rawTime > 0) parsed = rawTime < 10_000_000_000 ? rawTime * 1000 : rawTime;
-                else if (typeof rawTime === "string" && rawTime.trim()) {
-                  const numeric = Number(rawTime);
-                  parsed = Number.isFinite(numeric) && numeric > 0 ? (numeric < 10_000_000_000 ? numeric * 1000 : numeric) : new Date(rawTime).getTime();
-                }
-                return { msg, id: String(id || ""), time: parsed || 0 };
-              })
-              .filter((item: any) => item.id && item.time > 0 && !deletedRemoteIds.has(item.id))
-              .sort((a: any, b: any) => b.time - a.time)[0];
-            if (newestRemote) {
-              const latestText = String(newestRemote.msg?.body || newestRemote.msg?.text || "");
-              const latestType = String(newestRemote.msg?.type || "").toLowerCase();
-              await db.from("whatsapp_chats").update({
-                last_message: latestType.includes("revok") || newestRemote.msg?.isRevoked === true
-                  ? "[message_revoke]" : latestText || (newestRemote.msg?.hasMedia ? "[mídia]" : ""),
-                last_message_at: new Date(newestRemote.time).toISOString(),
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? null : date.toISOString();
+          }
+          return null;
+        };
+        const remoteEntries: Array<{ msg: any; id: string; sentAt: string | null; fromMe: boolean }> = [];
+        let remoteMessagesComplete = messages.length > 0;
+        for (const msg of messages) {
+          const rawId = msg?.id?._serialized || msg?.id || msg?.key?.id || msg?.messageId;
+          const waMessageId = typeof rawId === "string" ? rawId : "";
+          if (!waMessageId) {
+            remoteMessagesComplete = false;
+            continue;
+          }
+          remoteMessageIds.add(waMessageId);
+          const rawTime = msg?.timestamp ?? msg?.t ?? msg?.createdAt ?? msg?.messageTimestamp ??
+            msg?._data?.messageTimestamp ?? msg?._data?.timestamp ?? msg?._data?.t ?? msg?.key?.timestamp ?? null;
+          const sentAt = parseWahaTime(rawTime);
+          if (sentAt) remoteTimestamps.push(sentAt);
+          else remoteMessagesComplete = false;
+          remoteEntries.push({
+            msg,
+            id: waMessageId,
+            sentAt,
+            fromMe: msg?.fromMe === true || msg?.from_me === true || msg?.key?.fromMe === true,
+          });
+        }
+
+        // Carrega IDs/tombstones em uma consulta, em vez de consultar cada mensagem
+        // individualmente (até 100 leituras sequenciais por abertura de conversa).
+        const existingByRemoteId = new Map<string, any>();
+        if (remoteMessageIds.size > 0) {
+          const { data: existingMessages, error: existingMessagesError } = await db.from("whatsapp_messages")
+            .select("id,chat_id,wa_message_id,text,timestamp")
+            .eq("instance_id", inst.id).in("wa_message_id", [...remoteMessageIds]);
+          if (existingMessagesError) throw existingMessagesError;
+          for (const row of existingMessages || []) {
+            existingByRemoteId.set(String(row.wa_message_id), row);
+            if (row.text === "[crm_deleted]") deletedRemoteIds.add(String(row.wa_message_id));
+          }
+        }
+
+        // Resolve todos os grupos mencionados no histórico com no máximo uma leitura e um upsert.
+        const groupJids = [...new Set(remoteEntries
+          .map(entry => entry.id.match(/\d+@g\.us/i)?.[0] || "")
+          .filter(jid => jid && jid !== waChatId))];
+        const groupByJid = new Map<string, any>();
+        if (groupJids.length > 0) {
+          const { data: existingGroups, error: existingGroupsError } = await db.from("whatsapp_chats")
+            .select("id,wa_chat_id").eq("instance_id", inst.id).in("wa_chat_id", groupJids);
+          if (existingGroupsError) throw existingGroupsError;
+          for (const group of existingGroups || []) groupByJid.set(String(group.wa_chat_id), group);
+          const missingGroups = groupJids.filter(jid => !groupByJid.has(jid));
+          if (missingGroups.length > 0) {
+            const { data: createdGroups, error: createGroupsError } = await db.from("whatsapp_chats")
+              .upsert(missingGroups.map(jid => ({
+                instance_id: inst.id,
+                wa_chat_id: jid,
+                contact_number: jid.split("@")[0],
+                contact_name: jid,
+                is_group: true,
                 updated_at: new Date().toISOString(),
-              }).eq("id", chat.id);
-            }
+              })), { onConflict: "instance_id,wa_chat_id" })
+              .select("id,wa_chat_id");
+            if (createGroupsError) throw createGroupsError;
+            for (const group of createdGroups || []) groupByJid.set(String(group.wa_chat_id), group);
+          }
+        }
+
+        const messageRecordsById = new Map<string, Record<string, unknown>>();
+        let directNumberToPersist = "";
+        for (const entry of remoteEntries) {
+          const { msg, id: waMessageId, sentAt: parsedSentAt, fromMe } = entry;
+          const existingMessage = existingByRemoteId.get(waMessageId);
+          // Tombstones são permanentes: uma sincronização antiga não pode ressuscitar exclusões.
+          if (existingMessage?.text === "[crm_deleted]") continue;
+
+          const messageGroupJid = waMessageId.match(/\d+@g\.us/i)?.[0] || "";
+          const messageChatId = messageGroupJid && messageGroupJid !== waChatId
+            ? groupByJid.get(messageGroupJid)?.id || chat.id
+            : chat.id;
+
+          const directJid = waMessageId.match(/\d+@c\.us/i)?.[0] || "";
+          if (isLidChat && directJid && !chat.contact_number && !directNumberToPersist) {
+            directNumberToPersist = directJid.split("@")[0];
+          }
+
+          const existingTime = existingMessage?.timestamp && Date.parse(existingMessage.timestamp) > 0
+            ? new Date(existingMessage.timestamp).toISOString()
+            : null;
+          // Se o provedor omitir o horário, preserva o horário já salvo; só usa "agora"
+          // quando a mensagem ainda não existe. A reconciliação só roda com timestamps remotos válidos.
+          const timestamp = parsedSentAt || existingTime || new Date().toISOString();
+          const rawType = String(msg?.type || msg?.media?.mimetype || "").toLowerCase();
+          const isRevoked = rawType.includes("revok") || rawType.includes("protocol") ||
+            msg?.isRevoked === true || msg?._data?.isRevoked === true;
+          const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
+            : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
+          const messageText = isRevoked ? "[message_revoke]" : String(msg?.body || msg?.text || "");
+          messageRecordsById.set(waMessageId, {
+            chat_id: messageChatId,
+            instance_id: inst.id,
+            wa_message_id: waMessageId,
+            from_me: fromMe,
+            sender: fromMe ? "me" : (number || chat.contact_number || ""),
+            message_type: messageType,
+            text: messageText,
+            media_url: msg?.media?.url || msg?.mediaUrl || null,
+            media_mime: msg?.media?.mimetype || null,
+            media_filename: msg?.media?.filename || null,
+            status: msg?.ack ? String(msg.ack) : "received",
+            timestamp,
+            raw: msg,
+            sent_by: fromMe ? inst.owner_id : null,
+          });
+        }
+
+        if (directNumberToPersist) {
+          const { error: enrichChatError } = await db.from("whatsapp_chats")
+            .update({ contact_number: directNumberToPersist, contact_name: directNumberToPersist, updated_at: new Date().toISOString() })
+            .eq("id", chat.id).eq("instance_id", inst.id);
+          if (enrichChatError) throw enrichChatError;
+          chat.contact_number = directNumberToPersist;
+          chat.contact_name = directNumberToPersist;
+        }
+
+        const messageRecords = [...messageRecordsById.values()];
+        if (messageRecords.length > 0) {
+          const { error: messagesUpsertError } = await db.from("whatsapp_messages")
+            .upsert(messageRecords, { onConflict: "instance_id,wa_message_id" });
+          if (messagesUpsertError) throw messagesUpsertError;
+          synced = messageRecords.length;
+        }
+
+        // Reconcilia exclusões somente quando todos os IDs e horários remotos são confiáveis.
+        if (remoteMessagesComplete && remoteTimestamps.length > 0) {
+          const oldestRemote = remoteTimestamps.reduce((a, b) => a < b ? a : b);
+          const { data: localWindow, error: localWindowError } = await db.from("whatsapp_messages")
+            .select("id,wa_message_id,timestamp,text")
+            .eq("chat_id", chat.id)
+            .gte("timestamp", oldestRemote);
+          if (localWindowError) throw localWindowError;
+          const staleIds = (localWindow || [])
+            .filter((row: any) => row.wa_message_id && row.text !== "[crm_deleted]" && !remoteMessageIds.has(String(row.wa_message_id)))
+            .map((row: any) => row.id);
+          if (staleIds.length > 0) {
+            const { error: deleteError } = await db.from("whatsapp_messages").delete().in("id", staleIds);
+            if (deleteError) throw deleteError;
+          }
+
+          const newestRemote = remoteEntries
+            .filter(entry => !deletedRemoteIds.has(entry.id) && entry.sentAt)
+            .filter(entry => {
+              const groupJid = entry.id.match(/\d+@g\.us/i)?.[0] || "";
+              return !groupJid || groupJid === waChatId || waChatId.endsWith("@g.us");
+            })
+            .sort((a, b) => Date.parse(b.sentAt || "") - Date.parse(a.sentAt || ""))[0];
+          if (newestRemote?.sentAt) {
+            const last = newestRemote.msg?.lastMessage || newestRemote.msg;
+            const latestText = String(last?.body || last?.text || "");
+            const latestType = String(last?.type || "").toLowerCase();
+            const { error: latestChatError } = await db.from("whatsapp_chats").update({
+              last_message: latestType.includes("revok") || newestRemote.msg?.isRevoked === true
+                ? "[message_revoke]" : latestText || (newestRemote.msg?.hasMedia ? "[mídia]" : ""),
+              last_message_at: newestRemote.sentAt,
+              updated_at: new Date().toISOString(),
+            }).eq("id", chat.id);
+            if (latestChatError) throw latestChatError;
           }
         }
         return json({ messages, synced });
