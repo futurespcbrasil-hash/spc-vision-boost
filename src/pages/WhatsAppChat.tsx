@@ -221,6 +221,44 @@ const WhatsAppChat = () => {
   const [clipboardFiles, setClipboardFiles] = useState<File[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // A barra horizontal fica fixa na base da janela. Reserva espaço no WhatsApp
+  // somente nesse modo, evitando que ela cubra o campo de mensagem/anexos.
+  const [menuLayout, setMenuLayout] = useState<'vertical' | 'horizontal'>(() => {
+    try {
+      return localStorage.getItem('future-vision-menu-layout:' + (user?.id || 'guest')) === 'horizontal'
+        ? 'horizontal'
+        : 'vertical';
+    } catch {
+      return 'vertical';
+    }
+  });
+
+  useEffect(() => {
+    const readMenuLayout = () => {
+      try {
+        setMenuLayout(localStorage.getItem('future-vision-menu-layout:' + (user?.id || 'guest')) === 'horizontal'
+          ? 'horizontal'
+          : 'vertical');
+      } catch {
+        setMenuLayout('vertical');
+      }
+    };
+    readMenuLayout();
+    const syncLayout = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string; layout?: 'vertical' | 'horizontal' }>).detail;
+      if (detail?.userId === (user?.id || 'guest') &&
+          (detail.layout === 'vertical' || detail.layout === 'horizontal')) {
+        setMenuLayout(detail.layout);
+      }
+    };
+    window.addEventListener('future-vision-menu-layout-change', syncLayout);
+    window.addEventListener('focus', readMenuLayout);
+    return () => {
+      window.removeEventListener('future-vision-menu-layout-change', syncLayout);
+      window.removeEventListener('focus', readMenuLayout);
+    };
+  }, [user?.id]);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -1731,7 +1769,7 @@ const WhatsAppChat = () => {
 
   return (
     <>
-    <div className="flex flex-col h-[calc(100vh-64px)] md:h-screen bg-background font-sans overflow-hidden fixed inset-0 md:relative z-40">
+    <div className={`flex flex-col h-[calc(100vh-64px)] ${menuLayout === 'horizontal' ? 'md:h-[calc(100dvh-76px)]' : 'md:h-screen'} bg-background font-sans overflow-hidden fixed inset-0 md:relative z-40`}>
       {/* Top Bar: Instance Selection & Global Actions */}
       <div className="flex items-center justify-between px-2 py-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
