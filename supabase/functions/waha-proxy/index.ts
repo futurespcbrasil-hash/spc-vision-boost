@@ -603,7 +603,10 @@ Deno.serve(async (req: Request) => {
         let rawChats: any;
         try {
           rawChats = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats/overview`);
-        } catch {
+        } catch (error) {
+          // O fallback é útil para versões antigas, mas não deve reiniciar uma espera
+          // já vencida e dobrar a latência máxima quando a WAHA está travada.
+          if (error instanceof Error && error.message.startsWith("Tempo limite")) throw error;
           rawChats = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats`);
         }
         let chats = Array.isArray(rawChats) ? rawChats
