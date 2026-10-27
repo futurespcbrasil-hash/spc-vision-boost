@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 type CRMReminder = { id: string; titulo: string; conteudo?: string | null; data_lembrete?: string | null; };
 type CRMScheduleReminder = { id: string; lead_name?: string | null; date: string; time?: string | null; note?: string | null; };
@@ -97,9 +98,18 @@ const CRMNotificationBell = () => {
 
   const clearHistory = async () => {
     if (!user?.id || items.length === 0) return;
-    const { error } = await (supabase as any).from('whatsapp_notifications').delete().eq('user_id', user.id);
-    if (error) return;
+    const { error, count } = await (supabase as any).from('whatsapp_notifications')
+      .delete({ count: 'exact' })
+      .eq('user_id', user.id);
+    if (error) {
+      console.error('[CRM notifications] Falha ao limpar histórico:', error);
+      toast.error(`Não foi possível limpar as notificações: ${error.message}`);
+      return;
+    }
+    // Só limpar a interface depois da confirmação do banco; o próximo carregamento
+    // consulta a mesma tabela, então os registros removidos não devem reaparecer.
     setItems([]);
+    toast.success(count === 0 ? 'Não havia notificações para excluir.' : 'Histórico de notificações limpo.');
   };
 
   if (!user || location.pathname.startsWith('/whatsapp')) return null;
