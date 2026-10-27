@@ -286,7 +286,7 @@ const WhatsAppChat = () => {
     try { parsed = new URL(url); } catch { throw new Error('O endereço do arquivo é inválido.'); }
     const isLocalHost = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(parsed.hostname.toLowerCase());
     const isLocalWahaFile = isLocalHost && parsed.pathname.startsWith('/api/files/');
-    const isSignedChatMedia = /\\/storage\\/v1\\/object\\/sign\\/chat-media\\//i.test(parsed.pathname);
+    const isSignedChatMedia = /\/storage\/v1\/object\/sign\/chat-media\//i.test(parsed.pathname);
 
     if (isLocalWahaFile || isSignedChatMedia) {
       if (!selected?.instance_id) throw new Error('Não foi possível identificar a instância do WhatsApp para recuperar o arquivo.');
