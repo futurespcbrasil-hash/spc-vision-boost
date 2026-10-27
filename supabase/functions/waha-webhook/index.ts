@@ -174,7 +174,7 @@ Deno.serve(async (req: Request) => {
     await db.from("whatsapp_chats").update({
       contact_number: persistedContactNumber, contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
-      last_message_at: sentAt, unread_count: fromMe ? (existingChat?.unread_count || 0) : (existingChat?.unread_count || 0) + 1,
+      last_message_at: sentAt, unread_count: existingChat?.unread_count || 0,
       is_group: waChatId.endsWith("@g.us"), updated_at: new Date().toISOString(),
     }).eq("id", chatId);
   } else {
@@ -182,7 +182,7 @@ Deno.serve(async (req: Request) => {
       instance_id: instance.id, wa_chat_id: waChatId, contact_number: persistedContactNumber,
       contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
-      last_message_at: sentAt, unread_count: fromMe ? 0 : 1,
+      last_message_at: sentAt, unread_count: 0,
       is_group: waChatId.endsWith("@g.us"), archived: false,
     }).select("id").single();
     if (error) return json({ error: "Failed to persist chat" }, 500);
@@ -205,6 +205,20 @@ Deno.serve(async (req: Request) => {
       if (error.code === "23505") return json({ accepted: true, duplicate: true });
       return json({ error: "Failed to persist message" }, 500);
     }
+  }
+  // Increment unread only after the message has been accepted by the unique message-ID
+  // constraint. This prevents duplicate message/message.any deliveries from inflating the badge.
+  if (!fromMe && messageId) {
+    const { data: unreadChat, error: unreadLookupError } = await db.from("whatsapp_chats")
+      .select("unread_count").eq("id", chatId).maybeSingle();
+    if (unreadLookupError) return json({ error: "Failed to update unread counter" }, 500);
+    const { error: unreadUpdateError } = await db.from("whatsapp_chats")
+      .update({ unread_count: Number(unreadChat?.unread_count || 0) + 1 })
+      .eq("id", chatId);
+    if (unreadUpdateError) return json({ error: "Failed to update unread counter" }, 500);
+  } else if (!fromMe && !messageId) {
+    const { data: unreadChat } = await db.from("whatsapp_chats").select("unread_count").eq("id", chatId).maybeSingle();
+    await db.from("whatsapp_chats").update({ unread_count: Number(unreadChat?.unread_count || 0) + 1 }).eq("id", chatId);
   }
 
   // Ciclos de atendimento: consome a nota da pesquisa antes das automações e
