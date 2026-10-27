@@ -215,7 +215,7 @@ const AppSidebar = () => {
         </button>
       </div>
 
-      <nav className={menuLayout === 'horizontal' ? 'flex max-w-[calc(100vw-1.5rem)] flex-row items-center gap-1 overflow-x-auto p-2' : 'flex-1 py-4 px-3 space-y-1.5 overflow-y-auto'}>
+      <nav className={menuLayout === 'horizontal' ? 'flex max-w-[calc(100vw-1.5rem)] flex-row items-center gap-1 overflow-x-auto p-2 [&>button]:!w-auto [&>button]:!shrink-0 [&>a]:!shrink-0' : 'flex-1 py-4 px-3 space-y-1.5 overflow-y-auto'}>
         {NAV_ITEMS.filter(item => canAccessModule(item.moduleKey)).map(item => {
           return renderNavItem(item, location.pathname === item.to);
         })}
