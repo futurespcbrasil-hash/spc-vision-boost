@@ -1013,7 +1013,12 @@ const WhatsAppChat = () => {
       if (!Number.isFinite(timestamp)) return false;
       return Number.isFinite(oldestLoadedAt) ? timestamp >= oldestLoadedAt : timestamp >= loadStartedAt;
     });
-    const merged = dropConfirmedTemps(deduplicateMessages([...orderedList, ...concurrentMessages]), previous);
+    const merged = dropConfirmedTemps(deduplicateMessages([...orderedList, ...concurrentMessages]), previous)
+      .sort((a, b) => {
+        const at = Date.parse(a.timestamp || '');
+        const bt = Date.parse(b.timestamp || '');
+        return (Number.isFinite(at) ? at : 0) - (Number.isFinite(bt) ? bt : 0) || String(a.id).localeCompare(String(b.id));
+      });
     // Mantém a última lista já resolvida em memória e no navegador para reabrir instantaneamente.
     const cacheKey = `${user?.id || 'anonymous'}:${instanceId}:${chatId}`;
     messagesCacheRef.current.set(cacheKey, merged);
