@@ -626,6 +626,17 @@ Deno.serve(async (req: Request) => {
           .eq("instance_id", inst.id).limit(2000);
         if (existingRowsError) throw existingRowsError;
 
+        const parseRemoteTime = (value: unknown): number => {
+          if (typeof value === "number" && Number.isFinite(value) && value > 0) return value < 10_000_000_000 ? value * 1000 : value;
+          if (typeof value === "string" && value.trim()) {
+            const trimmed = value.trim();
+            const numeric = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
+            if (Number.isFinite(numeric) && numeric > 0) return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+            const parsed = Date.parse(trimmed);
+            return Number.isFinite(parsed) ? parsed : 0;
+          }
+          return 0;
+        };
         const phoneKey = (value: unknown) => {
           let digits = collapseRepeatedPhoneDigits(String(value || "").split("@")[0].replace(/\D/g, ""));
           if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
@@ -665,7 +676,8 @@ Deno.serve(async (req: Request) => {
           const candidateRawTime = candidateLast?.timestamp || candidate?.timestamp || candidate?.lastMessageAt || null;
           const candidateText = typeof candidateLast === "string" ? candidateLast : String(candidateLast?.body || candidateLast?.text || candidateLast?.caption || "");
           const candidateHasMedia = !!(candidateLast?.hasMedia || candidateLast?.media || candidateLast?.mimetype);
-          const candidateHasHistory = !!(candidateRawTime || candidateText.trim() || candidateHasMedia);
+          const candidateTime = parseRemoteTime(candidateRawTime);
+          const candidateHasHistory = !!(candidateTime || candidateText.trim() || candidateHasMedia);
           if (!candidateHasHistory) continue;
           const key = candidateGroup ? `group:${candidateId}`
             : candidatePhone.length >= 10 ? `phone:${candidatePhone}` : `chat:${candidateId}`;
@@ -677,8 +689,8 @@ Deno.serve(async (req: Request) => {
           const previousIsLid = previousId.endsWith("@lid");
           const previousLast = previous?.lastMessage || previous?.last_message || {};
           const previousTimeValue = previousLast?.timestamp || previous?.timestamp || previous?.lastMessageAt || 0;
-          const candidateTime = Number(candidateRawTime) || Date.parse(String(candidateRawTime || "")) || 0;
-          const previousTime = Number(previousTimeValue) || Date.parse(String(previousTimeValue || "")) || 0;
+          const candidateTime = parseRemoteTime(candidateRawTime);
+          const previousTime = parseRemoteTime(previousTimeValue);
           if ((candidateIsLid && !previousIsLid) ||
               (candidateIsLid === previousIsLid && candidateTime > previousTime)) remoteChatsByKey.set(key, candidate);
         }
@@ -700,13 +712,8 @@ Deno.serve(async (req: Request) => {
           const number = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\D/g, ""));
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
-          let lastMessageAt: string | null = null;
-          if (typeof rawTime === "number" && rawTime > 0) {
-            lastMessageAt = new Date(rawTime < 10_000_000_000 ? rawTime * 1000 : rawTime).toISOString();
-          } else if (typeof rawTime === "string" && rawTime) {
-            const parsedTime = new Date(rawTime);
-            if (!Number.isNaN(parsedTime.getTime())) lastMessageAt = parsedTime.toISOString();
-          }
+          const parsedRemoteTime = parseRemoteTime(rawTime);
+          const lastMessageAt: string | null = parsedRemoteTime > 0 ? new Date(parsedRemoteTime).toISOString() : null;
           const lastText = typeof last === "string" ? last : String(last?.body || last?.text || last?.caption || "");
           const lastMessageFromMe = last?.fromMe === true || last?.from_me === true || last?.key?.fromMe === true;
           const hasLastMedia = !!(last?.hasMedia || last?.media || last?.mimetype);
