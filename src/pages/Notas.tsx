@@ -153,7 +153,7 @@ const Notas = () => {
               <div
                 key={n.id}
                 className={`${theme === 'transparent' ? 'bg-transparent' : c.bg} ${theme === 'transparent' ? '' : c.border} ${rotFor(n.id)} border-l-4 p-4 rounded-sm shadow-md hover:shadow-xl hover:rotate-0 transition-all duration-200 min-h-[200px] flex flex-col ${theme === 'transparent' ? 'text-foreground' : 'text-gray-800'} ${n.concluido ? 'opacity-60' : ''}`}
-                style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive", ...(theme === 'transparent' ? { backgroundColor: 'transparent', borderColor: corHex(n.cor), color: 'var(--foreground)' } : isCustomHex(n.cor) ? { backgroundColor: n.cor, borderColor: n.cor, color: colorText(n.cor) } : {}) }}
+                style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive", ...(theme === 'transparent' ? { backgroundColor: 'transparent', borderColor: corHex(n.cor), color: 'var(--crm-wallpaper-text, var(--foreground))' } : isCustomHex(n.cor) ? { backgroundColor: n.cor, borderColor: n.cor, color: colorText(n.cor) } : {}) }}
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className={`font-bold text-lg leading-tight ${n.concluido ? 'line-through' : ''}`}>{n.titulo}</h3>
