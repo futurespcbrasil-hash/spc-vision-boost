@@ -758,7 +758,8 @@ const WhatsAppChat = () => {
     }
     // Proteção contra JID @c.us e LID do mesmo telefone aparecendo duas vezes.
     const unique = new Map<string, Chat>();
-    for (const sourceRow of (data || []) as Chat[]) {
+    const sourceRows = (data || []) as Chat[];
+    for (const sourceRow of sourceRows) {
       // Corrige apenas a repetição exata de um telefone; mantém o JID remoto intacto.
       const row = { ...sourceRow, contact_number: sourceRow.is_group ? sourceRow.contact_number : collapseRepeatedPhoneDigits(sourceRow.contact_number || '') };
       if (!row.wa_chat_id || row.wa_chat_id === 'status@broadcast' || row.wa_chat_id.endsWith('@newsletter') || row.wa_chat_id.endsWith('@broadcast')) continue;
@@ -772,7 +773,15 @@ const WhatsAppChat = () => {
       const previousTime = new Date(previous.last_message_at || 0).getTime();
       const rowHasName = hasRealName(row);
       const previousHasName = hasRealName(previous);
-      if ((rowHasName && !previousHasName) || (rowHasName === previousHasName && rowTime > previousTime)) unique.set(key, row);
+      const rowIsLid = row.wa_chat_id.endsWith('@lid');
+      const previousIsLid = previous.wa_chat_id.endsWith('@lid');
+      // Prefira o LID para que a conversa aberta aponte para o histórico usado pela WAHA.
+      // Só compara nome/recência quando ambos os registros usam o mesmo tipo de identificador.
+      if ((rowIsLid && !previousIsLid) ||
+          (rowIsLid === previousIsLid && ((rowHasName && !previousHasName) ||
+            (rowHasName === previousHasName && rowTime > previousTime)))) {
+        unique.set(key, row);
+      }
     }
     const list = [...unique.values()].sort((a, b) => {
       if (!!a.is_pinned !== !!b.is_pinned) return a.is_pinned ? -1 : 1;
@@ -783,13 +792,19 @@ const WhatsAppChat = () => {
     // Ao trocar de instância, nunca manter a conversa da instância anterior aberta.
     const cur = selectedRef.current;
     if (cur && cur.instance_id === instanceId) {
-      const fresh = list.find(c => c.id === cur.id);
-      if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev);
+      const fresh = list.find(c => c.id === cur.id)
+        || (!cur.is_group ? list.find(c => !c.is_group &&
+          canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
+      if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
       else setSelected(list[0] || null);
     } else {
       let savedChatId = '';
       try { savedChatId = user?.id ? localStorage.getItem(`whatsapp_chat_selected_${user.id}_${instanceId}`) || '' : ''; } catch { /* armazenamento indisponível */ }
-      setSelected(list.find(chat => chat.id === savedChatId) || list[0] || null);
+      const savedChat = sourceRows.find(chat => chat.id === savedChatId);
+      const savedPhone = savedChat && !savedChat.is_group ? canonicalWhatsAppPhone(savedChat.contact_number || '') : '';
+      const restored = list.find(chat => chat.id === savedChatId)
+        || (savedPhone ? list.find(chat => !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
+      setSelected(restored || list[0] || null);
       setMessages([]);
     }
   };
