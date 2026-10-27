@@ -441,7 +441,10 @@ const WhatsAppChat = () => {
   const messagesChatIdRef = useRef<string>('');
   const chatsLoadSequenceRef = useRef(0);
   const messageLoadSequenceRef = useRef(0);
-  const remoteSyncInFlightRef = useRef(false);
+  // Evita sincronizações remotas concorrentes por conversa, sem bloquear a conversa nova ao trocar de chat.
+  const remoteSyncInFlightRef = useRef<Set<string>>(new Set());
+  // O bloqueio por ref é síncrono: evita envios duplicados por duplo clique/Enter rápido.
+  const sendInFlightRef = useRef(false);
   const draftRestorePending = useRef(false);
   const activeDraftKey = useRef('');
   const profilePicFetched = useRef<Set<string>>(new Set());
@@ -880,13 +883,19 @@ const WhatsAppChat = () => {
         schedule)
       .subscribe();
     // Fallback: garante atualização mesmo se o realtime cair
-    const poll = window.setInterval(() => loadChats(), 8000);
-    const onFocus = () => loadChats();
-    window.addEventListener('focus', onFocus);
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadChats();
+    }, 8000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadChats();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       if (t) window.clearTimeout(t);
       window.clearInterval(poll);
-      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
       supabase.removeChannel(ch);
     };
   }, [instanceId]);
@@ -1054,7 +1063,20 @@ const WhatsAppChat = () => {
     });
     if (changed) {
       messagesRef.current = merged;
-      setMessages(current => dropConfirmedTemps(orderedList, current));
+      // Usa a lista reconciliada (inclui eventos Realtime que chegaram durante a consulta),
+      // e preserva mensagens recebidas entre o snapshot e o commit do estado.
+      setMessages(current => {
+        const knownIds = new Set(merged.map(message => message.id));
+        const knownRemoteIds = new Set(merged.map(message => message.wa_message_id).filter(Boolean));
+        const lateMessages = current.filter(message => {
+          if (message.id.startsWith('temp-') || message.text === '[crm_deleted]') return false;
+          if (knownIds.has(message.id) || (message.wa_message_id && knownRemoteIds.has(message.wa_message_id))) return false;
+          const timestamp = Date.parse(message.timestamp || '');
+          if (!Number.isFinite(timestamp)) return false;
+          return Number.isFinite(oldestLoadedAt) ? timestamp >= oldestLoadedAt : timestamp >= loadStartedAt;
+        });
+        return dropConfirmedTemps(deduplicateMessages([...merged, ...lateMessages]), current);
+      });
     }
     // Na carga inicial vai para a última mensagem; no polling só acompanha se novas mensagens chegaram
     // e o usuário já estava próximo do final. Ao ler mensagens antigas, preserva a posição.
@@ -1177,17 +1199,27 @@ const WhatsAppChat = () => {
     const poll = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadMessages(chatId, true);
     }, 10000);
+    const refreshMessagesWhenVisible = () => {
+      if (document.visibilityState === 'visible' && !cancelled) void loadMessages(chatId, true);
+    };
+    document.addEventListener('visibilitychange', refreshMessagesWhenVisible);
     // Algumas versões da WAHA não emitem evento de revogação; reconcilia a origem remota
     // periodicamente para remover mensagens apagadas no celular sem fazer chamadas a cada 5s.
     const remoteSync = window.setInterval(() => {
-      if (document.visibilityState !== 'visible' || !instanceId || remoteSyncInFlightRef.current) return;
-      remoteSyncInFlightRef.current = true;
+      if (document.visibilityState !== 'visible' || !instanceId || remoteSyncInFlightRef.current.has(chatId)) return;
+      remoteSyncInFlightRef.current.add(chatId);
       void waha.getMessages(instanceId, selected.wa_chat_id)
         .then(() => loadMessages(chatId, true))
         .catch(error => console.warn('[WhatsApp] Sincronização remota periódica falhou:', error?.message || error))
-        .finally(() => { remoteSyncInFlightRef.current = false; });
+        .finally(() => { remoteSyncInFlightRef.current.delete(chatId); });
     }, 30000);
-    return () => { cancelled = true; window.clearInterval(poll); window.clearInterval(remoteSync); supabase.removeChannel(ch); };
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', refreshMessagesWhenVisible);
+      window.clearInterval(poll);
+      window.clearInterval(remoteSync);
+      supabase.removeChannel(ch);
+    };
   }, [selected?.id, loadMessages, instanceId, touchLeadInteraction]);
 
   // Persiste atualizações em tempo real no cache correto, sem associar mensagens ao chat errado.
@@ -1202,7 +1234,8 @@ const WhatsAppChat = () => {
   }, [messages, selected?.id, instanceId, user?.id]);
 
   const handleSend = async () => {
-    if (!text.trim() || !selected || !instanceId) return;
+    if (!text.trim() || !selected || !instanceId || sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
     const msg = text.trim();
     setText('');
     // Envio otimista: a mensagem aparece na hora e é reconciliada pelo realtime
@@ -1229,6 +1262,8 @@ const WhatsAppChat = () => {
       setMessages(prev => prev.filter(m => m.id !== tempId));
       setText(msg);
       toast({ title: 'Falha ao enviar', description: e.message, variant: 'destructive' });
+    } finally {
+      sendInFlightRef.current = false;
     }
 
   };
