@@ -258,7 +258,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && consultasOpen && (
-          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[100] mb-2 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-muted/90 text-foreground backdrop-blur-md p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[100] mb-2 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-muted/90 text-foreground backdrop-blur-md p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
             {CONSULTAS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -296,7 +296,7 @@ const AppSidebar = () => {
               )}
             </button>
             {(!collapsed || menuLayout === 'horizontal') && campaignsOpen && (
-              <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-muted/90 text-foreground backdrop-blur-md p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+              <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-muted/90 text-foreground backdrop-blur-md p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
                 {CAMPAIGNS_SUB.map((sub) => (
                   <Link
                     key={sub.to}
@@ -335,7 +335,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && whatsappOpen && (
-          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
             {WHATSAPP_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -372,7 +372,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && remoteOpen && (
-          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
             {REMOTE_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -409,7 +409,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && finOpen && (
-          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
             <Link to="/financeiro/boletos"
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                 ${location.pathname === '/financeiro/boletos'
@@ -452,7 +452,7 @@ const AppSidebar = () => {
               )}
             </button>
             {(!collapsed || menuLayout === 'horizontal') && comissoesOpen && (
-              <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+              <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
                 {COMISSOES_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
                   <Link
                     key={sub.to}
@@ -491,7 +491,7 @@ const AppSidebar = () => {
               )}
             </button>
             {(!collapsed || menuLayout === 'horizontal') && indicacoesOpen && (
-              <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+              <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
                 <Link to="/indicacoes/clientes"
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                     ${location.pathname === '/indicacoes/clientes'
@@ -525,7 +525,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && parceirosOpen && (
-          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
             {PARCEIROS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link
                 key={sub.to}
