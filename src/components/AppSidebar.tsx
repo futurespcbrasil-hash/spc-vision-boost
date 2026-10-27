@@ -90,6 +90,7 @@ const AppSidebar = () => {
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
   const [collapsed, setCollapsed] = useState(false);
+  const [submenuAnchorX, setSubmenuAnchorX] = useState(0);
   const [menuLayout, setMenuLayout] = useState<'vertical' | 'horizontal'>(() => { try { return localStorage.getItem('future-vision-menu-layout:' + (user?.id || 'guest')) === 'horizontal' ? 'horizontal' : 'vertical'; } catch { return 'vertical'; } });
   useEffect(() => {
     try { setMenuLayout(localStorage.getItem('future-vision-menu-layout:' + (user?.id || 'guest')) === 'horizontal' ? 'horizontal' : 'vertical'); } catch { setMenuLayout('vertical'); }
@@ -224,7 +225,7 @@ const AppSidebar = () => {
         {['consultas_spc', 'consulta_cnpj', 'consulta_sintegra', 'consulta_cnpj_lote'].some(key => canAccessModule(key)) && (
           <>
         <button
-          onClick={() => setConsultasOpen(!consultasOpen)}
+          onClick={(event) => { setConsultasOpen(!consultasOpen); setSubmenuAnchorX((event.currentTarget as HTMLButtonElement).offsetLeft + (event.currentTarget as HTMLButtonElement).offsetWidth / 2); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/consultas')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -240,7 +241,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && consultasOpen && (
-          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-1/2 z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchorX } : undefined}>
             {CONSULTAS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -261,7 +262,7 @@ const AppSidebar = () => {
         {canAccessModule('campaigns') && (
           <>
             <button
-              onClick={() => setCampaignsOpen(!campaignsOpen)}
+              onClick={(event) => { setCampaignsOpen(!campaignsOpen); setSubmenuAnchorX((event.currentTarget as HTMLButtonElement).offsetLeft + (event.currentTarget as HTMLButtonElement).offsetWidth / 2); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
                 ${location.pathname.startsWith('/campanhas')
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -277,7 +278,7 @@ const AppSidebar = () => {
               )}
             </button>
             {(!collapsed || menuLayout === 'horizontal') && campaignsOpen && (
-              <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-1/2 z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
+              <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchorX } : undefined}>
                 {CAMPAIGNS_SUB.map((sub) => (
                   <Link
                     key={sub.to}
@@ -316,7 +317,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && whatsappOpen && (
-          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-1/2 z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchorX } : undefined}>
             {WHATSAPP_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -336,7 +337,7 @@ const AppSidebar = () => {
         {canAccessModule('future_remote') && (
           <>
         <button
-          onClick={() => setRemoteOpen(!remoteOpen)}
+          onClick={(event) => { setRemoteOpen(!remoteOpen); setSubmenuAnchorX((event.currentTarget as HTMLButtonElement).offsetLeft + (event.currentTarget as HTMLButtonElement).offsetWidth / 2); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/future-remote')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -352,7 +353,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && remoteOpen && (
-          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-1/2 z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchorX } : undefined}>
             {REMOTE_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -372,7 +373,7 @@ const AppSidebar = () => {
         {canAccessModule('financeiro') && (
           <>
         <button
-          onClick={() => setFinOpen(!finOpen)}
+          onClick={(event) => { setFinOpen(!finOpen); setSubmenuAnchorX((event.currentTarget as HTMLButtonElement).offsetLeft + (event.currentTarget as HTMLButtonElement).offsetWidth / 2); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/financeiro')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -388,7 +389,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && finOpen && (
-          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-1/2 z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchorX } : undefined}>
             <Link to="/financeiro/boletos"
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                 ${location.pathname === '/financeiro/boletos'
@@ -414,7 +415,7 @@ const AppSidebar = () => {
         {(role === 'gestor' || canManageUsers) && canAccessModule('comissoes') && (
           <>
             <button
-              onClick={() => setComissoesOpen(!comissoesOpen)}
+              onClick={(event) => { setComissoesOpen(!comissoesOpen); setSubmenuAnchorX((event.currentTarget as HTMLButtonElement).offsetLeft + (event.currentTarget as HTMLButtonElement).offsetWidth / 2); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
                 ${(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores') || location.pathname.startsWith('/comissoes/'))
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -430,7 +431,7 @@ const AppSidebar = () => {
               )}
             </button>
             {(!collapsed || menuLayout === 'horizontal') && comissoesOpen && (
-              <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-1/2 z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
+              <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchorX } : undefined}>
                 {COMISSOES_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
                   <Link
                     key={sub.to}
@@ -452,7 +453,7 @@ const AppSidebar = () => {
         {role === 'atendimento' && canAccessModule('indicacoes_atendimento') && (
           <>
             <button
-              onClick={() => setIndicacoesOpen(!indicacoesOpen)}
+              onClick={(event) => { setIndicacoesOpen(!indicacoesOpen); setSubmenuAnchorX((event.currentTarget as HTMLButtonElement).offsetLeft + (event.currentTarget as HTMLButtonElement).offsetWidth / 2); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
                 ${location.pathname.startsWith('/indicacoes')
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -468,7 +469,7 @@ const AppSidebar = () => {
               )}
             </button>
             {(!collapsed || menuLayout === 'horizontal') && indicacoesOpen && (
-              <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-1/2 z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
+              <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchorX } : undefined}>
                 <Link to="/indicacoes/clientes"
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
                     ${location.pathname === '/indicacoes/clientes'
@@ -485,7 +486,7 @@ const AppSidebar = () => {
         {canAccessModule('parceiros') && (
           <>
         <button
-          onClick={() => setParceirosOpen(!parceirosOpen)}
+          onClick={(event) => { setParceirosOpen(!parceirosOpen); setSubmenuAnchorX((event.currentTarget as HTMLButtonElement).offsetLeft + (event.currentTarget as HTMLButtonElement).offsetWidth / 2); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/parceiros-spc')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -501,7 +502,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && parceirosOpen && (
-          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-1/2 z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[60] mb-3 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchorX } : undefined}>
             {PARCEIROS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link
                 key={sub.to}
