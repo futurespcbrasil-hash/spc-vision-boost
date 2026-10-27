@@ -628,7 +628,7 @@ Deno.serve(async (req: Request) => {
         if (existingRowsError) throw existingRowsError;
 
         const phoneKey = (value: unknown) => {
-          let digits = collapseRepeatedPhoneDigits(String(value || "").split("@")[0].replace(/\\D/g, ""));
+          let digits = collapseRepeatedPhoneDigits(String(value || "").split("@")[0].replace(/\D/g, ""));
           if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
           if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
           return digits;
@@ -661,7 +661,7 @@ Deno.serve(async (req: Request) => {
           const rawNumber = waChatId.endsWith("@lid")
             ? (chat?.number || chat?.phone || chat?.contact?.number || chat?.contact?.phone || exactExisting?.contact_number || "")
             : waChatId.split("@")[0];
-          const number = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\\D/g, ""));
+          const number = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\D/g, ""));
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
           let lastMessageAt: string | null = null;
@@ -707,11 +707,11 @@ Deno.serve(async (req: Request) => {
               contact_number: existing.contact_number || number,
               contact_name: (() => {
                 const savedName = String(existing.contact_name || "").trim();
-                const savedNumber = String(existing.contact_number || "").replace(/\\D/g, "");
+                const savedNumber = String(existing.contact_number || "").replace(/\D/g, "");
                 const savedNameIsUseful = !!savedName &&
-                  savedName.replace(/\\D/g, "") !== savedNumber &&
+                  savedName.replace(/\D/g, "") !== savedNumber &&
                   !/^salvar contato$/i.test(savedName) &&
-                  !/^\\+?[\\d\\s().-]+$/.test(savedName) &&
+                  !/^\+?[\d\s().-]+$/.test(savedName) &&
                   !/^contato do whatsapp$/i.test(savedName);
                 return savedNameIsUseful ? savedName : (contactName || savedName);
               })(),
