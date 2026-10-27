@@ -185,7 +185,7 @@ const Metas = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><Lock size={12}/> Ponto Zero</div>
-          {canManageUsers ? <Input aria-label="Ponto zero do usuário selecionado" type="number" min="0" step="0.01" value={rows[0]?.ponto_zero ?? PONTO_ZERO} onChange={e => { const value = Math.max(0, Number(e.target.value) || 0); setRows(current => current.map(row => ({ ...row, ponto_zero: value, dirty: true }))); }} className="mt-1 h-9 max-w-48 text-lg font-bold" /> : <div className="text-lg font-bold text-foreground">{fmt(rows[0]?.ponto_zero ?? PONTO_ZERO)}</div>}
+          {canManageUsers ? <Input aria-label="Ponto zero do usuário selecionado" type="number" min="0" step="0.01" value={rows[0]?.ponto_zero ?? PONTO_ZERO} onChange={e => { const value = Math.max(0, Number(e.target.value) || 0); setRows(current => current.map(row => ({ ...row, ponto_zero: value, dirty: true }))); }} className="mt-1 h-9 max-w-48 text-lg font-bold" /> : <div className="text-lg font-bold text-foreground">{fmt(rows.length ? rows[0].ponto_zero : PONTO_ZERO)}</div>}
         </Card>
         <Card className="p-4">
           <div className="text-xs text-muted-foreground flex items-center gap-1"><DollarSign size={12}/> Faturamento total</div>
