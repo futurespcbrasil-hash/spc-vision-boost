@@ -239,8 +239,8 @@ const AppSidebar = () => {
             </>
           )}
         </button>
-        {!collapsed && consultasOpen && (
-          <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
+        {(!collapsed || menuLayout === 'horizontal') && consultasOpen && (
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full left-0 mb-2 max-h-[60vh] min-w-52 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'}>
             {CONSULTAS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -276,7 +276,7 @@ const AppSidebar = () => {
                 </>
               )}
             </button>
-            {!collapsed && campaignsOpen && (
+            {(!collapsed || menuLayout === 'horizontal') && campaignsOpen && (
               <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
                 {CAMPAIGNS_SUB.map((sub) => (
                   <Link
@@ -315,7 +315,7 @@ const AppSidebar = () => {
             </>
           )}
         </button>
-        {!collapsed && whatsappOpen && (
+        {(!collapsed || menuLayout === 'horizontal') && whatsappOpen && (
           <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
             {WHATSAPP_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
@@ -429,7 +429,7 @@ const AppSidebar = () => {
                 </>
               )}
             </button>
-            {!collapsed && comissoesOpen && (
+            {(!collapsed || menuLayout === 'horizontal') && comissoesOpen && (
               <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
                 {COMISSOES_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
                   <Link
@@ -467,7 +467,7 @@ const AppSidebar = () => {
                 </>
               )}
             </button>
-            {!collapsed && indicacoesOpen && (
+            {(!collapsed || menuLayout === 'horizontal') && indicacoesOpen && (
               <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
                 <Link to="/indicacoes/clientes"
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -500,7 +500,7 @@ const AppSidebar = () => {
             </>
           )}
         </button>
-        {!collapsed && parceirosOpen && (
+        {(!collapsed || menuLayout === 'horizontal') && parceirosOpen && (
           <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-1">
             {PARCEIROS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link
