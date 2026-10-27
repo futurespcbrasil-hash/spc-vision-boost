@@ -274,6 +274,7 @@ const WhatsAppChat = () => {
   const [search, setSearch] = useState('');
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [messageDetails, setMessageDetails] = useState<Message | null>(null);
+  const [pdfPreviewMessage, setPdfPreviewMessage] = useState<Message | null>(null);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
   const [favoriteMessageIds, setFavoriteMessageIds] = useState<string[]>([]);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
@@ -2284,7 +2285,68 @@ const WhatsAppChat = () => {
                           {!m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt') && (
                             <span className="text-[11px] italic opacity-70">🎤 Áudio indisponível</span>
                           )}
-                          {m.media_url && !['image', 'sticker', 'gif', 'video', 'audio', 'ptt'].includes(m.message_type || '') && (
+                          {m.media_url && (
+                            (m.media_mime || '').toLowerCase().includes('pdf') ||
+                            /\.pdf(?:$|[?#])/i.test(m.media_filename || '') ||
+                            (m.message_type === 'document' && (/\.pdf(?:$|[?#])/i.test(m.media_url || '') || /\.pdf\b/i.test(m.text || '')))
+                          ) && (() => {
+                            const rawName = m.media_filename || '';
+                            let fileName = rawName;
+                            if (!fileName) {
+                              try {
+                                const urlPath = new URL(m.media_url!).pathname;
+                                const candidate = decodeURIComponent(urlPath.split('/').pop() || '');
+                                if (/\.pdf$/i.test(candidate)) fileName = candidate;
+                              } catch { /* URL may be a storage alias; use a safe fallback below. */ }
+                            }
+                            if (!fileName && /\.pdf$/i.test(m.text || '')) fileName = m.text!.trim();
+                            if (!fileName) fileName = `Documento-${m.id.slice(0, 8)}.pdf`;
+                            return (
+                              <div className="w-full min-w-[220px] max-w-[340px] overflow-hidden rounded-xl border border-border/70 bg-background/80 shadow-sm">
+                                <button type="button" onClick={() => setPdfPreviewMessage(m)} className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/60">
+                                  <span className="flex h-12 w-11 shrink-0 flex-col items-center justify-center rounded-md bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
+                                    <FileText size={21} />
+                                    <span className="text-[9px] font-bold tracking-wide">PDF</span>
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-semibold" title={fileName}>{fileName}</span>
+                                    <span className="mt-1 block text-xs text-muted-foreground">Documento PDF · Recebido no WhatsApp</span>
+                                    <span className="mt-1 flex items-center gap-1 text-xs font-medium text-primary"><Eye size={13} /> Visualizar documento</span>
+                                  </span>
+                                </button>
+                                <div className="flex border-t border-border/70">
+                                  <button type="button" onClick={() => setPdfPreviewMessage(m)} className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium hover:bg-muted/60">
+                                    <Eye size={14} /> Abrir PDF
+                                  </button>
+                                  <span className="my-2 w-px bg-border" />
+                                  <button type="button" onClick={async () => {
+                                    try {
+                                      const response = await fetch(m.media_url!);
+                                      if (!response.ok) throw new Error('Falha ao baixar o PDF');
+                                      const blob = await response.blob();
+                                      const objectUrl = window.URL.createObjectURL(blob);
+                                      const anchor = document.createElement('a');
+                                      anchor.href = objectUrl;
+                                      anchor.download = fileName;
+                                      document.body.appendChild(anchor);
+                                      anchor.click();
+                                      anchor.remove();
+                                      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
+                                    } catch {
+                                      window.open(m.media_url!, '_blank', 'noopener,noreferrer');
+                                    }
+                                  }} className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium hover:bg-muted/60">
+                                    <Download size={14} /> Baixar
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          {m.media_url && !(
+                            (m.media_mime || '').toLowerCase().includes('pdf') ||
+                            /\.pdf(?:$|[?#])/i.test(m.media_filename || '') ||
+                            (m.message_type === 'document' && (/\.pdf(?:$|[?#])/i.test(m.media_url || '') || /\.pdf\b/i.test(m.text || '')))
+                          ) && !['image', 'sticker', 'gif', 'video', 'audio', 'ptt'].includes(m.message_type || '') && (
                             <button 
                               onClick={async (e) => {
                                 e.preventDefault();
@@ -2564,6 +2626,32 @@ const WhatsAppChat = () => {
     </div>
 
 
+
+    {/* Visualizador de PDF recebido no WhatsApp */}
+    <Dialog open={!!pdfPreviewMessage} onOpenChange={open => { if (!open) setPdfPreviewMessage(null); }}>
+      <DialogContent className="flex h-[90dvh] w-[96vw] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="flex-row items-center justify-between gap-3 border-b px-4 py-3 pr-12">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-9 shrink-0 items-center justify-center rounded-md bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"><FileText size={20} /></span>
+            <div className="min-w-0">
+              <DialogTitle className="truncate text-sm sm:text-base">{pdfPreviewMessage?.media_filename || 'Documento PDF'}</DialogTitle>
+              <p className="text-xs text-muted-foreground">Pré-visualização do documento recebido</p>
+            </div>
+          </div>
+          {pdfPreviewMessage?.media_url && <Button variant="outline" size="sm" className="shrink-0 gap-2" onClick={() => window.open(pdfPreviewMessage.media_url!, '_blank', 'noopener,noreferrer')}><ExternalLink size={14} /><span className="hidden sm:inline">Abrir em nova aba</span></Button>}
+        </DialogHeader>
+        <div className="min-h-0 flex-1 bg-muted/30">
+          {pdfPreviewMessage?.media_url ? (
+            <iframe key={pdfPreviewMessage.id} src={pdfPreviewMessage.media_url} title={pdfPreviewMessage.media_filename || 'Pré-visualização do PDF'} className="h-full w-full border-0" />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+              <FileText size={36} />
+              Não foi possível localizar o arquivo deste documento.
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
 
     {/* ─── Nova Conversa Dialog ─── */}
     <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
