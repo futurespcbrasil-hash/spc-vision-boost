@@ -115,7 +115,7 @@ const CRMNotificationBell = () => {
   if (!user || location.pathname.startsWith('/whatsapp')) return null;
 
   return (
-    <div className="fixed right-4 top-3 z-[60]">
+    <div className="relative">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" size="icon" className="relative rounded-full shadow-md bg-card" aria-label={`Notificações do CRM: ${unreadCount} não lidas`}>
