@@ -89,6 +89,36 @@ const canonicalWhatsAppPhone = (value: string) => {
   return digits;
 };
 
+// Guard the list against legacy duplicate rows while the backend consolidation runs.
+// Group conversations remain separate; only individual chats with a real phone are merged.
+const deduplicateChatsForDisplay = <T extends { id: string; wa_chat_id: string; contact_number: string; is_group: boolean; last_message_at?: string | null; unread_count?: number }>(items: T[]): T[] => {
+  const byPhone = new Map<string, T>();
+  const passthrough: T[] = [];
+  for (const item of items) {
+    const phone = canonicalWhatsAppPhone(item.contact_number || '');
+    if (item.is_group || phone.length < 10) {
+      passthrough.push(item);
+      continue;
+    }
+    const current = byPhone.get(phone);
+    if (!current) {
+      byPhone.set(phone, item);
+      continue;
+    }
+    const currentIsLid = current.wa_chat_id?.endsWith('@lid');
+    const itemIsLid = item.wa_chat_id?.endsWith('@lid');
+    // Prefer LID as the canonical remote chat id; then prefer unread/latest metadata.
+    const currentTime = new Date(current.last_message_at || 0).getTime();
+    const itemTime = new Date(item.last_message_at || 0).getTime();
+    if ((itemIsLid && !currentIsLid) ||
+        (itemIsLid === currentIsLid && ((item.unread_count || 0) > (current.unread_count || 0) ||
+          ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)))) {
+      byPhone.set(phone, item);
+    }
+  }
+  return [...passthrough, ...byPhone.values()];
+};
+
 // Aceita valores brasileiros (1.000,00) e valores digitados com ponto decimal (1000.00).
 const parsePlanValue = (raw: string): number | null => {
   const value = raw.trim().replace(/[^0-9,.-]/g, '');
@@ -1605,12 +1635,13 @@ const WhatsAppChat = () => {
   };
 
   // Contadores de não lidas por aba
+  const uniqueDisplayChats = useMemo(() => deduplicateChatsForDisplay(chats), [chats]);
   const tabUnread = (f: typeof activeFilter) =>
-    chats.filter(c => matchesFilter(c, f)).reduce((s, c) => s + (c.unread_count || 0), 0);
-  const tabCount = (f: typeof activeFilter) => chats.filter(c => matchesFilter(c, f)).length;
+    uniqueDisplayChats.filter(c => matchesFilter(c, f)).reduce((s, c) => s + (c.unread_count || 0), 0);
+  const tabCount = (f: typeof activeFilter) => uniqueDisplayChats.filter(c => matchesFilter(c, f)).length;
 
   // Filter chats by tab & search query
-  const filteredChats = chats.filter(c => {
+  const filteredChats = uniqueDisplayChats.filter(c => {
     const matchSearch = !search ||
       (c.contact_name || '').toLowerCase().includes(search.toLowerCase()) ||
       c.contact_number.includes(onlyDigits(search) || search);

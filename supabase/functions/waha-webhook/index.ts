@@ -5,6 +5,13 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { "Content-Type": "application/json" },
 });
 const str = (v: unknown) => typeof v === "string" ? v : "";
+const normalizeWhatsAppPhone = (value: unknown): string => {
+  let digits = String(value || "").split("@")[0].replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+  if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
+  return digits;
+};
+
 const cleanWebhookSecret = (value: string | null | undefined) =>
   (value || "").split(/\r?\n/)[0].replace(/\s+Copiar chave.*$/i, "").trim();
 
@@ -138,15 +145,28 @@ Deno.serve(async (req: Request) => {
   let { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
     .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
   // If WAHA alternates between a phone JID and a LID, match by the alternate phone JID.
-  if (!existingChat && contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
-    const lookup = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
-      .eq("instance_id", instance.id).eq("contact_number", contactNumber).eq("is_group", false).limit(1).maybeSingle();
-    existingChat = lookup.data;
+  if (contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
+    // Normalize Brazilian numbers (with/without country code and ninth digit) before
+    // matching. If legacy aliases exist, prefer the LID row used by WAHA for history.
+    const candidates = await db.from("whatsapp_chats")
+      .select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
+      .eq("instance_id", instance.id).eq("is_group", false).limit(500);
+    if (candidates.error) return json({ error: "Chat deduplication lookup failed" }, 500);
+    const incomingPhone = normalizeWhatsAppPhone(contactNumber);
+    const phoneMatches = (candidates.data || []).filter((row: any) =>
+      incomingPhone && normalizeWhatsAppPhone(row.contact_number) === incomingPhone
+    );
+    const lidMatch = phoneMatches.find((row: any) => str(row.wa_chat_id).endsWith("@lid"));
+    if (lidMatch && (!existingChat || !str(existingChat.wa_chat_id).endsWith("@lid"))) {
+      existingChat = lidMatch;
+    } else if (!existingChat) {
+      existingChat = phoneMatches[0] || null;
+    }
   }
   const lidDigits = waChatId.endsWith("@lid") ? waChatId.split("@")[0].replace(/\D/g, "") : "";
   const previousNumber = str(existingChat?.contact_number).replace(/\D/g, "");
   const persistedContactNumber = waChatId.endsWith("@lid")
-    ? (previousNumber && previousNumber !== lidDigits ? str(existingChat?.contact_number) : contactNumber)
+    ? (contactNumber.length >= 10 ? contactNumber : (previousNumber && previousNumber !== lidDigits ? str(existingChat?.contact_number) : ""))
     : contactNumber;
   const previousName = str(existingChat?.contact_name).trim();
   const savedNameIsUseful = !!previousName &&
@@ -158,9 +178,12 @@ Deno.serve(async (req: Request) => {
   let chatId = existingChat?.id as string | undefined;
   if (chatId) {
     await db.from("whatsapp_chats").update({
+      // Prefer the WAHA LID when it is known for this phone, so message history opens
+      // against the identifier accepted by the active WhatsApp session.
+      wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existingChat?.wa_chat_id,
       contact_number: persistedContactNumber, contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
-      last_message_at: sentAt, unread_count: fromMe ? (existingChat?.unread_count || 0) : (existingChat?.unread_count || 0) + 1,
+      last_message_at: sentAt, unread_count: existingChat?.unread_count || 0,
       is_group: waChatId.endsWith("@g.us"), updated_at: new Date().toISOString(),
     }).eq("id", chatId);
   } else {
@@ -168,7 +191,7 @@ Deno.serve(async (req: Request) => {
       instance_id: instance.id, wa_chat_id: waChatId, contact_number: persistedContactNumber,
       contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
-      last_message_at: sentAt, unread_count: fromMe ? 0 : 1,
+      last_message_at: sentAt, unread_count: 0,
       is_group: waChatId.endsWith("@g.us"), archived: false,
     }).select("id").single();
     if (error) return json({ error: "Failed to persist chat" }, 500);
@@ -185,7 +208,26 @@ Deno.serve(async (req: Request) => {
         status: "received", timestamp: sentAt, raw: payload,
         sent_by: fromMe ? instance.owner_id : null,
     });
-    if (error) return json({ error: "Failed to persist message" }, 500);
+    // Concurrent WAHA event types can race past the initial lookup. The unique
+    // (instance_id, wa_message_id) constraint is the final idempotency guard.
+    if (error) {
+      if (error.code === "23505") return json({ accepted: true, duplicate: true });
+      return json({ error: "Failed to persist message" }, 500);
+    }
+  }
+  // Increment unread only after the message has been accepted by the unique message-ID
+  // constraint. This prevents duplicate message/message.any deliveries from inflating the badge.
+  if (!fromMe && messageId) {
+    const { data: unreadChat, error: unreadLookupError } = await db.from("whatsapp_chats")
+      .select("unread_count").eq("id", chatId).maybeSingle();
+    if (unreadLookupError) return json({ error: "Failed to update unread counter" }, 500);
+    const { error: unreadUpdateError } = await db.from("whatsapp_chats")
+      .update({ unread_count: Number(unreadChat?.unread_count || 0) + 1 })
+      .eq("id", chatId);
+    if (unreadUpdateError) return json({ error: "Failed to update unread counter" }, 500);
+  } else if (!fromMe && !messageId) {
+    const { data: unreadChat } = await db.from("whatsapp_chats").select("unread_count").eq("id", chatId).maybeSingle();
+    await db.from("whatsapp_chats").update({ unread_count: Number(unreadChat?.unread_count || 0) + 1 }).eq("id", chatId);
   }
 
   // Ciclos de atendimento: consome a nota da pesquisa antes das automações e
