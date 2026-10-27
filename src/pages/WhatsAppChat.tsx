@@ -189,15 +189,18 @@ const isPotentialPhone = (v: string) => {
 // Transforma links e números de telefone em âncoras clicáveis
 const renderRichText = (text: string, onNumberClick?: (num: string) => void) => {
   if (!text) return null;
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-  // Regex mais abrangente para números que parecem WhatsApp (ex: 54991811902)
-  const phoneRegex = /(\+?\d{1,2}\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4}|\d{10,13})/g;
+  // Se o mesmo telefone foi concatenado duas vezes, corrige somente a exibição do token.
+  // O texto original da mensagem no banco não é alterado.
+  const displayText = text.replace(/(?<!\d)(\d{10,13})\1(?!\d)/g, '$1');
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
+  // Limites de dígitos impedem que um telefone seja extraído de dentro de uma sequência maior.
+  const phoneRegex = /(?<!\d)(\+?\d{1,2}\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4}|\d{10,13})(?!\d)/i;
 
-  const parts = text.split(new RegExp(`(${urlRegex.source}|${phoneRegex.source})`, 'gi'));
+  const parts = displayText.split(new RegExp(`(${urlRegex.source}|(${phoneRegex.source}))`, 'gi'));
 
   return parts.map((part, i) => {
     if (!part) return null;
-    if (urlRegex.test(part)) {
+    if (new RegExp(urlRegex.source, 'i').test(part)) {
       const href = part.startsWith('http') ? part : `https://${part}`;
       return (
         <a key={i} href={href} target="_blank" rel="noreferrer" className="underline break-all text-blue-600 dark:text-blue-400">
@@ -205,7 +208,7 @@ const renderRichText = (text: string, onNumberClick?: (num: string) => void) => 
         </a>
       );
     }
-    if (phoneRegex.test(part) && isPotentialPhone(part)) {
+    if (new RegExp(phoneRegex.source, 'i').test(part) && isPotentialPhone(part)) {
       const cleanNum = onlyDigits(part);
       return (
         <button
