@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Plus, Pencil, Trash2, StickyNote, Check, RotateCcw, Bell } from 'lucide-react';
 import { toast } from 'sonner';
+import { useThemePreference } from '@/components/ThemePreferenceProvider';
 
 const CORES = [
   { value: 'amarelo', bg: 'bg-yellow-200', border: 'border-yellow-300', label: 'Amarelo' },
@@ -35,6 +36,7 @@ const fmtDate = (d?: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDat
 const emptyForm = { titulo: '', conteudo: '', cor: 'amarelo', data_lembrete: '', concluido: false };
 
 const Notas = () => {
+  const { theme } = useThemePreference();
   const { user } = useAuth();
   const draftKey = user ? `crm_note_draft_${user.id}` : undefined;
   const readDraft = () => {
@@ -149,8 +151,8 @@ const Notas = () => {
             return (
               <div
                 key={n.id}
-                className={`${c.bg} ${c.border} ${rotFor(n.id)} border-l-4 p-4 rounded-sm shadow-md hover:shadow-xl hover:rotate-0 transition-all duration-200 min-h-[200px] flex flex-col text-gray-800 ${n.concluido ? 'opacity-60' : ''}`}
-                style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive", ...(isCustomHex(n.cor) ? { backgroundColor: n.cor, borderColor: n.cor, color: colorText(n.cor) } : {}) }}
+                className={`${theme === 'transparent' ? 'bg-transparent' : c.bg} ${theme === 'transparent' ? '' : c.border} ${rotFor(n.id)} border-l-4 p-4 rounded-sm shadow-md hover:shadow-xl hover:rotate-0 transition-all duration-200 min-h-[200px] flex flex-col ${theme === 'transparent' ? 'text-foreground' : 'text-gray-800'} ${n.concluido ? 'opacity-60' : ''}`}
+                style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive", ...(theme === 'transparent' ? { backgroundColor: 'transparent', borderColor: isCustomHex(n.cor) ? n.cor : undefined, color: 'var(--foreground)' } : isCustomHex(n.cor) ? { backgroundColor: n.cor, borderColor: n.cor, color: colorText(n.cor) } : {}) }}
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className={`font-bold text-lg leading-tight ${n.concluido ? 'line-through' : ''}`}>{n.titulo}</h3>
