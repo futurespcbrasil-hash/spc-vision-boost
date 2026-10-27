@@ -943,15 +943,24 @@ const WhatsAppChat = () => {
     });
   };
 
-  // Remove mensagens otimistas já confirmadas pelo servidor (evita duplicidade)
+  // Só reconcilia um balão otimista com uma mensagem confirmada que tenha horário
+  // compatível. Mensagens antigas com o mesmo texto (ex.: "ok" repetido) não podem
+  // apagar o novo balão antes de a WAHA confirmar o envio atual.
+  const isConfirmedOptimisticMatch = (optimistic: Message, confirmed: Message) => {
+    if (!optimistic.id.startsWith('temp-') || !confirmed.from_me ||
+        (confirmed.text || '').trim() !== (optimistic.text || '').trim()) return false;
+    const optimisticAt = Date.parse(optimistic.timestamp || '');
+    const confirmedAt = Date.parse(confirmed.timestamp || '');
+    if (!Number.isFinite(optimisticAt) || !Number.isFinite(confirmedAt)) return false;
+    const delta = confirmedAt - optimisticAt;
+    return delta >= -1000 && delta < 120000;
+  };
+
   const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
     const uniqueList = deduplicateMessages(list);
     const temps = prev.filter(m => m.id.startsWith('temp-'));
     if (temps.length === 0) return uniqueList;
-    const keep = temps.filter(t => !uniqueList.some(s =>
-      s.from_me && (s.text || '').trim() === (t.text || '').trim() &&
-      Math.abs(new Date(s.timestamp).getTime() - new Date(t.timestamp).getTime()) < 120000
-    ));
+    const keep = temps.filter(t => !uniqueList.some(s => isConfirmedOptimisticMatch(t, s)));
     return deduplicateMessages([...uniqueList, ...keep]);
   };
 
@@ -1153,8 +1162,7 @@ const WhatsAppChat = () => {
           setMessages(prev => {
             if (prev.some(x => x.id === m.id || (!!m.wa_message_id && x.wa_message_id === m.wa_message_id))) return prev;
             // descarta o balão otimista equivalente
-            const cleaned = prev.filter(x => !(x.id.startsWith('temp-') && m.from_me &&
-              (x.text || '').trim() === (m.text || '').trim()));
+            const cleaned = prev.filter(x => !isConfirmedOptimisticMatch(x, m));
             return deduplicateMessages([...cleaned, m]);
           });
           // Segue novas mensagens somente se o usuário já estava no fim; se estiver
