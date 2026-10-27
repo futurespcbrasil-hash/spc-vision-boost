@@ -11,6 +11,14 @@ const json = (body: unknown, status = 200) =>
 const cleanWebhookSecret = (value: string | null | undefined) =>
   (value || "").split(/\r?\n/)[0].replace(/\s+Copiar chave.*$/i, "").trim();
 
+// Canonicaliza números brasileiros sem confundir dígitos de identificadores @lid com telefone.
+const normalizeWhatsAppPhone = (value: unknown): string => {
+  let digits = String(value || "").split("@")[0].replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+  if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
+  return digits;
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -142,11 +150,16 @@ Deno.serve(async (req: Request) => {
     let { data: existing } = await db.from("whatsapp_chats")
       .select("id,unread_count,contact_name,contact_number,wa_chat_id")
       .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
-    if (!existing && digits.length >= 10 && !chatId.endsWith("@g.us")) {
+    if (!existing && digits.length >= 10 && !chatId.endsWith("@g.us") && !chatId.endsWith("@lid")) {
       const lookup = await db.from("whatsapp_chats")
         .select("id,unread_count,contact_name,contact_number,wa_chat_id")
-        .eq("instance_id", inst.id).eq("contact_number", digits).eq("is_group", false).limit(1).maybeSingle();
-      existing = lookup.data;
+        .eq("instance_id", inst.id).eq("is_group", false).limit(500);
+      if (lookup.error) throw lookup.error;
+      const targetPhone = normalizeWhatsAppPhone(digits);
+      const matches = (lookup.data || []).filter((row: any) =>
+        targetPhone && normalizeWhatsAppPhone(row.contact_number) === targetPhone
+      );
+      existing = matches.find((row: any) => String(row.wa_chat_id || "").endsWith("@lid")) || matches[0] || null;
     }
     if ((String(recipient || "").endsWith("@lid") || String(chatId || "").endsWith("@lid")) && existing?.contact_number) {
       digits = String(existing.contact_number).replace(/\D/g, "");
@@ -653,7 +666,17 @@ Deno.serve(async (req: Request) => {
               // o histórico remoto continue abrindo no JID correto.
               wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
               contact_number: existing.contact_number || number,
-              contact_name: contactName || existing.contact_name,
+              // O nome salvo no CRM/agenda prevalece sobre o nome do perfil da própria conta WAHA.
+              contact_name: (() => {
+                const savedName = String(existing.contact_name || "").trim();
+                const savedNumber = String(existing.contact_number || "").replace(/\D/g, "");
+                const savedNameIsUseful = !!savedName &&
+                  savedName.replace(/\D/g, "") !== savedNumber &&
+                  !/^salvar contato$/i.test(savedName) &&
+                  !/^\+?[\d\s().-]+$/.test(savedName) &&
+                  !/^contato do whatsapp$/i.test(savedName);
+                return savedNameIsUseful ? savedName : (contactName || savedName);
+              })(),
               // Não ressuscitar avisos já dispensados só porque a WAHA repetiu unreadCount antigo.
               // Um novo inbound atualiza o contador; uma atividade de saída não o aumenta.
               unread_count: hasNewInboundMessage ? record.unread_count : Number(existing.unread_count || 0),
@@ -714,10 +737,25 @@ Deno.serve(async (req: Request) => {
         if (!waChatId) return json({ error: "wa_chat_id é obrigatório." }, 400);
         const rawMessages = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats/${encodeURIComponent(waChatId)}/messages?limit=100`);
         const messages = Array.isArray(rawMessages) ? rawMessages : Array.isArray(rawMessages?.messages) ? rawMessages.messages : [];
-        const number = waChatId.split("@")[0].replace(/\D/g, "");
-        const { data: existingChat } = await db.from("whatsapp_chats")
-          .select("id").eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
-        let chat = existingChat;
+        const isLidChat = waChatId.endsWith("@lid");
+        const number = isLidChat ? "" : waChatId.split("@")[0].replace(/\D/g, "");
+        const { data: existingChat, error: exactChatError } = await db.from("whatsapp_chats")
+          .select("id,wa_chat_id,contact_number,contact_name").eq("instance_id", inst.id).eq("wa_chat_id", waChatId).maybeSingle();
+        if (exactChatError) throw exactChatError;
+        let chat: any = existingChat;
+        // If the UI still has a stale @c.us JID, reuse the existing phone/LID row rather
+        // than creating a second conversation after WAHA resolves that phone to @lid.
+        if (!chat && number.length >= 10 && !waChatId.endsWith("@g.us")) {
+          const { data: phoneCandidates, error: phoneLookupError } = await db.from("whatsapp_chats")
+            .select("id,wa_chat_id,contact_number,contact_name").eq("instance_id", inst.id)
+            .eq("is_group", false).limit(500);
+          if (phoneLookupError) throw phoneLookupError;
+          const targetPhone = normalizeWhatsAppPhone(number);
+          const matches = (phoneCandidates || []).filter((row: any) =>
+            targetPhone && normalizeWhatsAppPhone(row.contact_number) === targetPhone
+          );
+          chat = matches.find((row: any) => String(row.wa_chat_id || "").endsWith("@lid")) || matches[0] || null;
+        }
         if (!chat) {
           const { data: insertedChat, error: chatError } = await db.from("whatsapp_chats").insert({
             instance_id: inst.id,
