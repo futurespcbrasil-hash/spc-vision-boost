@@ -29,9 +29,17 @@ const timeLabel = (value?: string | null) => value
   ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
 const fullTimeLabel = (value?: string | null) => value
   ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-const numberLabel = (chat: Chat) => chat.is_group ? chat.wa_chat_id : (chat.contact_number || chat.wa_chat_id);
+const numberLabel = (chat: Chat) => chat.is_group ? chat.wa_chat_id : collapseRepeatedPhoneDigits(chat.contact_number || chat.wa_chat_id);
 const errorText = (e: unknown) => e instanceof Error ? e.message : 'Erro inesperado na integração WhatsApp';
 const onlyDigits = (value: string) => value.replace(/\D/g, '');
+const collapseRepeatedPhoneDigits = (value: string) => {
+  const digits = onlyDigits(value);
+  if (digits.length % 2 === 0) {
+    const half = digits.slice(0, digits.length / 2);
+    if (half.length >= 10 && half.length <= 13 && half === digits.slice(digits.length / 2)) return half;
+  }
+  return digits;
+};
 const normalizeBrazilNumber = (value: string) => {
   const digits = onlyDigits(value);
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) return digits;
@@ -206,7 +214,7 @@ export default function WhatsAppConversas() {
         name && !/^\+?[\d\s().-]+$/.test(name) && !name.endsWith('@lid') && !name.endsWith('@c.us'));
       const preferredNumber = group.map((item) => item.contact_number || '').find((number) => onlyDigits(number).length >= 12)
         || chosen.contact_number;
-      return { ...chosen, contact_name: friendlyName || chosen.contact_name, contact_number: preferredNumber };
+      return { ...chosen, contact_name: friendlyName || chosen.contact_name, contact_number: collapseRepeatedPhoneDigits(preferredNumber || '') };
     }).sort((a, b) => Date.parse(b.last_message_at || '') - Date.parse(a.last_message_at || ''));
   }, [chats]);
 
