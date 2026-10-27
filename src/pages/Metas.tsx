@@ -177,7 +177,7 @@ const Metas = () => {
       {canManageUsers && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3">
           <label htmlFor="metas-target-user" className="text-sm font-medium text-foreground">Visualizar metas de:</label>
-          <select id="metas-target-user" value={targetUserId} onChange={e => setTargetUserId(e.target.value)} className="min-w-56 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground">
+          <select id="metas-target-user" value={targetUserId} onChange={e => { setLoading(true); setTargetUserId(e.target.value); }} className="min-w-56 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground">
             {goalUsers.map(person => <option key={person.user_id} value={person.user_id}>{person.display_name || person.email || person.user_id}</option>)}
           </select>
         </div>
