@@ -59,13 +59,15 @@ const isPhoneNumber = (value: string) => {
   return digits.length >= 10 && digits.length <= 13;
 };
 const renderMessageText = (text: string, onPhoneClick: (number: string) => void) => {
+  // Corrige a exibição de telefones concatenados em duplicidade, sem alterar a mensagem salva.
+  const displayText = text.replace(/(?<!\d)(\d{10,13})\1(?!\d)/g, '$1');
   const tokenRegex = /https?:\/\/[^\s]+|www\.[^\s]+|(?<!\d)\+?(?:55[ \t().-]*)?\(?\d{2}\)?[ \t.-]*\d{4,5}[ \t.-]?\d{4}(?!\d)/gi;
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
-  for (const match of text.matchAll(tokenRegex)) {
+  for (const match of displayText.matchAll(tokenRegex)) {
     const token = match[0];
     const index = match.index ?? 0;
-    if (index > lastIndex) nodes.push(text.slice(lastIndex, index));
+    if (index > lastIndex) nodes.push(displayText.slice(lastIndex, index));
     if (/^(https?:\/\/|www\.)/i.test(token)) {
       const href = token.startsWith('http') ? token : `https://${token}`;
       nodes.push(<a key={`url-${index}`} href={href} target="_blank" rel="noreferrer" className="underline break-all text-blue-600 dark:text-blue-400">{token}</a>);
@@ -76,7 +78,7 @@ const renderMessageText = (text: string, onPhoneClick: (number: string) => void)
     }
     lastIndex = index + token.length;
   }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  if (lastIndex < displayText.length) nodes.push(displayText.slice(lastIndex));
   return nodes;
 };
 
