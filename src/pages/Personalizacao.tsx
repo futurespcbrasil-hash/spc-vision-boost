@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Check, ImagePlus, LoaderCircle, Monitor, Moon, Palette, RotateCcw, Sun, Trash2, Wallpaper } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,6 +17,7 @@ const Personalizacao = () => {
   const { user } = useAuth();
   const layoutKey = `future-vision-menu-layout:${user?.id || 'guest'}`;
   const [menuLayout,setMenuLayout]=useState<'vertical'|'horizontal'>(()=>{try{return localStorage.getItem(`future-vision-menu-layout:${user?.id || 'guest'}`)==='horizontal'?'horizontal':'vertical';}catch{return 'vertical';}});
+  useEffect(()=>{try{setMenuLayout(localStorage.getItem(layoutKey)==='horizontal'?'horizontal':'vertical');}catch{setMenuLayout('vertical');}},[layoutKey]);
   const changeMenuLayout=(layout:'vertical'|'horizontal')=>{setMenuLayout(layout);try{localStorage.setItem(layoutKey,layout);}catch{} window.dispatchEvent(new CustomEvent('future-vision-menu-layout-change',{detail:{userId:user?.id||'guest',layout}}));};
  const fileRef=useRef<HTMLInputElement>(null); const [removing,setRemoving]=useState(false);
  const upload=async(file?:File)=>{if(!file)return;try{await uploadWallpaper(file);toast.success('Papel de parede aplicado e compactado com sucesso.')}catch(e){toast.error(e instanceof Error?e.message:'Não foi possível salvar o papel de parede.')}finally{if(fileRef.current)fileRef.current.value='';}};
