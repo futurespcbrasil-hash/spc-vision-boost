@@ -113,7 +113,6 @@ const AppSidebar = () => {
   ];
 
   const NAV_ITEMS = [
-    { to: '/portal', icon: BookOpen, label: 'Manuais', moduleKey: 'manual' },
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'dashboard' },
     { to: '/crm', icon: GitBranch, label: 'Kanban', moduleKey: 'crm' },
     { to: '/leads', icon: Users, label: 'Leads', moduleKey: 'leads' },
