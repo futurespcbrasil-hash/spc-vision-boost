@@ -275,9 +275,9 @@ export default function WhatsAppConversas() {
     }
   }, [instanceId]);
 
-  const loadMessages = useCallback(async (chat: Chat, refreshRemote = true) => {
+  const loadMessages = useCallback(async (chat: Chat, refreshRemote = true, silent = false) => {
     const loadSequence = ++messageLoadSequenceRef.current;
-    setLoadingMessages(true);
+    if (!silent) setLoadingMessages(true);
     try {
       if (refreshRemote) {
         const response: any = await waha.getMessages(chat.instance_id, chat.wa_chat_id);
@@ -336,7 +336,7 @@ export default function WhatsAppConversas() {
       if (messageTimer !== null) window.clearTimeout(messageTimer);
       messageTimer = window.setTimeout(() => {
         const current = selectedChatRef.current;
-        if (current) void loadMessages(current, false);
+        if (current) void loadMessages(current, false, true);
       }, 120);
     };
     const channel = supabase.channel(`whatsapp-conversas-${user.id}-${instanceId}`)
@@ -360,7 +360,7 @@ export default function WhatsAppConversas() {
       const current = selectedChatRef.current;
       void Promise.all([
         loadChats(true, true),
-        current ? loadMessages(current, true) : Promise.resolve(),
+        current ? loadMessages(current, true, true) : Promise.resolve(),
       ]).finally(() => { refreshInFlightRef.current = false; });
     };
     const interval = window.setInterval(refreshVisible, 30000);
@@ -502,7 +502,7 @@ export default function WhatsAppConversas() {
 
       // A Edge Function persiste o envio. Recarregamos apenas o histórico da
       // conversa atual e mantemos a lista/seleção estáveis para não remontar o chat.
-      await loadMessages(selectedChat, false);
+      await loadMessages(selectedChat, false, true);
       setChats((current) => current.map((item) => item.id === selectedChat.id
         ? { ...item, last_message: text, last_message_at: new Date().toISOString() }
         : item));
