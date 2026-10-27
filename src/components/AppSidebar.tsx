@@ -266,7 +266,7 @@ const AppSidebar = () => {
                 ${location.pathname.startsWith('/campanhas')
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-              title={collapsed ? 'Campanhas' : undefined}
+              title={collapsed || menuLayout === 'horizontal' ? 'Campanhas' : undefined}
             >
               <Send size={18} />
               {!collapsed && menuLayout !== 'horizontal' && (
