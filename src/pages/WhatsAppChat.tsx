@@ -436,6 +436,8 @@ const WhatsAppChat = () => {
   // Cache local por conversa: trocar de chat mostra o histórico imediatamente sem remontar mídias.
   const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
   const messagesChatIdRef = useRef<string>('');
+  const messageLoadSequenceRef = useRef(0);
+  const remoteSyncInFlightRef = useRef(false);
   const draftRestorePending = useRef(false);
   const activeDraftKey = useRef('');
   const profilePicFetched = useRef<Set<string>>(new Set());
@@ -931,6 +933,7 @@ const WhatsAppChat = () => {
   }, []);
 
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
+    const loadStartedAt = Date.now();
     // Impede uma consulta antiga ou lenta de sobrescrever o histórico da conversa atual.
     const loadSequence = ++messageLoadSequenceRef.current;
     const { data, error } = await supabase.from('whatsapp_messages')
@@ -998,7 +1001,19 @@ const WhatsAppChat = () => {
         return av - bv || String(a.id).localeCompare(String(b.id));
       });
     const previous = messagesRef.current;
-    const merged = dropConfirmedTemps(orderedList, previous);
+    // Um evento Realtime pode chegar depois que a consulta começou, mas antes de ela terminar.
+    // Preserva mensagens recentes recebidas durante a consulta para evitar que sumam até o próximo polling.
+    const loadedIds = new Set(orderedList.map(message => message.id));
+    const loadedRemoteIds = new Set(orderedList.map(message => message.wa_message_id).filter(Boolean));
+    const oldestLoadedAt = orderedList.length ? Date.parse(orderedList[0].timestamp || '') : Number.NaN;
+    const concurrentMessages = previous.filter(message => {
+      if (message.id.startsWith('temp-') || message.text === '[crm_deleted]') return false;
+      if (loadedIds.has(message.id) || (message.wa_message_id && loadedRemoteIds.has(message.wa_message_id))) return false;
+      const timestamp = Date.parse(message.timestamp || '');
+      if (!Number.isFinite(timestamp)) return false;
+      return Number.isFinite(oldestLoadedAt) ? timestamp >= oldestLoadedAt : timestamp >= loadStartedAt;
+    });
+    const merged = dropConfirmedTemps(deduplicateMessages([...orderedList, ...concurrentMessages]), previous);
     // Mantém a última lista já resolvida em memória e no navegador para reabrir instantaneamente.
     const cacheKey = `${user?.id || 'anonymous'}:${instanceId}:${chatId}`;
     messagesCacheRef.current.set(cacheKey, merged);
@@ -1137,10 +1152,12 @@ const WhatsAppChat = () => {
     // Algumas versões da WAHA não emitem evento de revogação; reconcilia a origem remota
     // periodicamente para remover mensagens apagadas no celular sem fazer chamadas a cada 5s.
     const remoteSync = window.setInterval(() => {
-      if (document.visibilityState !== 'visible' || !instanceId) return;
+      if (document.visibilityState !== 'visible' || !instanceId || remoteSyncInFlightRef.current) return;
+      remoteSyncInFlightRef.current = true;
       void waha.getMessages(instanceId, selected.wa_chat_id)
         .then(() => loadMessages(chatId, true))
-        .catch(error => console.warn('[WhatsApp] Sincronização remota periódica falhou:', error?.message || error));
+        .catch(error => console.warn('[WhatsApp] Sincronização remota periódica falhou:', error?.message || error))
+        .finally(() => { remoteSyncInFlightRef.current = false; });
     }, 30000);
     return () => { cancelled = true; window.clearInterval(poll); window.clearInterval(remoteSync); supabase.removeChannel(ch); };
   }, [selected?.id, loadMessages, instanceId, touchLeadInteraction]);
