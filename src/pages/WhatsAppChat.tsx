@@ -2287,8 +2287,8 @@ const WhatsAppChat = () => {
                           )}
                           {m.media_url && (
                             (m.media_mime || '').toLowerCase().includes('pdf') ||
-                            /\\.pdf(?:$|[?#])/i.test(m.media_filename || '') ||
-                            (m.message_type === 'document' && /\\.pdf(?:$|[?#])/i.test(m.media_url || ''))
+                            /\.pdf(?:$|[?#])/i.test(m.media_filename || '') ||
+                            (m.message_type === 'document' && /\.pdf(?:$|[?#])/i.test(m.media_url || ''))
                           ) && (() => {
                             const rawName = m.media_filename || '';
                             let fileName = rawName;
@@ -2296,10 +2296,10 @@ const WhatsAppChat = () => {
                               try {
                                 const urlPath = new URL(m.media_url!).pathname;
                                 const candidate = decodeURIComponent(urlPath.split('/').pop() || '');
-                                if (/\\.pdf$/i.test(candidate)) fileName = candidate;
+                                if (/\.pdf$/i.test(candidate)) fileName = candidate;
                               } catch { /* URL may be a storage alias; use a safe fallback below. */ }
                             }
-                            if (!fileName && /\\.pdf$/i.test(m.text || '')) fileName = m.text!.trim();
+                            if (!fileName && /\.pdf$/i.test(m.text || '')) fileName = m.text!.trim();
                             if (!fileName) fileName = `Documento-${m.id.slice(0, 8)}.pdf`;
                             return (
                               <div className="w-full min-w-[220px] max-w-[340px] overflow-hidden rounded-xl border border-border/70 bg-background/80 shadow-sm">
@@ -2344,8 +2344,8 @@ const WhatsAppChat = () => {
                           })()}
                           {m.media_url && !(
                             (m.media_mime || '').toLowerCase().includes('pdf') ||
-                            /\\.pdf(?:$|[?#])/i.test(m.media_filename || '') ||
-                            (m.message_type === 'document' && /\\.pdf(?:$|[?#])/i.test(m.media_url || ''))
+                            /\.pdf(?:$|[?#])/i.test(m.media_filename || '') ||
+                            (m.message_type === 'document' && /\.pdf(?:$|[?#])/i.test(m.media_url || ''))
                           ) && !['image', 'sticker', 'gif', 'video', 'audio', 'ptt'].includes(m.message_type || '') && (
                             <button 
                               onClick={async (e) => {
@@ -2634,7 +2634,7 @@ const WhatsAppChat = () => {
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-9 shrink-0 items-center justify-center rounded-md bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"><FileText size={20} /></span>
             <div className="min-w-0">
-              <DialogTitle className="truncate text-sm sm:text-base">{pdfPreviewMessage?.media_filename || (pdfPreviewMessage?.text?.trim().match(/[^\\s]+\\.pdf\\b/i)?.[0]) || 'Documento PDF'}</DialogTitle>
+              <DialogTitle className="truncate text-sm sm:text-base">{pdfPreviewMessage?.media_filename || (pdfPreviewMessage?.text?.trim().match(/[^\\s]+\.pdf\\b/i)?.[0]) || 'Documento PDF'}</DialogTitle>
               <p className="text-xs text-muted-foreground">Pré-visualização do documento recebido</p>
             </div>
           </div>
