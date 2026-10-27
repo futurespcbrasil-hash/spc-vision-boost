@@ -192,8 +192,8 @@ const AppSidebar = () => {
 
   return (
     <aside className={menuLayout === 'horizontal' ? 'fixed bottom-3 left-1/2 z-50 flex h-auto w-auto max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col rounded-2xl border border-sidebar-border/70 gradient-spc shadow-2xl' : (collapsed ? 'h-screen gradient-spc flex flex-col transition-all duration-300 w-16 sticky top-0' : 'h-screen gradient-spc flex flex-col transition-all duration-300 w-64 sticky top-0')}>
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80">
-        {!collapsed && (
+      <div className={menuLayout === 'horizontal' ? 'hidden' : 'flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80'}>
+        {!collapsed && menuLayout !== 'horizontal' && (
           <div className="flex items-center animate-fade-in px-1 py-1">
             <svg className="crm-logo-white h-8 w-auto max-w-full" viewBox="0 0 300 72" role="img" aria-label="Future Soluções">
               <g transform="translate(2 5)"><path d="M10 9h36v31L28 53 10 40z" fill="#fff"/><path d="M18 17h20v7H18zM18 29h13v7H18z" fill="#a6ce39"/></g>
@@ -232,7 +232,7 @@ const AppSidebar = () => {
           title={collapsed ? 'Consultas' : undefined}
         >
           <Search size={18} />
-          {!collapsed && (
+          {!collapsed && menuLayout !== 'horizontal' && (
             <>
               <span className="flex-1 text-left">Consultas</span>
               <ChevronDown size={14} className={`transition-transform ${consultasOpen ? 'rotate-180' : ''}`} />
@@ -269,7 +269,7 @@ const AppSidebar = () => {
               title={collapsed ? 'Campanhas' : undefined}
             >
               <Send size={18} />
-              {!collapsed && (
+              {!collapsed && menuLayout !== 'horizontal' && (
                 <>
                   <span className="flex-1 text-left">Campanhas</span>
                   <ChevronDown size={14} className={`transition-transform ${campaignsOpen ? 'rotate-180' : ''}`} />
@@ -308,7 +308,7 @@ const AppSidebar = () => {
         >
           <MessageSquare size={18} />
           {whatsappUnread > 0 && <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" aria-label={`${whatsappUnread} mensagens WhatsApp não lidas`}>{whatsappUnread > 99 ? '99+' : whatsappUnread}</span>}
-          {!collapsed && (
+          {!collapsed && menuLayout !== 'horizontal' && (
             <>
               <span className="flex-1 text-left">WhatsApp</span>
               <ChevronDown size={14} className={`transition-transform ${whatsappOpen ? 'rotate-180' : ''}`} />
@@ -344,7 +344,7 @@ const AppSidebar = () => {
           title={collapsed ? 'Acesso Remoto' : undefined}
         >
           <Monitor size={18} />
-          {!collapsed && (
+          {!collapsed && menuLayout !== 'horizontal' && (
             <>
               <span className="flex-1 text-left">Acesso Remoto</span>
               <ChevronDown size={14} className={`transition-transform ${remoteOpen ? 'rotate-180' : ''}`} />
@@ -380,7 +380,7 @@ const AppSidebar = () => {
           title={collapsed ? 'Financeiro' : undefined}
         >
           <Wallet size={18} />
-          {!collapsed && (
+          {!collapsed && menuLayout !== 'horizontal' && (
             <>
               <span className="flex-1 text-left">Financeiro</span>
               <ChevronDown size={14} className={`transition-transform ${finOpen ? 'rotate-180' : ''}`} />
@@ -422,7 +422,7 @@ const AppSidebar = () => {
               title={collapsed ? 'Comissões' : undefined}
             >
               <FileBarChart size={18} />
-              {!collapsed && (
+              {!collapsed && menuLayout !== 'horizontal' && (
                 <>
                   <span className="flex-1 text-left">Comissões</span>
                   <ChevronDown size={14} className={`transition-transform ${comissoesOpen ? 'rotate-180' : ''}`} />
@@ -460,7 +460,7 @@ const AppSidebar = () => {
               title={collapsed ? 'Indicações' : undefined}
             >
               <FileSpreadsheet size={18} />
-              {!collapsed && (
+              {!collapsed && menuLayout !== 'horizontal' && (
                 <>
                   <span className="flex-1 text-left">Indicações</span>
                   <ChevronDown size={14} className={`transition-transform ${indicacoesOpen ? 'rotate-180' : ''}`} />
@@ -493,7 +493,7 @@ const AppSidebar = () => {
           title={collapsed ? 'Parceiros' : undefined}
         >
           <Handshake size={18} />
-          {!collapsed && (
+          {!collapsed && menuLayout !== 'horizontal' && (
             <>
               <span className="flex-1 text-left">Parceiros</span>
               <ChevronDown size={14} className={`transition-transform ${parceirosOpen ? 'rotate-180' : ''}`} />
@@ -523,7 +523,7 @@ const AppSidebar = () => {
       </nav>
 
 
-      <div className="p-3 border-t border-sidebar-border space-y-2">
+      <div className={menuLayout === 'horizontal' ? 'hidden' : 'p-3 border-t border-sidebar-border space-y-2'}>
         {canManageUsers && (
           <Link
             to="/usuarios"
