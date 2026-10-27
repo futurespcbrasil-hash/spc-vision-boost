@@ -95,7 +95,7 @@ const AppSidebar = () => {
     const rect = event.currentTarget.getBoundingClientRect();
     const dock = event.currentTarget.closest('aside');
     const dockRect = dock?.getBoundingClientRect();
-    setSubmenuAnchor({ left: rect.left + rect.width / 2, bottom: window.innerHeight - rect.top + 8 });
+    setSubmenuAnchor({ left: Math.max(112, Math.min(window.innerWidth - 112, rect.left + rect.width / 2)), bottom: Math.max(76, window.innerHeight - rect.top + 8) });
   };
   const closeOtherSubmenus = (except: string) => {
     if (except !== 'consultas') setConsultasOpen(false);
@@ -258,7 +258,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && consultasOpen && (
-          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[100] mb-2 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-muted/90 text-foreground backdrop-blur-md p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-muted/90 text-foreground backdrop-blur-md p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} onMouseLeave={() => closeOtherSubmenus('')} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
             {CONSULTAS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
@@ -318,7 +318,7 @@ const AppSidebar = () => {
         {canAccessModule('whatsapp') && (
           <>
         <button
-          onClick={() => { setWhatsappOpen(!whatsappOpen); void markWhatsAppUnreadAsRead(); }}
+          onClick={(event) => { closeOtherSubmenus('whatsapp'); setWhatsappOpen(!whatsappOpen); anchorSubmenu(event); void markWhatsAppUnreadAsRead(); }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
             ${location.pathname.startsWith('/whatsapp')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
