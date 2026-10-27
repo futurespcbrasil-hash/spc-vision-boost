@@ -119,6 +119,11 @@ export const SectorsProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteSector = async (key: string) => {
     const target = sectors.find(s => s.key === key);
+    const protectedSector = key === 'spc' || target?.label?.trim().toLocaleLowerCase('pt-BR') === 'spc brasil';
+    if (protectedSector) {
+      toast({ title: 'Funil protegido', description: 'O funil SPC Brasil não pode ser excluído.', variant: 'destructive' });
+      return;
+    }
     if (!currentUserId || !target || target.userId !== currentUserId) {
       toast({ title: 'Não permitido', description: 'Você só pode excluir setores criados pelo seu perfil.', variant: 'destructive' });
       return;
