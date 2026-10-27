@@ -436,6 +436,7 @@ const WhatsAppChat = () => {
   // Cache local por conversa: trocar de chat mostra o histórico imediatamente sem remontar mídias.
   const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
   const messagesChatIdRef = useRef<string>('');
+  const chatsLoadSequenceRef = useRef(0);
   const messageLoadSequenceRef = useRef(0);
   const remoteSyncInFlightRef = useRef(false);
   const draftRestorePending = useRef(false);
@@ -740,6 +741,7 @@ const WhatsAppChat = () => {
 
   // Load chats
   const loadChats = async () => {
+    const loadSequence = ++chatsLoadSequenceRef.current;
     if (!instanceId) { setChats([]); setSelected(null); setMessages([]); setChatsLoaded(false); return; }
     const { data, error } = await supabase.from('whatsapp_chats').select('*')
       .eq('instance_id', instanceId)
@@ -748,6 +750,7 @@ const WhatsAppChat = () => {
       .order('is_pinned', { ascending: false })
       .order('last_message_at', { ascending: false })
       .limit(200);
+    if (loadSequence !== chatsLoadSequenceRef.current) return;
     if (error) {
       console.error('[WhatsApp] Falha ao carregar conversas:', error);
       toast({ title: 'Não foi possível carregar as conversas', description: error.message, variant: 'destructive' });
