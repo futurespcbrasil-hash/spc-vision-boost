@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
   const resolveChatId = async (session: string, recipient: string) => {
     const value = String(recipient || "").trim();
     if (!value) throw new Error("Informe o número ou identificador da conversa.");
-    if (value.endsWith("@g.us") || value.endsWith("@lid") || value.endsWith("@c.us")) return value;
+    if (value.endsWith("@g.us") || value.endsWith("@lid")) return value;
     let phone = value;
     if (value.endsWith("@c.us")) phone = value.slice(0, -5);
     phone = collapseRepeatedPhoneDigits(phone);
