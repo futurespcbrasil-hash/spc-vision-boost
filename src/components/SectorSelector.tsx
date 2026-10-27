@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Plus, X, Check } from 'lucide-react';
+import { ChevronDown, Plus, X, Check, Trash2 } from 'lucide-react';
 import { useSectors } from '@/hooks/useSectors';
 
 interface SectorSelectorProps {
@@ -13,6 +13,7 @@ const SectorSelector = ({ label = 'Setor' }: SectorSelectorProps) => {
   const [showAdd, setShowAdd] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [sectorToDelete, setSectorToDelete] = useState<{ key: string; label: string } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -65,7 +66,8 @@ const SectorSelector = ({ label = 'Setor' }: SectorSelectorProps) => {
                 <div className="py-1 max-h-60 overflow-y-auto">
                   {sectors.map(s => {
                     const isActive = s.key === activeSector;
-                    const canDelete = !!currentUserId && s.userId === currentUserId;
+                    const isProtectedSector = s.key === 'spc' || s.label.trim().toLocaleLowerCase('pt-BR') === 'spc brasil';
+                    const canDelete = !isProtectedSector && !!currentUserId && s.userId === currentUserId;
                     return (
                       <div key={s.key} className={`flex items-center justify-between px-3 py-2 text-sm hover:bg-muted ${isActive ? 'bg-muted/50' : ''}`}>
                         <button
@@ -77,12 +79,12 @@ const SectorSelector = ({ label = 'Setor' }: SectorSelectorProps) => {
                         </button>
                         {canDelete && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); setSectorToDelete({ key: s.key, label: s.label }); setOpen(false); }}
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmation(''); setSectorToDelete({ key: s.key, label: s.label }); setOpen(false); }}
                             className="ml-2 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             title={`Excluir setor ${s.label}`}
                             aria-label={`Excluir setor ${s.label}`}
                           >
-                            <X size={14} />
+                            <Trash2 size={14} />
                           </button>
                         )}
                       </div>
@@ -112,9 +114,13 @@ const SectorSelector = ({ label = 'Setor' }: SectorSelectorProps) => {
               <h3 className="font-bold text-foreground">Excluir setor?</h3>
             </div>
             <p className="text-sm text-muted-foreground">Deseja excluir o setor <strong className="text-foreground">{sectorToDelete.label}</strong>? Os leads cadastrados nele não serão apagados, mas deixarão de aparecer neste setor.</p>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-foreground" htmlFor="confirm-delete-sector">Digite EXCLUIR em maiúsculas para confirmar</label>
+              <input id="confirm-delete-sector" autoComplete="off" value={deleteConfirmation} onChange={e => setDeleteConfirmation(e.target.value)} placeholder="EXCLUIR" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
+            </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setSectorToDelete(null)} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
-              <button onClick={async () => { const target = sectorToDelete; setSectorToDelete(null); await deleteSector(target.key); }} className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90 transition">Sim, excluir setor</button>
+              <button onClick={() => { setSectorToDelete(null); setDeleteConfirmation(''); }} className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition">Cancelar</button>
+              <button disabled={deleteConfirmation !== 'EXCLUIR'} onClick={async () => { if (deleteConfirmation !== 'EXCLUIR') return; const target = sectorToDelete; setSectorToDelete(null); setDeleteConfirmation(''); await deleteSector(target.key); }} className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90 transition disabled:cursor-not-allowed disabled:opacity-40">Sim, excluir setor</button>
             </div>
           </div>
         </div>
