@@ -649,8 +649,45 @@ Deno.serve(async (req: Request) => {
               (rowIsLid === previousIsLid && rowTime > previousTime)) existingByPhone.set(key, row);
         }
 
+        // Deduplica a resposta remota antes de persistir. A WAHA pode devolver @c.us e
+        // @lid para o mesmo telefone; preferimos @lid para manter o identificador do histórico.
+        const remoteChatsByKey = new Map<string, any>();
+        for (const candidate of chats) {
+          const candidateIdValue = candidate?.id?._serialized || candidate?.id || candidate?.chatId || candidate?.wa_chat_id;
+          const candidateId = typeof candidateIdValue === "string" ? candidateIdValue : "";
+          if (!candidateId || candidateId === "status@broadcast" || candidateId.endsWith("@newsletter") || candidateId.endsWith("@broadcast")) continue;
+          const candidateExisting = existingByJid.get(candidateId);
+          const candidateNumberValue = candidateId.endsWith("@lid")
+            ? (candidate?.number || candidate?.phone || candidate?.contact?.number || candidate?.contact?.phone || candidateExisting?.contact_number || "")
+            : candidateId.split("@")[0];
+          const candidatePhone = phoneKey(candidateNumberValue);
+          const candidateGroup = candidateId.endsWith("@g.us") || candidate?.isGroup === true || candidate?.is_group === true;
+          const candidateLast = candidate?.lastMessage || candidate?.last_message || {};
+          const candidateRawTime = candidateLast?.timestamp || candidate?.timestamp || candidate?.lastMessageAt || null;
+          const candidateText = typeof candidateLast === "string" ? candidateLast : String(candidateLast?.body || candidateLast?.text || candidateLast?.caption || "");
+          const candidateHasMedia = !!(candidateLast?.hasMedia || candidateLast?.media || candidateLast?.mimetype);
+          const candidateHasHistory = !!(candidateRawTime || candidateText.trim() || candidateHasMedia);
+          if (!candidateHasHistory) continue;
+          const key = candidateGroup ? `group:${candidateId}`
+            : candidatePhone.length >= 10 ? `phone:${candidatePhone}` : `chat:${candidateId}`;
+          const previous = remoteChatsByKey.get(key);
+          if (!previous) { remoteChatsByKey.set(key, candidate); continue; }
+          const previousIdValue = previous?.id?._serialized || previous?.id || previous?.chatId || previous?.wa_chat_id;
+          const previousId = typeof previousIdValue === "string" ? previousIdValue : "";
+          const candidateIsLid = candidateId.endsWith("@lid");
+          const previousIsLid = previousId.endsWith("@lid");
+          const previousLast = previous?.lastMessage || previous?.last_message || {};
+          const previousTimeValue = previousLast?.timestamp || previous?.timestamp || previous?.lastMessageAt || 0;
+          const candidateTime = Number(candidateRawTime) || Date.parse(String(candidateRawTime || "")) || 0;
+          const previousTime = Number(previousTimeValue) || Date.parse(String(previousTimeValue || "")) || 0;
+          if ((candidateIsLid && !previousIsLid) ||
+              (candidateIsLid === previousIsLid && candidateTime > previousTime)) remoteChatsByKey.set(key, candidate);
+        }
+
+        const chatsToSync = [...remoteChatsByKey.values()];
+        const bulkRecords: Record<string, unknown>[] = [];
         let synced = 0;
-        for (const chat of chats) {
+        for (const chat of chatsToSync) {
           const rawId = chat?.id?._serialized || chat?.id || chat?.chatId || chat?.wa_chat_id;
           const waChatId = typeof rawId === "string" ? rawId : "";
           if (!waChatId) continue;
@@ -717,30 +754,32 @@ Deno.serve(async (req: Request) => {
               })(),
               unread_count: hasNewInboundMessage ? record.unread_count : Number(existing.unread_count || 0),
             };
-            const { error } = await db.from("whatsapp_chats").update(updatedRecord).eq("id", existing.id);
-            if (error) throw error;
-            synced++;
-            if (existing.wa_chat_id && existing.wa_chat_id !== updatedRecord.wa_chat_id) existingByJid.delete(existing.wa_chat_id);
+            if (existing.wa_chat_id && existing.wa_chat_id !== updatedRecord.wa_chat_id) {
+              // Migração de alias (@c.us -> @lid): atualiza a linha existente para
+              // não criar uma segunda conversa para o mesmo contato.
+              const { error } = await db.from("whatsapp_chats").update(updatedRecord).eq("id", existing.id);
+              if (error) throw error;
+              synced++;
+              existingByJid.delete(existing.wa_chat_id);
+            } else {
+              // Atualizações por JID e novas conversas são gravadas em lote abaixo.
+              bulkRecords.push(updatedRecord);
+            }
             const updatedRow = { ...existing, ...updatedRecord, id: existing.id };
             existingByJid.set(String(updatedRow.wa_chat_id), updatedRow);
             const updatedPhone = phoneKey(updatedRow.contact_number);
             if (!isGroup && updatedPhone.length >= 10) existingByPhone.set(updatedPhone, updatedRow);
           } else {
-            const { data: savedRow, error } = await db.from("whatsapp_chats")
-              .upsert(record, { onConflict: "instance_id,wa_chat_id" })
-              .select("id,instance_id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message,is_group,assigned_to")
-              .single();
-            if (error) throw error;
-            synced++;
-            existingByJid.set(String(savedRow.wa_chat_id), savedRow);
-            const savedPhone = phoneKey(savedRow.contact_number);
-            if (!isGroup && savedPhone.length >= 10) {
-              const previous = existingByPhone.get(savedPhone);
-              if (!previous || String(savedRow.wa_chat_id || "").endsWith("@lid")) existingByPhone.set(savedPhone, savedRow);
-            }
+            bulkRecords.push(record);
           }
         }
-        return json({ chats, synced });
+        if (bulkRecords.length) {
+          const { error } = await db.from("whatsapp_chats")
+            .upsert(bulkRecords, { onConflict: "instance_id,wa_chat_id" });
+          if (error) throw error;
+          synced += bulkRecords.length;
+        }
+        return json({ chats: chatsToSync, synced });
       }
       case "get_contacts": {
         const inst = await getOwnedInstance();
