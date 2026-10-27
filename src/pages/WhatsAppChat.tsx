@@ -568,7 +568,7 @@ const WhatsAppChat = () => {
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase.from('whatsapp_instances')
-        .select('id,name,status').order('created_at');
+        .select('id,name,status').eq('owner_id', user.id).order('created_at');
       if (error) {
         console.error('[WhatsApp] Falha ao carregar instâncias:', error);
         return;
@@ -755,7 +755,9 @@ const WhatsAppChat = () => {
     }
     // Proteção contra JID @c.us e LID do mesmo telefone aparecendo duas vezes.
     const unique = new Map<string, Chat>();
-    for (const row of (data || []) as Chat[]) {
+    for (const sourceRow of (data || []) as Chat[]) {
+      // Corrige apenas a repetição exata de um telefone; mantém o JID remoto intacto.
+      const row = { ...sourceRow, contact_number: sourceRow.is_group ? sourceRow.contact_number : collapseRepeatedPhoneDigits(sourceRow.contact_number || '') };
       if (!row.wa_chat_id || row.wa_chat_id === 'status@broadcast' || row.wa_chat_id.endsWith('@newsletter') || row.wa_chat_id.endsWith('@broadcast')) continue;
       const phone = canonicalWhatsAppPhone(row.contact_number || '');
       const key = !row.is_group && phone.length >= 9 && !row.wa_chat_id.endsWith('@g.us')
