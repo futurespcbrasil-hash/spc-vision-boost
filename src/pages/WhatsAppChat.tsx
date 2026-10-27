@@ -2288,7 +2288,7 @@ const WhatsAppChat = () => {
                           {m.media_url && (
                             (m.media_mime || '').toLowerCase().includes('pdf') ||
                             /\.pdf(?:$|[?#])/i.test(m.media_filename || '') ||
-                            (m.message_type === 'document' && /\.pdf(?:$|[?#])/i.test(m.media_url || ''))
+                            (m.message_type === 'document' && (/\.pdf(?:$|[?#])/i.test(m.media_url || '') || /\.pdf\b/i.test(m.text || '')))
                           ) && (() => {
                             const rawName = m.media_filename || '';
                             let fileName = rawName;
