@@ -5,8 +5,16 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { "Content-Type": "application/json" },
 });
 const str = (v: unknown) => typeof v === "string" ? v : "";
+const collapseRepeatedPhoneDigits = (value: unknown): string => {
+  const digits = String(value || "").split("@")[0].replace(/\D/g, "");
+  if (digits.length % 2 === 0) {
+    const half = digits.slice(0, digits.length / 2);
+    if (half.length >= 10 && half.length <= 13 && half === digits.slice(digits.length / 2)) return half;
+  }
+  return digits;
+};
 const normalizeWhatsAppPhone = (value: unknown): string => {
-  let digits = String(value || "").split("@")[0].replace(/\D/g, "");
+  let digits = collapseRepeatedPhoneDigits(value);
   if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
   if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
   return digits;
@@ -126,7 +134,7 @@ Deno.serve(async (req: Request) => {
   const phoneSource = alternatePhoneJid ||
     (candidateRemote && !candidateRemote.endsWith("@lid") ? candidateRemote :
       (!waChatId.endsWith("@lid") ? waChatId : ""));
-  const contactNumber = phoneSource ? phoneSource.split("@")[0].replace(/\D/g, "") : "";
+  const contactNumber = phoneSource ? collapseRepeatedPhoneDigits(phoneSource) : "";
   const incomingName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName);
   const body = str(payload?.body || payload?.text);
   const rawType = str(payload?.type).toLowerCase();
