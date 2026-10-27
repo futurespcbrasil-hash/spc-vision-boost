@@ -107,7 +107,7 @@ const SectorSelector = ({ label = 'Setor' }: SectorSelectorProps) => {
       </div>
 
       {sectorToDelete && (
-        <div className="fixed inset-0 z-[10001] bg-black/50 flex items-center justify-center p-4" onClick={() => setSectorToDelete(null)}>
+        <div className="fixed inset-0 z-[10001] bg-black/50 flex items-center justify-center p-4" onClick={() => { setSectorToDelete(null); setDeleteConfirmation(''); }}>
           <div className="bg-card rounded-xl border border-border max-w-sm w-full p-6 space-y-4 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2">
               <div className="rounded-full bg-destructive/10 p-2"><X size={18} className="text-destructive" /></div>
