@@ -247,8 +247,11 @@ Deno.serve(async (req: Request) => {
       if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
       return digits;
     };
-    const targets = [...new Set([chatLookup.data?.contact_number, numberValue, chatId]
-      .map(normalizeLeadNumber).filter((value) => value.length >= 10))];
+    const targets = [...new Set([
+      chatLookup.data?.contact_number,
+      numberValue.endsWith("@lid") ? "" : numberValue,
+      chatId.endsWith("@lid") ? "" : chatId,
+    ].map(normalizeLeadNumber).filter((value) => value.length >= 10))];
     if (!targets.length) return false;
 
     let leadRows = firstLeadPage.data || [];
