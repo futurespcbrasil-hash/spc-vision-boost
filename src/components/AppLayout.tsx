@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
-import { BookOpen, LogOut, ShieldAlert, UserRound, Users } from 'lucide-react';
+import { BookOpen, LogOut, Palette, ShieldAlert, UserRound, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import CRMNotificationBell from '@/components/CRMNotificationBell';
@@ -123,6 +123,9 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
                 )}
                 <Link to="/perfil" onClick={() => setProfileActionsOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted">
                   <UserRound size={15} /> Meu Perfil
+                </Link>
+                <Link to="/perfil/personalizacao" onClick={() => setProfileActionsOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted">
+                  <Palette size={15} /> Personalização
                 </Link>
                 <button type="button" onClick={() => { setProfileActionsOpen(false); void signOut(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-muted">
                   <LogOut size={15} /> Sair
