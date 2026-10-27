@@ -990,7 +990,7 @@ Deno.serve(async (req: Request) => {
             instance_id: inst.id,
             wa_message_id: waMessageId,
             from_me: fromMe,
-            sender: fromMe ? "me" : (number || chat.contact_number || ""),
+            sender: fromMe ? "me" : (messageGroupJid ? String(msg?.participant || msg?._data?.id?.participant || msg?.author || "") : (number || chat.contact_number || "")),
             message_type: messageType,
             text: messageText,
             media_url: msg?.media?.url || msg?.mediaUrl || null,
