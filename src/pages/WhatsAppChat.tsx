@@ -1254,8 +1254,17 @@ const WhatsAppChat = () => {
         setChats(prev => prev.map(chat => chat.id === selected.id ? { ...chat, assigned_to: user.id } : chat));
       }
       await waha.sendText(instanceId, selected.wa_chat_id || selected.contact_number, msg, replyingTo?.wa_message_id || undefined);
-      await touchLeadInteraction(selected);
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent', reply_to: replyingTo?.wa_message_id || null } : m));
+      const sentAt = new Date().toISOString();
+      // Não deixa a atualização auxiliar do lead atrasar a confirmação visual do envio.
+      void touchLeadInteraction(selected);
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent', timestamp: sentAt, reply_to: replyingTo?.wa_message_id || null } : m));
+      setChats(prev => prev.map(chat => chat.id === selected.id
+        ? { ...chat, last_message: msg, last_message_at: sentAt }
+        : chat).sort((a, b) => {
+          if (!!a.is_pinned !== !!b.is_pinned) return a.is_pinned ? -1 : 1;
+          return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+        }));
+      setSelected(prev => prev?.id === selected.id ? { ...prev, last_message: msg, last_message_at: sentAt } : prev);
       setReplyingTo(null);
 
     } catch (e: any) {
