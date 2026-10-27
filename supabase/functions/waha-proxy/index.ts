@@ -620,9 +620,8 @@ Deno.serve(async (req: Request) => {
           if (!lastMessageAt && !lastText.trim() && !hasLastMedia) continue;
           // Em algumas respostas da WAHA, uma conversa de grupo chega com o JID
           // do participante (@lid); o ID remoto da última mensagem ainda revela o @g.us.
-          const lastRemoteId = last?.id?._serialized || last?.id || last?.key?.id || last?.messageId || "";
-          const lastMessageBelongsToGroup = typeof lastRemoteId === "string" && /\d+@g\.us(?:_|$)/i.test(lastRemoteId);
-          const isGroup = waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true || lastMessageBelongsToGroup;
+          // A última mensagem pode ter sido associada incorretamente a outro chat; classifique pelo JID/metadados do chat.
+          const isGroup = waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true;
           const contactName = String(chat?.name || chat?.pushName || chat?.contact?.name || number || waChatId);
           const record = {
             instance_id: inst.id,
@@ -785,6 +784,44 @@ Deno.serve(async (req: Request) => {
             const waMessageId = typeof rawId === "string" ? rawId : "";
             if (!waMessageId) { remoteMessagesComplete = false; continue; }
             remoteMessageIds.add(waMessageId);
+
+            // Alguns históricos WAHA misturam mensagens de grupo no retorno de um
+            // chat @lid. Direciona cada mensagem pelo JID embutido no ID remoto.
+            const messageGroupJid = waMessageId.match(/\d+@g\.us/i)?.[0] || "";
+            let messageChatId = chat.id;
+            if (messageGroupJid && messageGroupJid !== waChatId) {
+              const { data: groupChat, error: groupLookupError } = await db.from("whatsapp_chats")
+                .select("id").eq("instance_id", inst.id).eq("wa_chat_id", messageGroupJid).maybeSingle();
+              if (groupLookupError) throw groupLookupError;
+              if (groupChat?.id) {
+                messageChatId = groupChat.id;
+              } else {
+                const { data: createdGroup, error: createGroupError } = await db.from("whatsapp_chats")
+                  .upsert({
+                    instance_id: inst.id,
+                    wa_chat_id: messageGroupJid,
+                    contact_number: messageGroupJid.split("@")[0],
+                    contact_name: messageGroupJid,
+                    is_group: true,
+                    updated_at: new Date().toISOString(),
+                  }, { onConflict: "instance_id,wa_chat_id" })
+                  .select("id").single();
+                if (createGroupError) throw createGroupError;
+                messageChatId = createdGroup.id;
+              }
+            }
+
+            const directJid = waMessageId.match(/\d+@c\.us/i)?.[0] || "";
+            if (isLidChat && directJid && !chat.contact_number) {
+              const directNumber = directJid.split("@")[0];
+              const { error: enrichChatError } = await db.from("whatsapp_chats")
+                .update({ contact_number: directNumber, contact_name: directNumber, updated_at: new Date().toISOString() })
+                .eq("id", chat.id).eq("instance_id", inst.id);
+              if (enrichChatError) throw enrichChatError;
+              chat.contact_number = directNumber;
+              chat.contact_name = directNumber;
+            }
+
             const fromMe = msg?.fromMe === true || msg?.from_me === true || msg?.key?.fromMe === true;
             // WAHA pode devolver timestamps como segundos, milissegundos ou strings numéricas.
             // Também pode colocar o tempo em _data.t. Date(stringNumérica) não é confiável:
@@ -827,7 +864,7 @@ Deno.serve(async (req: Request) => {
               : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
             const messageText = isRevoked ? "[message_revoke]" : String(msg?.body || msg?.text || "");
             const { error } = await db.from("whatsapp_messages").upsert({
-              chat_id: chat.id,
+              chat_id: messageChatId,
               instance_id: inst.id,
               wa_message_id: waMessageId,
               from_me: fromMe,
