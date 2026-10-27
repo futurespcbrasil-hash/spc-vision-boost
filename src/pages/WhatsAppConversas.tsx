@@ -199,7 +199,7 @@ export default function WhatsAppConversas() {
     const groups = new Map<string, Chat[]>();
     for (const chat of chats) {
       if (chat.wa_chat_id === 'status@broadcast' || chat.wa_chat_id.endsWith('@newsletter') || chat.wa_chat_id.endsWith('@broadcast')) continue;
-      const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(chat.contact_number || chat.wa_chat_id);
+      const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(chat.contact_number || (chat.wa_chat_id.endsWith('@lid') ? '' : chat.wa_chat_id));
       const groupKey = key.length >= 10 ? key : `chat:${chat.id}`;
       groups.set(groupKey, [...(groups.get(groupKey) || []), chat]);
     }
