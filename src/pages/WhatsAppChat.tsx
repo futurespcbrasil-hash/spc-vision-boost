@@ -2137,7 +2137,7 @@ const WhatsAppChat = () => {
                           {timeStr && <span className="text-[10px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
                         </div>
                         <p className={`text-xs truncate mt-0.5 pr-6 ${c.unread_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                          {c.last_message?.includes('[message_revoke]') ? '🚫 Mensagem apagada' : (c.last_message || 'Clique para abrir')}
+                          {c.last_message?.includes('[message_revoke]') ? '🚫 Mensagem apagada' : (c.last_message || 'Clique para abrir').replace(/(?<!\d)(\d{10,13})\1(?!\d)/g, '$1')}
                         </p>
                       </div>
 
