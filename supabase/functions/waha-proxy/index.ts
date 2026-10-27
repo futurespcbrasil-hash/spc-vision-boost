@@ -353,6 +353,7 @@ Deno.serve(async (req: Request) => {
         for (let attempt = 0; attempt < 8; attempt++) {
           qrResponse = await fetch(`${wahaUrl}/api/${session}/auth/qr?format=image`, {
             headers: { "X-Api-Key": wahaKey },
+            signal: AbortSignal.timeout(5_000),
           }).catch(() => null);
           if (qrResponse?.ok) break;
           await qrResponse?.body?.cancel().catch(() => null);
@@ -469,11 +470,11 @@ Deno.serve(async (req: Request) => {
           if (!wahaFileMatch || wahaFileMatch[1] !== inst.provider_instance_name) {
             return json({ error: "Caminho da mídia inválido para esta instância." }, 403);
           }
-          source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey } });
+          source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey }, signal: AbortSignal.timeout(60_000) });
         } else if (isSupabaseChatMedia) {
-          source = await fetch(body.media_url);
+          source = await fetch(body.media_url, { signal: AbortSignal.timeout(60_000) });
         } else if (isWahaMedia) {
-          source = await fetch(body.media_url, { headers: { "X-Api-Key": wahaKey } });
+          source = await fetch(body.media_url, { headers: { "X-Api-Key": wahaKey }, signal: AbortSignal.timeout(60_000) });
         } else {
           return json({ error: "A mídia precisa estar no armazenamento chat-media autorizado ou nos arquivos da sessão WAHA atual." }, 403);
         }
@@ -579,7 +580,7 @@ Deno.serve(async (req: Request) => {
           const safePath = relative.match(/^\/api\/files\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
           if (!safePath) return json({ error: "Caminho da mídia inválido." }, 400);
           if (safePath[1] !== inst.provider_instance_name) return json({ error: "A mídia não pertence à instância WhatsApp desta conversa." }, 403);
-          const remote = await fetch(`${wahaUrl}${relative}`, { headers: { "X-Api-Key": wahaKey } });
+          const remote = await fetch(`${wahaUrl}${relative}`, { headers: { "X-Api-Key": wahaKey }, signal: AbortSignal.timeout(60_000) });
           if (!remote.ok) return json({ error: `A WAHA não conseguiu recuperar a mídia (HTTP ${remote.status}).` }, 502);
           const blob = await remote.blob();
           if (blob.size > 50 * 1024 * 1024) return json({ error: "A mídia excede o limite de 50 MB para recuperação." }, 413);
@@ -628,7 +629,7 @@ Deno.serve(async (req: Request) => {
         // Uma única leitura da tabela substitui as consultas exatas e por telefone
         // executadas dentro do loop (2N+ leituras para N conversas).
         const { data: existingRows, error: existingRowsError } = await db.from("whatsapp_chats")
-          .select("id,instance_id,wa_chat_id,contact_number,contact_name,unread_count,last_message_at,last_message,is_group,assigned_to")
+          .select("id,instance_id,wa_chat_id,contact_number,contact_name,avatar_url,unread_count,last_message_at,last_message,is_group,archived,assigned_to")
           .eq("instance_id", inst.id).limit(2000);
         if (existingRowsError) throw existingRowsError;
 
@@ -732,9 +733,9 @@ Deno.serve(async (req: Request) => {
             wa_chat_id: waChatId,
             contact_number: number,
             contact_name: contactName,
-            avatar_url: chat?.picture || chat?.profilePictureUrl || null,
-            last_message: lastText || (hasLastMedia ? "[mídia]" : null),
-            last_message_at: lastMessageAt,
+            avatar_url: chat?.picture || chat?.profilePictureUrl || exactExisting?.avatar_url || null,
+            last_message: lastText || (hasLastMedia ? "[mídia]" : exactExisting?.last_message || null),
+            last_message_at: lastMessageAt || exactExisting?.last_message_at || null,
             unread_count: Number(chat?.unreadCount ?? chat?.unread_count ?? 0),
             is_group: isGroup,
             archived: false,
@@ -749,11 +750,16 @@ Deno.serve(async (req: Request) => {
           if (existing) {
             const previousMessageAt = existing.last_message_at ? new Date(existing.last_message_at).getTime() : 0;
             const currentMessageAt = record.last_message_at ? new Date(record.last_message_at).getTime() : 0;
+            const remoteMessageIsNewer = currentMessageAt >= previousMessageAt;
             const hasNewInboundMessage = !lastMessageFromMe && (currentMessageAt > previousMessageAt || (currentMessageAt === previousMessageAt && String(record.last_message || "") !== String(existing.last_message || "")));
             const updatedRecord = {
               ...record,
               wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
               contact_number: existing.contact_number || number,
+              avatar_url: record.avatar_url || existing.avatar_url || null,
+              // Uma resposta remota atrasada não pode regredir o preview nem a ordenação da conversa.
+              last_message: remoteMessageIsNewer ? (record.last_message || existing.last_message || null) : (existing.last_message || record.last_message || null),
+              last_message_at: remoteMessageIsNewer ? (record.last_message_at || existing.last_message_at || null) : (existing.last_message_at || record.last_message_at || null),
               contact_name: (() => {
                 const savedName = String(existing.contact_name || "").trim();
                 const savedNumber = String(existing.contact_number || "").replace(/\D/g, "");
@@ -766,15 +772,26 @@ Deno.serve(async (req: Request) => {
               })(),
               unread_count: hasNewInboundMessage ? record.unread_count : Number(existing.unread_count || 0),
             };
-            if (existing.wa_chat_id && existing.wa_chat_id !== updatedRecord.wa_chat_id) {
+            const identityChanged = !!existing.wa_chat_id && existing.wa_chat_id !== updatedRecord.wa_chat_id;
+            const fieldsChanged = identityChanged ||
+              existing.contact_number !== updatedRecord.contact_number ||
+              existing.contact_name !== updatedRecord.contact_name ||
+              existing.avatar_url !== updatedRecord.avatar_url ||
+              existing.last_message !== updatedRecord.last_message ||
+              (Date.parse(existing.last_message_at || "") || 0) !== (Date.parse(updatedRecord.last_message_at || "") || 0) ||
+              Number(existing.unread_count || 0) !== Number(updatedRecord.unread_count || 0) ||
+              Boolean(existing.is_group) !== Boolean(updatedRecord.is_group) ||
+              Boolean(existing.archived) !== Boolean(updatedRecord.archived);
+            if (identityChanged) {
               // Migração de alias (@c.us -> @lid): atualiza a linha existente para
               // não criar uma segunda conversa para o mesmo contato.
               const { error } = await db.from("whatsapp_chats").update(updatedRecord).eq("id", existing.id);
               if (error) throw error;
               synced++;
               existingByJid.delete(existing.wa_chat_id);
-            } else {
-              // Atualizações por JID e novas conversas são gravadas em lote abaixo.
+            } else if (fieldsChanged) {
+              // Só escreve conversas realmente alteradas; evita emitir um evento Realtime
+              // por contato em cada ciclo de sincronização da lista.
               bulkRecords.push(updatedRecord);
             }
             const updatedRow = { ...existing, ...updatedRecord, id: existing.id };
@@ -989,7 +1006,7 @@ Deno.serve(async (req: Request) => {
             instance_id: inst.id,
             wa_message_id: waMessageId,
             from_me: fromMe,
-            sender: fromMe ? "me" : (number || chat.contact_number || ""),
+            sender: fromMe ? "me" : (messageGroupJid ? String(msg?.participant || msg?._data?.id?.participant || msg?.author || "") : (number || chat.contact_number || "")),
             message_type: messageType,
             text: messageText,
             media_url: msg?.media?.url || msg?.mediaUrl || null,

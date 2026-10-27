@@ -199,7 +199,7 @@ export default function WhatsAppConversas() {
     const groups = new Map<string, Chat[]>();
     for (const chat of chats) {
       if (chat.wa_chat_id === 'status@broadcast' || chat.wa_chat_id.endsWith('@newsletter') || chat.wa_chat_id.endsWith('@broadcast')) continue;
-      const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(chat.contact_number || chat.wa_chat_id);
+      const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(chat.contact_number || (chat.wa_chat_id.endsWith('@lid') ? '' : chat.wa_chat_id));
       const groupKey = key.length >= 10 ? key : `chat:${chat.id}`;
       groups.set(groupKey, [...(groups.get(groupKey) || []), chat]);
     }
@@ -275,9 +275,9 @@ export default function WhatsAppConversas() {
     }
   }, [instanceId]);
 
-  const loadMessages = useCallback(async (chat: Chat, refreshRemote = true) => {
+  const loadMessages = useCallback(async (chat: Chat, refreshRemote = true, silent = false) => {
     const loadSequence = ++messageLoadSequenceRef.current;
-    setLoadingMessages(true);
+    if (!silent) setLoadingMessages(true);
     try {
       if (refreshRemote) {
         const response: any = await waha.getMessages(chat.instance_id, chat.wa_chat_id);
@@ -336,7 +336,7 @@ export default function WhatsAppConversas() {
       if (messageTimer !== null) window.clearTimeout(messageTimer);
       messageTimer = window.setTimeout(() => {
         const current = selectedChatRef.current;
-        if (current) void loadMessages(current, false);
+        if (current) void loadMessages(current, false, true);
       }, 120);
     };
     const channel = supabase.channel(`whatsapp-conversas-${user.id}-${instanceId}`)
@@ -360,7 +360,7 @@ export default function WhatsAppConversas() {
       const current = selectedChatRef.current;
       void Promise.all([
         loadChats(true, true),
-        current ? loadMessages(current, true) : Promise.resolve(),
+        current ? loadMessages(current, true, true) : Promise.resolve(),
       ]).finally(() => { refreshInFlightRef.current = false; });
     };
     const interval = window.setInterval(refreshVisible, 30000);
@@ -502,7 +502,7 @@ export default function WhatsAppConversas() {
 
       // A Edge Function persiste o envio. Recarregamos apenas o histórico da
       // conversa atual e mantemos a lista/seleção estáveis para não remontar o chat.
-      await loadMessages(selectedChat, false);
+      await loadMessages(selectedChat, false, true);
       setChats((current) => current.map((item) => item.id === selectedChat.id
         ? { ...item, last_message: text, last_message_at: new Date().toISOString() }
         : item));
@@ -555,7 +555,7 @@ export default function WhatsAppConversas() {
                     <span className="font-medium text-sm text-foreground truncate">{chat.contact_name || numberLabel(chat)}</span>
                     <span className="text-xs text-muted-foreground flex-shrink-0">{timeLabel(chat.last_message_at)}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">{chat.last_message || 'Sem mensagem recente'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{(chat.last_message || 'Sem mensagem recente').replace(/(?<!\d)(\d{10,13})\1(?!\d)/g, '$1')}</p>
                   <span className="text-[10px] text-muted-foreground">{numberLabel(chat)}</span>
                 </div>
                 {chat.unread_count > 0 && <Badge className="bg-green-600 text-[10px] h-5 min-w-5 flex items-center justify-center p-0 rounded-full">{chat.unread_count}</Badge>}
