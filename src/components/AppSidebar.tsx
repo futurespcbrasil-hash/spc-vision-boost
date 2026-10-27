@@ -208,7 +208,7 @@ const AppSidebar = () => {
   );
 
   return (
-    <aside className={menuLayout === 'horizontal' ? 'fixed bottom-3 left-1/2 z-50 flex h-auto w-auto max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col rounded-2xl border border-sidebar-border/70 bg-sidebar/90 text-sidebar-foreground shadow-2xl' : (collapsed ? 'h-screen gradient-spc flex flex-col transition-all duration-300 w-16 sticky top-0' : 'h-screen gradient-spc flex flex-col transition-all duration-300 w-64 sticky top-0')}>
+    <aside className={menuLayout === 'horizontal' ? 'fixed bottom-3 left-0 right-0 z-50 mx-auto flex h-auto w-fit max-w-[calc(100vw-1.5rem)] flex-col rounded-2xl border border-sidebar-border/70 bg-sidebar/90 text-sidebar-foreground shadow-2xl' : (collapsed ? 'h-screen gradient-spc flex flex-col transition-all duration-300 w-16 sticky top-0' : 'h-screen gradient-spc flex flex-col transition-all duration-300 w-64 sticky top-0')}>
       <div className={menuLayout === 'horizontal' ? 'hidden' : 'flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80'}>
         {!collapsed && menuLayout !== 'horizontal' && (
           <div className="flex items-center animate-fade-in px-1 py-1">
