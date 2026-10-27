@@ -41,7 +41,7 @@ const collapseRepeatedPhoneDigits = (value: string) => {
   return digits;
 };
 const normalizeBrazilNumber = (value: string) => {
-  const digits = onlyDigits(value);
+  const digits = collapseRepeatedPhoneDigits(value);
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) return digits;
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return digits;
@@ -49,7 +49,7 @@ const normalizeBrazilNumber = (value: string) => {
 // WhatsApp pode expor o mesmo celular como @c.us e @lid, às vezes com
 // o nono dígito ausente em um dos identificadores. Canonicaliza para agrupar.
 const conversationPhoneKey = (value: string) => {
-  let digits = onlyDigits(value);
+  let digits = collapseRepeatedPhoneDigits(value);
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
   if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
   return digits;
