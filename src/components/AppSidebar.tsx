@@ -90,6 +90,15 @@ const AppSidebar = () => {
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
   const [collapsed, setCollapsed] = useState(false);
+  const [menuLayout, setMenuLayout] = useState<'vertical' | 'horizontal'>(() => { try { return localStorage.getItem('future-vision-menu-layout:' + (user?.id || 'guest')) === 'horizontal' ? 'horizontal' : 'vertical'; } catch { return 'vertical'; } });
+  useEffect(() => {
+    const syncLayout = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string; layout?: 'vertical' | 'horizontal' }>).detail;
+      if (detail?.userId === (user?.id || 'guest') && (detail.layout === 'vertical' || detail.layout === 'horizontal')) setMenuLayout(detail.layout);
+    };
+    window.addEventListener('future-vision-menu-layout-change', syncLayout);
+    return () => window.removeEventListener('future-vision-menu-layout-change', syncLayout);
+  }, [user?.id]);
   const [profileMenuOpen, setProfileMenuOpen] = useState(location.pathname.startsWith('/perfil'));
 
   const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
@@ -175,14 +184,14 @@ const AppSidebar = () => {
       title={collapsed ? item.label : undefined}
     >
       <item.icon size={18} />
-      {!collapsed && <span className="flex-1">{item.label}</span>}
+      {!collapsed && menuLayout !== 'horizontal' && <span className="flex-1">{item.label}</span>}
       {item.moduleKey === 'chat' && chatUnread > 0 && <span className="ml-auto inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" aria-label={`${chatUnread} mensagens não lidas`}>{chatUnread > 99 ? '99+' : chatUnread}</span>}
       {item.moduleKey === 'crm' && kanbanUnread > 0 && <span className="ml-auto inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" aria-label={`${kanbanUnread} notificações de leads não lidas`}>{kanbanUnread > 99 ? '99+' : kanbanUnread}</span>}
     </Link>
   );
 
   return (
-    <aside className={`h-screen gradient-spc flex flex-col transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'} sticky top-0`}>
+    <aside className={menuLayout === 'horizontal' ? 'fixed bottom-3 left-1/2 z-50 flex h-auto w-auto max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col rounded-2xl border border-sidebar-border/70 gradient-spc shadow-2xl' : (collapsed ? 'h-screen gradient-spc flex flex-col transition-all duration-300 w-16 sticky top-0' : 'h-screen gradient-spc flex flex-col transition-all duration-300 w-64 sticky top-0')}>
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80">
         {!collapsed && (
           <div className="flex items-center animate-fade-in px-1 py-1">
@@ -206,7 +215,7 @@ const AppSidebar = () => {
         </button>
       </div>
 
-      <nav className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto">
+      <nav className={menuLayout === 'horizontal' ? 'flex max-w-[calc(100vw-1.5rem)] flex-row items-center gap-1 overflow-x-auto p-2' : 'flex-1 py-4 px-3 space-y-1.5 overflow-y-auto'}>
         {NAV_ITEMS.filter(item => canAccessModule(item.moduleKey)).map(item => {
           return renderNavItem(item, location.pathname === item.to);
         })}
