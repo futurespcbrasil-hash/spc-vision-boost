@@ -11,9 +11,18 @@ const json = (body: unknown, status = 200) =>
 const cleanWebhookSecret = (value: string | null | undefined) =>
   (value || "").split(/\r?\n/)[0].replace(/\s+Copiar chave.*$/i, "").trim();
 
+// Corrige números legados concatenados duas vezes, preservando números legítimos.
+const collapseRepeatedPhoneDigits = (value: unknown): string => {
+  const digits = String(value || "").split("@")[0].replace(/\D/g, "");
+  if (digits.length % 2 === 0) {
+    const half = digits.slice(0, digits.length / 2);
+    if (half.length >= 10 && half.length <= 13 && half === digits.slice(digits.length / 2)) return half;
+  }
+  return digits;
+};
 // Canonicaliza números brasileiros sem confundir dígitos de identificadores @lid com telefone.
 const normalizeWhatsAppPhone = (value: unknown): string => {
-  let digits = String(value || "").split("@")[0].replace(/\D/g, "");
+  let digits = collapseRepeatedPhoneDigits(value);
   if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
   if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
   return digits;
@@ -132,7 +141,7 @@ Deno.serve(async (req: Request) => {
     if (value.endsWith("@g.us") || value.endsWith("@lid")) return value;
     let phone = value;
     if (value.endsWith("@c.us")) phone = value.slice(0, -5);
-    phone = phone.replace(/\D/g, "");
+    phone = collapseRepeatedPhoneDigits(phone);
     if (!phone) throw new Error("O número informado é inválido.");
     if ((phone.length === 10 || phone.length === 11) && !phone.startsWith("55")) phone = "55" + phone;
     if (phone.length < 10 || phone.length > 15) throw new Error("Número inválido. Informe país + DDD + telefone.");
@@ -146,7 +155,7 @@ Deno.serve(async (req: Request) => {
 
   const persistOutbound = async (inst: any, chatId: string, text: string, messageType: string, result: any, recipient: string, replyTo?: string, media?: { url: string; mime: string; filename: string; storagePath?: string }) => {
     const now = new Date().toISOString();
-    let digits = String(recipient || chatId).split("@")[0].replace(/\D/g, "");
+    let digits = collapseRepeatedPhoneDigits(String(recipient || chatId));
     let { data: existing } = await db.from("whatsapp_chats")
       .select("id,unread_count,contact_name,contact_number,wa_chat_id")
       .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
