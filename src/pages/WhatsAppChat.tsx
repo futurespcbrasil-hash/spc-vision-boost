@@ -275,6 +275,51 @@ const WhatsAppChat = () => {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [messageDetails, setMessageDetails] = useState<Message | null>(null);
   const [pdfPreviewMessage, setPdfPreviewMessage] = useState<Message | null>(null);
+
+  // Resolve URLs de mídia da WAHA antes de abrir/baixar: localhost é o próprio
+  // computador do usuário e nunca deve ser usado diretamente pelo navegador.
+  const resolveChatMediaUrl = useCallback(async (message: Message): Promise<string> => {
+    let url = message.media_url || '';
+    if (!url) throw new Error('O arquivo não possui uma URL disponível.');
+
+    let parsed: URL;
+    try { parsed = new URL(url); } catch { throw new Error('O endereço do arquivo é inválido.'); }
+    const isLocalHost = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(parsed.hostname.toLowerCase());
+    const isLocalWahaFile = isLocalHost && parsed.pathname.startsWith('/api/files/');
+    const isSignedChatMedia = /\/storage\/v1\/object\/sign\/chat-media\//i.test(parsed.pathname);
+
+    if (isLocalWahaFile || isSignedChatMedia) {
+      if (!selected?.instance_id) throw new Error('Não foi possível identificar a instância do WhatsApp para recuperar o arquivo.');
+      const resolved = await waha.resolveMedia(selected.instance_id, message.id);
+      if (typeof resolved?.url !== 'string' || !resolved.url) {
+        throw new Error('O servidor não conseguiu recuperar este documento.');
+      }
+      url = resolved.url;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new Error('O servidor retornou um endereço de arquivo inválido.');
+      }
+      if (['localhost', '127.0.0.1', '::1', '[::1]'].includes(parsed.hostname.toLowerCase())) {
+        throw new Error('O servidor retornou um endereço local inacessível pelo navegador.');
+      }
+      setMessages(current => current.map(item => item.id === message.id ? { ...item, media_url: url } : item));
+    }
+    return url;
+  }, [selected?.instance_id, setMessages]);
+
+  const openPdfPreview = useCallback(async (message: Message) => {
+    try {
+      const url = await resolveChatMediaUrl(message);
+      setPdfPreviewMessage({ ...message, media_url: url });
+    } catch (error) {
+      toast({
+        title: 'Não foi possível abrir o PDF',
+        description: error instanceof Error ? error.message : 'Tente novamente em instantes.',
+        variant: 'destructive',
+      });
+    }
+  }, [resolveChatMediaUrl, toast]);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
   const [favoriteMessageIds, setFavoriteMessageIds] = useState<string[]>([]);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
@@ -2303,7 +2348,7 @@ const WhatsAppChat = () => {
                             if (!fileName) fileName = `Documento-${m.id.slice(0, 8)}.pdf`;
                             return (
                               <div className="w-full min-w-[220px] max-w-[340px] overflow-hidden rounded-xl border border-border/70 bg-background/80 shadow-sm">
-                                <button type="button" onClick={() => setPdfPreviewMessage(m)} className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/60">
+                                <button type="button" onClick={() => void openPdfPreview(m)} className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/60">
                                   <span className="flex h-12 w-11 shrink-0 flex-col items-center justify-center rounded-md bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
                                     <FileText size={21} />
                                     <span className="text-[9px] font-bold tracking-wide">PDF</span>
@@ -2315,13 +2360,14 @@ const WhatsAppChat = () => {
                                   </span>
                                 </button>
                                 <div className="flex border-t border-border/70">
-                                  <button type="button" onClick={() => setPdfPreviewMessage(m)} className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium hover:bg-muted/60">
+                                  <button type="button" onClick={() => void openPdfPreview(m)} className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium hover:bg-muted/60">
                                     <Eye size={14} /> Abrir PDF
                                   </button>
                                   <span className="my-2 w-px bg-border" />
                                   <button type="button" onClick={async () => {
                                     try {
-                                      const response = await fetch(m.media_url!);
+                                      const mediaUrl = await resolveChatMediaUrl(m);
+                                      const response = await fetch(mediaUrl);
                                       if (!response.ok) throw new Error('Falha ao baixar o PDF');
                                       const blob = await response.blob();
                                       const objectUrl = window.URL.createObjectURL(blob);
@@ -2332,8 +2378,12 @@ const WhatsAppChat = () => {
                                       anchor.click();
                                       anchor.remove();
                                       window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
-                                    } catch {
-                                      window.open(m.media_url!, '_blank', 'noopener,noreferrer');
+                                    } catch (error) {
+                                      toast({
+                                        title: 'Não foi possível baixar o PDF',
+                                        description: error instanceof Error ? error.message : 'Tente abrir o documento e baixar novamente.',
+                                        variant: 'destructive',
+                                      });
                                     }
                                   }} className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium hover:bg-muted/60">
                                     <Download size={14} /> Baixar
