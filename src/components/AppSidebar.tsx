@@ -181,7 +181,7 @@ const AppSidebar = () => {
           ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border' 
           : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
         }`}
-      title={collapsed ? item.label : undefined}
+      title={collapsed || menuLayout === 'horizontal' ? item.label : undefined}
     >
       <item.icon size={18} />
       {!collapsed && menuLayout !== 'horizontal' && <span className="flex-1">{item.label}</span>}
@@ -229,7 +229,7 @@ const AppSidebar = () => {
             ${location.pathname.startsWith('/consultas')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-          title={collapsed ? 'Consultas' : undefined}
+          title={collapsed || menuLayout === 'horizontal' ? 'Consultas' : undefined}
         >
           <Search size={18} />
           {!collapsed && menuLayout !== 'horizontal' && (
@@ -304,7 +304,7 @@ const AppSidebar = () => {
             ${location.pathname.startsWith('/whatsapp')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-          title={collapsed ? 'WhatsApp' : undefined}
+          title={collapsed || menuLayout === 'horizontal' ? 'WhatsApp' : undefined}
         >
           <MessageSquare size={18} />
           {whatsappUnread > 0 && <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground" aria-label={`${whatsappUnread} mensagens WhatsApp não lidas`}>{whatsappUnread > 99 ? '99+' : whatsappUnread}</span>}
@@ -341,7 +341,7 @@ const AppSidebar = () => {
             ${location.pathname.startsWith('/future-remote')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-          title={collapsed ? 'Acesso Remoto' : undefined}
+          title={collapsed || menuLayout === 'horizontal' ? 'Acesso Remoto' : undefined}
         >
           <Monitor size={18} />
           {!collapsed && menuLayout !== 'horizontal' && (
@@ -377,7 +377,7 @@ const AppSidebar = () => {
             ${location.pathname.startsWith('/financeiro')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-          title={collapsed ? 'Financeiro' : undefined}
+          title={collapsed || menuLayout === 'horizontal' ? 'Financeiro' : undefined}
         >
           <Wallet size={18} />
           {!collapsed && menuLayout !== 'horizontal' && (
@@ -419,7 +419,7 @@ const AppSidebar = () => {
                 ${(location.pathname.startsWith('/relatorios-comissoes') || location.pathname.startsWith('/cadastro-vendedores') || location.pathname.startsWith('/comissoes/'))
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-              title={collapsed ? 'Comissões' : undefined}
+              title={collapsed || menuLayout === 'horizontal' ? 'Comissões' : undefined}
             >
               <FileBarChart size={18} />
               {!collapsed && menuLayout !== 'horizontal' && (
@@ -457,7 +457,7 @@ const AppSidebar = () => {
                 ${location.pathname.startsWith('/indicacoes')
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-              title={collapsed ? 'Indicações' : undefined}
+              title={collapsed || menuLayout === 'horizontal' ? 'Indicações' : undefined}
             >
               <FileSpreadsheet size={18} />
               {!collapsed && menuLayout !== 'horizontal' && (
@@ -490,7 +490,7 @@ const AppSidebar = () => {
             ${location.pathname.startsWith('/parceiros-spc')
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-          title={collapsed ? 'Parceiros' : undefined}
+          title={collapsed || menuLayout === 'horizontal' ? 'Parceiros' : undefined}
         >
           <Handshake size={18} />
           {!collapsed && menuLayout !== 'horizontal' && (
