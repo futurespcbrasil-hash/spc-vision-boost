@@ -56,26 +56,41 @@ Deno.serve(async (req: Request) => {
   const sessionFromBody = typeof body.session === "string" ? body.session : "";
 
   const callWaha = async (path: string, method = "GET", payload?: unknown) => {
-    const response = await fetch(`${wahaUrl}${path}`, {
-      method,
-      headers: { "Content-Type": "application/json", "X-Api-Key": wahaKey },
-      ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
-    });
-    const raw = await response.text();
-    let data: any;
-    try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
-    if (!response.ok) {
-      // Preserva status e detalhe do provedor para diagnosticar 4xx/5xx.
-      // Nunca devolve links assinados ou credenciais que possam aparecer no corpo.
-      let detail = String(data?.message || data?.error || data?.detail || raw || "").trim();
-      if (typeof payload === "object" && payload !== null) {
-        const file = (payload as Record<string, any>).file;
-        if (typeof file?.url === "string" && file.url) detail = detail.split(file.url).join("[URL DO ARQUIVO REDIGIDA]");
+    // Sem timeout, uma requisição travada ao provedor pode manter a ação pendente
+    // indefinidamente e bloquear a interface. Não repetimos automaticamente envios:
+    // em timeout de POST, o resultado remoto pode ser incerto e retry poderia duplicar.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25_000);
+    try {
+      const response = await fetch(`${wahaUrl}${path}`, {
+        method,
+        headers: { "Content-Type": "application/json", "X-Api-Key": wahaKey },
+        ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
+        signal: controller.signal,
+      });
+      const raw = await response.text();
+      let data: any;
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
+      if (!response.ok) {
+        // Preserva status e detalhe do provedor para diagnosticar 4xx/5xx.
+        // Nunca devolve links assinados ou credenciais que possam aparecer no corpo.
+        let detail = String(data?.message || data?.error || data?.detail || raw || "").trim();
+        if (typeof payload === "object" && payload !== null) {
+          const file = (payload as Record<string, any>).file;
+          if (typeof file?.url === "string" && file.url) detail = detail.split(file.url).join("[URL DO ARQUIVO REDIGIDA]");
+        }
+        detail = detail.slice(0, 900);
+        throw new Error(`WAHA HTTP ${response.status}${detail ? ": " + detail : ""}`);
       }
-      detail = detail.slice(0, 900);
-      throw new Error(`WAHA HTTP ${response.status}${detail ? ": " + detail : ""}`);
+      return data;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Tempo limite de 25 segundos ao comunicar com a WAHA. Verifique o estado da conversa antes de repetir um envio, pois o WhatsApp pode já ter recebido a mensagem.");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return data;
   };
 
   const getOwnedInstance = async (access?: {
