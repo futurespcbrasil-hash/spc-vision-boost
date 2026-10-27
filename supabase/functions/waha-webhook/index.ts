@@ -145,17 +145,23 @@ Deno.serve(async (req: Request) => {
   let { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
     .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
   // If WAHA alternates between a phone JID and a LID, match by the alternate phone JID.
-  if (!existingChat && contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
+  if (contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
     // Normalize Brazilian numbers (with/without country code and ninth digit) before
-    // matching. Exact contact_number comparisons miss valid aliases and create duplicate chats.
+    // matching. If legacy aliases exist, prefer the LID row used by WAHA for history.
     const candidates = await db.from("whatsapp_chats")
       .select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
       .eq("instance_id", instance.id).eq("is_group", false).limit(500);
     if (candidates.error) return json({ error: "Chat deduplication lookup failed" }, 500);
     const incomingPhone = normalizeWhatsAppPhone(contactNumber);
-    existingChat = (candidates.data || []).find((row: any) =>
+    const phoneMatches = (candidates.data || []).filter((row: any) =>
       incomingPhone && normalizeWhatsAppPhone(row.contact_number) === incomingPhone
-    ) || null;
+    );
+    const lidMatch = phoneMatches.find((row: any) => str(row.wa_chat_id).endsWith("@lid"));
+    if (lidMatch && (!existingChat || !str(existingChat.wa_chat_id).endsWith("@lid"))) {
+      existingChat = lidMatch;
+    } else if (!existingChat) {
+      existingChat = phoneMatches[0] || null;
+    }
   }
   const lidDigits = waChatId.endsWith("@lid") ? waChatId.split("@")[0].replace(/\D/g, "") : "";
   const previousNumber = str(existingChat?.contact_number).replace(/\D/g, "");
@@ -172,6 +178,9 @@ Deno.serve(async (req: Request) => {
   let chatId = existingChat?.id as string | undefined;
   if (chatId) {
     await db.from("whatsapp_chats").update({
+      // Prefer the WAHA LID when it is known for this phone, so message history opens
+      // against the identifier accepted by the active WhatsApp session.
+      wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existingChat?.wa_chat_id,
       contact_number: persistedContactNumber, contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
       last_message_at: sentAt, unread_count: existingChat?.unread_count || 0,
