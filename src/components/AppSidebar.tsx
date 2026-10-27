@@ -523,18 +523,6 @@ const AppSidebar = () => {
       </nav>
 
 
-      <div className={menuLayout === 'horizontal' ? 'hidden' : 'p-3 border-t border-sidebar-border space-y-2'}>
-        {canManageUsers && (
-          <Link
-            to="/usuarios"
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition text-sm w-full ${collapsed ? 'justify-center' : ''} ${location.pathname === '/usuarios' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
-            title="Usuários"
-          >
-            <Users size={16} />
-            {!collapsed && <span>Usuários</span>}
-          </Link>
-        )}
-      </div>
     </aside>
   );
 };
