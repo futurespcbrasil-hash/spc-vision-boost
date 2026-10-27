@@ -5,6 +5,13 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { "Content-Type": "application/json" },
 });
 const str = (v: unknown) => typeof v === "string" ? v : "";
+const normalizeWhatsAppPhone = (value: unknown): string => {
+  let digits = String(value || "").split("@")[0].replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+  if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
+  return digits;
+};
+
 const cleanWebhookSecret = (value: string | null | undefined) =>
   (value || "").split(/\r?\n/)[0].replace(/\s+Copiar chave.*$/i, "").trim();
 
@@ -139,14 +146,21 @@ Deno.serve(async (req: Request) => {
     .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
   // If WAHA alternates between a phone JID and a LID, match by the alternate phone JID.
   if (!existingChat && contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
-    const lookup = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
-      .eq("instance_id", instance.id).eq("contact_number", contactNumber).eq("is_group", false).limit(1).maybeSingle();
-    existingChat = lookup.data;
+    // Normalize Brazilian numbers (with/without country code and ninth digit) before
+    // matching. Exact contact_number comparisons miss valid aliases and create duplicate chats.
+    const candidates = await db.from("whatsapp_chats")
+      .select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
+      .eq("instance_id", instance.id).eq("is_group", false).limit(500);
+    if (candidates.error) return json({ error: "Chat deduplication lookup failed" }, 500);
+    const incomingPhone = normalizeWhatsAppPhone(contactNumber);
+    existingChat = (candidates.data || []).find((row: any) =>
+      incomingPhone && normalizeWhatsAppPhone(row.contact_number) === incomingPhone
+    ) || null;
   }
   const lidDigits = waChatId.endsWith("@lid") ? waChatId.split("@")[0].replace(/\D/g, "") : "";
   const previousNumber = str(existingChat?.contact_number).replace(/\D/g, "");
   const persistedContactNumber = waChatId.endsWith("@lid")
-    ? (previousNumber && previousNumber !== lidDigits ? str(existingChat?.contact_number) : contactNumber)
+    ? (contactNumber.length >= 10 ? contactNumber : (previousNumber && previousNumber !== lidDigits ? str(existingChat?.contact_number) : ""))
     : contactNumber;
   const previousName = str(existingChat?.contact_name).trim();
   const savedNameIsUseful = !!previousName &&
@@ -185,7 +199,12 @@ Deno.serve(async (req: Request) => {
         status: "received", timestamp: sentAt, raw: payload,
         sent_by: fromMe ? instance.owner_id : null,
     });
-    if (error) return json({ error: "Failed to persist message" }, 500);
+    // Concurrent WAHA event types can race past the initial lookup. The unique
+    // (instance_id, wa_message_id) constraint is the final idempotency guard.
+    if (error) {
+      if (error.code === "23505") return json({ accepted: true, duplicate: true });
+      return json({ error: "Failed to persist message" }, 500);
+    }
   }
 
   // Ciclos de atendimento: consome a nota da pesquisa antes das automações e
