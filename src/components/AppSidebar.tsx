@@ -90,10 +90,12 @@ const AppSidebar = () => {
     return () => { active = false; supabase.removeChannel(channel); };
   }, [user]);
   const [collapsed, setCollapsed] = useState(false);
-  const [submenuAnchor, setSubmenuAnchor] = useState({ left: 0, bottom: 0 });
+  const [submenuAnchor, setSubmenuAnchor] = useState({ left: 0 });
   const anchorSubmenu = (event: React.MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    setSubmenuAnchor({ left: rect.left + rect.width / 2, bottom: window.innerHeight - rect.top + 8 });
+    const dock = event.currentTarget.closest('aside');
+    const dockRect = dock?.getBoundingClientRect();
+    setSubmenuAnchor({ left: dockRect ? rect.left - dockRect.left + rect.width / 2 : rect.left + rect.width / 2 });
   };
   const closeOtherSubmenus = (except: string) => {
     if (except !== 'consultas') setConsultasOpen(false);
@@ -206,7 +208,7 @@ const AppSidebar = () => {
   );
 
   return (
-    <aside className={menuLayout === 'horizontal' ? 'fixed bottom-3 left-1/2 z-50 flex h-auto w-auto max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col rounded-2xl border border-sidebar-border/70 bg-sidebar/90 text-sidebar-foreground shadow-2xl backdrop-blur-xl' : (collapsed ? 'h-screen gradient-spc flex flex-col transition-all duration-300 w-16 sticky top-0' : 'h-screen gradient-spc flex flex-col transition-all duration-300 w-64 sticky top-0')}>
+    <aside className={menuLayout === 'horizontal' ? 'fixed bottom-3 left-1/2 z-50 flex h-auto w-auto max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col rounded-2xl border border-sidebar-border/70 bg-sidebar/90 text-sidebar-foreground shadow-2xl' : (collapsed ? 'h-screen gradient-spc flex flex-col transition-all duration-300 w-16 sticky top-0' : 'h-screen gradient-spc flex flex-col transition-all duration-300 w-64 sticky top-0')}>
       <div className={menuLayout === 'horizontal' ? 'hidden' : 'flex items-center gap-3 px-4 py-5 border-b border-sidebar-border/80'}>
         {!collapsed && menuLayout !== 'horizontal' && (
           <div className="flex items-center animate-fade-in px-1 py-1">
@@ -230,7 +232,7 @@ const AppSidebar = () => {
         </button>
       </div>
 
-      <nav className={menuLayout === 'horizontal' ? 'flex max-w-[calc(100vw-1.5rem)] flex-row items-center gap-1.5 overflow-x-auto rounded-xl bg-muted/70 p-2.5 backdrop-blur-md [&>button]:!w-auto [&>button]:!shrink-0 [&>a]:!shrink-0 [&>button]:transition-transform [&>button:hover]:z-20 [&>button:hover]:scale-[1.65] [&>button:hover]:z-20 [&>a]:transition-transform [&>a:hover]:z-20 [&>a:hover]:scale-[1.65]' : 'flex-1 py-4 px-3 space-y-1.5 overflow-y-auto'}>
+      <nav className={menuLayout === 'horizontal' ? 'flex max-w-[calc(100vw-1.5rem)] flex-row items-center justify-center gap-1 rounded-xl bg-muted/70 p-1.5 overflow-visible [&>button>svg]:h-4 [&>button>svg]:w-4 [&>a>svg]:h-4 [&>a>svg]:w-4 [&>button]:!w-auto [&>button]:!shrink-0 [&>a]:!shrink-0 [&>button]:relative [&>button]:z-0 [&>button]:flex [&>button]:h-8 [&>button]:w-8 [&>button]:items-center [&>button]:justify-center [&>button]:p-0 [&>button]:transition-transform [&>button]:duration-200 [&>button]:ease-out [&>button:hover]:z-30 [&>button:hover]:scale-[1.8] [&>button]:origin-bottom [&>a]:relative [&>a]:z-0 [&>a]:flex [&>a]:h-8 [&>a]:w-8 [&>a]:items-center [&>a]:justify-center [&>a]:p-0 [&>a]:transition-transform [&>a]:duration-200 [&>a]:ease-out [&>a:hover]:z-30 [&>a:hover]:scale-[1.8] [&>a]:origin-bottom' : 'flex-1 py-4 px-3 space-y-1.5 overflow-y-auto'}>
         {NAV_ITEMS.filter(item => canAccessModule(item.moduleKey)).map(item => {
           return renderNavItem(item, location.pathname === item.to);
         })}
@@ -256,7 +258,7 @@ const AppSidebar = () => {
           )}
         </button>
         {(!collapsed || menuLayout === 'horizontal') && consultasOpen && (
-          <div className={menuLayout === 'horizontal' ? 'fixed z-[100] max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left, bottom: submenuAnchor.bottom } : undefined}>
+          <div className={menuLayout === 'horizontal' ? 'absolute bottom-full z-[100] mb-2 max-h-[60vh] min-w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-sidebar-border bg-card p-2 shadow-xl' : 'ml-3 pl-3 border-l border-sidebar-border/50 space-y-1'} style={menuLayout === 'horizontal' ? { left: submenuAnchor.left } : undefined}>
             {CONSULTAS_SUB.filter(sub => canAccessModule(sub.moduleKey)).map(sub => (
               <Link key={sub.to} to={sub.to}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition
