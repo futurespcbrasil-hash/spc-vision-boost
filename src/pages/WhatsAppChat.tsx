@@ -1020,6 +1020,7 @@ const WhatsAppChat = () => {
     }
     messagesChatIdRef.current = chatId;
     if (cached?.length) {
+      cached = deduplicateMessages(cached);
       messagesCacheRef.current.set(cacheKey, cached);
       messagesRef.current = cached;
       setMessages(cached);
