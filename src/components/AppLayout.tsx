@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import MobileBottomNav from './MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
-import { BookOpen, LogOut, ShieldAlert, UserRound } from 'lucide-react';
+import { BookOpen, LogOut, ShieldAlert, UserRound, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import CRMNotificationBell from '@/components/CRMNotificationBell';
@@ -116,6 +116,11 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
             </button>
             {profileActionsOpen && (
               <div className="absolute right-0 top-12 z-[70] w-48 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl">
+                {canManageUsers && (
+                  <Link to="/usuarios" onClick={() => setProfileActionsOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted">
+                    <Users size={15} /> Usuários
+                  </Link>
+                )}
                 <Link to="/perfil" onClick={() => setProfileActionsOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted">
                   <UserRound size={15} /> Meu Perfil
                 </Link>
