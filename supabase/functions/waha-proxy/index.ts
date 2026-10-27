@@ -353,6 +353,7 @@ Deno.serve(async (req: Request) => {
         for (let attempt = 0; attempt < 8; attempt++) {
           qrResponse = await fetch(`${wahaUrl}/api/${session}/auth/qr?format=image`, {
             headers: { "X-Api-Key": wahaKey },
+            signal: AbortSignal.timeout(5_000),
           }).catch(() => null);
           if (qrResponse?.ok) break;
           await qrResponse?.body?.cancel().catch(() => null);
@@ -469,11 +470,11 @@ Deno.serve(async (req: Request) => {
           if (!wahaFileMatch || wahaFileMatch[1] !== inst.provider_instance_name) {
             return json({ error: "Caminho da mídia inválido para esta instância." }, 403);
           }
-          source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey } });
+          source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey }, signal: AbortSignal.timeout(60_000) });
         } else if (isSupabaseChatMedia) {
-          source = await fetch(body.media_url);
+          source = await fetch(body.media_url, { signal: AbortSignal.timeout(60_000) });
         } else if (isWahaMedia) {
-          source = await fetch(body.media_url, { headers: { "X-Api-Key": wahaKey } });
+          source = await fetch(body.media_url, { headers: { "X-Api-Key": wahaKey }, signal: AbortSignal.timeout(60_000) });
         } else {
           return json({ error: "A mídia precisa estar no armazenamento chat-media autorizado ou nos arquivos da sessão WAHA atual." }, 403);
         }
@@ -579,7 +580,7 @@ Deno.serve(async (req: Request) => {
           const safePath = relative.match(/^\/api\/files\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/);
           if (!safePath) return json({ error: "Caminho da mídia inválido." }, 400);
           if (safePath[1] !== inst.provider_instance_name) return json({ error: "A mídia não pertence à instância WhatsApp desta conversa." }, 403);
-          const remote = await fetch(`${wahaUrl}${relative}`, { headers: { "X-Api-Key": wahaKey } });
+          const remote = await fetch(`${wahaUrl}${relative}`, { headers: { "X-Api-Key": wahaKey }, signal: AbortSignal.timeout(60_000) });
           if (!remote.ok) return json({ error: `A WAHA não conseguiu recuperar a mídia (HTTP ${remote.status}).` }, 502);
           const blob = await remote.blob();
           if (blob.size > 50 * 1024 * 1024) return json({ error: "A mídia excede o limite de 50 MB para recuperação." }, 413);
