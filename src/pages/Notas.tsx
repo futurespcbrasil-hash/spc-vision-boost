@@ -21,6 +21,7 @@ const CORES = [
 
 const corClasses = (c: string) => CORES.find((x) => x.value === c) ?? CORES[0];
 const isCustomHex = (c: string) => /^#[0-9a-f]{6}$/i.test(c || '');
+const corHex = (c: string) => isCustomHex(c) ? c : ({ amarelo: '#FACC15', rosa: '#F472B6', verde: '#4ADE80', azul: '#60A5FA', roxo: '#A78BFA', laranja: '#FB923C' } as Record<string, string>)[c] || '#FACC15';
 const colorText = (c: string) => {
   if (!isCustomHex(c)) return '#1f2937';
   const hex = c.slice(1);
@@ -152,7 +153,7 @@ const Notas = () => {
               <div
                 key={n.id}
                 className={`${theme === 'transparent' ? 'bg-transparent' : c.bg} ${theme === 'transparent' ? '' : c.border} ${rotFor(n.id)} border-l-4 p-4 rounded-sm shadow-md hover:shadow-xl hover:rotate-0 transition-all duration-200 min-h-[200px] flex flex-col ${theme === 'transparent' ? 'text-foreground' : 'text-gray-800'} ${n.concluido ? 'opacity-60' : ''}`}
-                style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive", ...(theme === 'transparent' ? { backgroundColor: 'transparent', borderColor: isCustomHex(n.cor) ? n.cor : undefined, color: 'var(--foreground)' } : isCustomHex(n.cor) ? { backgroundColor: n.cor, borderColor: n.cor, color: colorText(n.cor) } : {}) }}
+                style={{ fontFamily: "'Caveat', 'Comic Sans MS', cursive", ...(theme === 'transparent' ? { backgroundColor: 'transparent', borderColor: corHex(n.cor), color: 'var(--foreground)' } : isCustomHex(n.cor) ? { backgroundColor: n.cor, borderColor: n.cor, color: colorText(n.cor) } : {}) }}
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className={`font-bold text-lg leading-tight ${n.concluido ? 'line-through' : ''}`}>{n.titulo}</h3>
