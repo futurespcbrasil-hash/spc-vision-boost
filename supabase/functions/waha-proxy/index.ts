@@ -227,8 +227,17 @@ Deno.serve(async (req: Request) => {
   };
 
   const updateLeadInteractionForNumber = async (inst: any, numberValue: string, chatId: string, messageText: string) => {
-    const { data: chatRecord } = await db.from("whatsapp_chats").select("contact_number,contact_name")
-      .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
+    // Busca o chat e os telefones dos leads em paralelo; nunca percorre páginas
+    // sequencialmente enquanto mantém o envio do WhatsApp aguardando.
+    const [chatLookup, firstLeadPage] = await Promise.all([
+      db.from("whatsapp_chats").select("contact_number,contact_name")
+        .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle(),
+      db.from("leads").select("id,phone,whatsapp").range(0, 999),
+    ]);
+    if (firstLeadPage.error) {
+      console.error("[WAHA] Não foi possível localizar lead para registrar interação:", firstLeadPage.error.message);
+      return false;
+    }
 
     const normalizeLeadNumber = (value: unknown) => {
       let digits = String(value || "").split("@")[0].replace(/\D/g, "");
@@ -238,58 +247,55 @@ Deno.serve(async (req: Request) => {
       if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
       return digits;
     };
-    // WAHA pode entregar números em formatos diferentes (JID @c.us, @lid e
-    // contact_number com DDI/DDD divergentes). Testa todas as fontes disponíveis.
-    const targets = [...new Set([chatRecord?.contact_number, numberValue, chatId]
+    const targets = [...new Set([chatLookup.data?.contact_number, numberValue, chatId]
       .map(normalizeLeadNumber).filter((value) => value.length >= 10))];
     if (!targets.length) return false;
 
+    let leadRows = firstLeadPage.data || [];
+    // A maioria dos CRMs tem menos de 1.000 leads. Se atingir o limite do REST,
+    // consulta as páginas restantes em paralelo (até o limite de 10.000 já usado antes).
+    if (leadRows.length === 1000) {
+      const remainingPages = await Promise.all(Array.from({ length: 9 }, (_, page) =>
+        db.from("leads").select("id,phone,whatsapp").range((page + 1) * 1000, (page + 2) * 1000 - 1)
+      ));
+      const failedPage = remainingPages.find(page => page.error);
+      if (failedPage?.error) {
+        console.error("[WAHA] Falha ao consultar páginas adicionais de leads:", failedPage.error.message);
+        return false;
+      }
+      leadRows = [...leadRows, ...remainingPages.flatMap(page => page.data || [])];
+    }
+
     const exactMatch = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
       const candidate = normalizeLeadNumber(value);
-      return candidate && targets.some(target => candidate === target || (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
+      return candidate && targets.some(target => candidate === target ||
+        (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
     });
     const suffixMatch = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
       const candidate = normalizeLeadNumber(value);
       return candidate && targets.some(target => candidate.length >= 8 && target.length >= 8 && candidate.slice(-8) === target.slice(-8));
     });
 
-    let leadsFound: any[] = [];
-    // Pagina todos os leads para localizar também registros antigos.
-    for (let offset = 0; offset < 10000; offset += 1000) {
-      const { data: leadRows, error: leadLookupError } = await db.from("leads")
-        .select("id,phone,whatsapp,interactions")
-        .range(offset, offset + 999);
-      if (leadLookupError) {
-        console.error("[WAHA] Não foi possível localizar lead para registrar interação:", leadLookupError.message);
-        return false;
-      }
-      const rows = leadRows || [];
-      leadsFound.push(...rows.filter(exactMatch));
-      if (rows.length < 1000) break;
-    }
-
-    let lead = leadsFound.length === 1 ? leadsFound[0] : null;
-    if (!lead && leadsFound.length === 0) {
-      let suffixMatches: any[] = [];
-      for (let offset = 0; offset < 10000; offset += 1000) {
-        const { data: leadRows, error: leadLookupError } = await db.from("leads")
-          .select("id,phone,whatsapp,interactions")
-          .range(offset, offset + 999);
-        if (leadLookupError) return false;
-        const rows = leadRows || [];
-        suffixMatches.push(...rows.filter(suffixMatch));
-        if (rows.length < 1000) break;
-      }
+    const exactMatches = leadRows.filter(exactMatch);
+    let lead = exactMatches.length === 1 ? exactMatches[0] : null;
+    if (exactMatches.length === 0) {
+      const suffixMatches = leadRows.filter(suffixMatch);
       // Só usa o sufixo curto se identificar um único lead, evitando atualizar homônimos telefônicos.
       if (suffixMatches.length === 1) lead = suffixMatches[0];
     }
     if (!lead) {
-      console.warn("[WAHA] Não foi possível identificar um único lead para o telefone:", targets[0].slice(-4), "matches:", leadsFound.length);
+      console.warn("[WAHA] Não foi possível identificar um único lead para o telefone:", targets[0].slice(-4), "matches:", exactMatches.length);
       return false;
     }
 
+    const { data: leadDetails, error: detailsError } = await db.from("leads")
+      .select("interactions").eq("id", lead.id).maybeSingle();
+    if (detailsError) {
+      console.error("[WAHA] Falha ao carregar interações do lead:", detailsError.message);
+      return false;
+    }
     const now = new Date().toISOString();
-    const existingInteractions = Array.isArray(lead.interactions) ? lead.interactions : [];
+    const existingInteractions = Array.isArray(leadDetails?.interactions) ? leadDetails.interactions : [];
     const interaction = {
       id: `whatsapp-${crypto.randomUUID()}`,
       date: now,
@@ -306,13 +312,6 @@ Deno.serve(async (req: Request) => {
     }
     console.info("[WAHA] Interação registrada no lead:", lead.id);
     return true;
-  };
-
-  const normalizeStatus = (status: string) => {
-    if (["WORKING", "SCAN_QR_CODE", "STARTING", "STOPPED", "FAILED"].includes(status)) {
-      return ({ WORKING: "connected", SCAN_QR_CODE: "qr", STARTING: "connecting", STOPPED: "disconnected", FAILED: "disconnected" } as Record<string, string>)[status];
-    }
-    return status?.toLowerCase() || "unknown";
   };
 
   try {
