@@ -108,7 +108,7 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
 
   return (
     <div className="flex min-h-screen bg-background">
-      <div className="fixed right-4 top-3 z-[60] flex items-center gap-2">
+      <div className="fixed right-4 top-3 z-[60] flex flex-row-reverse items-center gap-2">
         {user && (
           <div className="relative">
             <button type="button" onClick={() => setProfileActionsOpen(value => !value)} aria-label="Abrir opções do perfil" aria-expanded={profileActionsOpen} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition hover:bg-muted">
