@@ -146,7 +146,7 @@ const Metas = () => {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Target className="text-primary" /> Metas & Faturamento
+            <Target className="text-primary" /> Metas SPC Brasil
           </h1>
           <p className="text-sm text-muted-foreground">
             Controle de faturamento, comissão e valor a receber.
