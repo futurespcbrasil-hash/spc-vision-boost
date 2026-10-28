@@ -1,0 +1,7 @@
+{
+  "name": "com.futuresolucoes.assinador",
+  "description": "Agente local do Future Assinador Digital",
+  "path": "/CAMINHO/ABSOLUTO/PARA/future-assinador-host",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://SUBSTITUIR_PELO_ID_PUBLICADO/"]
+}
