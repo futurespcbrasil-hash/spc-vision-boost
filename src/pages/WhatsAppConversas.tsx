@@ -546,7 +546,7 @@ export default function WhatsAppConversas() {
             {!loading && filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">Nenhuma conversa sincronizada. A lista será atualizada automaticamente quando houver novas conversas.</p>}
             {filtered.filter((chat) => chat.wa_chat_id !== 'status@broadcast' && !chat.wa_chat_id.endsWith('@newsletter')).map((chat) => (
               <button key={chat.id} onClick={() => setSelectedChatId(chat.id)}
-                className={'w-full flex items-start gap-3 p-3 text-left border-b transition-colors hover:bg-muted/50 ' + (selectedChatId === chat.id ? 'bg-muted' : '')}>
+                className={'w-full flex items-start gap-3 p-3 text-left transition-colors hover:bg-muted/50 ' + (selectedChatId === chat.id ? 'bg-muted' : '')}>
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <User size={18} className="text-primary" />
                 </div>
