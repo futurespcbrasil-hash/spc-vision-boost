@@ -131,7 +131,7 @@ const CRMKanban = () => {
   const closeAddLead = () => { setShowAddLead(false); clearAddLeadDraft(); };
 
   // Apenas gestores/administrador ou o responsável atual podem mover/editar o lead. Leads sem responsável não ficam editáveis para toda a equipe.
-  const canEditLead = (lead: Lead) => isOwner || isGestor || (!!user?.id && lead.userId === user.id);
+  const canEditLead = (lead: Lead) => isOwner || isGestor || (!!user?.id && (lead.userId === user.id || lead.assignedTo === user.id));
 
   // Resolve a preferência de cor pelo ID e, como compatibilidade, pelo nome
   // do responsável retornado pelo diretório de usuários atribuíveis.
