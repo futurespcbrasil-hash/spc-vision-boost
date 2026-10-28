@@ -1130,11 +1130,15 @@ const WhatsAppChat = () => {
     if (!selected.avatar_url && instanceId && !profilePicFetched.current.has(chatId)) {
       profilePicFetched.current.add(chatId);
       waha.getProfilePic(instanceId, selected.wa_chat_id)
-        .then((res: any) => {
-          const url = res?.avatar_url;
+        .then(async (res: any) => {
+          // O proxy WAHA retorna a foto no campo "url"; aceitar aliases antigos também.
+          const url = res?.avatar_url || res?.url || res?.profilePictureUrl;
           if (!url) return;
           setChats(prev => prev.map(c => c.id === chatId ? { ...c, avatar_url: url } : c));
           setSelected(prev => prev && prev.id === chatId ? { ...prev, avatar_url: url } : prev);
+          const { error } = await supabase.from('whatsapp_chats').update({ avatar_url: url })
+            .eq('id', chatId).eq('instance_id', instanceId);
+          if (error) console.warn('[WhatsApp] Foto carregada, mas não foi possível persistir:', error.message);
         })
         .catch(err => console.warn('[WhatsApp] Falha ao buscar foto de perfil:', err?.message));
     }
@@ -2111,7 +2115,7 @@ const WhatsAppChat = () => {
 
           {/* Conversations List */}
           <ScrollArea className="flex-1">
-            <div className="divide-y divide-border/40">
+            <div className="divide-y-0 [&>*]:border-0">
               {filteredChats.map((c, idx) => {
                 const name = chatTitle(c);
                 const isSelected = selected?.id === c.id;
