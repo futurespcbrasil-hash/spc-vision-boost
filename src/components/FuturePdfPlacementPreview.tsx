@@ -11,7 +11,7 @@ export type PdfSignaturePlacement = {
 
 type Props = {
   file: File;
-  onPlacementChange: (placement: PdfSignaturePlacement) => void;
+  onPlacementChange: (placement: PdfSignaturePlacement | null) => void;
 };
 
 export default function FuturePdfPlacementPreview({ file, onPlacementChange }: Props) {
@@ -24,9 +24,10 @@ export default function FuturePdfPlacementPreview({ file, onPlacementChange }: P
     const renderTasks: Array<{ cancel: () => void }> = [];
     let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | null = null;
     let documentProxy: pdfjsLib.PDFDocumentProxy | null = null;
+
     setSelected(null);
     setRenderError("");
-    onPlacementChange(null as unknown as PdfSignaturePlacement);
+    onPlacementChange(null);
 
     const renderDocument = async () => {
       try {
@@ -43,21 +44,28 @@ export default function FuturePdfPlacementPreview({ file, onPlacementChange }: P
           const page = await documentProxy.getPage(pageIndex + 1);
           const viewport = page.getViewport({ scale: 1.15 });
           const pageView = page.view;
-          const pageWidth = pageView[2] - pageView[0];
-          const pageHeight = pageView[3] - pageView[1];
           const wrapper = document.createElement("div");
           wrapper.className = "relative mx-auto mb-4 w-fit max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm";
           wrapper.style.width = `${viewport.width}px`;
           wrapper.style.maxWidth = "100%";
           wrapper.setAttribute("data-pdf-page", String(pageIndex));
+          wrapper.dataset.viewLeft = String(pageView[0]);
+          wrapper.dataset.viewBottom = String(pageView[1]);
+
           const canvas = document.createElement("canvas");
           canvas.width = Math.ceil(viewport.width);
           canvas.height = Math.ceil(viewport.height);
           canvas.style.display = "block";
           canvas.style.width = "100%";
           canvas.style.height = "auto";
+          canvas.dataset.viewportWidth = String(viewport.width);
+          canvas.dataset.viewportHeight = String(viewport.height);
           canvas.setAttribute("aria-label", `Página ${pageIndex + 1}; clique no local desejado para a assinatura`);
-          wrapper.appendChild(canvas);
+
+          const overlay = document.createElement("div");
+          overlay.className = "pointer-events-none absolute z-10 hidden border-2 border-violet-600 bg-violet-300/40";
+          overlay.setAttribute("data-signature-selection", "true");
+          wrapper.append(canvas, overlay);
           container.appendChild(wrapper);
 
           const context = canvas.getContext("2d");
@@ -82,29 +90,20 @@ export default function FuturePdfPlacementPreview({ file, onPlacementChange }: P
               pageIndex,
               widgetRect: [left, top - signatureHeight, left + signatureWidth, top],
             };
+
+            container.querySelectorAll<HTMLElement>("[data-signature-selection]").forEach((item) => item.classList.add("hidden"));
+            const [leftX, topY] = viewport.convertToViewportPoint(left, top);
+            const [rightX, bottomY] = viewport.convertToViewportPoint(left + signatureWidth, top - signatureHeight);
+            const displayScaleX = bounds.width / viewport.width;
+            const displayScaleY = bounds.height / viewport.height;
+            overlay.style.left = `${Math.min(leftX, rightX) * displayScaleX}px`;
+            overlay.style.top = `${Math.min(topY, bottomY) * displayScaleY}px`;
+            overlay.style.width = `${Math.abs(rightX - leftX) * displayScaleX}px`;
+            overlay.style.height = `${Math.abs(bottomY - topY) * displayScaleY}px`;
+            overlay.classList.remove("hidden");
             setSelected(placement);
             onPlacementChange(placement);
           });
-
-          const selectionOverlay = document.createElement("div");
-          selectionOverlay.className = "pointer-events-none absolute z-10 hidden border-2 border-violet-600 bg-violet-300/30";
-          selectionOverlay.setAttribute("data-signature-selection", String(pageIndex));
-          wrapper.appendChild(selectionOverlay);
-          wrapper.addEventListener("click", () => {
-            const placement = selected;
-            if (!placement || placement.pageIndex !== pageIndex) return;
-            const [left, bottom, right, top] = placement.widgetRect;
-            const [x1, y1] = viewport.convertToViewportPoint(left, top);
-            const [x2, y2] = viewport.convertToViewportPoint(right, bottom);
-            selectionOverlay.style.left = `${Math.min(x1, x2)}px`;
-            selectionOverlay.style.top = `${Math.min(y1, y2)}px`;
-            selectionOverlay.style.width = `${Math.abs(x2 - x1)}px`;
-            selectionOverlay.style.height = `${Math.abs(y2 - y1)}px`;
-            selectionOverlay.classList.remove("hidden");
-          });
-          // Keep page dimensions available for assistive/debugging context.
-          wrapper.dataset.pageWidth = String(pageWidth);
-          wrapper.dataset.pageHeight = String(pageHeight);
         }
       } catch (error) {
         if (!cancelled) {
@@ -122,41 +121,6 @@ export default function FuturePdfPlacementPreview({ file, onPlacementChange }: P
       if (documentProxy) void documentProxy.destroy();
     };
   }, [file, onPlacementChange]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    container.querySelectorAll<HTMLElement>("[data-signature-selection]").forEach((overlay) => {
-      overlay.classList.add("hidden");
-    });
-    if (!selected) return;
-    const wrapper = container.querySelector<HTMLElement>(`[data-pdf-page="${selected.pageIndex}"]`);
-    const overlay = wrapper?.querySelector<HTMLElement>("[data-signature-selection]");
-    if (!wrapper || !overlay) return;
-    // Coordinates are converted back into the same PDF.js viewport used to render this page.
-    const canvas = wrapper.querySelector("canvas");
-    if (!canvas) return;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    if (!width || !height) return;
-    // The render dimensions are stored on the canvas to avoid relying on browser PDF viewer internals.
-    const viewportWidth = Number(canvas.dataset.viewportWidth);
-    const viewportHeight = Number(canvas.dataset.viewportHeight);
-    if (!viewportWidth || !viewportHeight) return;
-    const sx = width / viewportWidth;
-    const sy = height / viewportHeight;
-    // PDF coordinates use a bottom-left origin. Convert to a simple proportional preview rectangle.
-    const [left, bottom, right, top] = selected.widgetRect;
-    const pageWidth = Number(wrapper.dataset.pageWidth);
-    const pageHeight = Number(wrapper.dataset.pageHeight);
-    const viewLeft = Number(wrapper.dataset.viewLeft ?? "0");
-    const viewBottom = Number(wrapper.dataset.viewBottom ?? "0");
-    overlay.style.left = `${(left - viewLeft) * sx}px`;
-    overlay.style.top = `${(pageHeight - (top - viewBottom)) * sy}px`;
-    overlay.style.width = `${(right - left) * sx}px`;
-    overlay.style.height = `${(top - bottom) * sy}px`;
-    overlay.classList.remove("hidden");
-  }, [selected]);
 
   return (
     <div className="mt-4 overflow-hidden rounded-xl border border-violet-100 bg-slate-50 p-3">
