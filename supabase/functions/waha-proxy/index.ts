@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { mergeWhatsAppAckStatus, normalizeWhatsAppAck } from "../_shared/whatsappMessageStatus.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -934,7 +935,7 @@ Deno.serve(async (req: Request) => {
         const existingByRemoteId = new Map<string, any>();
         if (remoteMessageIds.size > 0) {
           const { data: existingMessages, error: existingMessagesError } = await db.from("whatsapp_messages")
-            .select("id,chat_id,wa_message_id,text,timestamp")
+            .select("id,chat_id,wa_message_id,text,timestamp,status,from_me")
             .eq("instance_id", inst.id).in("wa_message_id", [...remoteMessageIds]);
           if (existingMessagesError) throw existingMessagesError;
           for (const row of existingMessages || []) {
@@ -1011,7 +1012,7 @@ Deno.serve(async (req: Request) => {
             media_url: msg?.media?.url || msg?.mediaUrl || null,
             media_mime: msg?.media?.mimetype || null,
             media_filename: msg?.media?.filename || null,
-            status: msg?.ack ? String(msg.ack) : "received",
+            status: fromMe ? mergeWhatsAppAckStatus(existingMessage?.status, normalizeWhatsAppAck(msg?.ack, msg?.ackName)) : "received",
             timestamp,
             raw: msg,
             sent_by: fromMe ? inst.owner_id : null,
