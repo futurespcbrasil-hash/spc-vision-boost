@@ -36,6 +36,7 @@ const lazyWithRetry = (importer: () => Promise<{ default: ComponentType<any> }>)
 // Rotas carregadas sob demanda (app mais leve e inicialização mais rápida)
 const ManualEmissor = lazyWithRetry(() => import("@/pages/ManualEmissor"));
 const PortalPublico = lazyWithRetry(() => import("@/pages/PortalPublico"));
+const FutureAssinadorLanding = lazyWithRetry(() => import("@/pages/FutureAssinadorLanding"));
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const GestorDashboard = lazyWithRetry(() => import("@/pages/GestorDashboard"));
 const CRMKanban = lazyWithRetry(() => import("@/pages/CRMKanban"));
@@ -170,6 +171,7 @@ const App = () => (
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/portal/*" element={<PortalPublico />} />
+              <Route path="/assinar" element={<FutureAssinadorLanding />} />
               <Route path="/comparacao/:id" element={<PublicComparison />} />
               <Route path="/suporte" element={<Suporte />} />
               <Route path="/suporte-rustdesk" element={<SuporteRustDesk />} />
