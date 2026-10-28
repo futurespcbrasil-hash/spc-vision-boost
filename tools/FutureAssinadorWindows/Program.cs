@@ -190,9 +190,10 @@ app.Logger.LogInformation("Future Assinador Windows v0.1.0 iniciado em http://12
 app.Logger.LogInformation("A chave privada permanece no repositório de certificados do Windows.");
 await app.RunAsync();
 
-static string SafeFileName(string name)
+static string SafeFileName(string? name)
 {
-    var safe = Path.GetFileName(name);
+    var safe = Path.GetFileName(name ?? string.Empty);
+    if (string.IsNullOrWhiteSpace(safe)) safe = "documento-assinado.pdf";
     foreach (var c in Path.GetInvalidFileNameChars()) safe = safe.Replace(c, '_');
     return safe.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? safe : safe + ".pdf";
 }
