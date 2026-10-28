@@ -22,7 +22,6 @@ const MobileBottomNav = () => {
   const more = [
     { to: '/portal', icon: BookOpen, label: 'Manuais', moduleKey: 'manual' },
     { to: '/whatsapp', icon: MessageSquare, label: 'WhatsApp', moduleKey: 'whatsapp' },
-    { to: '/whatsapp/instancias', icon: MessageSquare, label: '— Instâncias WA', moduleKey: 'whatsapp' },
     { to: '/consultas', icon: Search, label: 'Consultas SPC', moduleKey: 'consultas_spc' },
     { to: '/consultas/cnpj', icon: Building2, label: '— Consulta Receita', moduleKey: 'consulta_cnpj' },
     { to: '/consultas/sintegra', icon: FileText, label: '— Consulta Sintegra', moduleKey: 'consulta_sintegra' },
