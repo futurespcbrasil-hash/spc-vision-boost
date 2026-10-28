@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   Search, Filter, MoreVertical, Plus, ChevronDown, User, RefreshCw, Send, Smile, Paperclip,
-  CheckCheck, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
+  Check, CheckCheck, AlertCircle, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
   Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
   Pin, PinOff, Eye, Bell, Copy, Forward, Star, Reply, Share2, Download, ExternalLink, Info, CheckSquare,
   Phone, Ban, Flag, Link as LinkIcon, Contact, CheckCircle2
@@ -24,6 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { tokenizeWhatsAppRichText } from '@/lib/whatsappRichText';
+import { getWhatsAppDeliveryState } from '../../supabase/functions/_shared/whatsappMessageStatus';
 import { deduplicateMessages, dropConfirmedTemps, isConfirmedOptimisticMatch } from '@/lib/whatsappMessageReconciliation';
 import { deriveWhatsAppInboxStates, matchesWhatsAppInboxFilter, type WhatsAppInboxState } from '@/lib/whatsappInboxStatus';
 
@@ -2624,7 +2625,20 @@ const WhatsAppChat = () => {
 
                           <div className="flex items-center justify-end gap-1 pt-0.5 text-[10px] opacity-70">
                             <span>{timeStr}</span>
-                            {m.from_me && <CheckCheck size={13} className={m.status === 'read' ? "text-blue-500" : "text-purple-700 dark:text-purple-300"} />}
+                            {m.from_me && (() => {
+                              const deliveryState = getWhatsAppDeliveryState(m.status);
+                              if (deliveryState === 'pending') {
+                                return <Clock size={13} className="text-muted-foreground" title="Mensagem pendente" aria-label="Mensagem pendente" />;
+                              }
+                              if (deliveryState === 'error') {
+                                return <AlertCircle size={13} className="text-destructive" title="Falha ao enviar" aria-label="Falha ao enviar" />;
+                              }
+                              if (deliveryState === 'sent') {
+                                return <Check size={13} className="text-muted-foreground" title="Enviada" aria-label="Enviada" />;
+                              }
+                              const isRead = deliveryState === 'read';
+                              return <CheckCheck size={13} className={isRead ? "text-blue-500" : "text-muted-foreground"} title={isRead ? "Lida" : "Entregue"} aria-label={isRead ? "Lida" : "Entregue"} />;
+                            })()}
                           </div>
 
                           {reactions.length > 0 && (
