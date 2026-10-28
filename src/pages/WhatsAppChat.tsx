@@ -24,6 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { tokenizeWhatsAppRichText } from '@/lib/whatsappRichText';
+import { deduplicateMessages, dropConfirmedTemps, isConfirmedOptimisticMatch } from '@/lib/whatsappMessageReconciliation';
 
 interface Instance { id: string; name: string; status: string; }
 interface Chat {
@@ -924,41 +925,6 @@ const WhatsAppChat = () => {
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
     };
   }, [selected?.id]);
-
-  // Remove duplicatas antigas de cache/estado sem apagar mensagens do banco.
-  // IDs remotos são a chave preferencial; o ID local protege mensagens sem ID WAHA.
-  const deduplicateMessages = (items: Message[]) => {
-    const localIds = new Set<string>();
-    const remoteIds = new Set<string>();
-    return items.filter(message => {
-      if (localIds.has(message.id)) return false;
-      if (message.wa_message_id && remoteIds.has(message.wa_message_id)) return false;
-      localIds.add(message.id);
-      if (message.wa_message_id) remoteIds.add(message.wa_message_id);
-      return true;
-    });
-  };
-
-  // Só reconcilia um balão otimista com uma mensagem confirmada que tenha horário
-  // compatível. Mensagens antigas com o mesmo texto (ex.: "ok" repetido) não podem
-  // apagar o novo balão antes de a WAHA confirmar o envio atual.
-  const isConfirmedOptimisticMatch = (optimistic: Message, confirmed: Message) => {
-    if (!optimistic.id.startsWith('temp-') || !confirmed.from_me ||
-        (confirmed.text || '').trim() !== (optimistic.text || '').trim()) return false;
-    const optimisticAt = Date.parse(optimistic.timestamp || '');
-    const confirmedAt = Date.parse(confirmed.timestamp || '');
-    if (!Number.isFinite(optimisticAt) || !Number.isFinite(confirmedAt)) return false;
-    const delta = confirmedAt - optimisticAt;
-    return delta >= -1000 && delta < 120000;
-  };
-
-  const dropConfirmedTemps = (list: Message[], prev: Message[]) => {
-    const uniqueList = deduplicateMessages(list);
-    const temps = prev.filter(m => m.id.startsWith('temp-'));
-    if (temps.length === 0) return uniqueList;
-    const keep = temps.filter(t => !uniqueList.some(s => isConfirmedOptimisticMatch(t, s)));
-    return deduplicateMessages([...uniqueList, ...keep]);
-  };
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
   const touchLeadInteraction = useCallback(async (chat: Chat | null | undefined, timestamp?: string) => {
