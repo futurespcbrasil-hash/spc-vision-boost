@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { signPdf } from "@signature-kit/pdf/sign";
 import { verifyPdf } from "@signature-kit/pdf/verify";
 import { a1SignaturesLayer } from "@signature-kit/a1/signer";
+import { signatures } from "@signature-kit/signatures";
 import { Effect, Redacted } from "effect";
 
 const products = [
@@ -97,23 +98,27 @@ export default function FutureAssinadorLanding() {
         pfx: pfxBytes,
         password: Redacted.make(certificatePassword),
       });
-      const signedBytes = await Effect.runPromise(
-        signPdf({
-          pdf: pdfBytes,
-          reason: "Assinatura digital",
-          name: "Assinante",
-          signatureLength: 32768,
-          policy: "pades-icp-brasil",
-          appearance: {
-            placement: {
-              kind: "auto",
-              page: "last",
-              anchor: "bottom-right",
-              width: 180,
-              height: 54,
-              margin: 36,
+      const { signedBytes } = await Effect.runPromise(
+        Effect.gen(function* () {
+          const identity = yield* signatures.inspect();
+          const signedBytes = yield* signPdf({
+            pdf: pdfBytes,
+            reason: "Assinatura digital",
+            name: identity.subject,
+            signatureLength: 32768,
+            policy: "pades-icp-brasil",
+            appearance: {
+              placement: {
+                kind: "auto",
+                page: "last",
+                anchor: "bottom-right",
+                width: 180,
+                height: 54,
+                margin: 36,
+              },
             },
-          },
+          });
+          return { signedBytes, identity };
         }).pipe(Effect.provide(layer)),
       );
       setSigningMessage("Conferindo a integridade criptográfica do PDF…");
@@ -229,7 +234,7 @@ export default function FutureAssinadorLanding() {
                   <p className="mt-0.5 text-xs text-slate-500">Experiência de assinatura digital</p>
                 </div>
               </div>
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">Demonstração</span>
+              <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700">Beta · A1</span>
             </div>
 
             <div className="p-5 sm:p-6">
