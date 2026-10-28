@@ -25,13 +25,14 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { tokenizeWhatsAppRichText } from '@/lib/whatsappRichText';
 import { deduplicateMessages, dropConfirmedTemps, isConfirmedOptimisticMatch } from '@/lib/whatsappMessageReconciliation';
+import { deriveWhatsAppInboxStates, matchesWhatsAppInboxFilter, type WhatsAppInboxState } from '@/lib/whatsappInboxStatus';
 
 interface Instance { id: string; name: string; status: string; }
 interface Chat {
   id: string; instance_id: string; wa_chat_id: string; contact_number: string;
   contact_name: string | null; last_message: string | null; last_message_at: string | null;
   unread_count: number; assigned_to: string | null; funnel_stage: string | null; lead_id?: string | null; is_group?: boolean;
-  avatar_url?: string | null; is_pinned?: boolean;
+  avatar_url?: string | null; is_pinned?: boolean; inbox_state?: WhatsAppInboxState;
 }
 interface Message {
   id: string; chat_id: string; from_me: boolean; text: string | null;
@@ -760,9 +761,33 @@ const WhatsAppChat = () => {
       toast({ title: 'Não foi possível carregar as conversas', description: error.message, variant: 'destructive' });
       return;
     }
+    // Aguardando/Resolvidos são derivados do fluxo do bot e do ciclo de atendimento fechado.
+    // Não lidos ou sem responsável, por si só, não alteram o estado do atendimento.
+    const rawRows = (data || []) as Chat[];
+    let sourceRows = rawRows;
+    if (rawRows.length > 0) {
+      const chatIds = rawRows.map(chat => chat.id);
+      const [flowResult, serviceResult] = await Promise.all([
+        (supabase as any).from('whatsapp_flow_sessions').select('chat_id,status').in('chat_id', chatIds),
+        (supabase as any).from('whatsapp_service_sessions').select('chat_id,started_at,closed_at').in('chat_id', chatIds),
+      ]);
+      if (loadSequence !== chatsLoadSequenceRef.current) return;
+      if (flowResult.error || serviceResult.error) {
+        console.warn('[WhatsApp] Não foi possível atualizar o estado das filas:', flowResult.error?.message || serviceResult.error?.message);
+        const previousStates = new Map(chats.map(chat => [chat.id, chat.inbox_state]));
+        sourceRows = rawRows.map(chat => ({ ...chat, inbox_state: previousStates.get(chat.id) || 'open' }));
+      } else {
+        const inboxStates = deriveWhatsAppInboxStates(
+          rawRows.map(chat => ({ id: chat.id, is_group: isGroupChat(chat) })),
+          (flowResult.data || []) as { chat_id: string; status: string | null }[],
+          (serviceResult.data || []) as { chat_id: string; started_at: string | null; closed_at: string | null }[],
+        );
+        sourceRows = rawRows.map(chat => ({ ...chat, inbox_state: inboxStates[chat.id] || 'open' }));
+      }
+    }
+    if (loadSequence !== chatsLoadSequenceRef.current) return;
     // Proteção contra JID @c.us e LID do mesmo telefone aparecendo duas vezes.
     const unique = new Map<string, Chat>();
-    const sourceRows = (data || []) as Chat[];
     for (const sourceRow of sourceRows) {
       // Corrige apenas a repetição exata de um telefone; mantém o JID remoto intacto.
       const row = { ...sourceRow, contact_number: sourceRow.is_group ? sourceRow.contact_number : collapseRepeatedPhoneDigits(sourceRow.contact_number || '') };
@@ -1696,6 +1721,7 @@ const WhatsAppChat = () => {
         survey_status: sendSurvey ? 'pending' : 'skipped', updated_at: now.toISOString()
       }).eq('id', sessionId);
       if (closeError) throw closeError;
+      void loadChats();
 
       const recipient = selected.wa_chat_id || selected.contact_number;
       if (!sendSurvey) {
@@ -1860,13 +1886,7 @@ const WhatsAppChat = () => {
   // Grupos vão exclusivamente para a aba "Grupos"
   const isGroupChat = (c: Chat) => !!c.is_group || c.wa_chat_id.includes('@g.us');
 
-  const matchesFilter = (c: Chat, f: typeof activeFilter) => {
-    if (f === 'grupos') return isGroupChat(c);
-    if (isGroupChat(c)) return false;
-    if (f === 'aguardando') return c.unread_count > 0 || !c.assigned_to;
-    if (f === 'resolvidos') return !!c.assigned_to && c.unread_count === 0;
-    return true;
-  };
+  const matchesFilter = (c: Chat, f: typeof activeFilter) => matchesWhatsAppInboxFilter(c, f);
 
   // Contadores de não lidas por aba
   const uniqueDisplayChats = useMemo(() => deduplicateChatsForDisplay(chats), [chats]);
