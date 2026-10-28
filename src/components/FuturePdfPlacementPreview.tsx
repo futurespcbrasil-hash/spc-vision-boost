@@ -117,8 +117,8 @@ export default function FuturePdfPlacementPreview({ file, onPlacementChange }: P
     return () => {
       cancelled = true;
       renderTasks.forEach((task) => { try { task.cancel(); } catch { /* render já encerrado */ } });
-      if (loadingTask) void loadingTask.destroy();
       if (documentProxy) void documentProxy.destroy();
+      else if (loadingTask) void loadingTask.destroy();
     };
   }, [file, onPlacementChange]);
 
