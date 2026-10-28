@@ -1,0 +1,39 @@
+name: Future Assinador A1 build
+
+on:
+  push:
+    branches:
+      - feat/future-assinador-browser-a1-poc
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/future-assinador-browser-a1-poc
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Regenerate npm lockfile
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Commit lockfile if updated
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore(assinador): atualizar lockfile das dependências PAdES"
+            git push origin HEAD:feat/future-assinador-browser-a1-poc
+          fi
+      - name: Install exact locked dependencies
+        run: npm ci
+      - name: Build production bundle
+        run: npm run build
