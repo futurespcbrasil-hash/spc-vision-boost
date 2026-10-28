@@ -696,10 +696,10 @@ Deno.serve(async (req: Request) => {
           const previousIsLid = previousId.endsWith("@lid");
           const previousLast = previous?.lastMessage || previous?.last_message || {};
           const previousTimeValue = previousLast?.timestamp || previous?.timestamp || previous?.lastMessageAt || 0;
-          const candidateTime = parseRemoteTime(candidateRawTime);
+          const candidateTimeForComparison = parseRemoteTime(candidateRawTime);
           const previousTime = parseRemoteTime(previousTimeValue);
           if ((candidateIsLid && !previousIsLid) ||
-              (candidateIsLid === previousIsLid && candidateTime > previousTime)) remoteChatsByKey.set(key, candidate);
+              (candidateIsLid === previousIsLid && candidateTimeForComparison > previousTime)) remoteChatsByKey.set(key, candidate);
         }
 
         const chatsToSync = [...remoteChatsByKey.values()];
