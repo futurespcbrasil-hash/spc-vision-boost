@@ -23,6 +23,7 @@ import { waha } from '@/services/ryzeService';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { tokenizeWhatsAppRichText } from '@/lib/whatsappRichText';
 
 interface Instance { id: string; name: string; status: string; }
 interface Chat {
@@ -192,24 +193,19 @@ const renderRichText = (text: string, onNumberClick?: (num: string) => void) => 
   // Se o mesmo telefone foi concatenado duas vezes, corrige somente a exibição do token.
   // O texto original da mensagem no banco não é alterado.
   const displayText = text.replace(/(?<!\d)(\d{10,13})\1(?!\d)/g, '$1');
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
-  // Limites de dígitos impedem que um telefone seja extraído de dentro de uma sequência maior.
-  const phoneRegex = /(?<!\d)(\+?\d{1,2}\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4}|\d{10,13})(?!\d)/i;
+  const tokens = tokenizeWhatsAppRichText(displayText);
 
-  const parts = displayText.split(new RegExp(`(${urlRegex.source}|(${phoneRegex.source}))`, 'gi'));
-
-  return parts.map((part, i) => {
-    if (!part) return null;
-    if (new RegExp(urlRegex.source, 'i').test(part)) {
-      const href = part.startsWith('http') ? part : `https://${part}`;
+  return tokens.map(({ type, value }, i) => {
+    if (type === 'url') {
+      const href = value.startsWith('http') ? value : `https://${value}`;
       return (
         <a key={i} href={href} target="_blank" rel="noreferrer" className="underline break-all text-blue-600 dark:text-blue-400">
-          {part}
+          {value}
         </a>
       );
     }
-    if (new RegExp(phoneRegex.source, 'i').test(part) && isPotentialPhone(part)) {
-      const cleanNum = onlyDigits(part);
+    if (type === 'phone' && isPotentialPhone(value)) {
+      const cleanNum = onlyDigits(value);
       return (
         <button
           key={i}
@@ -219,11 +215,11 @@ const renderRichText = (text: string, onNumberClick?: (num: string) => void) => 
           }}
           className="underline text-blue-600 dark:text-blue-400 hover:opacity-80 transition-opacity"
         >
-          {part}
+          {value}
         </button>
       );
     }
-    return <span key={i}>{part}</span>;
+    return <span key={i}>{value}</span>;
   });
 };
 
@@ -1265,7 +1261,13 @@ const WhatsAppChat = () => {
       const sentAt = new Date().toISOString();
       // Não deixa a atualização auxiliar do lead atrasar a confirmação visual do envio.
       void touchLeadInteraction(selected);
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent', timestamp: sentAt, reply_to: replyingTo?.wa_message_id || null } : m));
+      // A Edge Function grava a mensagem antes de responder. Descarte o balão
+      // temporário e carregue a linha canônica pelo banco: comparar apenas texto
+      // e horário falha quando a resposta da WAHA chega atrasada, deixando uma
+      // cópia temporária ao lado da mensagem persistida.
+      messagesRef.current = messagesRef.current.filter(m => m.id !== tempId);
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      await loadMessages(selected.id, true);
       setChats(prev => prev.map(chat => chat.id === selected.id
         ? { ...chat, last_message: msg, last_message_at: sentAt }
         : chat).sort((a, b) => {
