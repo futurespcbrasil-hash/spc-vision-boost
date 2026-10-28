@@ -1085,6 +1085,13 @@ Deno.serve(async (req: Request) => {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro inesperado na integração WAHA.";
+    // Registra apenas a ação e uma mensagem sanitizada para diagnosticar falhas 502
+    // sem expor telefones, JIDs ou URLs que possam conter dados de contato.
+    const safeMessage = message
+      .replace(/\b\d{7,}\b/g, "[número]")
+      .replace(/[^\s@]+@(c\.us|lid|g\.us)/gi, "[chat-id]")
+      .slice(0, 300);
+    console.error("[WAHA] action failed", { action, error: safeMessage });
     return json({ error: message }, 502);
   }
 });
