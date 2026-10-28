@@ -1,7 +1,6 @@
 {
   "manifest_version": 3,
   "name": "Future Assinador Digital",
-  "short_name": "Future Assinador",
   "description": "Ponte local autorizada para o Assinador Digital Future.",
   "version": "0.1.0",
   "minimum_chrome_version": "105",
