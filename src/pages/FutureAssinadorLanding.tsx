@@ -6,6 +6,10 @@ import {
   Sparkles, UploadCloud, X, Send, CheckCircle, LoaderCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { signPdf } from "@signature-kit/pdf/sign";
+import { verifyPdf } from "@signature-kit/pdf/verify";
+import { a1SignaturesLayer } from "@signature-kit/a1/signer";
+import { Effect, Redacted } from "effect";
 
 const products = [
   {
@@ -44,6 +48,11 @@ export default function FutureAssinadorLanding() {
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [certificatePassword, setCertificatePassword] = useState("");
+  const [signing, setSigning] = useState(false);
+  const [signingMessage, setSigningMessage] = useState("");
+  const [signingError, setSigningError] = useState("");
   const [lead, setLead] = useState({ nome: "", telefone: "", email: "", interesse: "assinatura-pdf", consentimento: false, website: "" });
   const [leadStatus, setLeadStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [leadMessage, setLeadMessage] = useState("");
@@ -74,6 +83,69 @@ export default function FutureAssinadorLanding() {
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [selectedFile]);
+
+  const signSelectedPdf = async () => {
+    if (!selectedFile || !certificateFile || !certificatePassword || signing) return;
+    setSigning(true);
+    setSigningError("");
+    setSigningMessage("Preparando a assinatura no seu navegador…");
+    try {
+      // O PDF, o PFX/P12 e a senha são lidos localmente e não são enviados à API do CRM.
+      const pdfBytes = new Uint8Array(await selectedFile.arrayBuffer());
+      const pfxBytes = new Uint8Array(await certificateFile.arrayBuffer());
+      const layer = a1SignaturesLayer({
+        pfx: pfxBytes,
+        password: Redacted.make(certificatePassword),
+      });
+      const signedBytes = await Effect.runPromise(
+        signPdf({
+          pdf: pdfBytes,
+          reason: "Assinatura digital",
+          name: "Assinante",
+          signatureLength: 32768,
+          policy: "pades-icp-brasil",
+          appearance: {
+            placement: {
+              kind: "auto",
+              page: "last",
+              anchor: "bottom-right",
+              width: 180,
+              height: 54,
+              margin: 36,
+            },
+          },
+        }).pipe(Effect.provide(layer)),
+      );
+      setSigningMessage("Conferindo a integridade criptográfica do PDF…");
+      const verification = await Effect.runPromise(verifyPdf({ pdf: signedBytes }));
+      if (!verification.valid || verification.signatureCount < 1) {
+        throw new Error("A verificação criptográfica local não confirmou a assinatura. O arquivo não foi liberado para download.");
+      }
+      const safeBytes = new Uint8Array(signedBytes);
+      const blob = new Blob([safeBytes.buffer as ArrayBuffer], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = selectedFile.name.replace(/\.pdf$/i, "") + "-assinado.pdf";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setSigningMessage("PDF assinado e verificado localmente. Confira a assinatura no leitor de PDF e no VALIDAR do ITI.");
+      setCertificatePassword("");
+    } catch (error) {
+      console.error("[Future Assinador] Falha na assinatura local.", error);
+      setSigningError(error instanceof Error
+        ? (error.message.toLowerCase().includes("password") || error.message.toLowerCase().includes("senha")
+          ? "Não foi possível abrir o certificado. Confira a senha e se o arquivo A1 está correto."
+          : "Não foi possível assinar este PDF com esse certificado. Confira o arquivo, a senha e a compatibilidade do certificado A1.")
+        : "Não foi possível assinar o documento. Confira o certificado A1 e tente novamente.");
+      setSigningMessage("");
+      setCertificatePassword("");
+    } finally {
+      setSigning(false);
+    }
+  };
 
   const chooseFile = (file?: File) => {
     if (!file) return;
@@ -206,6 +278,34 @@ export default function FutureAssinadorLanding() {
                 </div>
               )}
 
+              {selectedFile && (
+                <section className="mt-5 space-y-4 rounded-2xl border border-violet-200 bg-white p-4 text-left sm:p-5" aria-label="Assinar PDF com certificado A1">
+                  <div>
+                    <h3 className="font-extrabold text-slate-900">Assinar com certificado A1</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">Selecione um arquivo de certificado .PFX ou .P12 e informe a senha. A assinatura PAdES é processada no navegador; não envie o certificado nem a senha para ninguém.</p>
+                  </div>
+                  <div>
+                    <label htmlFor="future-a1-file" className="mb-1.5 block text-sm font-bold text-slate-700">Arquivo do certificado A1 (.pfx ou .p12)</label>
+                    <input id="future-a1-file" type="file" accept=".pfx,.p12,application/x-pkcs12" onChange={(event) => { setCertificateFile(event.target.files?.[0] ?? null); setSigningError(""); setSigningMessage(""); }} className="block w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-violet-100 file:px-3 file:py-2 file:font-bold file:text-violet-800" />
+                    {certificateFile && <p className="mt-1 text-xs text-slate-500">Selecionado: {certificateFile.name} · {(certificateFile.size / 1024 / 1024).toFixed(2)} MB</p>}
+                  </div>
+                  <div>
+                    <label htmlFor="future-a1-password" className="mb-1.5 block text-sm font-bold text-slate-700">Senha do arquivo do certificado</label>
+                    <input id="future-a1-password" type="password" autoComplete="new-password" value={certificatePassword} onChange={(event) => setCertificatePassword(event.target.value)} maxLength={256} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" placeholder="Digite a senha do arquivo A1" />
+                  </div>
+                  <div className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                    <strong>Importante:</strong> esta opção usa o arquivo A1 exportado (.pfx/.p12), não acessa automaticamente os certificados instalados no Windows. Só use um arquivo cuja chave privada você esteja autorizado a utilizar. A assinatura será posicionada automaticamente no canto inferior direito da última página.
+                  </div>
+                  <button type="button" onClick={signSelectedPdf} disabled={!certificateFile || !certificatePassword || signing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50">
+                    {signing ? <LoaderCircle size={18} className="animate-spin" /> : <FileCheck2 size={18} />}
+                    {signing ? "Assinando no navegador…" : "Assinar PDF e baixar"}
+                  </button>
+                  {signingMessage && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm leading-5 text-emerald-800">{signingMessage}</p>}
+                  {signingError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm leading-5 text-red-800">{signingError}</p>}
+                  <p className="text-xs leading-5 text-slate-500">O original não é alterado. O resultado é um novo PDF com assinatura criptográfica PAdES. A validação de cadeia, revogação e confiança depende do leitor/validador e do certificado utilizado.</p>
+                </section>
+              )}
+
               {selectedFile && previewUrl && (
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-3">
@@ -218,9 +318,9 @@ export default function FutureAssinadorLanding() {
 
               <div className="mt-5 flex items-start gap-3 rounded-xl bg-slate-50 p-4">
                 <LockKeyhole size={18} className="mt-0.5 shrink-0 text-violet-700" />
-                <p className="text-xs leading-5 text-slate-600">Seu documento permanece no dispositivo nesta etapa de demonstração. Não selecione arquivos confidenciais para testar a prévia.</p>
+                <p className="text-xs leading-5 text-slate-600">O PDF e o certificado são processados localmente no navegador durante a assinatura. Nunca compartilhe sua senha ou chave privada.</p>
               </div>
-              <p className="mt-4 text-center text-xs leading-5 text-slate-400">A assinatura estará disponível após a integração e os testes de compatibilidade dos certificados.</p>
+              <p className="mt-4 text-center text-xs leading-5 text-slate-400">Assinatura PAdES A1 no navegador. Certificados A3, em nuvem e certificados apenas instalados no Windows ainda não são suportados por este fluxo.</p>
             </div>
           </div>
         </div>
