@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import {
   ArrowRight, BadgeCheck, Building2, CheckCircle2, FileCheck2,
   FileSignature, FileText, LockKeyhole, ReceiptText, ShieldCheck,
-  Sparkles, UploadCloud, X,
+  Sparkles, UploadCloud, X, Send, CheckCircle, LoaderCircle,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const products = [
   {
@@ -43,6 +44,29 @@ export default function FutureAssinadorLanding() {
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [lead, setLead] = useState({ nome: "", telefone: "", email: "", interesse: "assinatura-pdf", consentimento: false, website: "" });
+  const [leadStatus, setLeadStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  const [leadMessage, setLeadMessage] = useState("");
+
+  const submitLead = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (leadStatus === "sending") return;
+    setLeadStatus("sending");
+    setLeadMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("future-assinador-lead", {
+        body: lead,
+      });
+      if (error || !data?.ok) throw new Error(data?.error || error?.message || "Não foi possível registrar seus dados.");
+      setLeadStatus("success");
+      setLeadMessage("Pronto! Recebemos seu contato. A equipe Future poderá falar com você.");
+      setLead({ nome: "", telefone: "", email: "", interesse: "assinatura-pdf", consentimento: false, website: "" });
+    } catch (error) {
+      console.error("[Future Assinador] Falha ao enviar lead.", error);
+      setLeadStatus("error");
+      setLeadMessage("Não conseguimos registrar agora. Tente novamente ou fale com nossa equipe pelo WhatsApp.");
+    }
+  };
 
   useEffect(() => {
     if (!selectedFile) { setPreviewUrl(null); return; }
@@ -260,6 +284,60 @@ export default function FutureAssinadorLanding() {
               </article>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section id="contato" className="mx-auto max-w-7xl scroll-mt-12 px-5 py-14 sm:px-8 sm:py-20">
+        <div className="grid gap-10 overflow-hidden rounded-[2rem] border border-violet-100 bg-white p-6 shadow-xl shadow-violet-900/5 md:grid-cols-[0.9fr_1.1fr] md:p-10">
+          <div className="flex flex-col justify-center">
+            <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-violet-700">Vamos conversar</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Receba orientação da Future.</h2>
+            <p className="mt-4 leading-7 text-slate-600">Deixe seus dados e indique o que você procura. Nossa equipe poderá orientar sobre assinatura digital, certificado, emissão fiscal e soluções SPC Brasil.</p>
+            <div className="mt-6 flex items-start gap-3 rounded-xl bg-violet-50 p-4 text-sm leading-6 text-slate-700">
+              <LockKeyhole className="mt-0.5 shrink-0 text-violet-700" size={19} />
+              <span>Usamos estes dados somente para responder ao seu pedido de contato. Não envie senhas, certificados ou documentos neste formulário.</span>
+            </div>
+          </div>
+          <form onSubmit={submitLead} className="space-y-4" aria-label="Solicitar contato da Future Soluções">
+            <div>
+              <label htmlFor="future-lead-nome" className="mb-1.5 block text-sm font-bold text-slate-700">Nome</label>
+              <input id="future-lead-nome" autoComplete="name" required minLength={2} maxLength={120} value={lead.nome} onChange={(e) => setLead({ ...lead, nome: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" placeholder="Como podemos chamar você?" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="future-lead-telefone" className="mb-1.5 block text-sm font-bold text-slate-700">WhatsApp</label>
+                <input id="future-lead-telefone" type="tel" autoComplete="tel" required minLength={10} maxLength={30} value={lead.telefone} onChange={(e) => setLead({ ...lead, telefone: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" placeholder="(54) 99999-9999" />
+              </div>
+              <div>
+                <label htmlFor="future-lead-email" className="mb-1.5 block text-sm font-bold text-slate-700">E-mail</label>
+                <input id="future-lead-email" type="email" autoComplete="email" required maxLength={254} value={lead.email} onChange={(e) => setLead({ ...lead, email: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" placeholder="voce@empresa.com.br" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="future-lead-interesse" className="mb-1.5 block text-sm font-bold text-slate-700">O que você procura?</label>
+              <select id="future-lead-interesse" value={lead.interesse} onChange={(e) => setLead({ ...lead, interesse: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
+                <option value="assinatura-pdf">Assinatura de PDF</option>
+                <option value="certificado-digital">Certificado Digital</option>
+                <option value="emissor-fiscal">Emissor Fiscal</option>
+                <option value="spc-brasil">SPC Brasil para empresas</option>
+                <option value="outro">Outra solução</option>
+              </select>
+            </div>
+            <div aria-hidden="true" className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden">
+              <label htmlFor="future-lead-website">Não preencha este campo</label>
+              <input id="future-lead-website" tabIndex={-1} autoComplete="off" value={lead.website} onChange={(e) => setLead({ ...lead, website: e.target.value })} />
+            </div>
+            <label className="flex cursor-pointer items-start gap-3 text-sm leading-5 text-slate-600">
+              <input type="checkbox" required checked={lead.consentimento} onChange={(e) => setLead({ ...lead, consentimento: e.target.checked })} className="mt-1 h-4 w-4 accent-violet-700" />
+              <span>Autorizo a Future Soluções a utilizar meus dados para responder a esta solicitação. Li a informação de privacidade.</span>
+            </label>
+            <button type="submit" disabled={leadStatus === "sending"} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60">
+              {leadStatus === "sending" ? <LoaderCircle size={18} className="animate-spin" /> : leadStatus === "success" ? <CheckCircle size={18} /> : <Send size={17} />}
+              {leadStatus === "sending" ? "Enviando..." : leadStatus === "success" ? "Contato recebido" : "Quero receber orientação"}
+            </button>
+            {leadMessage && <p role="status" aria-live="polite" className={`rounded-lg p-3 text-sm leading-5 ${leadStatus === "success" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-700"}`}>{leadMessage}{leadStatus === "error" && <> <a className="font-bold underline" href={whatsappLink("Olá! Não consegui enviar o formulário do Future Assinador e gostaria de atendimento.")} target="_blank" rel="noreferrer">Falar pelo WhatsApp</a></>}</p>}
+            <p className="text-xs leading-5 text-slate-400">Não envie documentos ou dados de certificado por este formulário. O assinador ainda não está habilitado para assinatura criptográfica nesta versão.</p>
+          </form>
         </div>
       </section>
 
