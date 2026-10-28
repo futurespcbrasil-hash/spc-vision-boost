@@ -453,4 +453,3 @@ Deno.serve(async (req: Request) => {
   }
   return json({ accepted: true });
 });
-
