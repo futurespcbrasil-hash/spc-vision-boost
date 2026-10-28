@@ -77,7 +77,8 @@
     "zod": "^3.25.76",
     "@signature-kit/a1": "0.3.0",
     "@signature-kit/pdf": "0.3.0",
-    "effect": "4.0.5"
+    "effect": "4.0.5",
+    "@signature-kit/signatures": "0.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
