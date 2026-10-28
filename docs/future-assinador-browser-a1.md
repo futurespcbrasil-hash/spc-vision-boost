@@ -1,83 +1,31 @@
 # Future Assinador — A1 no navegador, sem instalador
 
-**Estado: estudo técnico e critérios de prova; assinatura ainda não implementada nem habilitada.**
-URL alvo: `https://crm.futuresolucoes.com.br/assinar`. A solução inicial deve permanecer no mesmo endereço e focar exclusivamente em certificados A1.
+**Estado atual da branch:** prova de conceito implementada na landing, aguardando build e validação criptográfica real antes de habilitar em produção. URL alvo: `https://crm.futuresolucoes.com.br/assinar`.
 
-## Decisão de fluxo
+## Fluxo implementado na prova
 
-Para manter o fluxo sem extensão, aplicativo ou instalador, a primeira prova de conceito deve permitir que o cliente selecione localmente:
-1. o PDF a assinar;
-2. o arquivo de certificado A1 `.pfx` ou `.p12`;
-3. a senha desse arquivo.
+1. Selecionar o PDF (até 20 MB).
+2. Selecionar localmente o arquivo de certificado A1 `.pfx` ou `.p12`.
+3. Informar a senha do arquivo.
+4. Gerar uma assinatura PDF PAdES com a política `pades-icp-brasil`, posicionada automaticamente no canto inferior direito da última página.
+5. Verificar localmente a integridade criptográfica da assinatura e baixar uma nova cópia `-assinado.pdf`.
 
-Isso **não** acessa automaticamente o repositório de certificados do Windows. Um certificado que aparece em `certmgr.msc` não significa que o navegador possa ler sua chave privada nem que o cliente tenha o arquivo PFX/P12 disponível. Não solicitar que o cliente exporte sua chave privada sem aviso claro dos riscos e sem orientar a proteger/eliminar cópias de forma segura.
+A assinatura e a verificação são chamadas no navegador. O PDF original não é sobrescrito e o certificado/senha não são enviados ao Supabase, ao CRM ou ao formulário de captação de leads.
 
-O PDF, o arquivo PFX/P12 e a senha devem ser processados apenas na memória do navegador. Não enviar esses bytes para Supabase, CRM, logs, analytics ou servidor. Não salvar senha em estado persistente, armazenamento local, URL ou telemetria. Limpar referências e campos sensíveis ao terminar/cancelar. Ainda é necessário confirmar que a biblioteca escolhida realmente mantém o fluxo local em runtime e não faz chamadas de rede.
+## Limites importantes
 
-## Biblioteca candidata para prova de conceito
+- Este fluxo **não lê automaticamente** os certificados do repositório do Windows. A1 instalado em `certmgr.msc` não significa que o navegador tenha acesso ao arquivo PKCS#12 ou à chave privada.
+- O cliente precisa ter o arquivo `.pfx/.p12` e sua senha. Não orientar exportação da chave privada sem avaliação de risco e proteção adequada.
+- A3, token/cartão, SafeID e certificados em nuvem não fazem parte desta prova.
+- O posicionamento é automático nesta primeira versão; escolha manual de página/retângulo ainda não está implementada.
+- A verificação local de integridade não significa que a cadeia, revogação ou confiança foi validada. O PDF deve ser testado em leitor compatível e no serviço oficial VALIDAR do ITI.
+- A biblioteca e sua cadeia de dependências precisam de revisão antes de uso em produção. Não registrar PDFs, PFX/P12, senhas ou bytes de chave em logs, analytics ou armazenamento persistente.
 
-Avaliar `@signature-kit/pdf` + `@signature-kit/a1` + dependências diretas `@signature-kit/signatures`, `@signature-kit/cms` e `effect`. O projeto publica documentação e declara licença MIT, mas é uma dependência candidata, não aprovada para produção até revisão de versão, cadeia de dependências, APIs browser, manutenção e testes.
+## Critérios antes de produção
 
-A documentação do projeto demonstra esta API de alto nível:
-
-```ts
-import { signPdf } from "@signature-kit/pdf/sign";
-import { a1SignaturesLayer } from "@signature-kit/a1/signer";
-import { Effect, Redacted } from "effect";
-
-const program = signPdf({
-  pdf: pdfBytes,
-  reason: "Assinatura digital",
-  signatureLength: 32768,
-  policy: "pades-icp-brasil",
-  appearance: {
-    placement: {
-      kind: "auto",
-      page: "last",
-      anchor: "bottom-right",
-      width: 180,
-      height: 54,
-      margin: 36,
-    },
-  },
-}).pipe(
-  Effect.provide(
-    a1SignaturesLayer({
-      pfx: pfxBytes,
-      password: Redacted.make(password),
-    }),
-  ),
-);
-
-const signedBytes = await Effect.runPromise(program);
-```
-
-Este trecho é uma referência da documentação, **não código validado no CRM**. Antes de adotar, confirmar que a versão publicada exporta exatamente essas APIs, que funciona nos navegadores alvo, que o algoritmo/estrutura do certificado é compatível com ICP-Brasil e que a política `pades-icp-brasil` gera assinatura reconhecida pelos validadores independentes. O `signatureLength` precisa ser testado com cadeias de certificados reais e falhar com erro compreensível se o espaço for insuficiente.
-
-## UX prevista
-
-- Manter a seleção/visualização de PDF que já existe na landing.
-- Acrescentar área separada para selecionar PFX/P12 e senha, com aviso de segurança explícito.
-- Nunca chamar uma imagem ou carimbo visual de assinatura digital.
-- Mostrar estados: lendo arquivos localmente, validando certificado, assinando, verificando resultado, pronto para baixar, erro/cancelado.
-- Só habilitar download depois de a assinatura criptográfica ser criada e a verificação estrutural passar.
-- Download do PDF assinado pelo navegador; não armazenar o documento no CRM.
-- Não exibir como suportado certificado A3/token, certificado em nuvem ou certificado apenas instalado no Windows nesta etapa.
-- Manter o aviso “demonstração” até completar os testes abaixo.
-
-## Critérios de aceite antes de ativar a assinatura
-
-- [ ] Dependências e versões revisadas; licença compatível com o produto.
-- [ ] Build e lint do projeto passam com lockfile atualizado.
-- [ ] Teste de rede comprova que PDF, PFX/P12 e senha não são enviados ao servidor.
-- [ ] Senha não aparece em logs, URL, storage ou telemetria; campos e referências são limpos após uso/cancelamento.
-- [ ] Testar senha incorreta, arquivo PFX inválido, certificado expirado, algoritmo não suportado, PDF inválido/grande e cancelamento.
-- [ ] PDF assinado abre em leitor comum e assinatura é validada por pelo menos dois validadores independentes, incluindo o VALIDAR do ITI quando aplicável.
-- [ ] Alteração de conteúdo após assinatura é detectada como violação de integridade.
-- [ ] Confirmar cadeia de certificados, política PAdES/ICP-Brasil, carimbo de tempo e revogação; não declarar revogação validada se não foi consultada.
-- [ ] Testar Windows 11 + Chrome e Edge com certificados de teste autorizados, sem compartilhar chaves privadas.
-- [ ] A UI não promete usar automaticamente o certificado que está apenas instalado no Windows.
-
-## Situação da produção
-
-A landing atual permite selecionar e pré-visualizar o PDF e captar leads, mas ainda não assina criptograficamente. Este documento não ativa a assinatura, não altera a rota de produção e não deve ser considerado homologação. Manter separado da `main` até a prova de conceito e os critérios de aceite passarem.
+- [ ] Build de produção aprovado com lockfile reproduzível.
+- [ ] Teste com certificados A1 autorizados, senha correta/incorreta e arquivos inválidos.
+- [ ] Verificação independente no VALIDAR do ITI e em leitor PDF compatível.
+- [ ] Confirmar no navegador que nenhum PDF/PFX/senha é enviado pela rede.
+- [ ] Rever dependências, política ICP-Brasil aplicável, acessibilidade e posicionamento visual.
+- [ ] Confirmar avisos legais e UX para que o usuário entenda o risco de manusear arquivos A1.
