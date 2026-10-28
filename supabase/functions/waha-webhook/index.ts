@@ -34,6 +34,18 @@ const timestamp = (v: unknown) => {
   return "1970-01-01T00:00:00.000Z";
 };
 
+const logDatabaseFailure = (operation: string, error: { code?: unknown } | null | undefined) => {
+  // Keep customer data and provider payloads out of logs; the operation and
+  // PostgreSQL error code are enough to identify failing webhook stages.
+  const code = typeof error?.code === "string" ? error.code : "unknown";
+  console.error("[waha-webhook] database operation failed", { operation, code });
+};
+
+const databaseFailure = (operation: string, error: { code?: unknown } | null | undefined, message: string) => {
+  logDatabaseFailure(operation, error);
+  return json({ error: message }, 500);
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok");
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -58,7 +70,7 @@ Deno.serve(async (req: Request) => {
   if (!session) return json({ accepted: true, ignored: true });
   const { data: instance, error: instanceError } = await db.from("whatsapp_instances")
     .select("id,owner_id,provider_instance_name").eq("provider", "waha").eq("provider_instance_name", session).maybeSingle();
-  if (instanceError) return json({ error: "Database lookup failed" }, 500);
+  if (instanceError) return databaseFailure("instance_lookup", instanceError, "Database lookup failed");
   if (!instance) return json({ accepted: true, ignored: true });
 
   const payload = event?.payload || {};
@@ -85,12 +97,12 @@ Deno.serve(async (req: Request) => {
     const { data: oldMessage, error: findError } = await db.from("whatsapp_messages")
       .select("id,chat_id,timestamp,wa_message_id").eq("instance_id", instance.id)
       .eq("wa_message_id", revokeId).maybeSingle();
-    if (findError) return json({ error: "Deleted message lookup failed" }, 500);
+    if (findError) return databaseFailure("revoked_message_lookup", findError, "Deleted message lookup failed");
     if (!oldMessage) return json({ accepted: true, notFound: true });
     const { error: deleteError } = await db.from("whatsapp_messages")
       .update({ text: "[crm_deleted]", status: "deleted", raw: { crm_deleted: true, deleted_at: new Date().toISOString(), event: payload } })
       .eq("id", oldMessage.id);
-    if (deleteError) return json({ error: "Failed to delete message from CRM" }, 500);
+    if (deleteError) return databaseFailure("revoke_message_update", deleteError, "Failed to delete message from CRM");
     const { data: latestRows } = await db.from("whatsapp_messages").select("text,timestamp")
       .eq("chat_id", oldMessage.chat_id).neq("text", "[crm_deleted]")
       .order("timestamp", { ascending: false }).limit(1);
@@ -119,7 +131,7 @@ Deno.serve(async (req: Request) => {
   if (messageId) {
     const { data: duplicate, error: duplicateError } = await db.from("whatsapp_messages")
       .select("id").eq("instance_id", instance.id).eq("wa_message_id", messageId).maybeSingle();
-    if (duplicateError) return json({ error: "Message deduplication lookup failed" }, 500);
+    if (duplicateError) return databaseFailure("message_deduplication_lookup", duplicateError, "Message deduplication lookup failed");
     if (duplicate) return json({ accepted: true, duplicate: true });
   }
   // WAHA/WhatsApp may send a private LID as the chat ID. Never treat LID digits as a phone number.
@@ -159,7 +171,7 @@ Deno.serve(async (req: Request) => {
     const candidates = await db.from("whatsapp_chats")
       .select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
       .eq("instance_id", instance.id).eq("is_group", false).limit(500);
-    if (candidates.error) return json({ error: "Chat deduplication lookup failed" }, 500);
+    if (candidates.error) return databaseFailure("chat_deduplication_lookup", candidates.error, "Chat deduplication lookup failed");
     const incomingPhone = normalizeWhatsAppPhone(contactNumber);
     const phoneMatches = (candidates.data || []).filter((row: any) =>
       incomingPhone && normalizeWhatsAppPhone(row.contact_number) === incomingPhone
@@ -185,7 +197,7 @@ Deno.serve(async (req: Request) => {
   const contactName = (savedNameIsUseful ? previousName : "") || incomingName || persistedContactNumber || "Contato do WhatsApp";
   let chatId = existingChat?.id as string | undefined;
   if (chatId) {
-    await db.from("whatsapp_chats").update({
+    const { error: chatUpdateError } = await db.from("whatsapp_chats").update({
       // Prefer the WAHA LID when it is known for this phone, so message history opens
       // against the identifier accepted by the active WhatsApp session.
       wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existingChat?.wa_chat_id,
@@ -194,6 +206,7 @@ Deno.serve(async (req: Request) => {
       last_message_at: sentAt, unread_count: existingChat?.unread_count || 0,
       is_group: waChatId.endsWith("@g.us"), updated_at: new Date().toISOString(),
     }).eq("id", chatId);
+    if (chatUpdateError) logDatabaseFailure("chat_summary_update", chatUpdateError);
   } else {
     const { data: inserted, error } = await db.from("whatsapp_chats").insert({
       instance_id: instance.id, wa_chat_id: waChatId, contact_number: persistedContactNumber,
@@ -202,7 +215,7 @@ Deno.serve(async (req: Request) => {
       last_message_at: sentAt, unread_count: 0,
       is_group: waChatId.endsWith("@g.us"), archived: false,
     }).select("id").single();
-    if (error) return json({ error: "Failed to persist chat" }, 500);
+    if (error) return databaseFailure("chat_insert", error, "Failed to persist chat");
     chatId = inserted.id;
   }
 
@@ -220,7 +233,7 @@ Deno.serve(async (req: Request) => {
     // (instance_id, wa_message_id) constraint is the final idempotency guard.
     if (error) {
       if (error.code === "23505") return json({ accepted: true, duplicate: true });
-      return json({ error: "Failed to persist message" }, 500);
+      return databaseFailure("message_insert", error, "Failed to persist message");
     }
   }
   // Increment unread only after the message has been accepted by the unique message-ID
@@ -228,11 +241,11 @@ Deno.serve(async (req: Request) => {
   if (!fromMe && messageId) {
     const { data: unreadChat, error: unreadLookupError } = await db.from("whatsapp_chats")
       .select("unread_count").eq("id", chatId).maybeSingle();
-    if (unreadLookupError) return json({ error: "Failed to update unread counter" }, 500);
+    if (unreadLookupError) return databaseFailure("unread_counter_lookup", unreadLookupError, "Failed to update unread counter");
     const { error: unreadUpdateError } = await db.from("whatsapp_chats")
       .update({ unread_count: Number(unreadChat?.unread_count || 0) + 1 })
       .eq("id", chatId);
-    if (unreadUpdateError) return json({ error: "Failed to update unread counter" }, 500);
+    if (unreadUpdateError) return databaseFailure("unread_counter_update", unreadUpdateError, "Failed to update unread counter");
   } else if (!fromMe && !messageId) {
     const { data: unreadChat } = await db.from("whatsapp_chats").select("unread_count").eq("id", chatId).maybeSingle();
     await db.from("whatsapp_chats").update({ unread_count: Number(unreadChat?.unread_count || 0) + 1 }).eq("id", chatId);
@@ -440,3 +453,4 @@ Deno.serve(async (req: Request) => {
   }
   return json({ accepted: true });
 });
+
