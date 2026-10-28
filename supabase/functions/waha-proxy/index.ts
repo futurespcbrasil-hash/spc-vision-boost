@@ -961,7 +961,7 @@ Deno.serve(async (req: Request) => {
 
         // Resolve todos os grupos mencionados no histórico com no máximo uma leitura e um upsert.
         const groupJids = [...new Set(remoteEntries
-          .map(entry => entry.id.match(/\d+@g\.us/i)?.[0] || "")
+          .map(entry => entry.id.match(/\d+(?:-\d+)?@g\.us/i)?.[0] || "")
           .filter(jid => jid && jid !== waChatId))];
         const groupByJid = new Map<string, any>();
         if (groupJids.length > 0) {
@@ -994,7 +994,7 @@ Deno.serve(async (req: Request) => {
           // Tombstones são permanentes: uma sincronização antiga não pode ressuscitar exclusões.
           if (existingMessage?.text === "[crm_deleted]") continue;
 
-          const messageGroupJid = waMessageId.match(/\d+@g\.us/i)?.[0] || "";
+          const messageGroupJid = waMessageId.match(/\d+(?:-\d+)?@g\.us/i)?.[0] || "";
           const messageChatId = messageGroupJid && messageGroupJid !== waChatId
             ? groupByJid.get(messageGroupJid)?.id || chat.id
             : chat.id;
@@ -1070,7 +1070,7 @@ Deno.serve(async (req: Request) => {
           const newestRemote = remoteEntries
             .filter(entry => !deletedRemoteIds.has(entry.id) && entry.sentAt)
             .filter(entry => {
-              const groupJid = entry.id.match(/\d+@g\.us/i)?.[0] || "";
+              const groupJid = entry.id.match(/\d+(?:-\d+)?@g\.us/i)?.[0] || "";
               return !groupJid || groupJid === waChatId || waChatId.endsWith("@g.us");
             })
             .sort((a, b) => Date.parse(b.sentAt || "") - Date.parse(a.sentAt || ""))[0];
