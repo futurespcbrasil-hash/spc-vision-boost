@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText, FileSpreadsheet,
-  Monitor, History, Cog, Wallet, Smartphone, Mail, Send, Workflow
+  Monitor, History, Cog, Wallet, Mail, Send, Workflow
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -158,7 +158,6 @@ const AppSidebar = () => {
 
   const WHATSAPP_SUB = [
     { to: '/whatsapp', icon: MessageSquare, label: 'Conversas', moduleKey: 'whatsapp' },
-    { to: '/whatsapp/instancias', icon: Smartphone, label: 'Instâncias WAHA', moduleKey: 'whatsapp' },
     { to: '/whatsapp/ajustes', icon: Settings2, label: 'Ajustes', moduleKey: 'whatsapp' },
     { to: '/whatsapp/fluxos', icon: Workflow, label: 'Fluxos de atendimento', moduleKey: 'whatsapp' },
   ];
