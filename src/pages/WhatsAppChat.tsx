@@ -571,8 +571,9 @@ const WhatsAppChat = () => {
     if (!user?.id) return;
     let cancelled = false;
     (async () => {
+      // RLS limits this list to instances owned by or assigned to the current user.
       const { data, error } = await supabase.from('whatsapp_instances')
-        .select('id,name,status').eq('owner_id', user.id).order('created_at');
+        .select('id,name,status').order('created_at');
       if (error) {
         console.error('[WhatsApp] Falha ao carregar instâncias:', error);
         return;
