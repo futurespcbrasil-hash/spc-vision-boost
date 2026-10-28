@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getWhatsAppAckMessageIdCandidates, mergeWhatsAppAckStatus, normalizeWhatsAppAck } from "../_shared/whatsappMessageStatus.ts";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "Content-Type": "application/json" },
@@ -62,7 +63,7 @@ Deno.serve(async (req: Request) => {
   let event: any;
   try { event = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   const eventName = str(event?.event);
-  if (!["message", "message.any", "message.ack", "message.revoked", "message.revoke", "message.deleted", "message.delete", "state.change", "session.status"].includes(eventName)) {
+  if (!["message", "message.any", "message.ack", "message.ack.group", "message.revoked", "message.revoke", "message.deleted", "message.delete", "state.change", "session.status"].includes(eventName)) {
     return json({ accepted: true, ignored: true });
   }
 
@@ -86,7 +87,43 @@ Deno.serve(async (req: Request) => {
     return json({ accepted: true });
   }
 
-  if (eventName === "message.ack") return json({ accepted: true });
+  if (eventName === "message.ack" || eventName === "message.ack.group") {
+    const ackPayload = payload;
+    const fromMe = ackPayload?.fromMe === true || ackPayload?.from_me === true || ackPayload?.key?.fromMe === true;
+    const ack = normalizeWhatsAppAck(ackPayload?.ack ?? ackPayload?._data?.ack, ackPayload?.ackName ?? ackPayload?._data?.ackName);
+    const ids = getWhatsAppAckMessageIdCandidates(
+      ackPayload?.id?._serialized || ackPayload?.id || ackPayload?.key?.id ||
+      ackPayload?._data?.id?._serialized || ackPayload?._data?.id?.id,
+    );
+    if (!fromMe || !ack || ids.length === 0) return json({ accepted: true, ignored: true });
+
+    let acknowledgedMessage: any = null;
+    // An ACK can arrive while the send endpoint is still persisting its response.
+    // Briefly retry this read only; do not resend or otherwise touch the WhatsApp session.
+    for (const delay of [0, 100, 250, 500]) {
+      if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+      for (const messageId of ids) {
+        const { data, error } = await db.from("whatsapp_messages")
+          .select("id,from_me,status,text").eq("instance_id", instance.id)
+          .eq("wa_message_id", messageId).maybeSingle();
+        if (error) return databaseFailure("acknowledged_message_lookup", error, "Message receipt lookup failed");
+        if (data?.from_me === true) { acknowledgedMessage = data; break; }
+      }
+      if (acknowledgedMessage) break;
+    }
+    if (!acknowledgedMessage) return json({ accepted: true, notFound: true });
+    if (acknowledgedMessage.text === "[crm_deleted]" || acknowledgedMessage.status === "deleted") {
+      return json({ accepted: true, ignored: true, deleted: true });
+    }
+
+    const nextStatus = mergeWhatsAppAckStatus(acknowledgedMessage.status, ack);
+    if (String(acknowledgedMessage.status || "") !== nextStatus) {
+      const { error } = await db.from("whatsapp_messages").update({ status: nextStatus })
+        .eq("id", acknowledgedMessage.id).eq("instance_id", instance.id).eq("from_me", true);
+      if (error) return databaseFailure("acknowledged_message_update", error, "Failed to save message receipt");
+    }
+    return json({ accepted: true, updated: true, status: nextStatus });
+  }
 
   // Exclusões/revogações no telefone são refletidas no CRM em tempo real via Realtime.
   if (["message.revoked", "message.revoke", "message.deleted", "message.delete"].includes(eventName)) {
@@ -226,7 +263,7 @@ Deno.serve(async (req: Request) => {
         message_type: messageType, text: body, media_url: mediaUrl,
         media_mime: str(payload?.media?.mimetype) || null,
         media_filename: str(payload?.media?.filename) || null,
-        status: "received", timestamp: sentAt, raw: payload,
+        status: fromMe ? (normalizeWhatsAppAck(payload?.ack, payload?.ackName) || "1") : "received", timestamp: sentAt, raw: payload,
         sent_by: fromMe ? instance.owner_id : null,
     });
     // Concurrent WAHA event types can race past the initial lookup. The unique
