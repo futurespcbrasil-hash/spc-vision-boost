@@ -1,0 +1,42 @@
+# Exemplo de laboratório — não usar em produção.
+# Instalar este bloco em um servidor Nginx dedicado ao subdomínio de teste.
+# Substituir todos os caminhos e validar com: nginx -t
+server {
+    listen 443 ssl;
+    server_name cert-check.futuresolucoes.com.br;
+
+    ssl_certificate     /etc/letsencrypt/live/cert-check.futuresolucoes.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cert-check.futuresolucoes.com.br/privkey.pem;
+
+    # Deve conter os certificados das CAs que o navegador deve considerar
+    # ao escolher um certificado de cliente. Revisar e manter fora do Git.
+    ssl_client_certificate /etc/nginx/client-ca/approved-client-cas.pem;
+
+    # Solicita certificado, mas permite abrir a página sem apresentar um.
+    # Este modo é exclusivamente para demonstrar o seletor TLS.
+    ssl_verify_client optional_no_ca;
+    ssl_verify_depth 8;
+
+    # Não registrar requisições nem variáveis de certificado.
+    access_log off;
+    error_log /var/log/nginx/cert-check-error.log warn;
+
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    default_type text/plain;
+
+    location = /health {
+        return 200 "lab-up\n";
+    }
+
+    location = /certificate-check {
+        # Retorna somente o estado TLS; não expõe assunto, emissor,
+        # número de série, CPF/CNPJ, certificado PEM ou chave privada.
+        return 200 "client_certificate_status=$ssl_client_verify\n";
+    }
+
+    location / {
+        return 200 "Laboratorio Future: endpoint isolado de teste TLS. Isto nao assina PDF.\n";
+    }
+}
