@@ -13,11 +13,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
-type Instance = { id: string; name: string; status: string; phone: string | null; provider_instance_name?: string | null };
+type Instance = { id: string; name: string; status: string; phone: string | null; owner_id?: string; provider_instance_name?: string | null };
 type Chat = {
   id: string; instance_id: string; wa_chat_id: string; contact_number: string;
   contact_name: string; avatar_url: string | null; last_message: string | null;
-  last_message_at: string | null; unread_count: number; is_group: boolean;
+  last_message_at: string | null; unread_count: number; is_group: boolean; assigned_to?: string | null;
 };
 type Message = {
   id: string; chat_id: string; instance_id: string; wa_message_id: string | null;
@@ -86,6 +86,7 @@ export default function WhatsAppConversas() {
   const { user } = useAuth();
   const { refreshLeads } = useAppState();
   const [instances, setInstances] = useState<Instance[]>([]);
+  const [agentColors, setAgentColors] = useState<Record<string, string>>({});
   const [instanceId, setInstanceId] = useState('');
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState('');
@@ -230,7 +231,7 @@ export default function WhatsAppConversas() {
   const loadInstances = useCallback(async () => {
     if (!user) return;
     const { data, error } = await (supabase as any).from('whatsapp_instances')
-      .select('id,name,status,phone,provider,provider_instance_name')
+      .select('id,name,status,phone,owner_id,provider,provider_instance_name')
       .eq('owner_id', user.id).order('created_at', { ascending: false });
     if (error) throw error;
     const available = (data || []) as Instance[];
@@ -317,6 +318,27 @@ export default function WhatsAppConversas() {
   }, []);
 
   useEffect(() => { void loadInstances().catch((e) => toast.error('Falha ao carregar instâncias: ' + errorText(e))); }, [loadInstances]);
+
+  // A cor é a preferência persistida do atendente. Como a lista já recebe
+  // assigned_to em tempo real, transferir a conversa atualiza a faixa automaticamente.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await (supabase as any).from('whatsapp_agent_preferences')
+        .select('user_id,color');
+      if (cancelled) return;
+      if (error) {
+        console.warn('Não foi possível carregar as cores dos atendentes:', error.message);
+        return;
+      }
+      const next: Record<string, string> = {};
+      for (const row of data || []) {
+        if (row.user_id && typeof row.color === 'string' && /^#[0-9a-f]{6}$/i.test(row.color)) next[row.user_id] = row.color;
+      }
+      setAgentColors(next);
+    })();
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => { void loadChats(false); }, [instanceId, loadChats]);
 
   useEffect(() => {
@@ -546,7 +568,8 @@ export default function WhatsAppConversas() {
             {!loading && filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">Nenhuma conversa sincronizada. A lista será atualizada automaticamente quando houver novas conversas.</p>}
             {filtered.filter((chat) => chat.wa_chat_id !== 'status@broadcast' && !chat.wa_chat_id.endsWith('@newsletter')).map((chat) => (
               <button key={chat.id} onClick={() => setSelectedChatId(chat.id)}
-                className={'w-full flex items-start gap-3 p-3 text-left transition-colors hover:bg-muted/50 ' + (selectedChatId === chat.id ? 'bg-muted' : '')}>
+                className={'!border-0 !border-b-0 rounded-none w-full flex items-start gap-3 p-3 text-left transition-colors hover:bg-muted/50 ' + (selectedChatId === chat.id ? 'bg-muted' : '')}
+                style={{ border: 'none', borderBottom: 'none', borderLeft: `3px solid ${agentColors[chat.assigned_to || ''] || (selectedInstance?.owner_id ? agentColors[selectedInstance.owner_id] : undefined) || 'transparent'}`, boxShadow: 'none' }}>
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <User size={18} className="text-primary" />
                 </div>
