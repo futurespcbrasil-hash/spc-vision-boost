@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight, BadgeCheck, Building2, CheckCircle2, FileCheck2,
@@ -6,6 +6,7 @@ import {
   Sparkles, UploadCloud, X, Send, CheckCircle, LoaderCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import FuturePdfPlacementPreview, { type PdfSignaturePlacement } from "@/components/FuturePdfPlacementPreview";
 import { signPdf } from "@signature-kit/pdf/sign";
 import { verifyPdf } from "@signature-kit/pdf/verify";
 import { a1SignaturesLayer } from "@signature-kit/a1/signer";
@@ -48,7 +49,7 @@ export default function FutureAssinadorLanding() {
   const [showPreviewNotice, setShowPreviewNotice] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [signaturePlacement, setSignaturePlacement] = useState<PdfSignaturePlacement | null>(null);
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState("");
   const [signing, setSigning] = useState(false);
@@ -78,15 +79,12 @@ export default function FutureAssinadorLanding() {
     }
   };
 
-  useEffect(() => {
-    if (!selectedFile) { setPreviewUrl(null); return; }
-    const url = URL.createObjectURL(selectedFile);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [selectedFile]);
+  const handlePlacementChange = useCallback((placement: PdfSignaturePlacement | null) => {
+    setSignaturePlacement(placement);
+  }, []);
 
   const signSelectedPdf = async () => {
-    if (!selectedFile || !certificateFile || !certificatePassword || signing) return;
+    if (!selectedFile || !certificateFile || !certificatePassword || !signaturePlacement || signing) return;
     setSigning(true);
     setSigningError("");
     setSigningMessage("Preparando a assinatura no seu navegador…");
@@ -109,12 +107,9 @@ export default function FutureAssinadorLanding() {
             policy: "pades-icp-brasil",
             appearance: {
               placement: {
-                kind: "auto",
-                page: "last",
-                anchor: "bottom-right",
-                width: 180,
-                height: 54,
-                margin: 36,
+                kind: "manual",
+                pageIndex: signaturePlacement.pageIndex,
+                widgetRect: signaturePlacement.widgetRect,
               },
             },
           });
@@ -299,11 +294,11 @@ export default function FutureAssinadorLanding() {
                     <input id="future-a1-password" type="password" autoComplete="new-password" value={certificatePassword} onChange={(event) => setCertificatePassword(event.target.value)} maxLength={256} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" placeholder="Digite a senha do arquivo A1" />
                   </div>
                   <div className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                    <strong>Importante:</strong> esta opção usa o arquivo A1 exportado (.pfx/.p12), não acessa automaticamente os certificados instalados no Windows. Só use um arquivo cuja chave privada você esteja autorizado a utilizar. A assinatura será posicionada automaticamente no canto inferior direito da última página.
+                    <strong>Importante:</strong> esta opção usa o arquivo A1 exportado (.pfx/.p12), não acessa automaticamente os certificados instalados no Windows. Só use um arquivo cuja chave privada você esteja autorizado a utilizar. Clique na pré-visualização para escolher a página e o local exato da assinatura.
                   </div>
-                  <button type="button" onClick={signSelectedPdf} disabled={!certificateFile || !certificatePassword || signing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={signSelectedPdf} disabled={!certificateFile || !certificatePassword || !signaturePlacement || signing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50">
                     {signing ? <LoaderCircle size={18} className="animate-spin" /> : <FileCheck2 size={18} />}
-                    {signing ? "Assinando no navegador…" : "Assinar PDF e baixar"}
+                    {signing ? "Assinando no navegador…" : signaturePlacement ? "Assinar na área selecionada e baixar" : "Escolha a área de assinatura acima"}
                   </button>
                   {signingMessage && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm leading-5 text-emerald-800">{signingMessage}</p>}
                   {signingError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm leading-5 text-red-800">{signingError}</p>}
@@ -311,14 +306,13 @@ export default function FutureAssinadorLanding() {
                 </section>
               )}
 
-              {selectedFile && previewUrl && (
-                <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-                  <div className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-3">
-                    <span className="text-sm font-bold text-slate-700">Pré-visualização local do PDF</span>
-                    <button type="button" onClick={() => { setSelectedFile(null); setShowPreviewNotice(false); setFileError(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="text-xs font-bold text-violet-700 hover:text-violet-900">Remover arquivo</button>
+              {selectedFile && (
+                <>
+                  <div className="mt-4 flex justify-end">
+                    <button type="button" onClick={() => { setSelectedFile(null); setSignaturePlacement(null); setCertificateFile(null); setCertificatePassword(""); setSigningMessage(""); setSigningError(""); setShowPreviewNotice(false); setFileError(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="text-xs font-bold text-violet-700 hover:text-violet-900">Remover arquivo</button>
                   </div>
-                  <iframe title="Pré-visualização local do PDF selecionado" src={previewUrl} className="h-[360px] w-full bg-slate-100 sm:h-[440px]" />
-                </div>
+                  <FuturePdfPlacementPreview file={selectedFile} onPlacementChange={handlePlacementChange} />
+                </>
               )}
 
               <div className="mt-5 flex items-start gap-3 rounded-xl bg-slate-50 p-4">
