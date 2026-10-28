@@ -648,6 +648,41 @@ Deno.serve(async (req: Request) => {
           .eq("instance_id", inst.id).limit(2000);
         if (existingRowsError) throw existingRowsError;
 
+        // WAHA pode identificar contatos pela chave privada @lid sem expor o telefone
+        // no resumo de chats. Recupera o número alternativo das mensagens já salvas.
+        const missingLidRows = (existingRows || []).filter((row: any) =>
+          String(row.wa_chat_id || "").endsWith("@lid") && !String(row.contact_number || "").replace(/\D/g, "")
+        );
+        if (missingLidRows.length) {
+          const missingIds = missingLidRows.map((row: any) => String(row.id));
+          const { data: identityMessages, error: identityMessagesError } = await db.from("whatsapp_messages")
+            .select("chat_id,from_me,raw,timestamp")
+            .eq("instance_id", inst.id).in("chat_id", missingIds)
+            .order("timestamp", { ascending: false }).limit(5000);
+          if (identityMessagesError) {
+            console.warn("[waha-proxy] Não foi possível recuperar números a partir do histórico:", identityMessagesError.message);
+          } else {
+            const rowById = new Map(missingLidRows.map((row: any) => [String(row.id), row]));
+            for (const message of identityMessages || []) {
+              const target = rowById.get(String(message.chat_id));
+              if (!target || String(target.contact_number || "").replace(/\D/g, "")) continue;
+              const raw = message.raw && typeof message.raw === "object" ? message.raw as Record<string, any> : {};
+              const info = raw?._data?.Info || raw?.info || {};
+              const alternate = message.from_me
+                ? (info.RecipientAlt || raw.RecipientAlt || info.SenderAlt || raw.SenderAlt)
+                : (info.SenderAlt || raw.SenderAlt || info.RecipientAlt || raw.RecipientAlt);
+              const jid = String(alternate || "");
+              const match = jid.match(/(?:^|:)(\d{8,15})@s\.whatsapp\.net/i);
+              if (!match) continue;
+              target.contact_number = match[1];
+              const pushName = String(info.PushName || raw.pushName || "").trim();
+              if (pushName && (!target.contact_name || /^contato do whatsapp$/i.test(String(target.contact_name)) || /^\d+$/.test(String(target.contact_name)))) {
+                target.contact_name = pushName;
+              }
+            }
+          }
+        }
+
         const parseRemoteTime = (value: unknown): number => {
           if (typeof value === "number" && Number.isFinite(value) && value > 0) return value < 10_000_000_000 ? value * 1000 : value;
           if (typeof value === "string" && value.trim()) {
