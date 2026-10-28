@@ -650,9 +650,14 @@ Deno.serve(async (req: Request) => {
 
         // WAHA pode identificar contatos pela chave privada @lid sem expor o telefone
         // no resumo de chats. Recupera o número alternativo das mensagens já salvas.
-        const missingLidRows = (existingRows || []).filter((row: any) =>
-          String(row.wa_chat_id || "").endsWith("@lid") && !String(row.contact_number || "").replace(/\D/g, "")
-        );
+        const missingLidRows = (existingRows || []).filter((row: any) => {
+          const jid = String(row.wa_chat_id || "");
+          if (!jid.endsWith("@lid")) return false;
+          const lidDigits = jid.split("@")[0].replace(/\D/g, "");
+          const savedDigits = String(row.contact_number || "").replace(/\D/g, "");
+          // Os dígitos do JID @lid são um identificador privado, nunca um telefone.
+          return !savedDigits || savedDigits === lidDigits || savedDigits.length < 10 || savedDigits.length > 15;
+        });
         if (missingLidRows.length) {
           const missingIds = missingLidRows.map((row: any) => String(row.id));
           const { data: identityMessages, error: identityMessagesError } = await db.from("whatsapp_messages")
@@ -665,18 +670,21 @@ Deno.serve(async (req: Request) => {
             const rowById = new Map(missingLidRows.map((row: any) => [String(row.id), row]));
             for (const message of identityMessages || []) {
               const target = rowById.get(String(message.chat_id));
-              if (!target || String(target.contact_number || "").replace(/\D/g, "")) continue;
+              if (!target) continue;
+              const lidDigits = String(target.wa_chat_id || "").split("@")[0].replace(/\D/g, "");
+              const savedDigits = String(target.contact_number || "").replace(/\D/g, "");
+              if (savedDigits && savedDigits !== lidDigits && savedDigits.length >= 10 && savedDigits.length <= 15) continue;
               const raw = message.raw && typeof message.raw === "object" ? message.raw as Record<string, any> : {};
               const info = raw?._data?.Info || raw?.info || {};
               const alternate = message.from_me
                 ? (info.RecipientAlt || raw.RecipientAlt || info.SenderAlt || raw.SenderAlt)
                 : (info.SenderAlt || raw.SenderAlt || info.RecipientAlt || raw.RecipientAlt);
               const jid = String(alternate || "");
-              const match = jid.match(/(?:^|:)(\d{8,15})@s\.whatsapp\.net/i);
+              const match = jid.match(/(?:^|:)(\d{8,15})(?::\d+)?@s\.whatsapp\.net/i);
               if (!match) continue;
               target.contact_number = match[1];
               const pushName = String(info.PushName || raw.pushName || "").trim();
-              if (pushName && (!target.contact_name || /^contato do whatsapp$/i.test(String(target.contact_name)) || /^\d+$/.test(String(target.contact_name)))) {
+              if (pushName && (!target.contact_name || /^contato do whatsapp$/i.test(String(target.contact_name)) || /^\d+$/.test(String(target.contact_name)) || String(target.contact_name).replace(/\D/g, "") === lidDigits)) {
                 target.contact_name = pushName;
               }
             }
@@ -763,10 +771,15 @@ Deno.serve(async (req: Request) => {
           if (waChatId === "status@broadcast" || waChatId.endsWith("@newsletter") || waChatId.endsWith("@broadcast")) continue;
           const exactExisting = existingByJid.get(waChatId);
           // Dígitos de @lid são identificadores privados, não números de telefone.
+          const lidDigits = waChatId.endsWith("@lid") ? waChatId.split("@")[0].replace(/\D/g, "") : "";
           const rawNumber = waChatId.endsWith("@lid")
-            ? (chat?.number || chat?.phone || chat?.contact?.number || chat?.contact?.phone || exactExisting?.contact_number || "")
+            ? (chat?.number || chat?.phone || chat?.contact?.number || chat?.contact?.phone || "")
             : waChatId.split("@")[0];
-          const number = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\D/g, ""));
+          let number = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\D/g, ""));
+          // Não reutilizar contact_number antigo quando ele é apenas o próprio identificador @lid.
+          if (waChatId.endsWith("@lid") && (!number || number === lidDigits || number.length < 10 || number.length > 15)) {
+            number = "";
+          }
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
           const parsedRemoteTime = parseRemoteTime(rawTime);
@@ -1128,8 +1141,22 @@ Deno.serve(async (req: Request) => {
         const chatId = typeof body.wa_chat_id === "string" ? body.wa_chat_id : "";
         const inst = await getOwnedInstance({ waChatId: chatId });
         if (!chatId) return json({ error: "wa_chat_id é obrigatório." }, 400);
-        const pic = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/contacts/${encodeURIComponent(chatId)}/profile-picture`).catch(() => null);
-        return json({ url: pic?.url || pic?.profilePictureUrl || null });
+        const { data: chatRow } = await db.from("whatsapp_chats")
+          .select("contact_number").eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
+        const digits = String(chatRow?.contact_number || "").replace(/\D/g, "");
+        const candidates = [chatId];
+        if (digits.length >= 10 && digits.length <= 15 && !chatId.endsWith("@lid")) {
+          candidates.push(`${digits}@c.us`, `${digits}@s.whatsapp.net`);
+        } else if (digits.length >= 10 && digits.length <= 15 && digits !== chatId.split("@")[0]) {
+          candidates.push(`${digits}@c.us`, `${digits}@s.whatsapp.net`);
+        }
+        let photoUrl: string | null = null;
+        for (const candidate of [...new Set(candidates)]) {
+          const pic = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/contacts/${encodeURIComponent(candidate)}/profile-picture`).catch(() => null);
+          photoUrl = pic?.url || pic?.profilePictureUrl || pic?.profilePictureURL || pic?.picture || null;
+          if (photoUrl) break;
+        }
+        return json({ url: photoUrl });
       }
       default:
         return json({ error: `Ação não suportada: ${action}` }, 400);
