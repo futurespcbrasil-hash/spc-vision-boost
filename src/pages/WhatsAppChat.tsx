@@ -1146,43 +1146,88 @@ const WhatsAppChat = () => {
         .catch(err => console.warn('[WhatsApp] Falha ao buscar foto de perfil:', err?.message));
     }
 
+    const isSignedChatMediaUrl = (url: string) => /\/storage\/v1\/object\/sign\/chat-media\//i.test(url);
+    const isReusableSignedChatMediaUrl = (url: string) => {
+      if (!isSignedChatMediaUrl(url)) return false;
+      try {
+        const token = new URL(url).searchParams.get('token');
+        const encodedPayload = token?.split('.')[1];
+        if (!encodedPayload) return false;
+        const normalizedPayload = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
+        const paddedPayload = normalizedPayload + '='.repeat((4 - normalizedPayload.length % 4) % 4);
+        const expiresAt = Number(JSON.parse(atob(paddedPayload)).exp);
+        return Number.isFinite(expiresAt) && expiresAt * 1000 > Date.now() + 60_000;
+      } catch {
+        return false;
+      }
+    };
+    // Eventos Realtime podem trazer de volta a URL original (curta ou localhost)
+    // depois que loadMessages já renovou a mídia; preserve o link válido ou renove antes de renderizar.
+    const resolveRealtimeMedia = async (message: Message): Promise<Message> => {
+      const url = message.media_url || '';
+      const isLocalWahaFile = /localhost:3000\/api\/files\//i.test(url);
+      if (!isLocalWahaFile && !isSignedChatMediaUrl(url)) return message;
+      const previous = messagesRef.current.find(item =>
+        item.id === message.id || (!!message.wa_message_id && item.wa_message_id === message.wa_message_id)
+      );
+      if (previous?.media_url && isReusableSignedChatMediaUrl(previous.media_url)) {
+        return { ...message, media_url: previous.media_url };
+      }
+      if (!instanceId) return message;
+      try {
+        const resolved = await waha.resolveMedia(instanceId, message.id);
+        return typeof resolved?.url === 'string' && resolved.url
+          ? { ...message, media_url: resolved.url }
+          : message;
+      } catch (error) {
+        console.warn('Não foi possível renovar mídia recebida em tempo real', message.id, error);
+        return message;
+      }
+    };
+
     const ch = supabase.channel(`wa-msgs-${chatId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
-          const m = payload.new as Message;
-          if (!m.from_me) {
-            const activeChat = selectedRef.current;
-            if (activeChat?.id === chatId) void touchLeadInteraction(activeChat, m.timestamp);
-          }
-          const shouldFollowIncoming = isMessagesViewportNearBottom();
-          setMessages(prev => {
-            if (prev.some(x => x.id === m.id || (!!m.wa_message_id && x.wa_message_id === m.wa_message_id))) return prev;
-            // descarta o balão otimista equivalente
-            const cleaned = prev.filter(x => !isConfirmedOptimisticMatch(x, m));
-            return deduplicateMessages([...cleaned, m]);
-          });
-          // Segue novas mensagens somente se o usuário já estava no fim; se estiver
-          // lendo o histórico, preserva a posição para permitir scroll manual.
-          if (shouldFollowIncoming) {
-            requestAnimationFrame(() => scrollToBottom(false));
-            window.setTimeout(() => scrollToBottom(false), 80);
-          }
+          const incoming = payload.new as Message;
+          void resolveRealtimeMedia(incoming).then(m => {
+            if (cancelled || messagesChatIdRef.current !== chatId) return;
+            if (!m.from_me) {
+              const activeChat = selectedRef.current;
+              if (activeChat?.id === chatId) void touchLeadInteraction(activeChat, m.timestamp);
+            }
+            const shouldFollowIncoming = isMessagesViewportNearBottom();
+            setMessages(prev => {
+              if (prev.some(x => x.id === m.id || (!!m.wa_message_id && x.wa_message_id === m.wa_message_id))) return prev;
+              // descarta o balão otimista equivalente
+              const cleaned = prev.filter(x => !isConfirmedOptimisticMatch(x, m));
+              return deduplicateMessages([...cleaned, m]);
+            });
+            // Segue novas mensagens somente se o usuário já estava no fim; se estiver
+            // lendo o histórico, preserva a posição para permitir scroll manual.
+            if (shouldFollowIncoming) {
+              requestAnimationFrame(() => scrollToBottom(false));
+              window.setTimeout(() => scrollToBottom(false), 80);
+            }
 
-          // Notificação Push se não for minha e a janela estiver oculta ou outro chat selecionado
-          if (!m.from_me && (document.hidden || selectedRef.current?.id !== chatId)) {
-            const chat = chats.find(c => c.id === chatId);
-            if (chat) showPushNotification(chat, m.text || 'Nova mensagem de mídia');
-          }
+            // Notificação Push se não for minha e a janela estiver oculta ou outro chat selecionado
+            if (!m.from_me && (document.hidden || selectedRef.current?.id !== chatId)) {
+              const chat = chats.find(c => c.id === chatId);
+              if (chat) showPushNotification(chat, m.text || 'Nova mensagem de mídia');
+            }
+          });
         })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages', filter: `chat_id=eq.${chatId}` },
         payload => {
-          const m = payload.new as Message;
-          if (m.text === '[crm_deleted]') {
-            setMessages(prev => prev.filter(x => x.id !== m.id && (!m.wa_message_id || x.wa_message_id !== m.wa_message_id)));
-            messagesRef.current = messagesRef.current.filter(x => x.id !== m.id && (!m.wa_message_id || x.wa_message_id !== m.wa_message_id));
+          const incoming = payload.new as Message;
+          if (incoming.text === '[crm_deleted]') {
+            setMessages(prev => prev.filter(x => x.id !== incoming.id && (!incoming.wa_message_id || x.wa_message_id !== incoming.wa_message_id)));
+            messagesRef.current = messagesRef.current.filter(x => x.id !== incoming.id && (!incoming.wa_message_id || x.wa_message_id !== incoming.wa_message_id));
             return;
           }
-          setMessages(prev => prev.map(x => x.id === m.id ? m : x));
+          void resolveRealtimeMedia(incoming).then(m => {
+            if (cancelled || messagesChatIdRef.current !== chatId) return;
+            setMessages(prev => prev.map(x => x.id === m.id ? m : x));
+          });
         })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'whatsapp_messages' },
         payload => {
@@ -2409,6 +2454,12 @@ const WhatsAppChat = () => {
                                   ? 'w-32 h-32 object-contain'
                                   : 'max-h-80 w-full object-contain cursor-pointer hover:opacity-90'}
                                 onClick={() => { void handleMessageAction('open', m); }}
+                                onLoad={(e) => {
+                                  const target = e.currentTarget;
+                                  target.style.display = '';
+                                  delete target.dataset.retryCount;
+                                  target.parentElement?.querySelector('[data-media-error="true"]')?.remove();
+                                }}
                                 onError={async (e) => {
                                   const target = e.currentTarget;
                                   const attempts = Number(target.dataset.retryCount || '0');
