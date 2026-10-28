@@ -94,7 +94,7 @@ Deno.serve(async (req: Request) => {
   };
 
   const getOwnedInstance = async (access?: {
-    chatDbId?: string; waChatId?: string; recipient?: string; messageDbId?: string; allowAnyAssigned?: boolean;
+    chatDbId?: string; waChatId?: string; recipient?: string; messageDbId?: string; allowAnyAssigned?: boolean; allowInstanceGroupRead?: boolean;
   }) => {
     if (!instanceId) throw new Error("instance_id é obrigatório.");
     const { data: owned, error: ownerError } = await db.from("whatsapp_instances")
@@ -120,6 +120,21 @@ Deno.serve(async (req: Request) => {
     if (sharedError) throw sharedError;
     if (!sharedInstance || sharedInstance.provider !== "waha" || !sharedInstance.provider_instance_name) {
       throw new Error("Instância não encontrada ou sem permissão.");
+    }
+    // Agents can read group history only when they already have access to this
+    // WhatsApp instance through an assigned conversation. This does not grant
+    // access to private conversations or permission to send to the group.
+    if (access.allowInstanceGroupRead && access.waChatId?.endsWith("@g.us")) {
+      const { data: group, error: groupError } = await db.from("whatsapp_chats")
+        .select("id").eq("instance_id", instanceId).eq("wa_chat_id", access.waChatId)
+        .eq("is_group", true).maybeSingle();
+      if (groupError) throw groupError;
+      if (group) {
+        const { data: visibleChats, error: visibleError } = await db.from("whatsapp_chats")
+          .select("id").eq("instance_id", instanceId).eq("assigned_to", user.id).limit(1);
+        if (visibleError) throw visibleError;
+        if (visibleChats?.length) return sharedInstance;
+      }
     }
     let requestedChatId = access.chatDbId || "";
     if (access.messageDbId) {
@@ -852,7 +867,7 @@ Deno.serve(async (req: Request) => {
       }
       case "get_messages": {
         const waChatId = typeof body.wa_chat_id === "string" ? body.wa_chat_id : "";
-        const inst = await getOwnedInstance({ waChatId });
+        const inst = await getOwnedInstance({ waChatId, allowInstanceGroupRead: true });
         if (!waChatId) return json({ error: "wa_chat_id é obrigatório." }, 400);
         const rawMessages = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/chats/${encodeURIComponent(waChatId)}/messages?limit=100`);
         const messages = Array.isArray(rawMessages) ? rawMessages : Array.isArray(rawMessages?.messages) ? rawMessages.messages : [];
