@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight, BadgeCheck, Building2, CheckCircle2, FileCheck2,
@@ -41,11 +41,28 @@ export default function FutureAssinadorLanding() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showPreviewNotice, setShowPreviewNotice] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedFile) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(selectedFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
 
   const chooseFile = (file?: File) => {
     if (!file) return;
+    setFileError(null);
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setSelectedFile(null);
+      setFileError("Selecione um arquivo PDF válido.");
+      setShowPreviewNotice(true);
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setSelectedFile(null);
+      setFileError("O arquivo excede o limite de 20 MB para esta prévia.");
       setShowPreviewNotice(true);
       return;
     }
@@ -101,7 +118,7 @@ export default function FutureAssinadorLanding() {
           <div className="mt-8 flex flex-wrap gap-x-5 gap-y-3 text-sm text-slate-600">
             <span className="inline-flex items-center gap-2"><ShieldCheck size={17} className="text-violet-700" /> Certificado compatível</span>
             <span className="inline-flex items-center gap-2"><LockKeyhole size={17} className="text-violet-700" /> Privacidade em primeiro lugar</span>
-            <span className="inline-flex items-center gap-2"><FileCheck2 size={17} className="text-violet-700" /> PDF com integridade verificável</span>
+            <span className="inline-flex items-center gap-2"><FileCheck2 size={17} className="text-violet-700" /> Pré-visualização do PDF</span>
           </div>
         </div>
 
@@ -116,7 +133,7 @@ export default function FutureAssinadorLanding() {
                   <p className="mt-0.5 text-xs text-slate-500">Experiência de assinatura digital</p>
                 </div>
               </div>
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">Prévia</span>
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">Demonstração</span>
             </div>
 
             <div className="p-5 sm:p-6">
@@ -158,10 +175,20 @@ export default function FutureAssinadorLanding() {
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-900">{selectedFile ? "Arquivo selecionado nesta prévia" : "Selecione um arquivo PDF"}</p>
                     <p className="mt-1 text-xs leading-5 text-slate-600">
-                      A integração com certificados digitais e a assinatura criptográfica serão ativadas na próxima etapa. Nesta prévia, o arquivo não é enviado nem assinado.
+                      {fileError ?? "O arquivo permanece no seu dispositivo. Esta demonstração permite conferir o PDF, mas ainda não realiza assinatura criptográfica nem envia o documento."}
                     </p>
                   </div>
                   <button type="button" aria-label="Fechar aviso" onClick={() => setShowPreviewNotice(false)} className="shrink-0 text-slate-400 hover:text-slate-700"><X size={16} /></button>
+                </div>
+              )}
+
+              {selectedFile && previewUrl && (
+                <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-3">
+                    <span className="text-sm font-bold text-slate-700">Pré-visualização local do PDF</span>
+                    <button type="button" onClick={() => { setSelectedFile(null); setShowPreviewNotice(false); setFileError(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="text-xs font-bold text-violet-700 hover:text-violet-900">Remover arquivo</button>
+                  </div>
+                  <iframe title="Pré-visualização local do PDF selecionado" src={previewUrl} className="h-[360px] w-full bg-slate-100 sm:h-[440px]" />
                 </div>
               )}
 
@@ -245,7 +272,7 @@ export default function FutureAssinadorLanding() {
           {[
             ["Preciso ter conta no CRM?", "A página pública foi planejada para ser acessada por clientes sem login no CRM. O fluxo final de assinatura será definido conforme os requisitos de segurança."],
             ["Posso usar qualquer certificado digital?", "A compatibilidade depende do tipo de certificado, do dispositivo e da integração escolhida. A página só deve anunciar suporte após testes reais."],
-            ["O documento é assinado nesta versão?", "Ainda não. Esta etapa entrega a interface pública e a estrutura visual. A assinatura criptográfica será implementada e validada separadamente antes de liberar o uso real."],
+            ["O documento é assinado nesta versão?", "Ainda não. Esta demonstração permite selecionar e visualizar o PDF localmente. A assinatura criptográfica será liberada somente depois da integração e de testes com certificados compatíveis."],
             ["Como a Future pode ajudar minha empresa?", "Além do assinador, você pode conhecer as soluções de Certificado Digital, Emissor Fiscal e SPC Brasil para empresas."],
           ].map(([question, answer]) => (
             <details key={question} className="group py-5">
