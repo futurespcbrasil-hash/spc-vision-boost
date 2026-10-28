@@ -1,4 +1,6 @@
 "use strict";
+importScripts("protocol.js");
+
 const NAMESPACE = "FUTURE_ASSINADOR_V1";
 const NATIVE_HOST = "com.futuresolucoes.assinador";
 const ALLOWED_ORIGINS = new Set([
@@ -6,7 +8,6 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.futuresolucoes.com.br",
   "https://crm.futuresolucoes.com.br"
 ]);
-const COMMANDS = new Set(["PING", "LIST_CERTIFICATES", "SIGN_HASH"]);
 
 function validSender(sender) {
   if (sender.id !== chrome.runtime.id || typeof sender.url !== "string") return false;
@@ -17,14 +18,17 @@ function relayToNative(message) {
   return new Promise((resolve) => {
     let settled = false;
     let port;
+    let timeoutId;
     const finish = (value) => {
       if (settled) return;
       settled = true;
+      if (timeoutId) clearTimeout(timeoutId);
       try { port?.disconnect(); } catch { /* port may already be closed */ }
       resolve(value);
     };
     try {
-      port = chrome.runtime.connectNative(NATIVE_HOST);
+      port = chrome.runtime.connectNative("com.futuresolucoes.assinador");
+      timeoutId = setTimeout(() => finish({ ok: false, error: "NATIVE_HOST_TIMEOUT" }), 30000);
       port.onMessage.addListener((response) => {
         if (!response || typeof response !== "object") return finish({ ok: false, error: "INVALID_NATIVE_RESPONSE" });
         finish(response);
@@ -45,11 +49,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: false, error: "ORIGIN_NOT_ALLOWED" });
     return false;
   }
-  if (!COMMANDS.has(message.command)) {
-    sendResponse({ ok: false, error: "COMMAND_NOT_ALLOWED" });
+  const checked = FutureAssinadorProtocol.validateRequest(message);
+  if (!checked.ok) {
+    sendResponse({ ok: false, error: checked.error });
     return false;
   }
-  const request = { protocolVersion: 1, requestId: message.requestId, command: message.command };
+  const request = {
+    protocolVersion: 1,
+    requestId: message.requestId,
+    command: message.command
+  };
   if (message.command === "SIGN_HASH") {
     request.thumbprint = message.thumbprint;
     request.algorithm = message.algorithm;
