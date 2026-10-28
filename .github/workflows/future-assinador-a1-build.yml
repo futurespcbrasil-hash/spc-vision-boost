@@ -16,6 +16,7 @@ on:
       - feat/future-assinador-manual-placement
     paths:
       - "src/pages/FutureAssinadorLanding.tsx"
+      - "src/components/FuturePdfPlacementPreview.tsx"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/future-assinador-a1-build.yml"
