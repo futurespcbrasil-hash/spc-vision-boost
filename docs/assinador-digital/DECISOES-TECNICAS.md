@@ -1,22 +1,28 @@
 # Decisões técnicas — Assinador Digital Future
 
-## ADR-001 — agente local com fluxo de assinatura interrompida
+## ADR-001 — estratégia web-first e bridge local opcional
 
 **Status:** proposta para prova de conceito.
 
 ### Contexto
-O navegador não deve ter acesso irrestrito a chaves privadas. O CRM precisa funcionar com certificados de diferentes autoridades certificadoras, inclusive A1 local e A3 em dispositivos criptográficos, quando tecnicamente compatíveis.
+A prioridade de produto é reduzir o atrito: o cliente deve abrir um link e fazer o máximo possível sem instalar extensão ou aplicativo. Ao mesmo tempo, o site não pode acessar livremente todas as chaves do sistema operacional ou dispositivos A3.
 
 ### Decisão
-Avaliar a arquitetura do DocSigner: o servidor prepara o PDF e calcula o hash a assinar; o agente local/token assina esse hash; o servidor ou componente de assinatura finaliza a estrutura PAdES. Para A3, a chave privada deve permanecer no token.
+Priorizar a experiência web-first, por modalidades:
 
-Para A1, não extrair ou enviar a chave ao servidor. A primeira implementação deve usar certificado e chave de teste, e a decisão sobre importação segura de A1 será tomada após revisar o suporte real da biblioteca e o modelo de ameaças.
+1. Assinatura eletrônica pelo site quando adequada ao documento, com explicação clara de que não é equivalente a uma assinatura qualificada ICP-Brasil.
+2. Certificado em nuvem por API/SDK ou fluxo de autorização oficial do provedor, se disponível. SafeID exige confirmação técnica/comercial com a Safeweb.
+3. A1: pesquisar e testar assinatura no navegador a partir de arquivo selecionado pelo usuário, mantendo PFX, senha e chave em memória local e nunca enviando-os ao backend. Só liberar se a prova de conceito cumprir requisitos de segurança e PAdES.
+4. A3 físico: oferecer bridge de extensão + agente local como modalidade opcional quando necessário, sem obrigar todos os usuários a instalar componentes.
+
+O DocSigner será referência para a bridge local opcional. Não será pressuposto para o fluxo inteiro.
 
 ### Consequências
-- Permite separar a interface Future do mecanismo local de certificado.
-- Pode suportar vários emissores de certificados locais sem integração individual com cada AC, desde que os drivers e formatos sejam compatíveis.
-- Exige distribuir, assinar, atualizar e manter um aplicativo local e, possivelmente, uma extensão.
-- Certificados em nuvem, como SafeID, precisam de integração oficial específica; não são automaticamente detectados pelo agente local.
+- Menos fricção para os fluxos web e certificados em nuvem que possuam integração oficial.
+- A1 puro-web ainda é uma hipótese a validar, não uma capacidade já comprovada.
+- A3 físico provavelmente exige integração local; o site deve explicar isso antes do usuário iniciar.
+- A chave privada nunca deve ser enviada ao servidor; PIN/senha não podem ser registrados ou enviados pela rede.
+- Não anunciar compatibilidade universal sem testes independentes.
 
 ## ADR-002 — não alterar main nem publicar automaticamente
 
@@ -28,4 +34,4 @@ O trabalho fica na branch `feat/future-assinador-local-prototype`, derivada da b
 
 **Status:** pendente de auditoria de dependências.
 
-O DocSigner declara Apache-2.0 e lista avisos adicionais no `NOTICE`, incluindo ativos sob SIL OFL e ISC. Antes de distribuir um produto Future baseado em seus componentes, preservar os avisos aplicáveis, revisar dependências transitivas e registrar versões/licenças em inventário de software (SBOM). O pyHanko declara MIT, mas suas dependências devem ser avaliadas separadamente.
+O DocSigner declara Apache-2.0 e lista avisos adicionais no `NOTICE`, incluindo ativos sob SIL OFL e ISC. Antes de distribuir um produto Future baseado em seus componentes, preservar os avisos aplicáveis e revisar as licenças das dependências transitivas.
