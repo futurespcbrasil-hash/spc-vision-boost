@@ -329,7 +329,7 @@ export default function FutureAssinadorLanding() {
             </div>
             <label className="flex cursor-pointer items-start gap-3 text-sm leading-5 text-slate-600">
               <input type="checkbox" required checked={lead.consentimento} onChange={(e) => setLead({ ...lead, consentimento: e.target.checked })} className="mt-1 h-4 w-4 accent-violet-700" />
-              <span>Autorizo a Future Soluções a utilizar meus dados para responder a esta solicitação. Li a informação de privacidade.</span>
+              <span>Autorizo a Future Soluções a utilizar meus dados para responder a esta solicitação. Consulte a <a href="https://futuresolucoes.com.br/downloads/politica-de-privacidade.pdf" target="_blank" rel="noreferrer" className="font-bold text-violet-700 underline">Política de Privacidade</a>.</span>
             </label>
             <button type="submit" disabled={leadStatus === "sending"} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60">
               {leadStatus === "sending" ? <LoaderCircle size={18} className="animate-spin" /> : leadStatus === "success" ? <CheckCircle size={18} /> : <Send size={17} />}
