@@ -118,7 +118,7 @@ const AppSidebar = () => {
     return () => window.removeEventListener('future-vision-menu-layout-change', syncLayout);
   }, [user?.id]);
 
-  const [whatsappOpen, setWhatsappOpen] = useState(location.pathname.startsWith('/whatsapp'));
+  const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [campaignsOpen, setCampaignsOpen] = useState(location.pathname.startsWith('/campanhas'));
   const [parceirosOpen, setParceirosOpen] = useState(location.pathname.startsWith('/parceiros-spc'));
   const [indicacoesOpen, setIndicacoesOpen] = useState(location.pathname.startsWith('/indicacoes'));
