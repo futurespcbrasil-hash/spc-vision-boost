@@ -2,6 +2,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Serialization;
 using SimpleSign.PAdES;
 using SimpleSign.PAdES.Signing;
+using System.Windows.Forms;
 
 const int Port = 21591;
 const int MaxPdfBytes = 20 * 1024 * 1024;
@@ -135,6 +136,21 @@ app.MapPost("/api/sign-pdf", async (SignRequest request) =>
         return Results.BadRequest(new { error = "O certificado não possui chave privada acessível." });
     if (certificate.NotAfter.ToUniversalTime() < DateTime.UtcNow)
         return Results.BadRequest(new { error = "O certificado selecionado está vencido." });
+
+    var documentName = SafeFileName(request.FileName);
+    var signerName = certificate.GetNameInfo(X509NameType.SimpleName, false);
+    var confirmation = MessageBox.Show(
+        "O site Future Assinador solicitou uma assinatura digital neste computador.\\n\\n" +
+        "Documento: " + documentName + "\\n" +
+        "Certificado: " + signerName + "\\n" +
+        "Página: " + request.Page + "\\n\\n" +
+        "A chave privada permanecerá no Windows. Deseja autorizar esta assinatura?",
+        "Future Assinador — confirmar assinatura",
+        MessageBoxButtons.OKCancel,
+        MessageBoxIcon.Warning,
+        MessageBoxDefaultButton.Button2);
+    if (confirmation != DialogResult.OK)
+        return Results.BadRequest(new { error = "Assinatura cancelada no computador pelo usuário." });
 
     try
     {
