@@ -1,0 +1,44 @@
+name: Future Assinador A1 build
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/pages/FutureAssinadorLanding.tsx"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/future-assinador-a1-build.yml"
+  push:
+    branches:
+      - feat/future-assinador-browser-a1-poc
+    paths:
+      - "src/pages/FutureAssinadorLanding.tsx"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/future-assinador-a1-build.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: future-assinador-a1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci
+      - name: Run unit tests
+        run: npm test
+      - name: Build production bundle
+        run: npm run build
