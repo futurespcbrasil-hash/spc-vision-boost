@@ -48,11 +48,37 @@ jobs:
       - name: Publish self-contained Windows x64
         run: dotnet publish apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true --output artifacts/assinapdf/win-x64
 
-      - name: Build per-user Windows MSI installer
+      - name: Build Windows x64 MSI installer
         shell: pwsh
         run: |
           $publishDir = "$env:GITHUB_WORKSPACE\artifacts\assinapdf\win-x64\"
           dotnet build apps/assinapdf-desktop/installer/AssinaPDF.Installer.wixproj --configuration Release "-p:PublishDir=$publishDir" "-p:OutputPath=$env:GITHUB_WORKSPACE\artifacts\assinapdf\installer\"
+
+      - name: Verify MSI package
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem 'artifacts/assinapdf/installer' -Filter '*.msi' -File
+          if (-not $msi) { throw 'O instalador MSI não foi gerado.' }
+          if (($msi | Measure-Object -Property Length -Sum).Sum -lt 1000000) { throw 'O instalador MSI está inesperadamente pequeno.' }
+
+      - name: Write artifact instructions
+        shell: pwsh
+        run: |
+          @'
+          AssinaPDF Desktop — Windows x64 (build de desenvolvimento)
+
+          Conteúdo:
+          - win-x64/AssinaPDF.exe: aplicativo desktop self-contained.
+          - installer/AssinaPDF-Setup-x64.msi: instalador Windows x64.
+          - SHA256SUMS.txt: checksums SHA-256 de todos os arquivos do pacote.
+
+          IMPORTANTE:
+          - Build de teste, ainda não aprovado para distribuição a clientes.
+          - O MSI exige permissão de administrador.
+          - O Microsoft Edge WebView2 Runtime precisa estar instalado.
+          - O instalador ainda não possui assinatura Authenticode da Future Soluções.
+          - Teste com PDFs e certificados reais e valide as assinaturas em ferramenta independente antes de uso oficial.
+          '@ | Set-Content 'artifacts/assinapdf/LEIA-ME.txt' -Encoding utf8
 
       - name: Create SHA-256 checksums
         shell: pwsh
