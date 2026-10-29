@@ -103,8 +103,6 @@ app.MapGet("/api/certificates", () =>
 
 app.MapPost("/api/sign-pdf", async (SignRequest request) =>
 {
-    if (string.IsNullOrWhiteSpace(request.Thumbprint))
-        return Results.BadRequest(new { error = "Selecione um certificado instalado." });
     if (string.IsNullOrWhiteSpace(request.PdfBase64))
         return Results.BadRequest(new { error = "O PDF não foi recebido." });
     if (request.Page < 1 || request.Page > 1000 || request.X < 0 || request.Y < 0)
@@ -127,15 +125,32 @@ app.MapPost("/api/sign-pdf", async (SignRequest request) =>
 
     using var store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
     store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
-    var matches = store.Certificates.Find(X509FindType.FindByThumbprint, request.Thumbprint.Replace(" ", ""), false);
-    if (matches.Count == 0)
-        return Results.BadRequest(new { error = "O certificado selecionado não está mais disponível no repositório do Windows." });
+    var available = new X509Certificate2Collection();
+    foreach (var candidate in store.Certificates)
+    {
+        if (!candidate.HasPrivateKey) continue;
+        if (candidate.NotBefore.ToUniversalTime() > DateTime.UtcNow ||
+            candidate.NotAfter.ToUniversalTime() < DateTime.UtcNow) continue;
+        if (candidate.Extensions.OfType<X509KeyUsageExtension>().Any(ext =>
+            (ext.KeyUsages & (X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.NonRepudiation)) == 0)) continue;
+        available.Add(candidate);
+    }
 
-    var certificate = matches[0];
-    if (!certificate.HasPrivateKey)
-        return Results.BadRequest(new { error = "O certificado não possui chave privada acessível." });
-    if (certificate.NotAfter.ToUniversalTime() < DateTime.UtcNow)
-        return Results.BadRequest(new { error = "O certificado selecionado está vencido." });
+    if (available.Count == 0)
+        return Results.BadRequest(new { error = "Não encontramos certificados válidos com chave privada no repositório Pessoal deste usuário do Windows." });
+
+    X509Certificate2? certificate;
+    try
+    {
+        certificate = SelectWindowsCertificate(available);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Não foi possível abrir o seletor nativo de certificados.");
+        return Results.BadRequest(new { error = "O Windows não conseguiu abrir o seletor de certificados. Verifique se o componente está sendo executado na sessão interativa do usuário." });
+    }
+    if (certificate is null)
+        return Results.BadRequest(new { error = "Seleção de certificado cancelada pelo usuário." });
 
     var documentName = SafeFileName(request.FileName);
     var signerName = certificate.GetNameInfo(X509NameType.SimpleName, false);
@@ -211,8 +226,35 @@ static string FriendlyError(Exception ex)
     return $"Não foi possível assinar: {message}";
 }
 
+static X509Certificate2? SelectWindowsCertificate(X509Certificate2Collection certificates)
+{
+    X509Certificate2? selected = null;
+    Exception? failure = null;
+    var thread = new Thread(() =>
+    {
+        try
+        {
+            var result = X509Certificate2UI.SelectFromCollection(
+                certificates,
+                "Future Assinador — certificados instalados",
+                "Escolha o certificado A1 que deseja usar para assinar o PDF.",
+                X509SelectionFlag.SingleSelection);
+            if (result.Count > 0) selected = result[0];
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+    });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.Start();
+    thread.Join();
+    if (failure is not null) throw failure;
+    return selected;
+}
+
 internal sealed record SignRequest(
-    string Thumbprint,
+    string? Thumbprint,
     string PdfBase64,
     string FileName,
     int Page,
