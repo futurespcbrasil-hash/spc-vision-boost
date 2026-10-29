@@ -182,11 +182,14 @@ const hasRealName = (c?: Chat | null) => {
 
 // Interpreta cartões de contato recebidos como vCard do WhatsApp.
 const parseSharedContact = (raw?: string | null) => {
-  const text = String(raw || '');
-  if (!/^Contato compartilhado(?:\n|$)/i.test(text)) return null;
-  const name = text.match(/(?:^|\n)Nome:\s*(.+)/i)?.[1]?.trim() || 'Contato sem nome';
-  const phone = text.match(/(?:^|\n)Telefone:\s*([+0-9().\s-]+)/i)?.[1]?.trim() || '';
+  // WAHA pode entregar o mesmo cartão com LF, CRLF, espaços ou prefixos de formatação.
+  const text = String(raw || '').replace(/\r\n?/g, '\n').trim();
+  if (!/^Contato compartilhado\b/i.test(text)) return null;
+  const name = text.match(/(?:^|\n)\s*Nome\s*:\s*([^\n]+)/i)?.[1]?.trim() || 'Contato sem nome';
+  const phone = text.match(/(?:^|\n)\s*Telefone\s*:\s*([^\n]+)/i)?.[1]?.trim() || '';
   const digits = onlyDigits(phone);
+  // Sem telefone utilizável não é possível oferecer ações de conversa/cadastro.
+  if (digits.length < 10) return { name, phone, digits: '' };
   return { name, phone, digits };
 };
 
