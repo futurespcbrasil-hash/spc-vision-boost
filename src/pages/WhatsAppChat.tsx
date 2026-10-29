@@ -180,6 +180,16 @@ const hasRealName = (c?: Chat | null) => {
   return !!name && onlyDigits(name) !== onlyDigits(c.contact_number);
 };
 
+// Interpreta cartões de contato recebidos como vCard do WhatsApp.
+const parseSharedContact = (raw?: string | null) => {
+  const text = String(raw || '');
+  if (!/^Contato compartilhado(?:\n|$)/i.test(text)) return null;
+  const name = text.match(/(?:^|\n)Nome:\s*(.+)/i)?.[1]?.trim() || 'Contato sem nome';
+  const phone = text.match(/(?:^|\n)Telefone:\s*([+0-9().\s-]+)/i)?.[1]?.trim() || '';
+  const digits = onlyDigits(phone);
+  return { name, phone, digits };
+};
+
 // Nome (ou número formatado) do remetente em grupos
 const senderLabel = (raw?: string | null) => {
   const v = (raw || '').trim();
@@ -472,6 +482,8 @@ const WhatsAppChat = () => {
   const [saveContactOpen, setSaveContactOpen] = useState(false);
   const [contactNameInput, setContactNameInput] = useState('');
   const [savingContact, setSavingContact] = useState(false);
+  const [sharedContactPhotos, setSharedContactPhotos] = useState<Record<string, string>>({});
+  const sharedContactPhotoFetched = useRef<Set<string>>(new Set());
 
   // Info do grupo
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
@@ -497,6 +509,28 @@ const WhatsAppChat = () => {
   const timerRef = useRef<number | null>(null);
   const cancelRecRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Carrega fotos dos contatos compartilhados quando a WAHA disponibiliza a foto de perfil.
+  useEffect(() => {
+    if (!instanceId) return;
+    const contacts = messages.map(message => parseSharedContact(message.text))
+      .filter((contact): contact is { name: string; phone: string; digits: string } => !!contact?.digits)
+      .slice(-12);
+    for (const contact of contacts) {
+      const digits = contact.digits;
+      const cacheKey = instanceId + ':' + digits;
+      if (sharedContactPhotoFetched.current.has(cacheKey)) continue;
+      sharedContactPhotoFetched.current.add(cacheKey);
+      let phone = digits;
+      if (phone.length <= 11 && !phone.startsWith('55')) phone = '55' + phone;
+      void waha.getProfilePic(instanceId, phone + '@c.us').then((result: any) => {
+        const url = typeof result?.url === 'string' ? result.url : '';
+        if (url) setSharedContactPhotos(previous => ({ ...previous, [digits]: url }));
+      }).catch(() => {
+        // Foto opcional: mantém o avatar com iniciais se a WAHA não retornar imagem.
+      });
+    }
+  }, [messages, instanceId]);
 
   // Paste handler for prints/images from clipboard
   useEffect(() => {
@@ -1981,6 +2015,46 @@ const WhatsAppChat = () => {
   };
 
   // Salvar nome do contato
+  const handleSaveSharedContact = async (contact: { name: string; phone: string; digits: string }) => {
+    if (!instanceId || !contact.digits || contact.digits.length < 10) {
+      toast({ title: 'Telefone do contato inválido', description: 'O WhatsApp não forneceu um número válido para salvar.', variant: 'destructive' });
+      return;
+    }
+    setSavingContact(true);
+    try {
+      let digits = contact.digits;
+      if (digits.length <= 11 && !digits.startsWith('55')) digits = '55' + digits;
+      const waChatId = digits + '@c.us';
+      const { data: existing, error: lookupError } = await supabase.from('whatsapp_chats')
+        .select('id,contact_name,contact_number,wa_chat_id')
+        .eq('instance_id', instanceId).eq('wa_chat_id', waChatId).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing) {
+        const { error } = await supabase.from('whatsapp_chats').update({
+          contact_name: contact.name, contact_number: digits, is_group: false, updated_at: new Date().toISOString(),
+        }).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('whatsapp_chats').insert({
+          instance_id: instanceId, wa_chat_id: waChatId, contact_number: digits,
+          contact_name: contact.name, is_group: false, unread_count: 0, archived: false,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) throw error;
+      }
+      await loadChats();
+      setNewChatNumber(digits);
+      setNewChatSearch(contact.name);
+      setNewChatMessage('');
+      setNewChatOpen(true);
+      toast({ title: 'Contato salvo', description: contact.name + ' foi adicionado às conversas. Você já pode abrir o chat ou enviar uma mensagem.' });
+    } catch (e: any) {
+      toast({ title: 'Não foi possível salvar o contato', description: e.message || 'Tente novamente.', variant: 'destructive' });
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
   const handleSaveContact = async () => {
     if (!selected || !contactNameInput.trim()) return;
     setSavingContact(true);
@@ -2629,7 +2703,48 @@ const WhatsAppChat = () => {
                               <FileText size={14} /> {m.text || (m.media_mime?.includes('pdf') ? 'Documento PDF' : 'Baixar arquivo')}
                             </button>
                           )}
-                          {m.text && !m.text.includes('[message_revoke]') && (
+                          {parseSharedContact(m.text) ? (() => {
+                            const sharedContact = parseSharedContact(m.text)!;
+                            return (
+                              <div className="w-[250px] max-w-full overflow-hidden rounded-xl border border-emerald-200/80 bg-white text-slate-900 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100">
+                                <div className="flex items-center gap-3 p-3">
+                                  {sharedContactPhotos[sharedContact.digits] ? (
+                                    <img src={sharedContactPhotos[sharedContact.digits]} alt={sharedContact.name} loading="lazy" className="h-12 w-12 shrink-0 rounded-full object-cover" onError={() => setSharedContactPhotos(previous => {
+                                      const next = { ...previous };
+                                      delete next[sharedContact.digits];
+                                      return next;
+                                    })} />
+                                  ) : (
+                                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${getAvatarColor(sharedContact.name)} text-sm font-bold`}>
+                                      {getInitials(sharedContact.name)}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold">{sharedContact.name}</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">{sharedContact.phone || 'Telefone não informado'}</p>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 border-t dark:border-zinc-700">
+                                  <button type="button" className="px-2 py-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-zinc-800" onClick={() => {
+                                    if (!sharedContact.digits) {
+                                      toast({ title: 'Telefone não informado', description: 'Este cartão não contém um número para iniciar a conversa.', variant: 'destructive' });
+                                      return;
+                                    }
+                                    let digits = sharedContact.digits;
+                                    if (digits.length <= 11 && !digits.startsWith('55')) digits = '55' + digits;
+                                    setNewChatNumber(digits);
+                                    setNewChatSearch(sharedContact.name);
+                                    setNewChatMessage('');
+                                    setForwardMessages([]);
+                                    setNewChatOpen(true);
+                                  }}>Conversar</button>
+                                  <button type="button" className="border-l px-2 py-2.5 text-xs font-semibold hover:bg-muted/60 dark:border-zinc-700" disabled={savingContact} onClick={() => void handleSaveSharedContact(sharedContact)}>
+                                    {savingContact ? 'Salvando…' : 'Salvar contato'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })() : m.text && !m.text.includes('[message_revoke]') && (
                             <p className={`whitespace-pre-wrap break-words leading-relaxed ${
                               EMOJI_ONLY.test(m.text.trim()) ? 'text-3xl leading-tight' : 'text-sm'
                             }`}>
