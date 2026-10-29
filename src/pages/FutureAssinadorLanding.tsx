@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight, BadgeCheck, Building2, CheckCircle2, FileCheck2,
@@ -43,6 +43,9 @@ const products = [
 const whatsappLink = (message: string) =>
   "https://wa.me/5554981028290?text=" + encodeURIComponent(message);
 
+type WindowsCertificate = { name: string; subject: string; issuer: string; thumbprint: string; validFrom: string; expiresAt: string; algorithm: string };
+const WINDOWS_AGENT_URL = "http://127.0.0.1:21591";
+
 export default function FutureAssinadorLanding() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -52,6 +55,10 @@ export default function FutureAssinadorLanding() {
   const [signaturePlacement, setSignaturePlacement] = useState<PdfSignaturePlacement | null>(null);
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState("");
+  const [windowsCertificates, setWindowsCertificates] = useState<WindowsCertificate[]>([]);
+  const [selectedWindowsThumbprint, setSelectedWindowsThumbprint] = useState("");
+  const [windowsAgentStatus, setWindowsAgentStatus] = useState<"checking" | "online" | "offline">("checking");
+  const [windowsAgentMessage, setWindowsAgentMessage] = useState("");
   const [signing, setSigning] = useState(false);
   const [signingMessage, setSigningMessage] = useState("");
   const [signingError, setSigningError] = useState("");
@@ -82,6 +89,79 @@ export default function FutureAssinadorLanding() {
   const handlePlacementChange = useCallback((placement: PdfSignaturePlacement | null) => {
     setSignaturePlacement(placement);
   }, []);
+
+  const refreshWindowsCertificates = useCallback(async (showMessage = true) => {
+    setWindowsAgentStatus("checking");
+    try {
+      const health = await fetch(WINDOWS_AGENT_URL + "/api/health", { method: "GET", cache: "no-store" });
+      if (!health.ok) throw new Error("O agente local não respondeu corretamente.");
+      const response = await fetch(WINDOWS_AGENT_URL + "/api/certificates", { method: "GET", cache: "no-store" });
+      if (!response.ok) throw new Error("Não foi possível consultar os certificados do Windows.");
+      const certificates = await response.json() as WindowsCertificate[];
+      setWindowsCertificates(certificates);
+      setSelectedWindowsThumbprint((current) => certificates.some((certificate) => certificate.thumbprint === current) ? current : certificates[0]?.thumbprint ?? "");
+      setWindowsAgentStatus("online");
+      setWindowsAgentMessage(certificates.length
+        ? "Encontramos " + certificates.length + " certificado(s) válido(s) com chave privada acessível neste usuário do Windows."
+        : "O agente está ativo, mas não encontrou certificados válidos com chave privada acessível neste usuário.");
+    } catch {
+      setWindowsCertificates([]);
+      setSelectedWindowsThumbprint("");
+      setWindowsAgentStatus("offline");
+      setWindowsAgentMessage("O componente local Future Assinador não está aberto. Inicie FutureAssinadorWindows no computador e tente novamente.");
+      if (showMessage) setSigningError("Não foi possível conectar ao componente local. Confirme que Future Assinador Windows está aberto neste computador.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshWindowsCertificates(false);
+  }, [refreshWindowsCertificates]);
+
+  const signWithWindowsCertificate = async () => {
+    if (!selectedFile || !signaturePlacement || signing) return;
+    setSigning(true);
+    setSigningError("");
+    setSigningMessage("Enviando o PDF ao componente local para assinatura…");
+    try {
+      const bytes = new Uint8Array(await selectedFile.arrayBuffer());
+      let binary = "";
+      const chunkSize = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+      }
+      const response = await fetch(WINDOWS_AGENT_URL + "/api/sign-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfBase64: btoa(binary),
+          fileName: selectedFile.name.replace(/\.pdf$/i, "") + "-assinado.pdf",
+          page: signaturePlacement.pageIndex + 1,
+          x: Math.max(0, signaturePlacement.widgetRect[0]),
+          y: Math.max(0, signaturePlacement.widgetRect[1])
+        })
+      });
+      const result = await response.json() as { error?: string; signedPdfBase64?: string; fileName?: string; signer?: string };
+      if (!response.ok || !result.signedPdfBase64) throw new Error(result.error || "O componente local não conseguiu assinar o documento.");
+      const binaryResult = atob(result.signedPdfBase64);
+      const output = new Uint8Array(binaryResult.length);
+      for (let index = 0; index < binaryResult.length; index += 1) output[index] = binaryResult.charCodeAt(index);
+      const blob = new Blob([output.buffer as ArrayBuffer], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const download = document.createElement("a");
+      download.href = url;
+      download.download = result.fileName || (selectedFile.name.replace(/\.pdf$/i, "") + "-assinado.pdf");
+      document.body.appendChild(download);
+      download.click();
+      download.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      setSigningMessage("PDF assinado localmente com o certificado " + (result.signer || "") + ". Confira no leitor de PDF e no VALIDAR do ITI.");
+    } catch (error) {
+      setSigningMessage("");
+      setSigningError(error instanceof Error ? error.message : "Falha ao assinar com o certificado instalado no Windows.");
+    } finally {
+      setSigning(false);
+    }
+  };
 
   const signSelectedPdf = async () => {
     if (!selectedFile || !certificateFile || !certificatePassword || !signaturePlacement || signing) return;
@@ -279,10 +359,33 @@ export default function FutureAssinadorLanding() {
               )}
 
               {selectedFile && (
-                <section className="mt-5 space-y-4 rounded-2xl border border-violet-200 bg-white p-4 text-left sm:p-5" aria-label="Assinar PDF com certificado A1">
+                <section className="mt-5 space-y-4 rounded-2xl border border-violet-300 bg-white p-4 text-left shadow-sm sm:p-5" aria-label="Assinar com certificado instalado no Windows">
                   <div>
-                    <h3 className="font-extrabold text-slate-900">Assinar com certificado A1</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">Selecione um arquivo de certificado .PFX ou .P12 e informe a senha. A assinatura PAdES é processada no navegador; não envie o certificado nem a senha para ninguém.</p>
+                    <h3 className="font-extrabold text-slate-900">Opção 1 — Usar certificado instalado no Windows</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">Consulta os certificados instalados neste usuário do Windows. A chave privada não é exportada.</p>
+                  </div>
+                  <div className={"rounded-xl p-3 text-sm leading-5 " + (windowsAgentStatus === "online" ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900")} role="status">
+                    {windowsAgentMessage || "Verificando o componente local Future Assinador…"}
+                  </div>
+                  <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm leading-6 text-violet-950">
+                    Ao clicar em <strong>Assinar</strong>, o componente abre o seletor nativo do Windows. Escolha ali o certificado instalado; não é necessário selecionar um certificado nesta página.
+                  </div>
+                  <button type="button" onClick={() => void refreshWindowsCertificates(true)} disabled={windowsAgentStatus === "checking" || signing} className="w-full rounded-xl border border-violet-200 px-4 py-2.5 text-sm font-bold text-violet-800 hover:bg-violet-50 disabled:opacity-50">
+                    {windowsAgentStatus === "checking" ? "Verificando…" : "Atualizar certificados do Windows"}
+                  </button>
+                  <button type="button" onClick={signWithWindowsCertificate} disabled={windowsAgentStatus !== "online" || !signaturePlacement || signing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50">
+                    {signing ? <LoaderCircle size={18} className="animate-spin" /> : <FileCheck2 size={18} />}
+                    {signing ? "Assinando com certificado do Windows…" : signaturePlacement ? "Assinar com certificado instalado" : "Escolha a área de assinatura acima"}
+                  </button>
+                  <p className="text-xs leading-5 text-slate-500">O seletor nativo do Windows abre ao clicar. É necessário que o componente Future Assinador esteja em execução neste computador. O PDF é processado localmente e a chave privada não é enviada ao CRM.</p>
+                </section>
+              )}
+
+              {selectedFile && (
+                <section className="mt-5 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 text-left sm:p-5" aria-label="Assinar PDF com arquivo A1">
+                  <div>
+                    <h3 className="font-extrabold text-slate-900">Opção 2 — Usar arquivo A1 (.PFX/.P12)</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">Alternativa para quem tem o arquivo do certificado e sua senha.</p>
                   </div>
                   <div>
                     <label htmlFor="future-a1-file" className="mb-1.5 block text-sm font-bold text-slate-700">Arquivo do certificado A1 (.pfx ou .p12)</label>
@@ -294,7 +397,7 @@ export default function FutureAssinadorLanding() {
                     <input id="future-a1-password" type="password" autoComplete="new-password" value={certificatePassword} onChange={(event) => setCertificatePassword(event.target.value)} maxLength={256} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" placeholder="Digite a senha do arquivo A1" />
                   </div>
                   <div className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                    <strong>Importante:</strong> esta opção usa o arquivo A1 exportado (.pfx/.p12), não acessa automaticamente os certificados instalados no Windows. Só use um arquivo cuja chave privada você esteja autorizado a utilizar. Clique na pré-visualização para escolher a página e o local exato da assinatura.
+                    <strong>Importante:</strong> esta opção usa o arquivo A1 exportado (.pfx/.p12). Só use um arquivo cuja chave privada você esteja autorizado a utilizar. Clique na pré-visualização para escolher a página e o local da assinatura.
                   </div>
                   <button type="button" onClick={signSelectedPdf} disabled={!certificateFile || !certificatePassword || !signaturePlacement || signing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50">
                     {signing ? <LoaderCircle size={18} className="animate-spin" /> : <FileCheck2 size={18} />}
@@ -317,7 +420,7 @@ export default function FutureAssinadorLanding() {
 
               <div className="mt-5 flex items-start gap-3 rounded-xl bg-slate-50 p-4">
                 <LockKeyhole size={18} className="mt-0.5 shrink-0 text-violet-700" />
-                <p className="text-xs leading-5 text-slate-600">O PDF e o certificado são processados localmente no navegador durante a assinatura. Nunca compartilhe sua senha ou chave privada.</p>
+                <p className="text-xs leading-5 text-slate-600">O PDF e a chave privada não são enviados ao CRM. A opção Windows usa um componente local; a alternativa PFX/P12 processa o certificado no navegador. Nunca compartilhe sua senha ou chave privada.</p>
               </div>
               <p className="mt-4 text-center text-xs leading-5 text-slate-400">Assinatura PAdES A1 no navegador. Certificados A3, em nuvem e certificados apenas instalados no Windows ainda não são suportados por este fluxo.</p>
             </div>
