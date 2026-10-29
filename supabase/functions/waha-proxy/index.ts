@@ -1087,7 +1087,7 @@ Deno.serve(async (req: Request) => {
             vCardField("TEL") || "").trim();
           const sharedContactPhone = sharedContactPhoneRaw.replace(/^tel:/i, "").replace(/[^0-9+]/g, "");
           const sharedContactText = ["Contato compartilhado", sharedContactName ? "Nome: " + sharedContactName : "",
-            sharedContactPhone ? "Telefone: " + sharedContactPhone : ""].filter(Boolean).join("\\n");
+            sharedContactPhone ? "Telefone: " + sharedContactPhone : ""].filter(Boolean).join("\n");
           const messageType = isSharedContact ? "contact" : rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
             : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
           const messageText = isRevoked ? "[message_revoke]" : isSharedContact ? sharedContactText : String(msg?.body || msg?.text || "");
