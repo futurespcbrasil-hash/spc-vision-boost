@@ -32,11 +32,26 @@ jobs:
       - name: Restore
         run: dotnet restore apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj
 
+      - name: Review vulnerable dependencies
+        run: dotnet list apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj package --vulnerable --include-transitive
+
       - name: Build
         run: dotnet build apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj --configuration Release --no-restore
 
       - name: Publish self-contained Windows x64
         run: dotnet publish apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true --output artifacts/assinapdf/win-x64
+
+      - name: Create SHA-256 checksums
+        shell: pwsh
+        run: |
+          $root = (Resolve-Path 'artifacts/assinapdf/win-x64').Path
+          Get-ChildItem $root -File -Recurse |
+            Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+            ForEach-Object {
+              $relative = $_.FullName.Substring($root.Length + 1)
+              "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash)  $relative"
+            } |
+            Set-Content -Path (Join-Path $root 'SHA256SUMS.txt') -Encoding ascii
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
