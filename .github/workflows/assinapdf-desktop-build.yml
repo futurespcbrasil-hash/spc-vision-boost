@@ -14,6 +14,10 @@ on:
       - ".github/workflows/assinapdf-desktop-build.yml"
   workflow_dispatch:
 
+concurrency:
+  group: assinapdf-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
