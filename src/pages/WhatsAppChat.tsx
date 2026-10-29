@@ -183,9 +183,9 @@ const hasRealName = (c?: Chat | null) => {
 // Interpreta cartões de contato recebidos como vCard do WhatsApp.
 const parseSharedContact = (raw?: string | null) => {
   const text = String(raw || '');
-  if (!/^Contato compartilhado(?:\\n|$)/i.test(text)) return null;
-  const name = text.match(/(?:^|\\n)Nome:\\s*(.+)/i)?.[1]?.trim() || 'Contato sem nome';
-  const phone = text.match(/(?:^|\\n)Telefone:\\s*([+0-9().\\s-]+)/i)?.[1]?.trim() || '';
+  if (!/^Contato compartilhado(?:\n|$)/i.test(text)) return null;
+  const name = text.match(/(?:^|\n)Nome:\s*(.+)/i)?.[1]?.trim() || 'Contato sem nome';
+  const phone = text.match(/(?:^|\n)Telefone:\s*([+0-9().\s-]+)/i)?.[1]?.trim() || '';
   const digits = onlyDigits(phone);
   return { name, phone, digits };
 };
