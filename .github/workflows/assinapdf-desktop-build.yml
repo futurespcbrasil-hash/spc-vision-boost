@@ -66,11 +66,25 @@ jobs:
       - name: Publish self-contained Windows x64 application
         run: dotnet publish apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true --output artifacts/assinapdf/win-x64
 
+      - name: Prepare MSI payload without duplicate executable
+        shell: pwsh
+        run: |
+          $publishDir = (Resolve-Path 'artifacts/assinapdf/win-x64').Path
+          $staging = Join-Path $env:GITHUB_WORKSPACE 'artifacts/assinapdf/msi-staging'
+          New-Item -ItemType Directory -Force $staging | Out-Null
+          Get-ChildItem $publishDir -File -Recurse | Where-Object { $_.Name -ne 'AssinaPDF.exe' } | ForEach-Object {
+            $relative = $_.FullName.Substring($publishDir.Length + 1)
+            $destination = Join-Path $staging $relative
+            New-Item -ItemType Directory -Force (Split-Path $destination) | Out-Null
+            Copy-Item $_.FullName $destination -Force
+          }
+
       - name: Build Windows MSI with shortcuts
         shell: pwsh
         run: |
-          $publishDir = "$env:GITHUB_WORKSPACE\artifacts\assinapdf\win-x64\"
-          dotnet build apps/assinapdf-desktop/installer/AssinaPDF.Installer.wixproj --configuration Release "-p:PublishDir=$publishDir" "-p:OutputPath=$env:GITHUB_WORKSPACE\artifacts\assinapdf\installer\"
+          $staging = "$env:GITHUB_WORKSPACE\artifacts\assinapdf\msi-staging\"
+          $appExe = "$env:GITHUB_WORKSPACE\artifacts\assinapdf\win-x64\AssinaPDF.exe"
+          dotnet build apps/assinapdf-desktop/installer/AssinaPDF.Installer.wixproj --configuration Release "-p:PublishDir=$staging" "-p:AppExePath=$appExe" "-p:OutputPath=$env:GITHUB_WORKSPACE\artifacts\assinapdf\installer\"
           if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o MSI.' }
 
       - name: Verify MSI package
