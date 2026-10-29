@@ -482,6 +482,8 @@ const WhatsAppChat = () => {
   const [saveContactOpen, setSaveContactOpen] = useState(false);
   const [contactNameInput, setContactNameInput] = useState('');
   const [savingContact, setSavingContact] = useState(false);
+  const [sharedContactPhotos, setSharedContactPhotos] = useState<Record<string, string>>({});
+  const sharedContactPhotoFetched = useRef<Set<string>>(new Set());
 
   // Info do grupo
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
@@ -507,6 +509,28 @@ const WhatsAppChat = () => {
   const timerRef = useRef<number | null>(null);
   const cancelRecRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Carrega fotos dos contatos compartilhados quando a WAHA disponibiliza a foto de perfil.
+  useEffect(() => {
+    if (!instanceId) return;
+    const contacts = messages.map(message => parseSharedContact(message.text))
+      .filter((contact): contact is { name: string; phone: string; digits: string } => !!contact?.digits)
+      .slice(-12);
+    for (const contact of contacts) {
+      const digits = contact.digits;
+      const cacheKey = instanceId + ':' + digits;
+      if (sharedContactPhotoFetched.current.has(cacheKey)) continue;
+      sharedContactPhotoFetched.current.add(cacheKey);
+      let phone = digits;
+      if (phone.length <= 11 && !phone.startsWith('55')) phone = '55' + phone;
+      void waha.getProfilePic(instanceId, phone + '@c.us').then((result: any) => {
+        const url = typeof result?.url === 'string' ? result.url : '';
+        if (url) setSharedContactPhotos(previous => ({ ...previous, [digits]: url }));
+      }).catch(() => {
+        // Foto opcional: mantém o avatar com iniciais se a WAHA não retornar imagem.
+      });
+    }
+  }, [messages, instanceId]);
 
   // Paste handler for prints/images from clipboard
   useEffect(() => {
@@ -2684,9 +2708,17 @@ const WhatsAppChat = () => {
                             return (
                               <div className="w-[250px] max-w-full overflow-hidden rounded-xl border border-emerald-200/80 bg-white text-slate-900 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100">
                                 <div className="flex items-center gap-3 p-3">
-                                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${getAvatarColor(sharedContact.name)} text-sm font-bold`}>
-                                    {getInitials(sharedContact.name)}
-                                  </div>
+                                  {sharedContactPhotos[sharedContact.digits] ? (
+                                    <img src={sharedContactPhotos[sharedContact.digits]} alt={sharedContact.name} loading="lazy" className="h-12 w-12 shrink-0 rounded-full object-cover" onError={() => setSharedContactPhotos(previous => {
+                                      const next = { ...previous };
+                                      delete next[sharedContact.digits];
+                                      return next;
+                                    })} />
+                                  ) : (
+                                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${getAvatarColor(sharedContact.name)} text-sm font-bold`}>
+                                      {getInitials(sharedContact.name)}
+                                    </div>
+                                  )}
                                   <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold">{sharedContact.name}</p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">{sharedContact.phone || 'Telefone não informado'}</p>
