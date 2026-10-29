@@ -1068,9 +1068,29 @@ Deno.serve(async (req: Request) => {
           const rawType = String(msg?.type || msg?.media?.mimetype || "").toLowerCase();
           const isRevoked = rawType.includes("revok") || rawType.includes("protocol") ||
             msg?.isRevoked === true || msg?._data?.isRevoked === true;
-          const messageType = rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
+          const vCardRaw = Array.isArray(msg?.vCards) ? msg.vCards[0]
+            : typeof msg?.vcard === "string" ? msg.vcard
+            : typeof msg?.vCard === "string" ? msg.vCard
+            : typeof msg?.body === "string" && /BEGIN:VCARD/i.test(msg.body) ? msg.body
+            : typeof msg?.text === "string" && /BEGIN:VCARD/i.test(msg.text) ? msg.text
+            : typeof msg?._data?.message?.contactMessage?.vcard === "string" ? msg._data.message.contactMessage.vcard
+            : "";
+          const isSharedContact = !!vCardRaw || rawType.includes("vcard") || rawType.includes("contact");
+          const vCardField = (key: string) => {
+            const match = String(vCardRaw || "").match(new RegExp("^" + key + "(?:;[^:]*)?:(.*)$", "im"));
+            return match?.[1]?.trim().replace(/\\n/g, " ") || "";
+          };
+          const sharedContactName = String(msg?.contact?.name || msg?.contactName || msg?.displayName ||
+            vCardField("FN") || vCardField("N") || "").replace(/\\;/g, ";").trim();
+          const sharedContactPhoneRaw = String(msg?.contact?.phone || msg?.contact?.number ||
+            (Array.isArray(msg?.contact?.phones) ? msg.contact.phones[0] : "") ||
+            vCardField("TEL") || "").trim();
+          const sharedContactPhone = sharedContactPhoneRaw.replace(/^tel:/i, "").replace(/[^0-9+]/g, "");
+          const sharedContactText = ["Contato compartilhado", sharedContactName ? "Nome: " + sharedContactName : "",
+            sharedContactPhone ? "Telefone: " + sharedContactPhone : ""].filter(Boolean).join("\\n");
+          const messageType = isSharedContact ? "contact" : rawType.includes("image") ? "image" : rawType.includes("audio") || rawType.includes("ptt") ? "audio"
             : rawType.includes("video") ? "video" : msg?.hasMedia ? "document" : "text";
-          const messageText = isRevoked ? "[message_revoke]" : String(msg?.body || msg?.text || "");
+          const messageText = isRevoked ? "[message_revoke]" : isSharedContact ? sharedContactText : String(msg?.body || msg?.text || "");
           messageRecordsById.set(waMessageId, {
             chat_id: messageChatId,
             instance_id: inst.id,
