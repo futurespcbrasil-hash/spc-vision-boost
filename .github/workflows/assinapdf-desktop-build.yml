@@ -44,10 +44,16 @@ jobs:
       - name: Publish self-contained Windows x64
         run: dotnet publish apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true --output artifacts/assinapdf/win-x64
 
+      - name: Build per-user Windows MSI installer
+        shell: pwsh
+        run: |
+          $publishDir = "$env:GITHUB_WORKSPACE\artifacts\assinapdf\win-x64\"
+          dotnet build apps/assinapdf-desktop/installer/AssinaPDF.Installer.wixproj --configuration Release "-p:PublishDir=$publishDir" "-p:OutputPath=$env:GITHUB_WORKSPACE\artifacts\assinapdf\installer\"
+
       - name: Create SHA-256 checksums
         shell: pwsh
         run: |
-          $root = (Resolve-Path 'artifacts/assinapdf/win-x64').Path
+          $root = (Resolve-Path 'artifacts/assinapdf').Path
           Get-ChildItem $root -File -Recurse |
             Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
             ForEach-Object {
@@ -60,6 +66,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AssinaPDF-desktop-win-x64-prototype
-          path: artifacts/assinapdf/win-x64/
+          path: artifacts/assinapdf/
           if-no-files-found: error
           retention-days: 14
