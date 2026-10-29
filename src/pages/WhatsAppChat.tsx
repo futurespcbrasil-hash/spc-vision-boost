@@ -2660,15 +2660,29 @@ const WhatsAppChat = () => {
                                 }
                               }} />
                           )}
-                          {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').startsWith('audio')) && (
-                            <div className="flex flex-col gap-1 min-w-[200px]">
-                              <audio controls preload="metadata" className="w-full h-8">
-                                <source src={m.media_url} type={m.media_mime || 'audio/ogg; codecs=opus'} />
-                                <source src={m.media_url} type="audio/mpeg" />
-                                <source src={m.media_url} type="audio/mp4" />
-                                <source src={m.media_url} type="audio/wav" />
-                              </audio>
-                              <a href={m.media_url} target="_blank" rel="noreferrer" className="text-[10px] underline opacity-50 px-2" download>Baixar áudio</a>
+                          {m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt' || (m.media_mime || '').toLowerCase().startsWith('audio/')) && (
+                            <div className="min-w-[220px] max-w-[320px] rounded-lg bg-black/5 dark:bg-white/5 p-2">
+                              <audio
+                                key={m.id + ':' + m.media_url}
+                                src={m.media_url}
+                                controls
+                                preload="metadata"
+                                playsInline
+                                className="block w-full h-10"
+                                onError={async (event) => {
+                                  const audio = event.currentTarget;
+                                  if (audio.dataset.mediaRetry === '1' || !selected?.instance_id) return;
+                                  audio.dataset.mediaRetry = '1';
+                                  try {
+                                    const resolved = await waha.resolveMedia(selected.instance_id, m.id);
+                                    if (typeof resolved?.url === 'string' && resolved.url && resolved.url !== m.media_url) {
+                                      setMessages(current => current.map(item => item.id === m.id ? { ...item, media_url: resolved.url } : item));
+                                    }
+                                  } catch (error) {
+                                    console.warn('[WhatsApp] Falha ao carregar áudio no player', m.id, error);
+                                  }
+                                }}
+                              />
                             </div>
                           )}
                           {!m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt') && (
