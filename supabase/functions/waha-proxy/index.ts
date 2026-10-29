@@ -1076,7 +1076,24 @@ Deno.serve(async (req: Request) => {
             instance_id: inst.id,
             wa_message_id: waMessageId,
             from_me: fromMe,
-            sender: fromMe ? "me" : (messageGroupJid ? String(msg?.participant || msg?._data?.id?.participant || msg?.author || "") : (number || chat.contact_number || "")),
+            sender: fromMe ? "me" : (messageGroupJid ? (() => {
+              // Em grupos, participant pode ser um LID privado (ex.: 1203...@lid),
+              // que NÃO é telefone. Preferimos o JID alternativo real fornecido pela WAHA.
+              const info = msg?._data?.Info || msg?.info || {};
+              const participant = String(msg?.participant || msg?._data?.id?.participant || msg?.author || "");
+              const alternate = String(info.SenderAlt || msg?.SenderAlt || info.ParticipantAlt ||
+                msg?.participantAlt || msg?._data?.Info?.ParticipantAlt || "");
+              const phoneJid = (value: string) => {
+                const match = value.match(/(?:^|:)(\\d{8,15})@s\\.whatsapp\\.net/i);
+                return match?.[1] || "";
+              };
+              const realPhone = phoneJid(alternate) || phoneJid(participant);
+              if (realPhone) return realPhone;
+              const pushName = String(msg?.pushName || info.PushName || msg?._data?.pushName || "").trim();
+              // Nunca exibir os dígitos de @lid como se fossem o telefone do participante.
+              if (participant.endsWith("@lid")) return pushName || "Participante do grupo";
+              return pushName || participant.replace(/@.*$/, "") || "Participante do grupo";
+            })() : (number || chat.contact_number || "")),
             message_type: messageType,
             text: messageText,
             media_url: msg?.media?.url || msg?.mediaUrl || null,
