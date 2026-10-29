@@ -105,6 +105,14 @@ jobs:
           Copy-Item 'public/logo-future.png' (Join-Path $resources 'logo-future.png') -Force
           if ((Get-Item (Join-Path $resources 'AssinaPDF-portable.zip')).Length -lt 1000000) { throw 'Pacote portátil não foi criado corretamente.' }
 
+      - name: Validate launcher branding assets
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'public/favicon.ico')) { throw 'Ícone da Future Soluções não encontrado em public/favicon.ico.' }
+          if (-not (Test-Path 'public/logo-future.png')) { throw 'Logo PNG da Future Soluções não encontrada.' }
+          if (-not (Test-Path 'apps/assinapdf-desktop/launcher/Resources/AssinaPDF-Setup-x64.msi')) { throw 'MSI não foi incorporado ao launcher.' }
+          if (-not (Test-Path 'apps/assinapdf-desktop/launcher/Resources/AssinaPDF-portable.zip')) { throw 'Pacote portátil não foi incorporado ao launcher.' }
+
       - name: Restore launcher
         run: dotnet restore apps/assinapdf-desktop/launcher/AssinaPDF.Launcher.csproj
 
