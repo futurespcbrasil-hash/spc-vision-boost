@@ -64,7 +64,7 @@ jobs:
       - name: Write artifact instructions
         shell: pwsh
         run: |
-          @'
+          $readme = @'
           AssinaPDF Desktop — Windows x64 (build de desenvolvimento)
 
           Conteúdo:
@@ -78,7 +78,8 @@ jobs:
           - O Microsoft Edge WebView2 Runtime precisa estar instalado.
           - O instalador ainda não possui assinatura Authenticode da Future Soluções.
           - Teste com PDFs e certificados reais e valide as assinaturas em ferramenta independente antes de uso oficial.
-          '@ | Set-Content 'artifacts/assinapdf/LEIA-ME.txt' -Encoding utf8
+          '@
+          $readme | Set-Content 'artifacts/assinapdf/LEIA-ME.txt' -Encoding utf8
 
       - name: Create SHA-256 checksums
         shell: pwsh
