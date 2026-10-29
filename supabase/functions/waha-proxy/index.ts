@@ -736,6 +736,26 @@ Deno.serve(async (req: Request) => {
           const candidateTime = parseRemoteTime(candidateRawTime);
           const candidateHasHistory = !!(candidateTime || candidateText.trim() || candidateHasMedia);
           if (!candidateHasHistory) continue;
+
+          // Some WAHA overviews emit the same contact twice: once as a private @lid
+          // without a phone and once as @c.us. When the last-message identity matches
+          // exactly, ignore only the phone-less alias; never infer a phone from LID digits.
+          if (!candidateGroup && candidateId.endsWith("@lid") && candidatePhone.length < 10 &&
+              candidateTime > 0 && candidateText.trim()) {
+            const exactPhoneAliasCount = chats.filter((other: any) => {
+              const otherIdValue = other?.id?._serialized || other?.id || other?.chatId || other?.wa_chat_id;
+              const otherId = typeof otherIdValue === "string" ? otherIdValue : "";
+              if (!otherId.endsWith("@c.us") || otherId === candidateId) return false;
+              const otherLast = other?.lastMessage || other?.last_message || {};
+              const otherText = typeof otherLast === "string" ? otherLast : String(otherLast?.body || otherLast?.text || otherLast?.caption || "");
+              const otherTimeValue = otherLast?.timestamp || other?.timestamp || other?.lastMessageAt || null;
+              return phoneKey(otherId.split("@")[0]).length >= 10 &&
+                otherText.trim() === candidateText.trim() &&
+                parseRemoteTime(otherTimeValue) === candidateTime;
+            }).length;
+            if (exactPhoneAliasCount === 1) continue;
+          }
+
           const key = candidateGroup ? `group:${candidateId}`
             : candidatePhone.length >= 10 ? `phone:${candidatePhone}` : `chat:${candidateId}`;
           const previous = remoteChatsByKey.get(key);

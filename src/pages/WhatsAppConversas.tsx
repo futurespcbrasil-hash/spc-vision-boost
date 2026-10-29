@@ -198,7 +198,23 @@ export default function WhatsAppConversas() {
   const selectedInstance = useMemo(() => instances.find((item) => item.id === instanceId) || null, [instances, instanceId]);
   const deduplicatedChats = useMemo(() => {
     const groups = new Map<string, Chat[]>();
-    for (const chat of chats) {
+    // Hide a legacy phone-less @lid alias only when exactly one real-phone chat
+    // in the same instance has the identical last-message summary and timestamp.
+    const visibleChats = chats.filter((chat) => {
+      if (chat.is_group || !chat.wa_chat_id.endsWith('@lid') ||
+          onlyDigits(chat.contact_number || '').length >= 10) return true;
+      const matches = chats.filter((other) =>
+        other.id !== chat.id &&
+        other.instance_id === chat.instance_id &&
+        !other.is_group &&
+        other.wa_chat_id.endsWith('@c.us') &&
+        onlyDigits(other.contact_number || '').length >= 10 &&
+        (other.last_message || '') === (chat.last_message || '') &&
+        !!chat.last_message_at && other.last_message_at === chat.last_message_at
+      );
+      return matches.length !== 1;
+    });
+    for (const chat of visibleChats) {
       if (chat.wa_chat_id === 'status@broadcast' || chat.wa_chat_id.endsWith('@newsletter') || chat.wa_chat_id.endsWith('@broadcast')) continue;
       const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(chat.contact_number || (chat.wa_chat_id.endsWith('@lid') ? '' : chat.wa_chat_id));
       const groupKey = key.length >= 10 ? key : `chat:${chat.id}`;

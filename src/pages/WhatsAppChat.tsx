@@ -104,7 +104,7 @@ const canonicalWhatsAppPhone = (value: string) => {
 
 // Guard the list against legacy duplicate rows while the backend consolidation runs.
 // Group conversations remain separate; only individual chats with a real phone are merged.
-const deduplicateChatsForDisplay = <T extends { id: string; wa_chat_id: string; contact_number: string; is_group: boolean; last_message_at?: string | null; unread_count?: number }>(items: T[]): T[] => {
+const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string; wa_chat_id: string; contact_number: string; contact_name?: string | null; last_message?: string | null; is_group: boolean; last_message_at?: string | null; unread_count?: number }>(items: T[]): T[] => {
   const byPhone = new Map<string, T>();
   const passthrough: T[] = [];
   for (const item of items) {
@@ -129,7 +129,22 @@ const deduplicateChatsForDisplay = <T extends { id: string; wa_chat_id: string; 
       byPhone.set(phone, item);
     }
   }
-  return [...passthrough, ...byPhone.values()];
+  const phoneChats = [...byPhone.values()];
+  // Hide a legacy phone-less @lid row only when one real-phone chat in the same
+  // instance has the exact same last-message text and timestamp.
+  const safePassthrough = passthrough.filter((item) => {
+    if (item.is_group || !item.wa_chat_id?.endsWith('@lid') ||
+        canonicalWhatsAppPhone(item.contact_number || '').length >= 10) return true;
+    const matches = phoneChats.filter((other) =>
+      !other.is_group &&
+      (!item.instance_id || !other.instance_id || item.instance_id === other.instance_id) &&
+      canonicalWhatsAppPhone(other.contact_number || '').length >= 10 &&
+      (other.last_message || '') === (item.last_message || '') &&
+      !!item.last_message_at && other.last_message_at === item.last_message_at
+    );
+    return matches.length !== 1;
+  });
+  return [...safePassthrough, ...phoneChats];
 };
 
 // Aceita valores brasileiros (1.000,00) e valores digitados com ponto decimal (1000.00).
