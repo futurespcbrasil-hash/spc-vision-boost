@@ -1006,12 +1006,83 @@ const WhatsAppChat = () => {
   }, [selected?.id]);
 
   // Load messages (últimas 80, ordem crescente na tela — muito mais rápido)
+  // Sincroniza a conversa com o funil SPC: resolve vínculos antigos pelo telefone
+  // quando houver exatamente um lead correspondente, registra a interação e move
+  // somente leads novos para "em_negociacao" (sem reabrir vendas/perdas/retornos).
   const touchLeadInteraction = useCallback(async (chat: Chat | null | undefined, timestamp?: string) => {
-    if (!chat?.lead_id) return;
+    if (!chat) return;
     const parsed = timestamp ? new Date(timestamp) : new Date();
     const interactionAt = Number.isFinite(parsed.getTime()) ? parsed.toISOString() : new Date().toISOString();
-    const { error } = await supabase.from('leads').update({ last_interaction_at: interactionAt }).eq('id', chat.lead_id);
-    if (error) console.warn('[WhatsApp] Não foi possível atualizar a última interação do lead:', error.message);
+    let leadId = chat.lead_id || null;
+    let matchedLead: { id: string; status: string | null; funnel: string | null } | null = null;
+
+    const normalizeLeadPhone = (value: string) => {
+      let digits = onlyDigits(value);
+      if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+      if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
+      return digits;
+    };
+
+    if (!leadId) {
+      const contactPhone = normalizeLeadPhone(chat.contact_number || '');
+      if (contactPhone.length < 10 || chat.is_group) return;
+      const { data: leads, error: lookupError } = await supabase.from('leads')
+        .select('id,phone,whatsapp,status,funnel');
+      if (lookupError) {
+        console.warn('[WhatsApp] Não foi possível localizar lead para sincronização:', lookupError.message);
+        return;
+      }
+      const matches = (leads || []).filter((lead: any) => {
+        const numbers = [normalizeLeadPhone(lead.phone || ''), normalizeLeadPhone(lead.whatsapp || '')].filter(Boolean);
+        return numbers.some(number => number === contactPhone ||
+          (number.length >= 10 && contactPhone.length >= 10 && number.slice(-10) === contactPhone.slice(-10)));
+      });
+      const uniqueMatches = Array.from(new Map<string, any>(matches.map((lead: any) => [lead.id, lead] as [string, any])).values());
+      // Não vincular automaticamente quando o número aponta para mais de um cadastro.
+      if (uniqueMatches.length !== 1) return;
+      matchedLead = uniqueMatches[0];
+      leadId = matchedLead.id;
+    }
+
+    const { data: currentLead, error: leadLookupError } = matchedLead
+      ? { data: matchedLead, error: null }
+      : await supabase.from('leads').select('id,status,funnel').eq('id', leadId).maybeSingle();
+    if (leadLookupError || !currentLead) {
+      if (leadLookupError) console.warn('[WhatsApp] Não foi possível carregar o lead:', leadLookupError.message);
+      return;
+    }
+
+    const nextStatus = currentLead.funnel === 'spc' && currentLead.status === 'lead_novo'
+      ? 'em_negociacao'
+      : currentLead.status;
+    const { error: updateError } = await supabase.from('leads').update({
+      last_interaction_at: interactionAt,
+      ...(nextStatus && nextStatus !== currentLead.status ? { status: nextStatus } : {}),
+    }).eq('id', leadId);
+    if (updateError) {
+      console.warn('[WhatsApp] Não foi possível sincronizar a interação do lead:', updateError.message);
+      return;
+    }
+
+    if (!chat.lead_id) {
+      const { error: linkError } = await (supabase as any).from('whatsapp_chats')
+        .update({ lead_id: leadId, funnel_stage: nextStatus || currentLead.status })
+        .eq('id', chat.id);
+      if (linkError) {
+        console.warn('[WhatsApp] Lead atualizado, mas não foi possível vincular a conversa:', linkError.message);
+      } else {
+        setSelected(prev => prev?.id === chat.id ? { ...prev, lead_id: leadId, funnel_stage: nextStatus || currentLead.status } : prev);
+        setChats(prev => prev.map(item => item.id === chat.id
+          ? { ...item, lead_id: leadId, funnel_stage: nextStatus || currentLead.status }
+          : item));
+      }
+    } else if (nextStatus && nextStatus !== chat.funnel_stage) {
+      const { error: stageError } = await (supabase as any).from('whatsapp_chats')
+        .update({ funnel_stage: nextStatus }).eq('id', chat.id);
+      if (stageError) console.warn('[WhatsApp] Não foi possível atualizar a etapa da conversa:', stageError.message);
+      setSelected(prev => prev?.id === chat.id ? { ...prev, funnel_stage: nextStatus } : prev);
+      setChats(prev => prev.map(item => item.id === chat.id ? { ...item, funnel_stage: nextStatus } : item));
+    }
   }, []);
 
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
