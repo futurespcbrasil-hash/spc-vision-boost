@@ -31,6 +31,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare PDF.js assets for visual placement
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force 'artifacts/assinapdf' | Out-Null
+          New-Item -ItemType Directory -Force 'apps/assinapdf-desktop/src/AssinaPDF.Desktop/viewer' | Out-Null
+          npm pack pdfjs-dist@4.10.38 --pack-destination artifacts/assinapdf --silent
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar o renderizador PDF.js.' }
+          $archive = Get-ChildItem 'artifacts/assinapdf' -Filter 'pdfjs-dist-*.tgz' -File | Select-Object -First 1
+          if (-not $archive) { throw 'Pacote PDF.js não encontrado.' }
+          $extract = Join-Path $env:RUNNER_TEMP 'pdfjs-package'
+          New-Item -ItemType Directory -Force $extract | Out-Null
+          tar -xf $archive.FullName -C $extract
+          Copy-Item (Join-Path $extract 'package/build/pdf.mjs') 'apps/assinapdf-desktop/src/AssinaPDF.Desktop/viewer/pdf.mjs' -Force
+          Copy-Item (Join-Path $extract 'package/build/pdf.worker.mjs') 'apps/assinapdf-desktop/src/AssinaPDF.Desktop/viewer/pdf.worker.mjs' -Force
+
       - name: Install .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
