@@ -1084,7 +1084,7 @@ Deno.serve(async (req: Request) => {
               const alternate = String(info.SenderAlt || msg?.SenderAlt || info.ParticipantAlt ||
                 msg?.participantAlt || msg?._data?.Info?.ParticipantAlt || "");
               const phoneJid = (value: string) => {
-                const match = value.match(/(?:^|:)(\\d{8,15})@s\\.whatsapp\\.net/i);
+                const match = value.match(/(?:^|:)(\d{8,15})@s\.whatsapp\.net/i);
                 return match?.[1] || "";
               };
               const realPhone = phoneJid(alternate) || phoneJid(participant);
