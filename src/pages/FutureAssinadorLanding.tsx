@@ -118,7 +118,7 @@ export default function FutureAssinadorLanding() {
   }, [refreshWindowsCertificates]);
 
   const signWithWindowsCertificate = async () => {
-    if (!selectedFile || !signaturePlacement || !selectedWindowsThumbprint || signing) return;
+    if (!selectedFile || !signaturePlacement || signing) return;
     setSigning(true);
     setSigningError("");
     setSigningMessage("Enviando o PDF ao componente local para assinatura…");
@@ -133,7 +133,6 @@ export default function FutureAssinadorLanding() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          thumbprint: selectedWindowsThumbprint,
           pdfBase64: btoa(binary),
           fileName: selectedFile.name.replace(/\.pdf$/i, "") + "-assinado.pdf",
           page: signaturePlacement.pageIndex + 1,
@@ -368,27 +367,17 @@ export default function FutureAssinadorLanding() {
                   <div className={"rounded-xl p-3 text-sm leading-5 " + (windowsAgentStatus === "online" ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900")} role="status">
                     {windowsAgentMessage || "Verificando o componente local Future Assinador…"}
                   </div>
-                  {windowsAgentStatus === "online" && windowsCertificates.length > 0 && (
-                    <div>
-                      <label htmlFor="future-windows-certificate" className="mb-1.5 block text-sm font-bold text-slate-700">Certificado disponível</label>
-                      <select id="future-windows-certificate" value={selectedWindowsThumbprint} onChange={(event) => setSelectedWindowsThumbprint(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100">
-                        {windowsCertificates.map((certificate) => (
-                          <option key={certificate.thumbprint} value={certificate.thumbprint}>
-                            {certificate.name} · vence em {new Date(certificate.expiresAt).toLocaleDateString("pt-BR")} · {certificate.algorithm}
-                          </option>
-                        ))}
-                      </select>
-                      {selectedWindowsThumbprint && <p className="mt-1 break-all text-xs text-slate-500">Emissor: {windowsCertificates.find((certificate) => certificate.thumbprint === selectedWindowsThumbprint)?.issuer}</p>}
-                    </div>
-                  )}
+                  <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm leading-6 text-violet-950">
+                    Ao clicar em <strong>Assinar</strong>, o componente abre o seletor nativo do Windows. Escolha ali o certificado instalado; não é necessário selecionar um certificado nesta página.
+                  </div>
                   <button type="button" onClick={() => void refreshWindowsCertificates(true)} disabled={windowsAgentStatus === "checking" || signing} className="w-full rounded-xl border border-violet-200 px-4 py-2.5 text-sm font-bold text-violet-800 hover:bg-violet-50 disabled:opacity-50">
                     {windowsAgentStatus === "checking" ? "Verificando…" : "Atualizar certificados do Windows"}
                   </button>
-                  <button type="button" onClick={signWithWindowsCertificate} disabled={windowsAgentStatus !== "online" || !windowsCertificates.length || !selectedWindowsThumbprint || !signaturePlacement || signing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={signWithWindowsCertificate} disabled={windowsAgentStatus !== "online" || !signaturePlacement || signing} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-extrabold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50">
                     {signing ? <LoaderCircle size={18} className="animate-spin" /> : <FileCheck2 size={18} />}
                     {signing ? "Assinando com certificado do Windows…" : signaturePlacement ? "Assinar com certificado instalado" : "Escolha a área de assinatura acima"}
                   </button>
-                  <p className="text-xs leading-5 text-slate-500">Se o componente local não estiver instalado/aberto, esta opção ainda não funcionará. O PDF e a chave privada não são enviados ao CRM.</p>
+                  <p className="text-xs leading-5 text-slate-500">O seletor nativo do Windows abre ao clicar. É necessário que o componente Future Assinador esteja em execução neste computador. O PDF é processado localmente e a chave privada não é enviada ao CRM.</p>
                 </section>
               )}
 
