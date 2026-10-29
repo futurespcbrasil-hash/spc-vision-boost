@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feat/assinapdf-desktop-foundation
     paths:
       - "apps/assinapdf-desktop/**"
       - ".github/workflows/assinapdf-desktop-build.yml"
