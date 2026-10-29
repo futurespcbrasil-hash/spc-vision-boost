@@ -35,6 +35,9 @@ jobs:
       - name: Review vulnerable dependencies
         run: dotnet list apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj package --vulnerable --include-transitive
 
+      - name: Test PAdES signing
+        run: dotnet test apps/assinapdf-desktop/tests/AssinaPDF.Desktop.Tests/AssinaPDF.Desktop.Tests.csproj --configuration Release
+
       - name: Build
         run: dotnet build apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj --configuration Release --no-restore
 
