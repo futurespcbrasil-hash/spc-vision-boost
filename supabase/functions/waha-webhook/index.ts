@@ -199,7 +199,7 @@ Deno.serve(async (req: Request) => {
   const mediaUrl = str(payload?.media?.url || payload?.mediaUrl) || null;
   const avatar = str(payload?._data?.profilePicThumbObj?.eurl || payload?.profilePictureUrl) || null;
 
-  let { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
+  let { data: existingChat } = await db.from("whatsapp_chats").select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to,lead_id,funnel_stage")
     .eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
   // If WAHA alternates between a phone JID and a LID, match by the alternate phone JID.
   if (contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
@@ -273,6 +273,55 @@ Deno.serve(async (req: Request) => {
       return databaseFailure("message_insert", error, "Failed to persist message");
     }
   }
+  // Keep the SPC funnel synchronized for every persisted WhatsApp interaction
+  // (incoming or outgoing), including legacy chats that were never linked to a lead.
+  if (!waChatId.endsWith("@g.us") && chatId) {
+    try {
+      let leadId = str(existingChat?.lead_id) || "";
+      let linkedLead: any = null;
+      if (leadId) {
+        const { data, error } = await db.from("leads").select("id,status,funnel,phone,whatsapp")
+          .eq("id", leadId).maybeSingle();
+        if (error) throw error;
+        linkedLead = data;
+      } else if (contactNumber.length >= 10) {
+        const { data: leads, error } = await db.from("leads")
+          .select("id,status,funnel,phone,whatsapp");
+        if (error) throw error;
+        const incomingPhone = normalizeWhatsAppPhone(contactNumber);
+        const matches = (leads || []).filter((lead: any) =>
+          [lead.phone, lead.whatsapp].filter(Boolean).some((value: string) =>
+            normalizeWhatsAppPhone(value) === incomingPhone
+          )
+        );
+        const uniqueMatches = Array.from(new Map<string, any>(matches.map((lead: any) => [lead.id, lead])).values());
+        // Only auto-link an unambiguous phone match; never attach the wrong customer.
+        if (uniqueMatches.length === 1) {
+          linkedLead = uniqueMatches[0];
+          leadId = linkedLead.id;
+        }
+      }
+      if (linkedLead && leadId) {
+        const nextStatus = linkedLead.funnel === "spc" && linkedLead.status === "lead_novo"
+          ? "em_negociacao"
+          : linkedLead.status;
+        const { error: leadUpdateError } = await db.from("leads").update({
+          last_interaction_at: sentAt,
+          ...(nextStatus && nextStatus !== linkedLead.status ? { status: nextStatus } : {}),
+        }).eq("id", leadId);
+        if (leadUpdateError) throw leadUpdateError;
+        const { error: chatLinkError } = await db.from("whatsapp_chats").update({
+          lead_id: leadId,
+          funnel_stage: nextStatus || linkedLead.status,
+        }).eq("id", chatId);
+        if (chatLinkError) throw chatLinkError;
+      }
+    } catch (error) {
+      logDatabaseFailure("lead_interaction_sync", error as { code?: unknown });
+      // Do not reject an otherwise valid WhatsApp message because CRM sync failed.
+    }
+  }
+
   // Increment unread only after the message has been accepted by the unique message-ID
   // constraint. This prevents duplicate message/message.any deliveries from inflating the badge.
   if (!fromMe && messageId) {
