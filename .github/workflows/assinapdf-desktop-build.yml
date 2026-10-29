@@ -1,0 +1,145 @@
+name: AssinaPDF Desktop - Windows x64
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/assinapdf-desktop/**"
+      - ".github/workflows/assinapdf-desktop-build.yml"
+      - "public/logo-future.png"
+      - "public/favicon.ico"
+  pull_request:
+    paths:
+      - "apps/assinapdf-desktop/**"
+      - ".github/workflows/assinapdf-desktop-build.yml"
+      - "public/logo-future.png"
+      - "public/favicon.ico"
+  workflow_dispatch:
+
+concurrency:
+  group: assinapdf-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-x64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare PDF.js assets for visual placement
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force 'artifacts/assinapdf' | Out-Null
+          New-Item -ItemType Directory -Force 'apps/assinapdf-desktop/src/AssinaPDF.Desktop/viewer' | Out-Null
+          npm pack pdfjs-dist@4.10.38 --pack-destination artifacts/assinapdf --silent
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar o renderizador PDF.js.' }
+          $archive = Get-ChildItem 'artifacts/assinapdf' -Filter 'pdfjs-dist-*.tgz' -File | Select-Object -First 1
+          if (-not $archive) { throw 'Pacote PDF.js não encontrado.' }
+          $extract = Join-Path $env:RUNNER_TEMP 'pdfjs-package'
+          New-Item -ItemType Directory -Force $extract | Out-Null
+          tar -xf $archive.FullName -C $extract
+          Copy-Item (Join-Path $extract 'package/build/pdf.mjs') 'apps/assinapdf-desktop/src/AssinaPDF.Desktop/viewer/pdf.mjs' -Force
+          Copy-Item (Join-Path $extract 'package/build/pdf.worker.mjs') 'apps/assinapdf-desktop/src/AssinaPDF.Desktop/viewer/pdf.worker.mjs' -Force
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore application
+        run: dotnet restore apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj
+
+      - name: Review vulnerable dependencies
+        run: dotnet list apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj package --vulnerable --include-transitive
+
+      - name: Test PAdES signing
+        run: dotnet test apps/assinapdf-desktop/tests/AssinaPDF.Desktop.Tests/AssinaPDF.Desktop.Tests.csproj --configuration Release
+
+      - name: Build application
+        run: dotnet build apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj --configuration Release --no-restore
+
+      - name: Publish self-contained Windows x64 application
+        run: dotnet publish apps/assinapdf-desktop/src/AssinaPDF.Desktop/AssinaPDF.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true --output artifacts/assinapdf/win-x64
+
+      - name: Prepare MSI payload without duplicate executable
+        shell: pwsh
+        run: |
+          $publishDir = (Resolve-Path 'artifacts/assinapdf/win-x64').Path
+          $staging = Join-Path $env:GITHUB_WORKSPACE 'artifacts/assinapdf/msi-staging'
+          New-Item -ItemType Directory -Force $staging | Out-Null
+          Get-ChildItem $publishDir -File -Recurse | Where-Object { $_.Name -ne 'AssinaPDF.exe' } | ForEach-Object {
+            $relative = $_.FullName.Substring($publishDir.Length + 1)
+            $destination = Join-Path $staging $relative
+            New-Item -ItemType Directory -Force (Split-Path $destination) | Out-Null
+            Copy-Item $_.FullName $destination -Force
+          }
+
+      - name: Build Windows MSI with shortcuts
+        shell: pwsh
+        run: |
+          $staging = "$env:GITHUB_WORKSPACE\artifacts\assinapdf\msi-staging\"
+          $appExe = "$env:GITHUB_WORKSPACE\artifacts\assinapdf\win-x64\AssinaPDF.exe"
+          dotnet build apps/assinapdf-desktop/installer/AssinaPDF.Installer.wixproj --configuration Release "-p:PublishDir=$staging" "-p:AppExePath=$appExe" "-p:OutputPath=$env:GITHUB_WORKSPACE\artifacts\assinapdf\installer\"
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o MSI.' }
+
+      - name: Verify MSI package
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem 'artifacts/assinapdf/installer' -Filter '*.msi' -File | Select-Object -First 1
+          if (-not $msi) { throw 'O instalador MSI não foi gerado.' }
+          if ($msi.Length -lt 1000000) { throw 'O instalador MSI está inesperadamente pequeno.' }
+
+      - name: Download official Microsoft Edge WebView2 bootstrapper
+        shell: pwsh
+        run: |
+          $resources = 'apps/assinapdf-desktop/launcher/Resources'
+          New-Item -ItemType Directory -Force $resources | Out-Null
+          Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2124701' -OutFile (Join-Path $resources 'MicrosoftEdgeWebView2Setup.exe')
+          if ((Get-Item (Join-Path $resources 'MicrosoftEdgeWebView2Setup.exe')).Length -lt 100000) { throw 'Bootstrapper oficial do WebView2 não foi baixado corretamente.' }
+
+      - name: Prepare embedded launcher resources
+        shell: pwsh
+        run: |
+          $resources = 'apps/assinapdf-desktop/launcher/Resources'
+          New-Item -ItemType Directory -Force $resources | Out-Null
+          $msi = Get-ChildItem 'artifacts/assinapdf/installer' -Filter '*.msi' -File | Select-Object -First 1
+          Copy-Item $msi.FullName (Join-Path $resources 'AssinaPDF-Setup-x64.msi') -Force
+          Compress-Archive -Path 'artifacts/assinapdf/win-x64/*' -DestinationPath (Join-Path $resources 'AssinaPDF-portable.zip') -CompressionLevel Optimal -Force
+          Copy-Item 'public/logo-future.png' (Join-Path $resources 'logo-future.png') -Force
+          if ((Get-Item (Join-Path $resources 'AssinaPDF-portable.zip')).Length -lt 1000000) { throw 'Pacote portátil não foi criado corretamente.' }
+          if (-not (Test-Path (Join-Path $resources 'MicrosoftEdgeWebView2Setup.exe'))) { throw 'Bootstrapper do WebView2 não encontrado.' }
+
+      - name: Validate launcher branding assets
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'public/favicon.ico')) { throw 'Ícone da Future Soluções não encontrado em public/favicon.ico.' }
+          if (-not (Test-Path 'public/logo-future.png')) { throw 'Logo PNG da Future Soluções não encontrada.' }
+          if (-not (Test-Path 'apps/assinapdf-desktop/launcher/Resources/AssinaPDF-Setup-x64.msi')) { throw 'MSI não foi incorporado ao launcher.' }
+          if (-not (Test-Path 'apps/assinapdf-desktop/launcher/Resources/AssinaPDF-portable.zip')) { throw 'Pacote portátil não foi incorporado ao launcher.' }
+          if (-not (Test-Path 'apps/assinapdf-desktop/launcher/Resources/MicrosoftEdgeWebView2Setup.exe')) { throw 'Bootstrapper do WebView2 não foi incorporado ao launcher.' }
+
+      - name: Restore launcher
+        run: dotnet restore apps/assinapdf-desktop/launcher/AssinaPDF.Launcher.csproj
+
+      - name: Publish one-file branded launcher
+        run: dotnet publish apps/assinapdf-desktop/launcher/AssinaPDF.Launcher.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true --output artifacts/assinapdf/final
+
+      - name: Verify single-file installer
+        shell: pwsh
+        run: |
+          $exe = Get-Item 'artifacts/assinapdf/final/AssinaPDF-Iniciar.exe' -ErrorAction SilentlyContinue
+          if (-not $exe) { throw 'O executável único de instalação/uso portátil não foi gerado.' }
+          if ($exe.Length -lt 50000000) { throw "O executável único está inesperadamente pequeno ($($exe.Length) bytes)." }
+
+      - name: Upload single executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: AssinaPDF-Future-Windows-x64
+          path: artifacts/assinapdf/final/AssinaPDF-Iniciar.exe
+          if-no-files-found: error
+          retention-days: 14
