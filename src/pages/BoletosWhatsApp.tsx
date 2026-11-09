@@ -497,7 +497,17 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
           <h1 className="text-2xl font-bold">Envio de boletos</h1>
           <p className="text-sm text-muted-foreground">Importe os PDFs, confira os dados e envie os boletos aos clientes.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {stats.erros > 0 && (
+            <Button
+              onClick={reenviarTodosErros}
+              disabled={!!sending || preparandoReenvioTodos}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {preparandoReenvioTodos || sending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <RefreshCw size={16} className="mr-2" />}
+              {sending ? `Reenviando ${sending.done}/${sending.total}` : `Reenviar todos os erros (${stats.erros})`}
+            </Button>
+          )}
           <Button variant="outline" onClick={load}><RefreshCw size={16} className="mr-2" />Atualizar</Button>
           <Button onClick={() => pedirEnvio(prontos)} disabled={!!sending || !prontos.length} className="bg-green-600 hover:bg-green-700 text-white">
             <Send size={16} className="mr-2" />Enviar boletos ({prontos.length})
@@ -636,9 +646,9 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
               <div className="font-semibold">Boletos que não foram enviados</div>
               <p className="text-sm text-muted-foreground">Confira os erros. Você pode reenviar individualmente ou todos os boletos com WhatsApp válido.</p>
             </div>
-            <Button onClick={reenviarTodosErros} disabled={!!sending || preparandoReenvioTodos || stats.erros === 0} className="shrink-0">
+            <Button onClick={reenviarTodosErros} disabled={!!sending || preparandoReenvioTodos || stats.erros === 0} className="shrink-0 bg-red-600 hover:bg-red-700 text-white">
               {preparandoReenvioTodos || sending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <RefreshCw size={16} className="mr-2" />}
-              {sending ? `Enviando ${sending.done}/${sending.total}` : preparandoReenvioTodos ? 'Preparando...' : `Reenviar todos (${stats.erros})`}
+              {sending ? `Reenviando ${sending.done}/${sending.total}` : preparandoReenvioTodos ? 'Preparando reenvio...' : `REENVIAR TODOS OS ${stats.erros} BOLETOS`}
             </Button>
           </div>
           {sending && <div className="rounded-lg border p-3 space-y-2">
