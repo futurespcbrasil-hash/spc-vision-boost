@@ -489,6 +489,19 @@ Deno.serve(async (req: Request) => {
         const isSupabaseChatMedia = parsedMediaUrl.origin === supabaseOrigin
           && (parsedMediaUrl.pathname.startsWith("/storage/v1/object/sign/chat-media/")
             || parsedMediaUrl.pathname.startsWith("/storage/v1/object/public/chat-media/"));
+        // Aceita PDFs no bucket privado "boletos" somente quando a URL é assinada
+        // e o caminho pertence ao usuário autenticado.
+        const boletoMarker = "/storage/v1/object/sign/boletos/";
+        const boletoMarkerIndex = parsedMediaUrl.pathname.indexOf(boletoMarker);
+        let boletoStoragePath = "";
+        try {
+          if (boletoMarkerIndex >= 0) boletoStoragePath = decodeURIComponent(parsedMediaUrl.pathname.slice(boletoMarkerIndex + boletoMarker.length));
+        } catch { boletoStoragePath = ""; }
+        const isSupabaseBoletoMedia = parsedMediaUrl.origin === supabaseOrigin
+          && boletoMarkerIndex >= 0
+          && parsedMediaUrl.searchParams.has("token")
+          && boletoStoragePath.startsWith(`${user.id}/`)
+          && !boletoStoragePath.split("/").includes("..");
         const isWahaMedia = parsedMediaUrl.origin === wahaOrigin
           && !!wahaFileMatch
           && wahaFileMatch[1] === inst.provider_instance_name;
@@ -498,7 +511,7 @@ Deno.serve(async (req: Request) => {
             return json({ error: "Caminho da mídia inválido para esta instância." }, 403);
           }
           source = await fetch(`${wahaUrl}${parsedMediaUrl.pathname}`, { headers: { "X-Api-Key": wahaKey }, signal: AbortSignal.timeout(60_000) });
-        } else if (isSupabaseChatMedia) {
+        } else if (isSupabaseChatMedia || isSupabaseBoletoMedia) {
           source = await fetch(body.media_url, { signal: AbortSignal.timeout(60_000) });
         } else if (isWahaMedia) {
           source = await fetch(body.media_url, { headers: { "X-Api-Key": wahaKey }, signal: AbortSignal.timeout(60_000) });
