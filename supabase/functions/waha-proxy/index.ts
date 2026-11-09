@@ -11,6 +11,18 @@ const json = (body: unknown, status = 200) =>
 const cleanWebhookSecret = (value: string | null | undefined) =>
   (value || "").split(/\r?\n/)[0].replace(/\s+Copiar chave.*$/i, "").trim();
 
+// Normalize WAHA session states to the status values consumed by the CRM.
+const normalizeStatus = (value: string): string => {
+  const status = String(value || "").trim().toUpperCase();
+  if (["WORKING", "CONNECTED", "AUTHENTICATED", "ONLINE"].includes(status)) return "connected";
+  if (["SCAN_QR_CODE", "QR", "QR_CODE"].includes(status)) return "qr";
+  if (["STARTING", "STARTED", "INITIALIZING", "PAIRING"].includes(status)) return "connecting";
+  if (["STOPPED", "DISCONNECTED", "OFFLINE"].includes(status)) return "disconnected";
+  if (["FAILED", "ERROR"].includes(status)) return "error";
+  if (!status || status === "UNKNOWN") return "unknown";
+  return status.toLowerCase();
+};
+
 // Corrige números legados concatenados duas vezes, preservando números legítimos.
 const collapseRepeatedPhoneDigits = (value: unknown): string => {
   const digits = String(value || "").split("@")[0].replace(/\D/g, "");
@@ -424,7 +436,7 @@ Deno.serve(async (req: Request) => {
         target.searchParams.delete("token");
         await callWaha(`/api/sessions/${encodeURIComponent(inst.provider_instance_name)}`, "PUT", { config: { webhooks: [{
           url: target.toString(),
-          events: ["message", "message.any", "message.ack", "message.revoked", "message.revoke", "message.deleted", "message.delete", "state.change", "session.status"],
+          events: ["message", "message.any", "message.ack", "state.change", "session.status"],
           customHeaders: [{ name: "X-WAHA-Webhook-Secret", value: hookSecret }],
         }] } });
         return json({ success: true });
