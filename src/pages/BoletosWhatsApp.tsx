@@ -283,6 +283,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
       await new Promise((r) => setTimeout(r, 4000 + Math.random() * 3000));
     }
     await load();
+    setSending(null);
   };
 
   const reenviar = (b: Boleto) => {
