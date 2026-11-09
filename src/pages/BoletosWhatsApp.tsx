@@ -285,12 +285,30 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
   };
 
   const reenviar = (b: Boleto) => {
-    if (!window.confirm(`⚠️ Este boleto já foi enviado em ${dtBR(b.enviado_em)}.\n\nDeseja realmente reenviar?`)) return;
+    if (!window.confirm(`⚠️ Este boleto já foi enviado em ${dtBR(b.enviado_em)}.\\n\\nDeseja realmente reenviar?`)) return;
     supabase.from('boleto_envios').update({ status: 'pronto_envio' }).eq('id', b.id).then(async () => {
       await load();
       if (!instanceId) return toast.error('Escolha o WhatsApp de envio na aba Configurações');
       enviar([{ ...b, status: 'pronto_envio' }], true);
     });
+  };
+
+  const reenviarErro = async (b: Boleto) => {
+    if (sending) return;
+    const numero = waNumber(b.whatsapp || (b.client_id ? clienteById[b.client_id]?.whatsapp : null));
+    if (!numero) {
+      setReview({ ...b });
+      await openPdf(b);
+      return toast.error('Este boleto está sem WhatsApp. Informe o número na revisão e salve antes de reenviar.');
+    }
+    if (!instanceId) return toast.error('Escolha o WhatsApp de envio na aba Configurações');
+    if (!window.confirm(`Reenviar o boleto "${b.arquivo_nome}" para ${fmtPhone(numero)}?`)) return;
+    const { error } = await supabase.from('boleto_envios').update({
+      status: 'pronto_envio', whatsapp: numero, erro: null, api_resposta: null,
+    }).eq('id', b.id).eq('status', 'erro');
+    if (error) return toast.error('Não foi possível preparar o reenvio: ' + error.message);
+    await load();
+    await enviar([{ ...b, status: 'pronto_envio', whatsapp: numero, erro: null }]);
   };
 
   const excluir = async (b: Boleto) => {
@@ -465,6 +483,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
           <TabsTrigger value="importar">Importar</TabsTrigger>
           <TabsTrigger value="conferencia">Conferência</TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
+          <TabsTrigger value="erros">Erros ({stats.erros})</TabsTrigger>
           <TabsTrigger value="clientes">Clientes</TabsTrigger>
           <TabsTrigger value="modelos">Modelos</TabsTrigger>
           <TabsTrigger value="config">Configurações</TabsTrigger>
@@ -555,6 +574,48 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        <TabsContent value="erros" className="space-y-3">
+          <div className="rounded-xl border bg-card p-4">
+            <div className="font-semibold">Boletos que não foram enviados</div>
+            <p className="text-sm text-muted-foreground">Confira o erro registrado e use Reenviar após corrigir os dados, se necessário.</p>
+          </div>
+          {boletos.filter((b) => b.status === 'erro').length === 0
+            ? <div className="text-center text-muted-foreground py-8">Nenhum boleto com erro.</div>
+            : <div className="rounded-xl border bg-card overflow-x-auto">
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Arquivo / Cliente</TableHead><TableHead>WhatsApp</TableHead><TableHead>Erro registrado</TableHead>
+                  <TableHead className="text-right">Tentativas</TableHead><TableHead className="text-right">Ação</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {boletos.filter((b) => b.status === 'erro').map((b) => {
+                    const c = b.client_id ? clienteById[b.client_id] : null;
+                    return <TableRow key={b.id}>
+                      <TableCell className="min-w-[220px]">
+                        <div className="font-medium">{b.arquivo_nome}</div>
+                        <div className="text-xs text-muted-foreground">{c?.nome || b.nome_extraido || 'Cliente não identificado'}</div>
+                        <div className="text-xs text-muted-foreground">{brl(b.valor)} · Venc. {dateBR(b.vencimento)}</div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{fmtPhone(b.whatsapp || c?.whatsapp || null)}</TableCell>
+                      <TableCell className="min-w-[260px] max-w-[440px]">
+                        <div className="text-sm text-destructive break-words">{b.erro || b.api_resposta || 'Falha sem detalhe retornado pela API'}</div>
+                      </TableCell>
+                      <TableCell className="text-right">{b.tentativas || 0}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button size="sm" onClick={() => reenviarErro(b)} disabled={!!sending}>
+                          <RefreshCw size={14} className="mr-1" />Reenviar
+                        </Button>
+                        <Button size="icon" variant="ghost" title="Corrigir dados do boleto" onClick={() => { setReview({ ...b }); openPdf(b); }}>
+                          <Pencil size={16} />
+                        </Button>
+                      </TableCell>
+                    </TableRow>;
+                  })}
+                </TableBody>
+              </Table>
+            </div>}
         </TabsContent>
 
         <TabsContent value="historico">
