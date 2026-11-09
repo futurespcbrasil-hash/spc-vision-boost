@@ -107,6 +107,7 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [confirmSend, setConfirmSend] = useState<Boleto[] | null>(null);
   const [sending, setSending] = useState<{ total: number; ok: number; err: number; done: number } | null>(null);
+  const [preparandoReenvioTodos, setPreparandoReenvioTodos] = useState(false);
   const [clienteEdit, setClienteEdit] = useState<Partial<Cliente> | null>(null);
   const [tplEdit, setTplEdit] = useState<Partial<Template> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -309,6 +310,58 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
     if (error) return toast.error('Não foi possível preparar o reenvio: ' + error.message);
     await load();
     await enviar([{ ...b, status: 'pronto_envio', whatsapp: numero, erro: null }]);
+  };
+
+  const reenviarTodosErros = async () => {
+    if (sending || preparandoReenvioTodos) return;
+    const erros = boletos.filter((b) => b.status === 'erro');
+    if (!erros.length) return toast.info('Não há boletos com erro para reenviar.');
+
+    const preparados = erros.map((b) => ({
+      boleto: b,
+      numero: waNumber(b.whatsapp || (b.client_id ? clienteById[b.client_id]?.whatsapp : null)),
+    }));
+    const validos = preparados.filter((item) => item.numero);
+    const semNumero = preparados.length - validos.length;
+    if (!validos.length) return toast.error('Nenhum boleto com erro possui WhatsApp válido. Corrija os números antes de reenviar.');
+    if (!instanceId) return toast.error('Escolha o WhatsApp de envio na aba Configurações.');
+    const instancia = instances.find((i) => i.id === instanceId);
+    if (!instancia) return toast.error('A instância selecionada não foi encontrada. Atualize a página e escolha novamente.');
+
+    setPreparandoReenvioTodos(true);
+    try {
+      const statusAtual = await waha.status(instanceId);
+      if (statusAtual?.status !== 'connected') {
+        toast.error('O WhatsApp não está conectado à WAHA. Conecte pelo QR Code antes de reenviar.');
+        return;
+      }
+      const avisoSemNumero = semNumero ? `\\n\\n${semNumero} boleto(s) sem WhatsApp serão ignorados.` : '';
+      if (!window.confirm(`Confirma o reenvio de TODOS os ${validos.length} boletos com erro?\\n\\nOs PDFs serão enviados um por vez, com intervalo de alguns segundos.${avisoSemNumero}\\n\\nDeseja continuar?`)) return;
+
+      const fila: Boleto[] = [];
+      for (const item of validos) {
+        const { data, error } = await supabase.from('boleto_envios').update({
+          status: 'pronto_envio', whatsapp: item.numero, erro: null, api_resposta: null,
+        }).eq('id', item.boleto.id).eq('status', 'erro').select('id');
+        if (error) {
+          toast.error(`${item.boleto.arquivo_nome}: não foi possível preparar o reenvio: ${error.message}`);
+          continue;
+        }
+        if (data?.length) fila.push({ ...item.boleto, status: 'pronto_envio', whatsapp: item.numero, erro: null, api_resposta: null });
+      }
+      if (!fila.length) {
+        await load();
+        return toast.error('Nenhum boleto pôde ser preparado para reenvio.');
+      }
+      if (semNumero) toast.warning(`${semNumero} boleto(s) foram ignorados por estarem sem WhatsApp válido.`);
+      await load();
+      toast.info(`Iniciando reenvio de ${fila.length} boleto(s)...`);
+      await enviar(fila);
+    } catch (error: any) {
+      toast.error(`Falha ao preparar o reenvio em lote: ${error?.message || 'erro inesperado'}`);
+    } finally {
+      setPreparandoReenvioTodos(false);
+    }
   };
 
   const excluir = async (b: Boleto) => {
@@ -577,10 +630,21 @@ export default function BoletosWhatsApp({ initialTab = 'conferencia' }: { initia
         </TabsContent>
 
         <TabsContent value="erros" className="space-y-3">
-          <div className="rounded-xl border bg-card p-4">
-            <div className="font-semibold">Boletos que não foram enviados</div>
-            <p className="text-sm text-muted-foreground">Confira o erro registrado e use Reenviar após corrigir os dados, se necessário.</p>
+          <div className="rounded-xl border bg-card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="font-semibold">Boletos que não foram enviados</div>
+              <p className="text-sm text-muted-foreground">Confira os erros. Você pode reenviar individualmente ou todos os boletos com WhatsApp válido.</p>
+            </div>
+            <Button onClick={reenviarTodosErros} disabled={!!sending || preparandoReenvioTodos || stats.erros === 0} className="shrink-0">
+              {preparandoReenvioTodos || sending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <RefreshCw size={16} className="mr-2" />}
+              {sending ? `Enviando ${sending.done}/${sending.total}` : preparandoReenvioTodos ? 'Preparando...' : `Reenviar todos (${stats.erros})`}
+            </Button>
           </div>
+          {sending && <div className="rounded-lg border p-3 space-y-2">
+            <div className="flex justify-between text-sm"><span>Progresso do reenvio</span><span>{sending.done} de {sending.total}</span></div>
+            <Progress value={sending.total ? (sending.done / sending.total) * 100 : 0} />
+            <div className="text-xs text-muted-foreground">Enviados: {sending.ok} · Falhas: {sending.err}</div>
+          </div>}
           {boletos.filter((b) => b.status === 'erro').length === 0
             ? <div className="text-center text-muted-foreground py-8">Nenhum boleto com erro.</div>
             : <div className="rounded-xl border bg-card overflow-x-auto">
