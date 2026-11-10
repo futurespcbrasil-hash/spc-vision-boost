@@ -113,9 +113,10 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
       passthrough.push(item);
       continue;
     }
-    const current = byPhone.get(phone);
+    const key = `${item.instance_id || 'unknown-instance'}:${phone}`;
+    const current = byPhone.get(key);
     if (!current) {
-      byPhone.set(phone, item);
+      byPhone.set(key, item);
       continue;
     }
     const currentIsLid = current.wa_chat_id?.endsWith('@lid');
@@ -126,7 +127,7 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
     if ((itemIsLid && !currentIsLid) ||
         (itemIsLid === currentIsLid && ((item.unread_count || 0) > (current.unread_count || 0) ||
           ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)))) {
-      byPhone.set(phone, item);
+      byPhone.set(key, item);
     }
   }
   const phoneChats = [...byPhone.values()];
@@ -881,7 +882,7 @@ const WhatsAppChat = () => {
     if (cur && (inboxAllInstances ? visibleInstanceIds.includes(cur.instance_id) : cur.instance_id === instanceId)) {
       const fresh = list.find(c => c.id === cur.id)
         || (!cur.is_group ? list.find(c => !c.is_group &&
-          canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
+          c.instance_id === cur.instance_id && canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
       if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
       else {
         const fallbackChat = list[0] || null;
@@ -894,7 +895,7 @@ const WhatsAppChat = () => {
       const savedChat = sourceRows.find(chat => chat.id === savedChatId);
       const savedPhone = savedChat && !savedChat.is_group ? canonicalWhatsAppPhone(savedChat.contact_number || '') : '';
       const restored = list.find(chat => chat.id === savedChatId)
-        || (savedPhone ? list.find(chat => !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
+        || (savedPhone ? list.find(chat => chat.instance_id === instanceId && !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
       const nextSelected = restored || list[0] || null;
       setSelected(nextSelected);
       if (nextSelected) setInstanceId(nextSelected.instance_id);
