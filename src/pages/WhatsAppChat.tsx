@@ -883,7 +883,10 @@ const WhatsAppChat = () => {
       const fresh = list.find(c => c.id === cur.id)
         || (!cur.is_group ? list.find(c => !c.is_group &&
           (inboxAllInstances || c.instance_id === cur.instance_id) && canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
-      if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
+      if (fresh) {
+        setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
+        if (inboxAllInstances && fresh.instance_id !== instanceId) setInstanceId(fresh.instance_id);
+      }
       else {
         const fallbackChat = list[0] || null;
         setSelected(fallbackChat);
