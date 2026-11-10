@@ -810,7 +810,7 @@ const WhatsAppChat = () => {
       .not('last_message_at', 'is', null)
       .order('is_pinned', { ascending: false })
       .order('last_message_at', { ascending: false })
-      .limit(200);
+      .limit(500);
     if (loadSequence !== chatsLoadSequenceRef.current) return;
     if (error) {
       console.error('[WhatsApp] Falha ao carregar conversas:', error);
@@ -883,7 +883,11 @@ const WhatsAppChat = () => {
         || (!cur.is_group ? list.find(c => !c.is_group &&
           canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
       if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
-      else setSelected(list[0] || null);
+      else {
+        const fallbackChat = list[0] || null;
+        setSelected(fallbackChat);
+        if (fallbackChat) setInstanceId(fallbackChat.instance_id);
+      }
     } else {
       let savedChatId = '';
       try { savedChatId = user?.id ? localStorage.getItem(`whatsapp_chat_selected_${user.id}_${instanceId}`) || '' : ''; } catch { /* armazenamento indisponível */ }
@@ -891,7 +895,9 @@ const WhatsAppChat = () => {
       const savedPhone = savedChat && !savedChat.is_group ? canonicalWhatsAppPhone(savedChat.contact_number || '') : '';
       const restored = list.find(chat => chat.id === savedChatId)
         || (savedPhone ? list.find(chat => !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
-      setSelected(restored || list[0] || null);
+      const nextSelected = restored || list[0] || null;
+      setSelected(nextSelected);
+      if (nextSelected) setInstanceId(nextSelected.instance_id);
       setMessages([]);
     }
   };
