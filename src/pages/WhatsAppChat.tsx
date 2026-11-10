@@ -15,7 +15,7 @@ import {
   Check, CheckCheck, AlertCircle, Mic, Clock, ArrowLeft, Zap, MessageSquare, UserPlus, GitBranch,
   Image as ImageIcon, FileText, Camera, Video, Square, Loader2, Trash2,
   Pin, PinOff, Eye, Bell, Copy, Forward, Star, Reply, Share2, Download, ExternalLink, Info, CheckSquare,
-  Phone, Ban, Flag, Link as LinkIcon, Contact, CheckCircle2
+  Phone, Ban, Flag, Link as LinkIcon, Contact, CheckCircle2, Cpu
 } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -108,9 +108,33 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
   const byPhone = new Map<string, T>();
   const passthrough: T[] = [];
   for (const item of items) {
-    const phone = canonicalWhatsAppPhone(item.contact_number || '');
-    if (item.is_group || phone.length < 10) {
-      passthrough.push(item);
+    const jid = String(item.wa_chat_id || '').trim().toLowerCase();
+    const jidPhone = jid.endsWith('@c.us') || jid.endsWith('@s.whatsapp.net') ? jid.split('@')[0] : '';
+    const phone = canonicalWhatsAppPhone(item.contact_number || jidPhone);
+    const isGroup = !!item.is_group || jid.endsWith('@g.us');
+    if (isGroup) {
+      const key = `group:${mergeAcrossInstances ? 'all-instances' : (item.instance_id || 'unknown-instance')}:${jid}`;
+      const current = byPhone.get(key);
+      if (!current) byPhone.set(key, item);
+      else {
+        const currentTime = new Date(current.last_message_at || 0).getTime();
+        const itemTime = new Date(item.last_message_at || 0).getTime();
+        const preferItem = (!!item.is_pinned && !current.is_pinned) ||
+          (!!item.is_pinned === !!current.is_pinned && itemTime > currentTime);
+        const winner = preferItem ? item : current;
+        byPhone.set(key, { ...winner, unread_count: Math.max(current.unread_count || 0, item.unread_count || 0) });
+      }
+      continue;
+    }
+    if (phone.length < 9) {
+      if (!mergeAcrossInstances || !jid) { passthrough.push(item); continue; }
+      const key = `jid:${jid}`;
+      const current = byPhone.get(key);
+      if (!current) byPhone.set(key, item);
+      else {
+        const winner = new Date(item.last_message_at || 0).getTime() > new Date(current.last_message_at || 0).getTime() ? item : current;
+        byPhone.set(key, { ...winner, unread_count: Math.max(current.unread_count || 0, item.unread_count || 0) });
+      }
       continue;
     }
     const key = `${mergeAcrossInstances ? 'all-instances' : (item.instance_id || 'unknown-instance')}:${phone}`;
@@ -851,12 +875,16 @@ const WhatsAppChat = () => {
       // Corrige apenas a repetição exata de um telefone; mantém o JID remoto intacto.
       const row = { ...sourceRow, contact_number: sourceRow.is_group ? sourceRow.contact_number : collapseRepeatedPhoneDigits(sourceRow.contact_number || '') };
       if (!row.wa_chat_id || row.wa_chat_id === 'status@broadcast' || row.wa_chat_id.endsWith('@newsletter') || row.wa_chat_id.endsWith('@broadcast')) continue;
-      const phone = canonicalWhatsAppPhone(row.contact_number || '');
-      // O mesmo cliente pode conversar com números diferentes do usuário; nunca mesclar históricos entre instâncias.
+      const jid = String(row.wa_chat_id || '').trim().toLowerCase();
+      const jidPhone = jid.endsWith('@c.us') || jid.endsWith('@s.whatsapp.net') ? jid.split('@')[0] : '';
+      const phone = canonicalWhatsAppPhone(row.contact_number || jidPhone);
       const instanceKey = row.instance_id || 'unknown-instance';
-      const key = !row.is_group && phone.length >= 9 && !row.wa_chat_id.endsWith('@g.us')
-        ? `phone:${inboxAllInstances ? 'all-instances' : instanceKey}:${phone}`
-        : row.is_group ? `group:${instanceKey}:${row.wa_chat_id}` : `chat:${row.id}`;
+      const group = !!row.is_group || jid.endsWith('@g.us');
+      const key = group
+        ? `group:${inboxAllInstances ? 'all-instances' : instanceKey}:${jid}`
+        : phone.length >= 9
+          ? `phone:${inboxAllInstances ? 'all-instances' : instanceKey}:${phone}`
+          : inboxAllInstances && jid ? `jid:${jid}` : `chat:${row.id}`;
       const previous = unique.get(key);
       if (!previous) { unique.set(key, row); continue; }
       const rowTime = new Date(row.last_message_at || 0).getTime();
@@ -873,7 +901,13 @@ const WhatsAppChat = () => {
         : (rowIsLid && !previousIsLid) ||
           (rowIsLid === previousIsLid && ((rowHasName && !previousHasName) ||
             (rowHasName === previousHasName && rowTime > previousTime)));
-      if (preferRow) unique.set(key, row);
+      const winner = preferRow ? row : previous;
+      unique.set(key, {
+        ...winner,
+        unread_count: Math.max(previous.unread_count || 0, row.unread_count || 0),
+        contact_name: winner.contact_name || (preferRow ? previous.contact_name : row.contact_name),
+        avatar_url: winner.avatar_url || previous.avatar_url || row.avatar_url,
+      });
     }
     const list = [...unique.values()].sort((a, b) => {
       if (!!a.is_pinned !== !!b.is_pinned) return a.is_pinned ? -1 : 1;
@@ -2359,6 +2393,11 @@ const WhatsAppChat = () => {
                           <div className="flex items-center gap-1.5 min-w-0">
                             {c.is_pinned && <Pin size={10} className="text-purple-600 fill-current flex-shrink-0" />}
                             <span className="font-semibold text-xs text-foreground truncate">{name}</span>
+                            {inboxAllInstances && (() => {
+                              const sourceIndex = instances.findIndex(instance => instance.id === c.instance_id);
+                              const sourceName = instances[sourceIndex]?.name || 'Instância';
+                              return <span title={`Recebida pela instância ${sourceName}`} className="inline-flex items-center gap-0.5 rounded border border-purple-300/60 bg-purple-500/10 px-1 py-0.5 text-[9px] leading-none font-semibold text-purple-700 dark:text-purple-300 flex-shrink-0"><Cpu size={9} />{`chip ${sourceIndex >= 0 ? sourceIndex + 1 : '?'}`}</span>;
+                            })()}
                             {assignedAgent && <span title={`Responsável: ${assignedAgent.display_name}`} className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium bg-muted text-muted-foreground flex-shrink-0"><span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: assignedAgent.color }} />{assignedAgent.display_name}</span>}
                           </div>
                           {timeStr && <span className="text-[10px] text-muted-foreground flex-shrink-0">{timeStr}</span>}
