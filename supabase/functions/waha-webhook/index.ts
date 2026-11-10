@@ -179,7 +179,7 @@ Deno.serve(async (req: Request) => {
   );
   const alternatePhoneJid = [alternateRemote, str(payload?.from), str(payload?.to),
     str(payload?._data?.id?.remote), str(payload?.chatId)]
-    .find((value) => value.includes("@c.us") && !value.endsWith("@lid")) || "";
+    .find((value) => /@(?:c\.us|s\.whatsapp\.net)$/i.test(value) && !value.endsWith("@lid")) || "";
   const phoneSource = alternatePhoneJid ||
     (candidateRemote && !candidateRemote.endsWith("@lid") ? candidateRemote :
       (!waChatId.endsWith("@lid") ? waChatId : ""));
