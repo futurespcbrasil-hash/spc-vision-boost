@@ -104,7 +104,7 @@ const canonicalWhatsAppPhone = (value: string) => {
 
 // Guard the list against legacy duplicate rows while the backend consolidation runs.
 // Group conversations remain separate; only individual chats with a real phone are merged.
-const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string; wa_chat_id: string; contact_number: string; contact_name?: string | null; last_message?: string | null; is_group: boolean; last_message_at?: string | null; unread_count?: number }>(items: T[], mergeAcrossInstances = false): T[] => {
+const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string; wa_chat_id: string; contact_number: string; contact_name?: string | null; last_message?: string | null; is_group: boolean; last_message_at?: string | null; unread_count?: number; is_pinned?: boolean }>(items: T[], mergeAcrossInstances = false): T[] => {
   const byPhone = new Map<string, T>();
   const passthrough: T[] = [];
   for (const item of items) {
@@ -124,11 +124,13 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
     // Prefer LID as the canonical remote chat id; then prefer unread/latest metadata.
     const currentTime = new Date(current.last_message_at || 0).getTime();
     const itemTime = new Date(item.last_message_at || 0).getTime();
-    if ((itemIsLid && !currentIsLid) ||
+    const preferItem = mergeAcrossInstances
+      ? (!!item.is_pinned && !current.is_pinned) ||
+        (!!item.is_pinned === !!current.is_pinned && itemTime > currentTime)
+      : (itemIsLid && !currentIsLid) ||
         (itemIsLid === currentIsLid && ((item.unread_count || 0) > (current.unread_count || 0) ||
-          ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)))) {
-      byPhone.set(key, item);
-    }
+          ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)));
+    if (preferItem) byPhone.set(key, item);
   }
   const phoneChats = [...byPhone.values()];
   // Hide a legacy phone-less @lid row only when one real-phone chat in the same
@@ -865,11 +867,13 @@ const WhatsAppChat = () => {
       const previousIsLid = previous.wa_chat_id.endsWith('@lid');
       // Prefira o LID para que a conversa aberta aponte para o histórico usado pela WAHA.
       // Só compara nome/recência quando ambos os registros usam o mesmo tipo de identificador.
-      if ((rowIsLid && !previousIsLid) ||
+      const preferRow = inboxAllInstances
+        ? (!!row.is_pinned && !previous.is_pinned) ||
+          (!!row.is_pinned === !!previous.is_pinned && rowTime > previousTime)
+        : (rowIsLid && !previousIsLid) ||
           (rowIsLid === previousIsLid && ((rowHasName && !previousHasName) ||
-            (rowHasName === previousHasName && rowTime > previousTime)))) {
-        unique.set(key, row);
-      }
+            (rowHasName === previousHasName && rowTime > previousTime)));
+      if (preferRow) unique.set(key, row);
     }
     const list = [...unique.values()].sort((a, b) => {
       if (!!a.is_pinned !== !!b.is_pinned) return a.is_pinned ? -1 : 1;
