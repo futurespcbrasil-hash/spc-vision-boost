@@ -252,8 +252,19 @@ Deno.serve(async (req: Request) => {
       last_message_at: sentAt, unread_count: 0,
       is_group: waChatId.endsWith("@g.us"), archived: false,
     }).select("id").single();
-    if (error) return databaseFailure("chat_insert", error, "Failed to persist chat");
-    chatId = inserted.id;
+    if (error?.code === "23505") {
+      // Dois eventos WAHA simultâneos podem passar pela busca inicial. Reaproveita
+      // a conversa que o outro evento acabou de criar, sem descartar esta mensagem.
+      const { data: racedChat, error: raceLookupError } = await db.from("whatsapp_chats")
+        .select("id").eq("instance_id", instance.id).eq("wa_chat_id", waChatId).maybeSingle();
+      if (raceLookupError) return databaseFailure("chat_race_lookup", raceLookupError, "Failed to recover concurrent chat creation");
+      if (!racedChat?.id) return databaseFailure("chat_insert", error, "Failed to persist chat");
+      chatId = racedChat.id;
+    } else if (error) {
+      return databaseFailure("chat_insert", error, "Failed to persist chat");
+    } else {
+      chatId = inserted.id;
+    }
   }
 
   if (messageId) {
