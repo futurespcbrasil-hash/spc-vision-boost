@@ -113,9 +113,10 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
       passthrough.push(item);
       continue;
     }
-    const current = byPhone.get(phone);
+    const key = `${item.instance_id || 'unknown-instance'}:${phone}`;
+    const current = byPhone.get(key);
     if (!current) {
-      byPhone.set(phone, item);
+      byPhone.set(key, item);
       continue;
     }
     const currentIsLid = current.wa_chat_id?.endsWith('@lid');
@@ -126,7 +127,7 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
     if ((itemIsLid && !currentIsLid) ||
         (itemIsLid === currentIsLid && ((item.unread_count || 0) > (current.unread_count || 0) ||
           ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)))) {
-      byPhone.set(phone, item);
+      byPhone.set(key, item);
     }
   }
   const phoneChats = [...byPhone.values()];
@@ -302,6 +303,8 @@ const WhatsAppChat = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceId, setInstanceId] = useState<string>('');
+  // A caixa unificada agrega somente as instâncias que a política RLS libera para este usuário.
+  const [inboxAllInstances, setInboxAllInstances] = useState(true);
   const [chats, setChats] = useState<Chat[]>([]);
   const [chatsLoaded, setChatsLoaded] = useState(false);
   const [selected, setSelected] = useState<Chat | null>(null);
@@ -800,14 +803,15 @@ const WhatsAppChat = () => {
   // Load chats
   const loadChats = async () => {
     const loadSequence = ++chatsLoadSequenceRef.current;
-    if (!instanceId) { setChats([]); setSelected(null); setMessages([]); setChatsLoaded(false); return; }
+    const visibleInstanceIds = inboxAllInstances ? instances.map(instance => instance.id) : (instanceId ? [instanceId] : []);
+    if (visibleInstanceIds.length === 0) { setChats([]); setSelected(null); setMessages([]); setChatsLoaded(false); return; }
     const { data, error } = await supabase.from('whatsapp_chats').select('*')
-      .eq('instance_id', instanceId)
+      .in('instance_id', visibleInstanceIds)
       .eq('archived', false)
       .not('last_message_at', 'is', null)
       .order('is_pinned', { ascending: false })
       .order('last_message_at', { ascending: false })
-      .limit(200);
+      .limit(500);
     if (loadSequence !== chatsLoadSequenceRef.current) return;
     if (error) {
       console.error('[WhatsApp] Falha ao carregar conversas:', error);
@@ -846,9 +850,11 @@ const WhatsAppChat = () => {
       const row = { ...sourceRow, contact_number: sourceRow.is_group ? sourceRow.contact_number : collapseRepeatedPhoneDigits(sourceRow.contact_number || '') };
       if (!row.wa_chat_id || row.wa_chat_id === 'status@broadcast' || row.wa_chat_id.endsWith('@newsletter') || row.wa_chat_id.endsWith('@broadcast')) continue;
       const phone = canonicalWhatsAppPhone(row.contact_number || '');
+      // O mesmo cliente pode conversar com números diferentes do usuário; nunca mesclar históricos entre instâncias.
+      const instanceKey = row.instance_id || 'unknown-instance';
       const key = !row.is_group && phone.length >= 9 && !row.wa_chat_id.endsWith('@g.us')
-        ? `phone:${phone}`
-        : row.is_group ? `group:${row.wa_chat_id}` : `chat:${row.id}`;
+        ? `phone:${instanceKey}:${phone}`
+        : row.is_group ? `group:${instanceKey}:${row.wa_chat_id}` : `chat:${row.id}`;
       const previous = unique.get(key);
       if (!previous) { unique.set(key, row); continue; }
       const rowTime = new Date(row.last_message_at || 0).getTime();
@@ -873,20 +879,26 @@ const WhatsAppChat = () => {
     setChatsLoaded(true);
     // Ao trocar de instância, nunca manter a conversa da instância anterior aberta.
     const cur = selectedRef.current;
-    if (cur && cur.instance_id === instanceId) {
+    if (cur && (inboxAllInstances ? visibleInstanceIds.includes(cur.instance_id) : cur.instance_id === instanceId)) {
       const fresh = list.find(c => c.id === cur.id)
         || (!cur.is_group ? list.find(c => !c.is_group &&
-          canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
+          c.instance_id === cur.instance_id && canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
       if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
-      else setSelected(list[0] || null);
+      else {
+        const fallbackChat = list[0] || null;
+        setSelected(fallbackChat);
+        if (fallbackChat) setInstanceId(fallbackChat.instance_id);
+      }
     } else {
       let savedChatId = '';
       try { savedChatId = user?.id ? localStorage.getItem(`whatsapp_chat_selected_${user.id}_${instanceId}`) || '' : ''; } catch { /* armazenamento indisponível */ }
       const savedChat = sourceRows.find(chat => chat.id === savedChatId);
       const savedPhone = savedChat && !savedChat.is_group ? canonicalWhatsAppPhone(savedChat.contact_number || '') : '';
       const restored = list.find(chat => chat.id === savedChatId)
-        || (savedPhone ? list.find(chat => !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
-      setSelected(restored || list[0] || null);
+        || (savedPhone ? list.find(chat => chat.instance_id === instanceId && !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
+      const nextSelected = restored || list[0] || null;
+      setSelected(nextSelected);
+      if (nextSelected) setInstanceId(nextSelected.instance_id);
       setMessages([]);
     }
   };
@@ -937,7 +949,7 @@ const WhatsAppChat = () => {
     setInstanceUnread(map);
   };
 
-  useEffect(() => { setChatsLoaded(false); void loadChats(); }, [instanceId]);
+  useEffect(() => { setChatsLoaded(false); void loadChats(); }, [instanceId, instances, inboxAllInstances]);
 
   useEffect(() => {
     loadInstanceUnread();
@@ -954,10 +966,11 @@ const WhatsAppChat = () => {
       if (t) window.clearTimeout(t);
       t = window.setTimeout(() => loadChats(), 400);
     };
-    const ch = supabase.channel(`wa-chats-${instanceId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` },
-        schedule)
-      .subscribe();
+    const channel = supabase.channel(`wa-chats-${inboxAllInstances ? 'all' : instanceId}`);
+    const ch = (inboxAllInstances
+      ? channel.on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats' }, schedule)
+      : channel.on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats', filter: `instance_id=eq.${instanceId}` }, schedule)
+    ).subscribe();
     // Fallback: garante atualização mesmo se o realtime cair
     const poll = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadChats();
@@ -974,7 +987,7 @@ const WhatsAppChat = () => {
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       supabase.removeChannel(ch);
     };
-  }, [instanceId]);
+  }, [instanceId, inboxAllInstances, instances]);
 
 
   // Controla a rolagem no viewport real, sem deslocar a página inteira.
@@ -2145,7 +2158,7 @@ const WhatsAppChat = () => {
     } finally { setSavingContact(false); }
   };
 
-  const totalOtherUnread = Object.entries(instanceUnread)
+  const totalOtherUnread = inboxAllInstances ? 0 : Object.entries(instanceUnread)
     .filter(([id]) => id !== instanceId)
     .reduce((s, [, v]) => s + v, 0);
 
@@ -2164,11 +2177,15 @@ const WhatsAppChat = () => {
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Select value={instanceId} onValueChange={setInstanceId}>
+            <Select value={inboxAllInstances ? '__all__' : instanceId} onValueChange={value => {
+              if (value === '__all__') setInboxAllInstances(true);
+              else { setInboxAllInstances(false); setInstanceId(value); }
+            }}>
               <SelectTrigger className="w-56 h-9 bg-card text-xs">
                 <SelectValue placeholder="Selecionar instância" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__all__" className="text-xs font-semibold">Todas as minhas instâncias</SelectItem>
                 {instances.map(i => (
                   <SelectItem key={i.id} value={i.id} className="text-xs">
                     <span className="flex items-center gap-2">
@@ -2183,7 +2200,7 @@ const WhatsAppChat = () => {
                 ))}
               </SelectContent>
             </Select>
-            {totalOtherUnread > 0 && (
+            {!inboxAllInstances && totalOtherUnread > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-purple-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shadow">
                 {totalOtherUnread}
               </span>
@@ -2298,6 +2315,7 @@ const WhatsAppChat = () => {
                     <button
                       onClick={() => {
                         setPeeking(null);
+                        setInstanceId(c.instance_id);
                         setSelected(c);
                         if (isMobile) setMobileShowChat(true);
                         // Limpa contador ao abrir (exceto se estiver apenas espiando)
