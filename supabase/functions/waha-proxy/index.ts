@@ -860,7 +860,8 @@ Deno.serve(async (req: Request) => {
             const updatedRecord = {
               ...record,
               wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
-              contact_number: existing.contact_number || number,
+              // Repara também registros legados que já gravaram os dígitos do LID como telefone.
+              contact_number: phoneKey(existing.contact_number) ? existing.contact_number : number,
               avatar_url: record.avatar_url || existing.avatar_url || null,
               // Uma resposta remota atrasada não pode regredir o preview nem a ordenação da conversa.
               last_message: remoteMessageIsNewer ? (record.last_message || existing.last_message || null) : (existing.last_message || record.last_message || null),
