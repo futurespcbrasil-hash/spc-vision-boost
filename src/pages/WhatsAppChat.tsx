@@ -194,12 +194,19 @@ const formatNumber = (raw: string) => {
   return raw ? `+${d}` : raw;
 };
 
-// Nome do contato quando existir; caso contrário, o número formatado
+// Um JID @lid é um identificador privado do WhatsApp, não um telefone.
+// Nunca o mostramos como número: usamos o telefone alternativo validado ou o nome.
 const chatTitle = (c?: Chat | null) => {
   if (!c) return '';
   const name = (c.contact_name || '').trim();
-  if (name && onlyDigits(name) !== onlyDigits(c.contact_number)) return name;
-  return formatNumber(c.contact_number);
+  const lidDigits = c.wa_chat_id?.endsWith('@lid') ? onlyDigits(c.wa_chat_id.split('@')[0]) : '';
+  const contactDigits = onlyDigits(c.contact_number || '');
+  const contactIsLid = !!lidDigits && contactDigits === lidDigits;
+  const nameDigits = onlyDigits(name);
+  const nameIsLid = !!lidDigits && nameDigits === lidDigits;
+  if (name && !nameIsLid && nameDigits !== contactDigits) return name;
+  if (c.contact_number && !contactIsLid) return formatNumber(c.contact_number);
+  return name && !nameIsLid ? name : 'Contato sem número identificado';
 };
 const hasRealName = (c?: Chat | null) => {
   if (!c) return false;
