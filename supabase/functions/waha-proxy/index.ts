@@ -719,11 +719,14 @@ Deno.serve(async (req: Request) => {
           }
           return 0;
         };
+        // O número de um JID @lid é um identificador privado, não um telefone.
+        // Para esta caixa brasileira, só aceitamos telefones com 10/11 dígitos
+        // nacionais (ou 12/13 com DDI 55), após normalização do nono dígito.
         const phoneKey = (value: unknown) => {
           let digits = collapseRepeatedPhoneDigits(String(value || "").split("@")[0].replace(/\D/g, ""));
           if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
           if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
-          return digits;
+          return digits.length === 10 ? digits : "";
         };
         const existingByJid = new Map<string, any>();
         const existingByPhone = new Map<string, any>();
@@ -811,7 +814,9 @@ Deno.serve(async (req: Request) => {
           const rawNumber = waChatId.endsWith("@lid")
             ? (chat?.number || chat?.phone || chat?.contact?.number || chat?.contact?.phone || exactExisting?.contact_number || "")
             : waChatId.split("@")[0];
-          const number = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\D/g, ""));
+          const rawNumberDigits = collapseRepeatedPhoneDigits(String(rawNumber).split("@")[0].replace(/\D/g, ""));
+          // Nunca persiste os 14-15 dígitos do LID como se fossem um telefone.
+          const number = phoneKey(rawNumber) ? rawNumberDigits : "";
           const last = chat?.lastMessage || chat?.last_message || {};
           const rawTime = last?.timestamp || chat?.timestamp || chat?.lastMessageAt || null;
           const parsedRemoteTime = parseRemoteTime(rawTime);
@@ -822,7 +827,12 @@ Deno.serve(async (req: Request) => {
           // /chats pode retornar todos os contatos. Sincronizar somente conversas com histórico real.
           if (!lastMessageAt && !lastText.trim() && !hasLastMedia) continue;
           const isGroup = waChatId.endsWith("@g.us") || chat?.isGroup === true || chat?.is_group === true;
-          const contactName = String(chat?.name || chat?.pushName || chat?.contact?.name || number || waChatId);
+          const rawContactName = String(chat?.name || chat?.pushName || chat?.contact?.name || "").trim();
+          const contactName = rawContactName && !/^\+?\d{12,}$/.test(rawContactName)
+            ? rawContactName
+            : (String(exactExisting?.contact_name || "").trim() && !/^\+?\d{12,}$/.test(String(exactExisting.contact_name).trim())
+              ? String(exactExisting.contact_name).trim()
+              : (number || "Contato desconhecido"));
           const record = {
             instance_id: inst.id,
             wa_chat_id: waChatId,
@@ -850,7 +860,8 @@ Deno.serve(async (req: Request) => {
             const updatedRecord = {
               ...record,
               wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existing.wa_chat_id,
-              contact_number: existing.contact_number || number,
+              // Repara também registros legados que já gravaram os dígitos do LID como telefone.
+              contact_number: phoneKey(existing.contact_number) ? existing.contact_number : number,
               avatar_url: record.avatar_url || existing.avatar_url || null,
               // Uma resposta remota atrasada não pode regredir o preview nem a ordenação da conversa.
               last_message: remoteMessageIsNewer ? (record.last_message || existing.last_message || null) : (existing.last_message || record.last_message || null),
