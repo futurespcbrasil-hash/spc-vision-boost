@@ -104,7 +104,7 @@ const canonicalWhatsAppPhone = (value: string) => {
 
 // Guard the list against legacy duplicate rows while the backend consolidation runs.
 // Group conversations remain separate; only individual chats with a real phone are merged.
-const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string; wa_chat_id: string; contact_number: string; contact_name?: string | null; last_message?: string | null; is_group: boolean; last_message_at?: string | null; unread_count?: number }>(items: T[]): T[] => {
+const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string; wa_chat_id: string; contact_number: string; contact_name?: string | null; last_message?: string | null; is_group: boolean; last_message_at?: string | null; unread_count?: number; is_pinned?: boolean }>(items: T[], mergeAcrossInstances = false): T[] => {
   const byPhone = new Map<string, T>();
   const passthrough: T[] = [];
   for (const item of items) {
@@ -113,7 +113,7 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
       passthrough.push(item);
       continue;
     }
-    const key = `${item.instance_id || 'unknown-instance'}:${phone}`;
+    const key = `${mergeAcrossInstances ? 'all-instances' : (item.instance_id || 'unknown-instance')}:${phone}`;
     const current = byPhone.get(key);
     if (!current) {
       byPhone.set(key, item);
@@ -124,11 +124,13 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
     // Prefer LID as the canonical remote chat id; then prefer unread/latest metadata.
     const currentTime = new Date(current.last_message_at || 0).getTime();
     const itemTime = new Date(item.last_message_at || 0).getTime();
-    if ((itemIsLid && !currentIsLid) ||
+    const preferItem = mergeAcrossInstances
+      ? (!!item.is_pinned && !current.is_pinned) ||
+        (!!item.is_pinned === !!current.is_pinned && itemTime > currentTime)
+      : (itemIsLid && !currentIsLid) ||
         (itemIsLid === currentIsLid && ((item.unread_count || 0) > (current.unread_count || 0) ||
-          ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)))) {
-      byPhone.set(key, item);
-    }
+          ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)));
+    if (preferItem) byPhone.set(key, item);
   }
   const phoneChats = [...byPhone.values()];
   // Hide a legacy phone-less @lid row only when one real-phone chat in the same
@@ -853,7 +855,7 @@ const WhatsAppChat = () => {
       // O mesmo cliente pode conversar com números diferentes do usuário; nunca mesclar históricos entre instâncias.
       const instanceKey = row.instance_id || 'unknown-instance';
       const key = !row.is_group && phone.length >= 9 && !row.wa_chat_id.endsWith('@g.us')
-        ? `phone:${instanceKey}:${phone}`
+        ? `phone:${inboxAllInstances ? 'all-instances' : instanceKey}:${phone}`
         : row.is_group ? `group:${instanceKey}:${row.wa_chat_id}` : `chat:${row.id}`;
       const previous = unique.get(key);
       if (!previous) { unique.set(key, row); continue; }
@@ -865,11 +867,13 @@ const WhatsAppChat = () => {
       const previousIsLid = previous.wa_chat_id.endsWith('@lid');
       // Prefira o LID para que a conversa aberta aponte para o histórico usado pela WAHA.
       // Só compara nome/recência quando ambos os registros usam o mesmo tipo de identificador.
-      if ((rowIsLid && !previousIsLid) ||
+      const preferRow = inboxAllInstances
+        ? (!!row.is_pinned && !previous.is_pinned) ||
+          (!!row.is_pinned === !!previous.is_pinned && rowTime > previousTime)
+        : (rowIsLid && !previousIsLid) ||
           (rowIsLid === previousIsLid && ((rowHasName && !previousHasName) ||
-            (rowHasName === previousHasName && rowTime > previousTime)))) {
-        unique.set(key, row);
-      }
+            (rowHasName === previousHasName && rowTime > previousTime)));
+      if (preferRow) unique.set(key, row);
     }
     const list = [...unique.values()].sort((a, b) => {
       if (!!a.is_pinned !== !!b.is_pinned) return a.is_pinned ? -1 : 1;
@@ -882,8 +886,11 @@ const WhatsAppChat = () => {
     if (cur && (inboxAllInstances ? visibleInstanceIds.includes(cur.instance_id) : cur.instance_id === instanceId)) {
       const fresh = list.find(c => c.id === cur.id)
         || (!cur.is_group ? list.find(c => !c.is_group &&
-          c.instance_id === cur.instance_id && canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
-      if (fresh) setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
+          (inboxAllInstances || c.instance_id === cur.instance_id) && canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
+      if (fresh) {
+        setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
+        if (inboxAllInstances && fresh.instance_id !== instanceId) setInstanceId(fresh.instance_id);
+      }
       else {
         const fallbackChat = list[0] || null;
         setSelected(fallbackChat);
@@ -895,7 +902,7 @@ const WhatsAppChat = () => {
       const savedChat = sourceRows.find(chat => chat.id === savedChatId);
       const savedPhone = savedChat && !savedChat.is_group ? canonicalWhatsAppPhone(savedChat.contact_number || '') : '';
       const restored = list.find(chat => chat.id === savedChatId)
-        || (savedPhone ? list.find(chat => chat.instance_id === instanceId && !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
+        || (savedPhone ? list.find(chat => (inboxAllInstances || chat.instance_id === instanceId) && !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
       const nextSelected = restored || list[0] || null;
       setSelected(nextSelected);
       if (nextSelected) setInstanceId(nextSelected.instance_id);
@@ -2030,7 +2037,7 @@ const WhatsAppChat = () => {
   const matchesFilter = (c: Chat, f: typeof activeFilter) => matchesWhatsAppInboxFilter(c, f);
 
   // Contadores de não lidas por aba
-  const uniqueDisplayChats = useMemo(() => deduplicateChatsForDisplay(chats), [chats]);
+  const uniqueDisplayChats = useMemo(() => deduplicateChatsForDisplay(chats, inboxAllInstances), [chats, inboxAllInstances]);
   const tabUnread = (f: typeof activeFilter) =>
     uniqueDisplayChats.filter(c => matchesFilter(c, f)).reduce((s, c) => s + (c.unread_count || 0), 0);
   const tabCount = (f: typeof activeFilter) => uniqueDisplayChats.filter(c => matchesFilter(c, f)).length;
