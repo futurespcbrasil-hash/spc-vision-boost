@@ -32,25 +32,36 @@ async function extractPdfText(data: Uint8Array) {
 function parseBoleto(text: string) {
   const lines = text.split(/\n/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const all = lines.join('\n');
-  const labelOnly = /^(?:pagador(?:\/sacado)?|sacado|sacador\/avalista|benefici[aá]rio|cedente|cpf\/cnpj|cnpj\/cpf|cpf|cnpj|endereço|endere[cç]o|vencimento|valor do documento|recibo do pagador|ficha de compensa[cç][aã]o)\s*:?\s*$/i;
+  const labelOnly = /^(?:pagador(?:\/sacado)?|sacado|sacador\/avalista|benefici[aá]rio|cedente|cpf\/cnpj|cnpj\/cpf|cpf|cnpj|endereço|endere[cç]o|vencimento|valor do documento|recibo do pagador|ficha de compensa[cç][aã]o|local de pagamento|data do documento|data de processamento)\s*:?\s*$/i;
   const validName = (s: string) => {
-    const v = s.replace(/\s+(?:CPF|CNPJ|CPF\/CNPJ|documento|endereço|endere[cç]o).*/i, '').trim();
+    let v = s.replace(/\s+(?:CPF|CNPJ|CPF\/CNPJ|documento|endereço|endere[cç]o).*/i, '').trim();
+    // Some bank PDFs concatenate the invoice heading and the payer on one extracted line.
+    // Keep the company name after "NOTA DE DÉBITO", and discard its repeated document number.
+    v = v.replace(/^[A-ZÀ-Ý0-9 .&,'/-]{2,40}\s+\d{4,}\s+NOTA\s+DE\s+D[ÉE]BITO\s+/i, '');
+    v = v.replace(/\s+-\s+\d{4,}\s*-\s*$/i, '').trim();
+    const upper = v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
     return v.length >= 3 && v.length <= 200 && !labelOnly.test(v) &&
       !/^(?:sacador\/avalista|benefici[aá]rio|cedente|recibo do pagador|ficha de compensa[cç][aã]o)$/i.test(v) &&
+      !/LOCAL\s+DE\s+PAGAMENTO|NOTA\s+DE\s+DEBITO|FICHA\s+DE\s+COMPENSACAO/.test(upper) &&
       !/^(?:\d{2}[./-])/.test(v) && !/^\d[\d./-]{8,}$/.test(v) ? v : null;
   };
 
-  // Prioritize the "Recibo do Pagador" block, which explicitly names the payer.
-  // Some PDF extractors flatten columns and make the main form's labels appear before the values.
+  // Try every payer occurrence. A false first hit such as "Local de Pagamento"
+  // must not prevent a later, correctly labelled payer name from being considered.
   let nome: string | null = null;
-  const receiptName = all.match(/recibo\s+do\s+pagador[\s\S]{0,240}?\bpagador\b\s*:?\s*([A-ZÀ-Ý][A-ZÀ-Ý0-9 .&,'/-]{2,100}?)(?=\s+(?:ag[eê]ncia|nosso\s*n[uú]mero|n[uú]mero\s+do\s+documento|CNPJ\/CPF\s+Pagador|CPF\/CNPJ\s+Pagador|benefici[aá]rio|endereço|autentica[cç][aã]o)|\n|$)/i);
-  if (receiptName?.[1]) nome = validName(receiptName[1]);
-  if (!nome) {
-    const explicitPayer = all.match(/(?:nome\s*(?:do)?\s*pagador|pagador|sacado)\s*:?\s*([A-ZÀ-Ý][A-ZÀ-Ý0-9 .&,'/-]{2,100}?)(?=\s+(?:CPF|CNPJ|CPF\/CNPJ|CNPJ\/CPF|endereço|vencimento|valor|sacador\/avalista|benefici[aá]rio|cedente)|\n|$)/i);
-    if (explicitPayer?.[1]) nome = validName(explicitPayer[1]);
+  const payerPatterns = [
+    /recibo\s+do\s+pagador[\s\S]{0,240}?\bpagador\b\s*:?\s*([A-ZÀ-Ý][A-ZÀ-Ý0-9 .&,'/-]{2,100}?)(?=\s+(?:ag[eê]ncia|nosso\s*n[uú]mero|n[uú]mero\s+do\s+documento|CNPJ\/CPF\s+Pagador|CPF\/CNPJ\s+Pagador|benefici[aá]rio|endereço|autentica[cç][aã]o)|\n|$)/ig,
+    /(?:nome\s*(?:do)?\s*pagador|pagador|sacado)\s*:?\s*([A-ZÀ-Ý][A-ZÀ-Ý0-9 .&,'/-]{2,100}?)(?=\s+(?:CPF|CNPJ|CPF\/CNPJ|CNPJ\/CPF|endereço|vencimento|valor|sacador\/avalista|benefici[aá]rio|cedente|local\s+de\s+pagamento)|\n|$)/ig,
+  ];
+  for (const pattern of payerPatterns) {
+    for (const candidateMatch of all.matchAll(pattern)) {
+      const candidate = validName(candidateMatch[1]);
+      if (candidate) { nome = candidate; break; }
+    }
+    if (nome) break;
   }
-  // Never accept a field label such as "Sacador/Avalista" as the customer's name.
-  if (nome && /^(?:sacador\/avalista|benefici[aá]rio|cedente|pagador|sacado|recibo do pagador)$/i.test(nome)) nome = null;
+  // Never accept a field label or a payment-form heading as the customer's name.
+  if (nome && /^(?:sacador\/avalista|benefici[aá]rio|cedente|pagador|sacado|recibo do pagador|local de pagamento)$/i.test(nome)) nome = null;
 
   // Prefer the explicitly labelled payer document from the receipt block, not the beneficiary CNPJ.
   let cpfCnpj: string | null = null;
