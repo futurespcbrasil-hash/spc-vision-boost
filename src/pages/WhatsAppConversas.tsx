@@ -29,7 +29,14 @@ const timeLabel = (value?: string | null) => value
   ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
 const fullTimeLabel = (value?: string | null) => value
   ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-const numberLabel = (chat: Chat) => chat.is_group ? chat.wa_chat_id : collapseRepeatedPhoneDigits(chat.contact_number || chat.wa_chat_id);
+const numberLabel = (chat: Chat) => {
+  if (chat.is_group) return chat.wa_chat_id;
+  const digits = collapseRepeatedPhoneDigits(chat.contact_number || '');
+  if (digits.length >= 10 && digits.length <= 13) return digits;
+  return chat.contact_name && !/^\\+?[\\d\\s().-]+$/.test(chat.contact_name)
+    ? chat.contact_name
+    : 'Contato sem número identificado';
+};
 const errorText = (e: unknown) => e instanceof Error ? e.message : 'Erro inesperado na integração WhatsApp';
 const onlyDigits = (value: string) => value.replace(/\D/g, '');
 const collapseRepeatedPhoneDigits = (value: string) => {
@@ -216,7 +223,11 @@ export default function WhatsAppConversas() {
     });
     for (const chat of visibleChats) {
       if (chat.wa_chat_id === 'status@broadcast' || chat.wa_chat_id.endsWith('@newsletter') || chat.wa_chat_id.endsWith('@broadcast')) continue;
-      const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(chat.contact_number || (chat.wa_chat_id.endsWith('@lid') ? '' : chat.wa_chat_id));
+      const rawPhone = collapseRepeatedPhoneDigits(chat.contact_number || '');
+      const verifiedPhone = rawPhone.length >= 10 && rawPhone.length <= 13
+        ? rawPhone
+        : (chat.wa_chat_id.endsWith('@lid') ? '' : chat.wa_chat_id);
+      const key = chat.is_group ? `group:${chat.wa_chat_id}` : conversationPhoneKey(verifiedPhone);
       const groupKey = key.length >= 10 ? key : `chat:${chat.id}`;
       groups.set(groupKey, [...(groups.get(groupKey) || []), chat]);
     }
