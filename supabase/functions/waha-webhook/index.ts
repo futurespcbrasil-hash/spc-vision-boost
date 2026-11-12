@@ -20,6 +20,17 @@ const normalizeWhatsAppPhone = (value: unknown): string => {
   if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
   return digits;
 };
+const whatsappPhoneLookupVariants = (value: unknown): string[] => {
+  const digits = collapseRepeatedPhoneDigits(value);
+  const local = digits.startsWith("55") && (digits.length === 12 || digits.length === 13) ? digits.slice(2) : digits;
+  const canonical = normalizeWhatsAppPhone(local);
+  const localVariants = new Set<string>([local, canonical]);
+  if (canonical.length === 10) localVariants.add(canonical.slice(0, 2) + "9" + canonical.slice(2));
+  if (canonical.length === 11 && canonical[2] === "9") localVariants.add(canonical.slice(0, 2) + canonical.slice(3));
+  const variants = new Set<string>([digits, ...localVariants]);
+  for (const candidate of localVariants) variants.add("55" + candidate);
+  return [...variants].filter(candidate => /^\d{10,13}$/.test(candidate));
+};
 
 const cleanWebhookSecret = (value: string | null | undefined) =>
   (value || "").split(/\r?\n/)[0].replace(/\s+Copiar chave.*$/i, "").trim();
@@ -205,9 +216,11 @@ Deno.serve(async (req: Request) => {
   if (contactNumber.length >= 10 && !waChatId.endsWith("@g.us")) {
     // Normalize Brazilian numbers (with/without country code and ninth digit) before
     // matching. If legacy aliases exist, prefer the LID row used by WAHA for history.
+    const lookupVariants = whatsappPhoneLookupVariants(contactNumber);
     const candidates = await db.from("whatsapp_chats")
       .select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
-      .eq("instance_id", instance.id).eq("is_group", false).limit(500);
+      .eq("instance_id", instance.id).eq("is_group", false)
+      .in("contact_number", lookupVariants).limit(50);
     if (candidates.error) return databaseFailure("chat_deduplication_lookup", candidates.error, "Chat deduplication lookup failed");
     const incomingPhone = normalizeWhatsAppPhone(contactNumber);
     const phoneMatches = (candidates.data || []).filter((row: any) =>
@@ -268,7 +281,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (messageId) {
-    const { error } = await db.from("whatsapp_messages").insert({
+    const { data: insertedMessage, error } = await db.from("whatsapp_messages").upsert({
         chat_id: chatId, instance_id: instance.id, wa_message_id: messageId,
         from_me: fromMe, sender: fromMe ? "me" : str(payload?.participant || payload?._data?.id?.participant) || contactNumber,
         message_type: messageType, text: body, media_url: mediaUrl,
@@ -276,13 +289,10 @@ Deno.serve(async (req: Request) => {
         media_filename: str(payload?.media?.filename) || null,
         status: fromMe ? (normalizeWhatsAppAck(payload?.ack, payload?.ackName) || "1") : "received", timestamp: sentAt, raw: payload,
         sent_by: fromMe ? instance.owner_id : null,
-    });
-    // Concurrent WAHA event types can race past the initial lookup. The unique
-    // (instance_id, wa_message_id) constraint is the final idempotency guard.
-    if (error) {
-      if (error.code === "23505") return json({ accepted: true, duplicate: true });
-      return databaseFailure("message_insert", error, "Failed to persist message");
-    }
+    }, { onConflict: "instance_id,wa_message_id", ignoreDuplicates: true })
+      .select("id").maybeSingle();
+    if (error) return databaseFailure("message_insert", error, "Failed to persist message");
+    if (!insertedMessage) return json({ accepted: true, duplicate: true });
   }
   // Keep the SPC funnel synchronized for every persisted WhatsApp interaction
   // (incoming or outgoing), including legacy chats that were never linked to a lead.
@@ -296,11 +306,16 @@ Deno.serve(async (req: Request) => {
         if (error) throw error;
         linkedLead = data;
       } else if (contactNumber.length >= 10) {
-        const { data: leads, error } = await db.from("leads")
-          .select("id,status,funnel,phone,whatsapp");
-        if (error) throw error;
+        const lookupVariants = whatsappPhoneLookupVariants(contactNumber);
+        const [phoneLeads, whatsappLeads] = await Promise.all([
+          db.from("leads").select("id,status,funnel,phone,whatsapp").in("phone", lookupVariants),
+          db.from("leads").select("id,status,funnel,phone,whatsapp").in("whatsapp", lookupVariants),
+        ]);
+        if (phoneLeads.error) throw phoneLeads.error;
+        if (whatsappLeads.error) throw whatsappLeads.error;
         const incomingPhone = normalizeWhatsAppPhone(contactNumber);
-        const matches = (leads || []).filter((lead: any) =>
+        const leads = [...(phoneLeads.data || []), ...(whatsappLeads.data || [])];
+        const matches = leads.filter((lead: any) =>
           [lead.phone, lead.whatsapp].filter(Boolean).some((value: string) =>
             normalizeWhatsAppPhone(value) === incomingPhone
           )
@@ -335,17 +350,12 @@ Deno.serve(async (req: Request) => {
 
   // Increment unread only after the message has been accepted by the unique message-ID
   // constraint. This prevents duplicate message/message.any deliveries from inflating the badge.
-  if (!fromMe && messageId) {
-    const { data: unreadChat, error: unreadLookupError } = await db.from("whatsapp_chats")
-      .select("unread_count").eq("id", chatId).maybeSingle();
-    if (unreadLookupError) return databaseFailure("unread_counter_lookup", unreadLookupError, "Failed to update unread counter");
-    const { error: unreadUpdateError } = await db.from("whatsapp_chats")
-      .update({ unread_count: Number(unreadChat?.unread_count || 0) + 1 })
-      .eq("id", chatId);
-    if (unreadUpdateError) return databaseFailure("unread_counter_update", unreadUpdateError, "Failed to update unread counter");
-  } else if (!fromMe && !messageId) {
-    const { data: unreadChat } = await db.from("whatsapp_chats").select("unread_count").eq("id", chatId).maybeSingle();
-    await db.from("whatsapp_chats").update({ unread_count: Number(unreadChat?.unread_count || 0) + 1 }).eq("id", chatId);
+  if (!fromMe && chatId) {
+    const { error: unreadUpdateError } = await db.rpc("increment_whatsapp_chat_unread_count", {
+      p_chat_id: chatId,
+      p_instance_id: instance.id,
+    });
+    if (unreadUpdateError) return databaseFailure("unread_counter_increment", unreadUpdateError, "Failed to update unread counter");
   }
 
   // Ciclos de atendimento: consome a nota da pesquisa antes das automações e

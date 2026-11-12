@@ -41,6 +41,7 @@ interface Message {
   wa_message_id?: string | null; reply_to?: string | null; sender?: string | null;
   media_mime?: string | null;
   media_filename?: string | null;
+  raw?: Record<string, unknown> | null;
 }
 interface QuickReply { id: string; shortcut: string; text: string; }
 interface WhatsAppNotification { id: string; title: string; body: string; chat_id: string | null; created_at: string; read_at: string | null; }
@@ -828,7 +829,7 @@ const WhatsAppChat = () => {
     const ch = supabase.channel('wa-unread-global')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats' }, () => load())
       .subscribe();
-    const poll = window.setInterval(load, 10000);
+    const poll = window.setInterval(load, 15000);
     return () => { window.clearInterval(poll); supabase.removeChannel(ch); };
   }, []);
 
@@ -1131,7 +1132,7 @@ const WhatsAppChat = () => {
     // Impede uma consulta antiga ou lenta de sobrescrever o histórico da conversa atual.
     const loadSequence = ++messageLoadSequenceRef.current;
     const { data, error } = await supabase.from('whatsapp_messages')
-      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,media_filename,wa_message_id,reply_to,sender')
+      .select('id,chat_id,from_me,text,message_type,status,timestamp,media_url,media_mime,media_filename,wa_message_id,reply_to,sender,raw')
       .eq('chat_id', chatId).order('timestamp', { ascending: false }).limit(80);
     if (error) {
       console.warn('[WhatsApp] Falha ao carregar mensagens; mantendo o histórico atual:', error.message);
@@ -1151,6 +1152,10 @@ const WhatsAppChat = () => {
         const message = sourceMessages[index];
         const url = message.media_url || '';
         const previous = previousById.get(message.id);
+        if (message.raw?.crm_media_too_large === true) {
+          resolvedItems[index] = { ...message, media_url: null };
+          continue;
+        }
         const needsResolution = /localhost:3000\/api\/files\//i.test(url) || /\/storage\/v1\/object\/sign\/chat-media\//i.test(url);
         if (!url || !needsResolution) { resolvedItems[index] = message; continue; }
         // Evita refazer a requisição em cada polling se esta mídia já foi resolvida nesta sessão.
@@ -1406,7 +1411,7 @@ const WhatsAppChat = () => {
     // Realtime é o caminho rápido; a consulta de fallback roda menos e só com a aba visível.
     const poll = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadMessages(chatId, true);
-    }, 10000);
+    }, 15000);
     const refreshMessagesWhenVisible = () => {
       if (document.visibilityState === 'visible' && !cancelled) void loadMessages(chatId, true);
     };
@@ -2736,6 +2741,12 @@ const WhatsAppChat = () => {
                           )}
                           {!m.media_url && (m.message_type === 'audio' || m.message_type === 'ptt') && (
                             <span className="text-[11px] italic opacity-70">🎤 Áudio indisponível</span>
+                          )}
+                          {!m.media_url && m.raw?.crm_media_too_large === true && (
+                            <div className="flex items-center gap-2 rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                              <FileText size={16} />
+                              Arquivo acima de 50 MB. A mensagem e o histórico foram preservados, mas a mídia não pode ser carregada no CRM.
+                            </div>
                           )}
                           {m.media_url && (
                             (m.media_mime || '').toLowerCase().includes('pdf') ||

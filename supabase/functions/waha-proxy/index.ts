@@ -593,6 +593,9 @@ Deno.serve(async (req: Request) => {
         if (messageError) throw messageError;
         if (!message || !message.media_url) return json({ error: "Mensagem ou mídia não encontrada." }, 404);
         const raw = message.raw && typeof message.raw === "object" && !Array.isArray(message.raw) ? message.raw as Record<string, unknown> : {};
+        if (raw.crm_media_too_large === true) {
+          return json({ error: "A mídia excede o limite de 50 MB para recuperação. O histórico foi preservado, mas este arquivo não pode ser carregado no CRM." }, 413);
+        }
         const existingPath = typeof raw.crm_media_storage_path === "string" &&
           (raw.crm_media_storage_path.startsWith(`archive/${inst.id}/`) || raw.crm_media_storage_path.startsWith(`${user.id}/`))
           ? raw.crm_media_storage_path : "";
