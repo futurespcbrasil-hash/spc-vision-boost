@@ -128,7 +128,7 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
     }
     if (phone.length < 9) {
       if (!mergeAcrossInstances || !jid) { passthrough.push(item); continue; }
-      const key = `jid:${jid}`;
+      const key = `jid:${item.instance_id || 'unknown-instance'}:${jid}`;
       const current = byPhone.get(key);
       if (!current) byPhone.set(key, item);
       else {
