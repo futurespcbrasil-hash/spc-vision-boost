@@ -39,6 +39,17 @@ const normalizeWhatsAppPhone = (value: unknown): string => {
   if (digits.length === 11 && digits[2] === "9") digits = digits.slice(0, 2) + digits.slice(3);
   return digits;
 };
+const whatsappPhoneLookupVariants = (value: unknown): string[] => {
+  const digits = collapseRepeatedPhoneDigits(value);
+  const local = digits.startsWith("55") && (digits.length === 12 || digits.length === 13) ? digits.slice(2) : digits;
+  const canonical = normalizeWhatsAppPhone(local);
+  const localVariants = new Set<string>([local, canonical]);
+  if (canonical.length === 10) localVariants.add(canonical.slice(0, 2) + "9" + canonical.slice(2));
+  if (canonical.length === 11 && canonical[2] === "9") localVariants.add(canonical.slice(0, 2) + canonical.slice(3));
+  const variants = new Set<string>([digits, ...localVariants]);
+  for (const candidate of localVariants) variants.add("55" + candidate);
+  return [...variants].filter(candidate => /^\d{10,13}$/.test(candidate));
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -202,9 +213,11 @@ Deno.serve(async (req: Request) => {
       .select("id,unread_count,contact_name,contact_number,wa_chat_id")
       .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
     if (!existing && digits.length >= 10 && !chatId.endsWith("@g.us")) {
+      const lookupVariants = whatsappPhoneLookupVariants(digits);
       const lookup = await db.from("whatsapp_chats")
         .select("id,unread_count,contact_name,contact_number,wa_chat_id")
-        .eq("instance_id", inst.id).eq("is_group", false).limit(500);
+        .eq("instance_id", inst.id).eq("is_group", false)
+        .in("contact_number", lookupVariants).limit(50);
       if (lookup.error) throw lookup.error;
       const targetPhone = normalizeWhatsAppPhone(digits);
       const matches = (lookup.data || []).filter((row: any) =>
@@ -254,65 +267,34 @@ Deno.serve(async (req: Request) => {
   };
 
   const updateLeadInteractionForNumber = async (inst: any, numberValue: string, chatId: string, messageText: string) => {
-    // Busca o chat e os telefones dos leads em paralelo; nunca percorre páginas
-    // sequencialmente enquanto mantém o envio do WhatsApp aguardando.
-    const [chatLookup, firstLeadPage] = await Promise.all([
-      db.from("whatsapp_chats").select("contact_number,contact_name")
-        .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle(),
-      db.from("leads").select("id,phone,whatsapp").range(0, 999),
-    ]);
-    if (firstLeadPage.error) {
-      console.error("[WAHA] Não foi possível localizar lead para registrar interação:", firstLeadPage.error.message);
+    const chatLookup = await db.from("whatsapp_chats").select("contact_number,contact_name")
+      .eq("instance_id", inst.id).eq("wa_chat_id", chatId).maybeSingle();
+    if (chatLookup.error) {
+      console.error("[WAHA] Não foi possível localizar a conversa para registrar interação:", chatLookup.error.message);
       return false;
     }
-
-    const normalizeLeadNumber = (value: unknown) => {
-      let digits = String(value || "").split("@")[0].replace(/\D/g, "");
-      if (digits.length >= 20 && digits.length % 2 === 0 && digits.slice(0, digits.length / 2) === digits.slice(digits.length / 2)) {
-        digits = digits.slice(0, digits.length / 2);
-      }
-      if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
-      return digits;
-    };
     const targets = [...new Set([
       chatLookup.data?.contact_number,
       numberValue.endsWith("@lid") ? "" : numberValue,
       chatId.endsWith("@lid") ? "" : chatId,
-    ].map(normalizeLeadNumber).filter((value) => value.length >= 10))];
+    ].map(normalizeWhatsAppPhone).filter(value => value.length >= 10))];
     if (!targets.length) return false;
-
-    let leadRows = firstLeadPage.data || [];
-    // A maioria dos CRMs tem menos de 1.000 leads. Se atingir o limite do REST,
-    // consulta as páginas restantes em paralelo (até o limite de 10.000 já usado antes).
-    if (leadRows.length === 1000) {
-      const remainingPages = await Promise.all(Array.from({ length: 9 }, (_, page) =>
-        db.from("leads").select("id,phone,whatsapp").range((page + 1) * 1000, (page + 2) * 1000 - 1)
-      ));
-      const failedPage = remainingPages.find(page => page.error);
-      if (failedPage?.error) {
-        console.error("[WAHA] Falha ao consultar páginas adicionais de leads:", failedPage.error.message);
-        return false;
-      }
-      leadRows = [...leadRows, ...remainingPages.flatMap(page => page.data || [])];
+    const lookupVariants = [...new Set(targets.flatMap(whatsappPhoneLookupVariants))];
+    const [phoneLeads, whatsappLeads] = await Promise.all([
+      db.from("leads").select("id,phone,whatsapp").in("phone", lookupVariants),
+      db.from("leads").select("id,phone,whatsapp").in("whatsapp", lookupVariants),
+    ]);
+    if (phoneLeads.error || whatsappLeads.error) {
+      console.error("[WAHA] Falha ao consultar leads pelo telefone:", phoneLeads.error?.message || whatsappLeads.error?.message);
+      return false;
     }
-
-    const exactMatch = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
-      const candidate = normalizeLeadNumber(value);
-      return candidate && targets.some(target => candidate === target ||
-        (candidate.length >= 10 && target.length >= 10 && candidate.slice(-10) === target.slice(-10)));
-    });
-    const suffixMatch = (row: any) => [row.whatsapp, row.phone].some((value: unknown) => {
-      const candidate = normalizeLeadNumber(value);
-      return candidate && targets.some(target => candidate.length >= 8 && target.length >= 8 && candidate.slice(-8) === target.slice(-8));
-    });
-
-    const exactMatches = leadRows.filter(exactMatch);
-    let lead = exactMatches.length === 1 ? exactMatches[0] : null;
-    if (exactMatches.length === 0) {
-      const suffixMatches = leadRows.filter(suffixMatch);
-      // Só usa o sufixo curto se identificar um único lead, evitando atualizar homônimos telefônicos.
-      if (suffixMatches.length === 1) lead = suffixMatches[0];
-    }
+    const targetSet = new Set(targets);
+    const leadRows = [...(phoneLeads.data || []), ...(whatsappLeads.data || [])];
+    const uniqueRows = Array.from(new Map<string, any>(leadRows.map((row: any) => [String(row.id), row])).values());
+    const exactMatches = uniqueRows.filter((row: any) =>
+      [row.whatsapp, row.phone].some((value: unknown) => targetSet.has(normalizeWhatsAppPhone(value)))
+    );
+    const lead = exactMatches.length === 1 ? exactMatches[0] : null;
     if (!lead) {
       console.warn("[WAHA] Não foi possível identificar um único lead para o telefone:", targets[0].slice(-4), "matches:", exactMatches.length);
       return false;
@@ -343,7 +325,6 @@ Deno.serve(async (req: Request) => {
     console.info("[WAHA] Interação registrada no lead:", lead.id);
     return true;
   };
-
   try {
     switch (action) {
       case "sync_instances": {
