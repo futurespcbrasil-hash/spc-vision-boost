@@ -98,6 +98,9 @@ const collapseRepeatedPhoneDigits = (value: string) => {
 };
 const canonicalWhatsAppPhone = (value: string) => {
   let digits = collapseRepeatedPhoneDigits(value);
+  // Brazilian individual WhatsApp numbers have 10-13 digits including country code.
+  // Longer values on @lid rows are legacy identifier fragments, not phone numbers.
+  if (digits.length > 13 || digits.length < 10) return '';
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
   if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
   return digits;
@@ -200,12 +203,13 @@ const chatTitle = (c?: Chat | null) => {
   if (!c) return '';
   const name = (c.contact_name || '').trim();
   const lidDigits = c.wa_chat_id?.endsWith('@lid') ? onlyDigits(c.wa_chat_id.split('@')[0]) : '';
-  const contactDigits = onlyDigits(c.contact_number || '');
+  const rawContactDigits = onlyDigits(c.contact_number || '');
+  const contactDigits = rawContactDigits.length >= 10 && rawContactDigits.length <= 13 ? rawContactDigits : '';
   const contactIsLid = !!lidDigits && contactDigits === lidDigits;
   const nameDigits = onlyDigits(name);
   const nameIsLid = !!lidDigits && nameDigits === lidDigits;
-  if (name && !nameIsLid && nameDigits !== contactDigits) return name;
-  if (c.contact_number && !contactIsLid) return formatNumber(c.contact_number);
+  if (name && !nameIsLid && (!contactDigits || nameDigits !== contactDigits)) return name;
+  if (contactDigits && !contactIsLid) return formatNumber(contactDigits);
   return name && !nameIsLid ? name : 'Contato sem número identificado';
 };
 const hasRealName = (c?: Chat | null) => {
