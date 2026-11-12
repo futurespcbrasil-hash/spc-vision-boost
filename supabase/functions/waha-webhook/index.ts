@@ -226,7 +226,25 @@ Deno.serve(async (req: Request) => {
     const phoneMatches = (candidates.data || []).filter((row: any) =>
       incomingPhone && normalizeWhatsAppPhone(row.contact_number) === incomingPhone
     );
-    const lidMatch = phoneMatches.find((row: any) => str(row.wa_chat_id).endsWith("@lid"));
+    let lidMatch = phoneMatches.find((row: any) => str(row.wa_chat_id).endsWith("@lid"));
+    // Legacy LID rows may contain a corrupted phone with 1-3 trailing digits
+    // (older WAHA payloads exposed an identifier suffix as part of the phone).
+    // Recover only when the incoming verified phone is a prefix, the saved
+    // contact name matches exactly, and there is exactly one candidate.
+    if (!lidMatch && incomingName && !existingChat) {
+      const { data: namedLids, error: namedLidsError } = await db.from("whatsapp_chats")
+        .select("id,unread_count,contact_number,contact_name,wa_chat_id,assigned_to")
+        .eq("instance_id", instance.id).eq("is_group", false)
+        .eq("contact_name", incomingName).like("wa_chat_id", "%@lid").limit(20);
+      if (namedLidsError) return databaseFailure("legacy_lid_recovery_lookup", namedLidsError, "Chat identity lookup failed");
+      const safeLegacyMatches = (namedLids || []).filter((row: any) => {
+        const savedDigits = str(row.contact_number).replace(/\\D/g, "");
+        return savedDigits.startsWith(contactNumber) &&
+          savedDigits.length > contactNumber.length &&
+          savedDigits.length - contactNumber.length <= 3;
+      });
+      if (safeLegacyMatches.length === 1) lidMatch = safeLegacyMatches[0];
+    }
     if (lidMatch && (!existingChat || !str(existingChat.wa_chat_id).endsWith("@lid"))) {
       existingChat = lidMatch;
     } else if (!existingChat) {
