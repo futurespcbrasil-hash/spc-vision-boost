@@ -113,7 +113,7 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
     const phone = canonicalWhatsAppPhone(item.contact_number || jidPhone);
     const isGroup = !!item.is_group || jid.endsWith('@g.us');
     if (isGroup) {
-      const key = `group:${mergeAcrossInstances ? 'all-instances' : (item.instance_id || 'unknown-instance')}:${jid}`;
+      const key = `group:${item.instance_id || 'unknown-instance'}:${jid}`;
       const current = byPhone.get(key);
       if (!current) byPhone.set(key, item);
       else {
@@ -137,7 +137,8 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
       }
       continue;
     }
-    const key = `${mergeAcrossInstances ? 'all-instances' : (item.instance_id || 'unknown-instance')}:${phone}`;
+    // A phone number is only unique inside a WAHA instance. Never merge two accounts.
+    const key = `${item.instance_id || 'unknown-instance'}:${phone}`;
     const current = byPhone.get(key);
     if (!current) {
       byPhone.set(key, item);
@@ -148,12 +149,10 @@ const deduplicateChatsForDisplay = <T extends { id: string; instance_id?: string
     // Prefer LID as the canonical remote chat id; then prefer unread/latest metadata.
     const currentTime = new Date(current.last_message_at || 0).getTime();
     const itemTime = new Date(item.last_message_at || 0).getTime();
-    const preferItem = mergeAcrossInstances
-      ? (!!item.is_pinned && !current.is_pinned) ||
-        (!!item.is_pinned === !!current.is_pinned && itemTime > currentTime)
-      : (itemIsLid && !currentIsLid) ||
-        (itemIsLid === currentIsLid && ((item.unread_count || 0) > (current.unread_count || 0) ||
-          ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)));
+    const preferItem = (itemIsLid && !currentIsLid) ||
+      (itemIsLid === currentIsLid && ((!!item.is_pinned && !current.is_pinned) ||
+        (!!item.is_pinned === !!current.is_pinned && ((item.unread_count || 0) > (current.unread_count || 0) ||
+          ((item.unread_count || 0) === (current.unread_count || 0) && itemTime > currentTime)))));
     if (preferItem) byPhone.set(key, item);
   }
   const phoneChats = [...byPhone.values()];
@@ -888,10 +887,10 @@ const WhatsAppChat = () => {
       const instanceKey = row.instance_id || 'unknown-instance';
       const group = !!row.is_group || jid.endsWith('@g.us');
       const key = group
-        ? `group:${inboxAllInstances ? 'all-instances' : instanceKey}:${jid}`
+        ? `group:${instanceKey}:${jid}`
         : phone.length >= 9
-          ? `phone:${inboxAllInstances ? 'all-instances' : instanceKey}:${phone}`
-          : inboxAllInstances && jid ? `jid:${jid}` : `chat:${row.id}`;
+          ? `phone:${instanceKey}:${phone}`
+          : jid ? `jid:${instanceKey}:${jid}` : `chat:${row.id}`;
       const previous = unique.get(key);
       if (!previous) { unique.set(key, row); continue; }
       const rowTime = new Date(row.last_message_at || 0).getTime();
@@ -902,12 +901,10 @@ const WhatsAppChat = () => {
       const previousIsLid = previous.wa_chat_id.endsWith('@lid');
       // Prefira o LID para que a conversa aberta aponte para o histórico usado pela WAHA.
       // Só compara nome/recência quando ambos os registros usam o mesmo tipo de identificador.
-      const preferRow = inboxAllInstances
-        ? (!!row.is_pinned && !previous.is_pinned) ||
-          (!!row.is_pinned === !!previous.is_pinned && rowTime > previousTime)
-        : (rowIsLid && !previousIsLid) ||
-          (rowIsLid === previousIsLid && ((rowHasName && !previousHasName) ||
-            (rowHasName === previousHasName && rowTime > previousTime)));
+      const preferRow = (rowIsLid && !previousIsLid) ||
+        (rowIsLid === previousIsLid && ((rowHasName && !previousHasName) ||
+          (rowHasName === previousHasName && ((!!row.is_pinned && !previous.is_pinned) ||
+            (!!row.is_pinned === !!previous.is_pinned && rowTime > previousTime)))));
       const winner = preferRow ? row : previous;
       unique.set(key, {
         ...winner,
@@ -926,8 +923,8 @@ const WhatsAppChat = () => {
     const cur = selectedRef.current;
     if (cur && (inboxAllInstances ? visibleInstanceIds.includes(cur.instance_id) : cur.instance_id === instanceId)) {
       const fresh = list.find(c => c.id === cur.id)
-        || (!cur.is_group ? list.find(c => !c.is_group &&
-          (inboxAllInstances || c.instance_id === cur.instance_id) && canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
+        || (!cur.is_group ? list.find(c => !c.is_group && c.instance_id === cur.instance_id &&
+          canonicalWhatsAppPhone(c.contact_number || '') === canonicalWhatsAppPhone(cur.contact_number || '')) : undefined);
       if (fresh) {
         setSelected(prev => prev && prev.id === fresh.id ? { ...prev, ...fresh } : fresh);
         if (inboxAllInstances && fresh.instance_id !== instanceId) setInstanceId(fresh.instance_id);
@@ -943,7 +940,7 @@ const WhatsAppChat = () => {
       const savedChat = sourceRows.find(chat => chat.id === savedChatId);
       const savedPhone = savedChat && !savedChat.is_group ? canonicalWhatsAppPhone(savedChat.contact_number || '') : '';
       const restored = list.find(chat => chat.id === savedChatId)
-        || (savedPhone ? list.find(chat => (inboxAllInstances || chat.instance_id === instanceId) && !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
+        || (savedPhone ? list.find(chat => chat.instance_id === instanceId && !chat.is_group && canonicalWhatsAppPhone(chat.contact_number || '') === savedPhone) : undefined);
       const nextSelected = restored || list[0] || null;
       setSelected(nextSelected);
       if (nextSelected) setInstanceId(nextSelected.instance_id);
@@ -986,24 +983,7 @@ const WhatsAppChat = () => {
     }
   };
 
-  // Não lidas de TODAS as instâncias (badge no seletor)
-  const loadInstanceUnread = async () => {
-    const { data } = await supabase.from('whatsapp_chats')
-      .select('instance_id,unread_count').gt('unread_count', 0);
-    const map: Record<string, number> = {};
-    (data || []).forEach((r: any) => {
-      map[r.instance_id] = (map[r.instance_id] || 0) + (r.unread_count || 0);
-    });
-    setInstanceUnread(map);
-  };
-
   useEffect(() => { setChatsLoaded(false); void loadChats(); }, [instanceId, instances, inboxAllInstances]);
-
-  useEffect(() => {
-    loadInstanceUnread();
-    const t = window.setInterval(loadInstanceUnread, 8000);
-    return () => window.clearInterval(t);
-  }, []);
 
 
   // Realtime chats (com debounce para evitar recargas em rajada)
@@ -1022,7 +1002,7 @@ const WhatsAppChat = () => {
     // Fallback: garante atualização mesmo se o realtime cair
     const poll = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadChats();
-    }, 8000);
+    }, 15000);
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void loadChats();
     };
@@ -1298,15 +1278,13 @@ const WhatsAppChat = () => {
     // Carrega primeiro o histórico local para resposta rápida e, em seguida,
     // sincroniza as mensagens reais da WAHA (até 100) ao abrir cada conversa.
     const hydrateConversation = async () => {
+      // Mostra o histórico do Supabase sem esperar a WAHA (que pode levar até 25s).
       await loadMessages(chatId);
-      if (!instanceId) return;
-      try {
-        await waha.getMessages(instanceId, selected.wa_chat_id);
-        if (!cancelled) await loadMessages(chatId, true);
-      } catch (err: any) {
-        // Mantém o histórico local disponível mesmo quando a WAHA estiver temporariamente indisponível.
-        console.warn('[WhatsApp] Não foi possível sincronizar o histórico remoto:', err?.message || err);
-      }
+      if (!instanceId || cancelled) return;
+      // A reconciliação remota roda em segundo plano: não bloqueia a abertura da conversa.
+      void waha.getMessages(instanceId, selected.wa_chat_id)
+        .then(() => { if (!cancelled) void loadMessages(chatId, true); })
+        .catch((err: any) => console.warn('[WhatsApp] Sincronização remota em segundo plano falhou:', err?.message || err));
     };
     void hydrateConversation();
 
@@ -1442,7 +1420,7 @@ const WhatsAppChat = () => {
         .then(() => loadMessages(chatId, true))
         .catch(error => console.warn('[WhatsApp] Sincronização remota periódica falhou:', error?.message || error))
         .finally(() => { remoteSyncInFlightRef.current.delete(chatId); });
-    }, 30000);
+    }, 180000);
     return () => {
       cancelled = true;
       document.removeEventListener('visibilitychange', refreshMessagesWhenVisible);
