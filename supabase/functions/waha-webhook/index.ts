@@ -246,11 +246,16 @@ Deno.serve(async (req: Request) => {
   // A CRM-saved contact name takes precedence over WhatsApp's profile/push name.
   const contactName = (savedNameIsUseful ? previousName : "") || incomingName || persistedContactNumber || "Contato do WhatsApp";
   let chatId = existingChat?.id as string | undefined;
+  // If WAHA sends the phone JID for a chat already stored under LID, all
+  // follow-up automation and session records must keep using the canonical LID.
+  let effectiveWaChatId = str(existingChat?.wa_chat_id).endsWith("@lid")
+    ? str(existingChat?.wa_chat_id)
+    : waChatId;
   if (chatId) {
     const { error: chatUpdateError } = await db.from("whatsapp_chats").update({
       // Prefer the WAHA LID when it is known for this phone, so message history opens
       // against the identifier accepted by the active WhatsApp session.
-      wa_chat_id: waChatId.endsWith("@lid") ? waChatId : existingChat?.wa_chat_id,
+      wa_chat_id: effectiveWaChatId,
       contact_number: persistedContactNumber, contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
       last_message_at: sentAt, unread_count: existingChat?.unread_count || 0,
@@ -259,7 +264,7 @@ Deno.serve(async (req: Request) => {
     if (chatUpdateError) logDatabaseFailure("chat_summary_update", chatUpdateError);
   } else {
     const { data: inserted, error } = await db.from("whatsapp_chats").insert({
-      instance_id: instance.id, wa_chat_id: waChatId, contact_number: persistedContactNumber,
+      instance_id: instance.id, wa_chat_id: effectiveWaChatId, contact_number: persistedContactNumber,
       contact_name: contactName, avatar_url: avatar,
       last_message: body || (messageType !== "text" ? `[${messageType}]` : ""),
       last_message_at: sentAt, unread_count: 0,
@@ -388,7 +393,7 @@ Deno.serve(async (req: Request) => {
             const response = await fetch(`${apiUrl}/api/sendText`, {
               method: "POST",
               headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
-              body: JSON.stringify({ session, chatId: waChatId, text: thankYou }),
+              body: JSON.stringify({ session, chatId: effectiveWaChatId, text: thankYou }),
             });
             if (!response.ok) console.error("[waha-webhook] Could not send rating thank-you:", response.status);
           } else {
@@ -457,7 +462,7 @@ Deno.serve(async (req: Request) => {
           const response = await fetch(`${apiUrl}/api/sendText`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
-            body: JSON.stringify({ session, chatId: waChatId, text }),
+            body: JSON.stringify({ session, chatId: effectiveWaChatId, text }),
           });
           if (!response.ok) throw new Error(`WAHA sendText HTTP ${response.status}: ${(await response.text()).slice(0, 400)}`);
           return await response.json().catch(() => ({}));
@@ -477,7 +482,7 @@ Deno.serve(async (req: Request) => {
             assignedTo = "";
           }
           await db.from("whatsapp_flow_sessions").upsert({
-            flow_id: flow.id, instance_id: instance.id, chat_id: chatId, wa_chat_id: waChatId,
+            flow_id: flow.id, instance_id: instance.id, chat_id: chatId, wa_chat_id: effectiveWaChatId,
             status: "awaiting_choice", selected_option_key: null, target_label: null, assigned_to: null,
             last_inbound_message_id: messageId || null,
             last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString(),
