@@ -238,7 +238,7 @@ Deno.serve(async (req: Request) => {
         .eq("contact_name", incomingName).like("wa_chat_id", "%@lid").limit(20);
       if (namedLidsError) return databaseFailure("legacy_lid_recovery_lookup", namedLidsError, "Chat identity lookup failed");
       const safeLegacyMatches = (namedLids || []).filter((row: any) => {
-        const savedDigits = str(row.contact_number).replace(/\\D/g, "");
+        const savedDigits = str(row.contact_number).replace(/\D/g, "");
         return savedDigits.startsWith(contactNumber) &&
           savedDigits.length > contactNumber.length &&
           savedDigits.length - contactNumber.length <= 3;
