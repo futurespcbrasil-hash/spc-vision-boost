@@ -263,6 +263,22 @@ Deno.serve(async (req: Request) => {
     !/^\+?[\d\s().-]+$/.test(previousName);
   // A CRM-saved contact name takes precedence over WhatsApp's profile/push name.
   const contactName = (savedNameIsUseful ? previousName : "") || incomingName || persistedContactNumber || "Contato do WhatsApp";
+
+  // Mantém o catálogo de contatos sincronizado com a identidade da conversa.
+  // Nunca grava os dígitos privados de @lid como se fossem telefone.
+  if (!waChatId.endsWith("@g.us") && persistedContactNumber.length >= 10 && persistedContactNumber.length <= 13) {
+    const { error: contactSyncError } = await db.from("whatsapp_contacts").upsert({
+      instance_id: instance.id,
+      wa_number: persistedContactNumber,
+      name: savedNameIsUseful ? previousName : (incomingName || persistedContactNumber),
+      push_name: incomingName || null,
+      avatar_url: avatar,
+      is_group: false,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "instance_id,wa_number" });
+    if (contactSyncError) logDatabaseFailure("contact_identity_upsert", contactSyncError);
+  }
+
   let chatId = existingChat?.id as string | undefined;
   // If WAHA sends the phone JID for a chat already stored under LID, all
   // follow-up automation and session records must keep using the canonical LID.
