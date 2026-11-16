@@ -7,7 +7,10 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 const str = (v: unknown) => typeof v === "string" ? v : "";
 const collapseRepeatedPhoneDigits = (value: unknown): string => {
-  const digits = String(value || "").split("@")[0].replace(/\D/g, "");
+  // WAHA may include a device identifier in SenderAlt, e.g.
+  // 555491814444:48@s.whatsapp.net. Strip that suffix before counting digits.
+  const jidUser = String(value || "").split("@")[0].replace(/:\d+$/, "");
+  const digits = jidUser.replace(/\D/g, "");
   if (digits.length % 2 === 0) {
     const half = digits.slice(0, digits.length / 2);
     if (half.length >= 10 && half.length <= 13 && half === digits.slice(digits.length / 2)) return half;
