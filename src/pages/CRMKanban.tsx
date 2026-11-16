@@ -94,6 +94,83 @@ const CRMKanban = () => {
     return () => window.clearTimeout(timer);
   }, []);
 
+  // Mantém o Kanban sincronizado com a última atividade registrada nas conversas WhatsApp.
+  // A consulta usa o histórico já persistido no CRM e só atualiza leads com correspondência única.
+  useEffect(() => {
+    if (authLoading || !user?.id || !Array.isArray(allLeads) || allLeads.length === 0) return;
+    let cancelled = false;
+    let running = false;
+    const normalizePhone = (value: string) => {
+      let digits = String(value || '').replace(/\\D/g, '');
+      if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+      if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
+      return digits.length >= 10 ? digits : '';
+    };
+    const syncConversationInteractions = async () => {
+      if (running || document.visibilityState === 'hidden') return;
+      running = true;
+      try {
+        const { data: chats, error } = await (supabase as any).from('whatsapp_chats')
+          .select('lead_id,contact_number,last_message_at')
+          .not('last_message_at', 'is', null);
+        if (error) throw error;
+        if (cancelled) return;
+        const latestByLead = new Map<string, string>();
+        const leadsByPhone = new Map<string, Lead[]>();
+        for (const lead of allLeads as Lead[]) {
+          for (const phone of [normalizePhone(lead.phone || ''), normalizePhone(lead.whatsapp || '')].filter(Boolean)) {
+            const bucket = leadsByPhone.get(phone) || [];
+            if (!bucket.some(item => item.id === lead.id)) bucket.push(lead);
+            leadsByPhone.set(phone, bucket);
+          }
+        }
+        for (const chat of (chats || []) as any[]) {
+          const timestamp = String(chat.last_message_at || '');
+          if (!timestamp || !Number.isFinite(new Date(timestamp).getTime())) continue;
+          let leadId = chat.lead_id || '';
+          if (!leadId) {
+            const phone = normalizePhone(chat.contact_number || '');
+            const matches = phone ? leadsByPhone.get(phone) || [] : [];
+            if (matches.length !== 1) continue;
+            leadId = matches[0].id;
+          }
+          const previous = latestByLead.get(leadId);
+          if (!previous || new Date(timestamp).getTime() > new Date(previous).getTime()) latestByLead.set(leadId, timestamp);
+        }
+        let changed = false;
+        for (const [leadId, timestamp] of latestByLead) {
+          const lead = (allLeads as Lead[]).find(item => item.id === leadId);
+          if (!lead) continue;
+          const current = lead.lastInteractionAt ? new Date(lead.lastInteractionAt).getTime() : 0;
+          const next = new Date(timestamp).getTime();
+          if (next <= current) continue;
+          const { error: updateError } = await supabase.from('leads')
+            .update({ last_interaction_at: new Date(next).toISOString() }).eq('id', leadId);
+          if (updateError) console.warn('[Kanban] Falha ao atualizar interação pelo WhatsApp:', updateError.message);
+          else changed = true;
+        }
+        if (changed && !cancelled) await refreshLeads();
+      } catch (error) {
+        console.warn('[Kanban] Não foi possível sincronizar interações WhatsApp:', error);
+      } finally {
+        running = false;
+      }
+    };
+    void syncConversationInteractions();
+    const interval = window.setInterval(() => { void syncConversationInteractions(); }, 30000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void syncConversationInteractions(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const channel = supabase.channel('kanban-whatsapp-interactions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_chats' }, () => { void syncConversationInteractions(); })
+      .subscribe();
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      supabase.removeChannel(channel);
+    };
+  }, [authLoading, user?.id, allLeads, refreshLeads]);
+
   const previousDraftFunnel = useRef(funnel);
   useEffect(() => {
     if (previousDraftFunnel.current === funnel) return;
