@@ -194,7 +194,9 @@ Deno.serve(async (req: Request) => {
   const phoneSource = alternatePhoneJid ||
     (candidateRemote && !candidateRemote.endsWith("@lid") ? candidateRemote :
       (!waChatId.endsWith("@lid") ? waChatId : ""));
-  const contactNumber = phoneSource ? collapseRepeatedPhoneDigits(phoneSource) : "";
+  const rawContactNumber = phoneSource ? collapseRepeatedPhoneDigits(phoneSource) : "";
+  // Não persistir identificadores LID ou valores fora do limite aceito pelo CRM como telefone.
+  const contactNumber = rawContactNumber.length >= 10 && rawContactNumber.length <= 13 ? rawContactNumber : "";
   const incomingName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName);
   const body = str(payload?.body || payload?.text);
   const rawType = str(payload?.type).toLowerCase();
