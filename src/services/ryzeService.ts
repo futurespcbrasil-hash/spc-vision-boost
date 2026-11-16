@@ -49,6 +49,7 @@ export const waha = {
   resolveMedia: (instance_id: string, message_id: string) =>
     invoke('resolve_media', { instance_id, message_id }),
   getContacts: (instance_id: string) => invoke('get_contacts', { instance_id }),
+  resolveLid: (instance_id: string, wa_chat_id: string) => invoke('resolve_lid', { instance_id, wa_chat_id }),
   getProfilePic: (instance_id: string, wa_chat_id: string) => invoke('get_profile_pic', { instance_id, wa_chat_id }),
 };
 
