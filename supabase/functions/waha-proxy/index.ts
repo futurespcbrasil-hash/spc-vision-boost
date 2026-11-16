@@ -1228,14 +1228,14 @@ Deno.serve(async (req: Request) => {
             lastError = "A WAHA respondeu sem URL de foto.";
           } catch (error) {
             lastError = error instanceof Error ? error.message : "Falha desconhecida ao consultar foto.";
-            const retryable = /tempo limite|timeout|WAHA HTTP (429|5\\d\\d)/i.test(lastError);
+            const retryable = /tempo limite|timeout|WAHA HTTP (429|5[0-9][0-9])/i.test(lastError);
             if (!retryable || attempt === 2) break;
           }
           if (attempt === 1) await new Promise(resolve => setTimeout(resolve, 350));
         }
         console.warn("[WAHA] profile picture unavailable", {
           attempt: 2,
-          reason: lastError.replace(/\b\d{7,}\b/g, "[número]").slice(0, 180),
+          reason: lastError.replace(/[0-9]{7,}/g, "[número]").slice(0, 180),
         });
         return json({ url: null, unavailable: true, retryable: true });
       }
