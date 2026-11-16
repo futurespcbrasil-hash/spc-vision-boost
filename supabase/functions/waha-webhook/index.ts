@@ -183,10 +183,12 @@ Deno.serve(async (req: Request) => {
     if (duplicate) return json({ accepted: true, duplicate: true });
   }
   // WAHA/WhatsApp may send a private LID as the chat ID. Never treat LID digits as a phone number.
+  const info = payload?._data?.Info || payload?._data?.info || {};
   const alternateRemote = str(
     payload?.remoteJidAlt || payload?.key?.remoteJidAlt ||
     payload?._data?.remoteJidAlt || payload?._data?.key?.remoteJidAlt ||
-    payload?._data?.id?.remoteJidAlt || payload?._data?.id?._serializedAlt
+    payload?._data?.id?.remoteJidAlt || payload?._data?.id?._serializedAlt ||
+    (!fromMe ? info.SenderAlt || info.senderAlt : info.RecipientAlt || info.recipientAlt)
   );
   const alternatePhoneJid = [alternateRemote, str(payload?.from), str(payload?.to),
     str(payload?._data?.id?.remote), str(payload?.chatId)]
@@ -197,7 +199,13 @@ Deno.serve(async (req: Request) => {
   const rawContactNumber = phoneSource ? collapseRepeatedPhoneDigits(phoneSource) : "";
   // Não persistir identificadores LID ou valores fora do limite aceito pelo CRM como telefone.
   const contactNumber = rawContactNumber.length >= 10 && rawContactNumber.length <= 13 ? rawContactNumber : "";
-  const incomingName = str(payload?._data?.notifyName || payload?._data?.pushName || payload?.pushName || payload?.notifyName);
+  // WAHA WhatsApp Web events place the real contact identity in _data.Info.
+  // On outbound messages PushName belongs to our own account, never to the contact.
+  const incomingName = !fromMe ? str(
+    info.PushName || info.pushName ||
+    payload?._data?.notifyName || payload?._data?.pushName ||
+    payload?.pushName || payload?.notifyName
+  ) : "";
   const body = str(payload?.body || payload?.text);
   const rawType = str(payload?.type).toLowerCase();
   const mediaMime = str(payload?.media?.mimetype || payload?.mimetype).toLowerCase();
