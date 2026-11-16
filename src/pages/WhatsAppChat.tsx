@@ -2178,18 +2178,44 @@ const WhatsAppChat = () => {
   };
 
   const handleSaveContact = async () => {
-    if (!selected || !contactNameInput.trim()) return;
+    if (!selected || !contactNameInput.trim() || !instanceId) return;
     setSavingContact(true);
     try {
-      const { error } = await supabase.from('whatsapp_chats')
-        .update({ contact_name: contactNameInput.trim() }).eq('id', selected.id);
-      if (error) throw error;
-      setSelected(prev => prev ? { ...prev, contact_name: contactNameInput.trim() } : prev);
+      // O identificador @lid é privado e não é telefone. Só aceitamos o número
+      // já validado no registro ou um JID telefônico @c.us/@s.whatsapp.net.
+      const storedDigits = collapseRepeatedPhoneDigits(selected.contact_number || '');
+      const jid = String(selected.wa_chat_id || '');
+      const jidDigits = /@(c\\.us|s\\.whatsapp\\.net)$/i.test(jid) ? onlyDigits(jid.split('@')[0]) : '';
+      const phone = storedDigits.length >= 10 && storedDigits.length <= 13 ? storedDigits : jidDigits;
+      if (phone.length < 10 || phone.length > 13) {
+        throw new Error('O WhatsApp ainda não forneceu um telefone real para esta conversa. Não é seguro salvar o identificador @lid como telefone.');
+      }
+
+      const name = contactNameInput.trim();
+      const { error: contactError } = await supabase.from('whatsapp_contacts').upsert({
+        instance_id: selected.instance_id,
+        wa_number: phone,
+        name,
+        push_name: selected.contact_name || null,
+        avatar_url: selected.avatar_url || null,
+        is_group: false,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'instance_id,wa_number' });
+      if (contactError) throw contactError;
+
+      const { error: chatError } = await supabase.from('whatsapp_chats')
+        .update({ contact_name: name, contact_number: phone, updated_at: new Date().toISOString() })
+        .eq('id', selected.id).eq('instance_id', selected.instance_id);
+      if (chatError) throw chatError;
+
+      setSelected(prev => prev ? { ...prev, contact_name: name, contact_number: phone } : prev);
+      setChats(prev => prev.map(chat => chat.id === selected.id
+        ? { ...chat, contact_name: name, contact_number: phone } : chat));
       setSaveContactOpen(false);
-      loadChats();
-      toast({ title: 'Contato salvo' });
+      await loadChats();
+      toast({ title: 'Contato salvo', description: 'Nome e telefone gravados no cadastro de contatos e na conversa.' });
     } catch (e: any) {
-      toast({ title: 'Erro ao salvar contato', description: e.message, variant: 'destructive' });
+      toast({ title: 'Erro ao salvar contato', description: e.message || 'Tente novamente.', variant: 'destructive' });
     } finally { setSavingContact(false); }
   };
 
