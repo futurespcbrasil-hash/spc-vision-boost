@@ -78,12 +78,12 @@ Deno.serve(async (req: Request) => {
   const number = typeof body.number === "string" ? body.number : "";
   const sessionFromBody = typeof body.session === "string" ? body.session : "";
 
-  const callWaha = async (path: string, method = "GET", payload?: unknown) => {
+  const callWaha = async (path: string, method = "GET", payload?: unknown, timeoutMs = 25_000) => {
     // Sem timeout, uma requisição travada ao provedor pode manter a ação pendente
     // indefinidamente e bloquear a interface. Não repetimos automaticamente envios:
     // em timeout de POST, o resultado remoto pode ser incerto e retry poderia duplicar.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25_000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(`${wahaUrl}${path}`, {
         method,
@@ -1213,11 +1213,31 @@ Deno.serve(async (req: Request) => {
         return json({ messages, synced });
       }
       case "get_profile_pic": {
-        const chatId = typeof body.wa_chat_id === "string" ? body.wa_chat_id : "";
-        const inst = await getOwnedInstance({ waChatId: chatId });
+        const chatId = typeof body.wa_chat_id === "string" ? body.wa_chat_id.trim() : "";
         if (!chatId) return json({ error: "wa_chat_id é obrigatório." }, 400);
-        const pic = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/contacts/${encodeURIComponent(chatId)}/profile-picture`).catch(() => null);
-        return json({ url: pic?.url || pic?.profilePictureUrl || null });
+        const inst = await getOwnedInstance({ waChatId: chatId });
+        const path = `/api/${encodeURIComponent(inst.provider_instance_name)}/contacts/${encodeURIComponent(chatId)}/profile-picture`;
+        let lastError = "";
+        // Foto de perfil é leitura idempotente: permite uma segunda tentativa curta
+        // quando a WAHA oscila, sem prender o carregamento do painel por 25 segundos.
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const pic = await callWaha(path, "GET", undefined, 8_000);
+            const url = typeof pic === "string" ? pic : pic?.url || pic?.profilePictureUrl || pic?.profile_picture_url || null;
+            if (typeof url === "string" && url.trim()) return json({ url: url.trim(), recovered: true });
+            lastError = "A WAHA respondeu sem URL de foto.";
+          } catch (error) {
+            lastError = error instanceof Error ? error.message : "Falha desconhecida ao consultar foto.";
+            const retryable = /tempo limite|timeout|WAHA HTTP (429|5\\d\\d)/i.test(lastError);
+            if (!retryable || attempt === 2) break;
+          }
+          if (attempt === 1) await new Promise(resolve => setTimeout(resolve, 350));
+        }
+        console.warn("[WAHA] profile picture unavailable", {
+          attempt: 2,
+          reason: lastError.replace(/\\b\\d{7,}\\b/g, "[número]").slice(0, 180),
+        });
+        return json({ url: null, unavailable: true, retryable: true });
       }
       default:
         return json({ error: `Ação não suportada: ${action}` }, 400);
