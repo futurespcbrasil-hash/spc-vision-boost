@@ -2183,12 +2183,13 @@ const WhatsAppChat = () => {
     try {
       // O identificador @lid é privado e não é telefone. Só aceitamos o número
       // já validado no registro ou um JID telefônico @c.us/@s.whatsapp.net.
-      const storedDigits = collapseRepeatedPhoneDigits(selected.contact_number || '');
+      const storedDigits = canonicalWhatsAppPhone(selected.contact_number || '');
       const jid = String(selected.wa_chat_id || '');
-      const jidDigits = /@(c\.us|s\.whatsapp\.net)$/i.test(jid) ? onlyDigits(jid.split('@')[0]) : '';
-      const phone = storedDigits.length >= 10 && storedDigits.length <= 13 ? storedDigits : jidDigits;
-      if (phone.length < 10 || phone.length > 13) {
-        throw new Error('O WhatsApp ainda não forneceu um telefone real para esta conversa. Não é seguro salvar o identificador @lid como telefone.');
+      const jidDigitsRaw = /@(c\\.us|s\\.whatsapp\\.net)$/i.test(jid) ? onlyDigits(jid.split('@')[0]) : '';
+      const jidDigits = jidDigitsRaw.length >= 10 && jidDigitsRaw.length <= 13 ? canonicalWhatsAppPhone(jidDigitsRaw) : '';
+      const phone = storedDigits || jidDigits;
+      if (!phone || phone.length < 10 || phone.length > 13) {
+        throw new Error('O WhatsApp não forneceu um telefone real válido para esta conversa. O identificador recebido não será salvo como telefone.');
       }
 
       const name = contactNameInput.trim();
@@ -3522,9 +3523,16 @@ const WhatsAppChat = () => {
           <DialogTitle>Salvar contato</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground font-mono">
-            {selected ? formatNumber(selected.contact_number) : ''}
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-mono">
+              {selected && canonicalWhatsAppPhone(selected.contact_number)
+                ? formatNumber(canonicalWhatsAppPhone(selected.contact_number))
+                : 'Número real não identificado'}
+            </p>
+            {selected && !canonicalWhatsAppPhone(selected.contact_number) && (
+              <p className="text-xs text-destructive">Este identificador não é um telefone válido. O contato não poderá ser salvo até o WhatsApp fornecer o número real.</p>
+            )}
+          </div>
           <Input
             placeholder="Nome do contato"
             value={contactNameInput}
