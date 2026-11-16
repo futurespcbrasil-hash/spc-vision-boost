@@ -2185,7 +2185,7 @@ const WhatsAppChat = () => {
       // já validado no registro ou um JID telefônico @c.us/@s.whatsapp.net.
       const storedDigits = collapseRepeatedPhoneDigits(selected.contact_number || '');
       const jid = String(selected.wa_chat_id || '');
-      const jidDigits = /@(c\\.us|s\\.whatsapp\\.net)$/i.test(jid) ? onlyDigits(jid.split('@')[0]) : '';
+      const jidDigits = /@(c\.us|s\.whatsapp\.net)$/i.test(jid) ? onlyDigits(jid.split('@')[0]) : '';
       const phone = storedDigits.length >= 10 && storedDigits.length <= 13 ? storedDigits : jidDigits;
       if (phone.length < 10 || phone.length > 13) {
         throw new Error('O WhatsApp ainda não forneceu um telefone real para esta conversa. Não é seguro salvar o identificador @lid como telefone.');
