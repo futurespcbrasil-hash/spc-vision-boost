@@ -2187,9 +2187,17 @@ const WhatsAppChat = () => {
       const jid = String(selected.wa_chat_id || '');
       const jidDigitsRaw = /@(c\\.us|s\\.whatsapp\\.net)$/i.test(jid) ? onlyDigits(jid.split('@')[0]) : '';
       const jidDigits = jidDigitsRaw.length >= 10 && jidDigitsRaw.length <= 13 ? canonicalWhatsAppPhone(jidDigitsRaw) : '';
-      const phone = storedDigits || jidDigits;
+      let phone = storedDigits || jidDigits;
+      // Quando a conversa chega como @lid, consulta o mapeamento oficial disponível na sessão WAHA.
+      if (!phone && jid.endsWith("@lid")) {
+        const resolved = await waha.resolveLid(instanceId, jid);
+        const resolvedDigits = onlyDigits(String(resolved?.phone || ""));
+        if (resolvedDigits.length >= 10 && resolvedDigits.length <= 15) {
+          phone = canonicalWhatsAppPhone(resolvedDigits);
+        }
+      }
       if (!phone || phone.length < 10 || phone.length > 13) {
-        throw new Error('O WhatsApp não forneceu um telefone real válido para esta conversa. O identificador recebido não será salvo como telefone.');
+        throw new Error('A WAHA não possui o telefone associado a este identificador. O contato permanece protegido e não será salvo com número falso.');
       }
 
       const name = contactNameInput.trim();
