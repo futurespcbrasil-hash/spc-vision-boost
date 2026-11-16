@@ -1235,7 +1235,7 @@ Deno.serve(async (req: Request) => {
         }
         console.warn("[WAHA] profile picture unavailable", {
           attempt: 2,
-          reason: lastError.replace(/\\b\\d{7,}\\b/g, "[número]").slice(0, 180),
+          reason: lastError.replace(/\b\d{7,}\b/g, "[número]").slice(0, 180),
         });
         return json({ url: null, unavailable: true, retryable: true });
       }
