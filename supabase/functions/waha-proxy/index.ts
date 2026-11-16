@@ -900,6 +900,17 @@ Deno.serve(async (req: Request) => {
         }
         return json({ chats: chatsToSync, synced });
       }
+      case "resolve_lid": {
+        const inst = await getOwnedInstance({ waChatId: typeof body.wa_chat_id === "string" ? body.wa_chat_id : "" });
+        const waChatId = typeof body.wa_chat_id === "string" ? body.wa_chat_id.trim() : "";
+        if (!waChatId.endsWith("@lid")) return json({ phone: null, reason: "not_lid" });
+        const lid = waChatId.split("@")[0];
+        const resolved = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/lids/${encodeURIComponent(lid + "@lid")}`);
+        const pn = typeof resolved?.pn === "string" ? resolved.pn : "";
+        const phone = pn.replace(/@(c\\.us|s\\.whatsapp\\.net)$/i, "").replace(/\\D/g, "");
+        if (!/^\\d{10,15}$/.test(phone)) return json({ phone: null, reason: "not_resolved" });
+        return json({ phone, pn });
+      }
       case "get_contacts": {
         const inst = await getOwnedInstance();
         const contacts = await callWaha(`/api/${encodeURIComponent(inst.provider_instance_name)}/contacts`);
