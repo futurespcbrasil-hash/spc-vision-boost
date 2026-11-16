@@ -534,6 +534,7 @@ const WhatsAppChat = () => {
   // New conversation modal
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatSearch, setNewChatSearch] = useState('');
+  const [newChatName, setNewChatName] = useState('');
   const [newChatNumber, setNewChatNumber] = useState('');
   const [newChatMessage, setNewChatMessage] = useState('');
   const [forwardMessages, setForwardMessages] = useState<Message[]>([]);
@@ -1578,11 +1579,41 @@ const WhatsAppChat = () => {
     recorderRef.current = null;
   };
 
+  // Persiste o contato quando nome e telefone já foram informados.
+  const saveNewChatContact = async () => {
+    const name = newChatName.trim();
+    const digits = collapseRepeatedPhoneDigits(newChatNumber);
+    if (!name || digits.length < 10 || digits.length > 13 || !instanceId) return;
+    const number = digits.length <= 11 ? `55${digits}` : digits;
+    const phone = canonicalWhatsAppPhone(number);
+    if (phone.length < 10 || phone.length > 13) return;
+    try {
+      const { error } = await supabase.from('whatsapp_contacts').upsert({
+        instance_id: instanceId, wa_number: phone, name, push_name: null,
+        avatar_url: null, is_group: false, updated_at: new Date().toISOString(),
+      }, { onConflict: 'instance_id,wa_number' });
+      if (error) throw error;
+      const { data: existing, error: lookupError } = await supabase.from('whatsapp_chats')
+        .select('id').eq('instance_id', instanceId).eq('wa_chat_id', `${number}@c.us`).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing?.id) {
+        const { error: chatError } = await supabase.from('whatsapp_chats')
+          .update({ contact_name: name, contact_number: phone, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        if (chatError) throw chatError;
+      }
+    } catch (error: any) {
+      toast({ title: 'Não foi possível salvar o contato', description: error?.message || 'Tente novamente.', variant: 'destructive' });
+    }
+  };
+
   // ── Nova conversa ───────────────────────────────────────
   const handleStartNewChat = async () => {
     const digits = collapseRepeatedPhoneDigits(newChatNumber);
     if (!digits || !instanceId) return;
     const number = digits.length <= 11 ? `55${digits}` : digits;
+    const contactName = newChatName.trim();
+    if (contactName) await saveNewChatContact();
     setStartingChat(true);
     try {
       if (forwardMessages.length > 0) {
@@ -1617,10 +1648,17 @@ const WhatsAppChat = () => {
       await loadChats();
       const { data } = await supabase.from('whatsapp_chats').select('*')
         .eq('instance_id', instanceId).ilike('contact_number', `%${digits}%`).limit(1);
-      const chat = (data as Chat[])?.[0];
+      let chat = (data as Chat[])?.[0];
+      if (chat && contactName) {
+        const { error: chatNameError } = await supabase.from('whatsapp_chats')
+          .update({ contact_name: contactName, contact_number: canonicalWhatsAppPhone(number), updated_at: new Date().toISOString() })
+          .eq('id', chat.id);
+        if (chatNameError) throw chatNameError;
+        chat = { ...chat, contact_name: contactName, contact_number: canonicalWhatsAppPhone(number) };
+      }
       if (chat) setSelected(chat);
       setNewChatOpen(false);
-      setNewChatNumber(''); setNewChatMessage(''); setNewChatSearch('');
+      setNewChatName(''); setNewChatNumber(''); setNewChatMessage(''); setNewChatSearch('');
       const wasForwarding = forwardMessages.length > 0;
       setForwardMessages([]);
       setSelectedMessageIds([]);
@@ -1635,6 +1673,7 @@ const WhatsAppChat = () => {
 
   const handleNumberClick = (number: string) => {
     setNewChatNumber(number);
+    setNewChatName('');
     setNewChatOpen(true);
     setNewChatMessage('');
     setForwardMessages([]);
@@ -3248,7 +3287,7 @@ const WhatsAppChat = () => {
                   .map(c => (
                     <button
                       key={c.id}
-                      onClick={() => { setNewChatNumber(c.contact_number || c.wa_chat_id.split('@')[0]); setNewChatSearch(c.contact_name || c.contact_number || ''); }}
+                      onClick={() => { setNewChatNumber(c.contact_number || c.wa_chat_id.split('@')[0]); setNewChatName(c.contact_name || ''); setNewChatSearch(c.contact_name || c.contact_number || ''); }}
                       className="w-full flex items-center gap-2 p-2 text-left hover:bg-muted text-sm"
                     >
                       <div className={`w-8 h-8 rounded-full ${getAvatarColor(c.contact_name || c.contact_number)} flex items-center justify-center text-[11px] font-bold`}>
@@ -3276,10 +3315,16 @@ const WhatsAppChat = () => {
           </div>
 
           <div className="space-y-1">
+            <Label htmlFor="new-contact-name">Nome</Label>
+            <Input id="new-contact-name" placeholder="Nome do contato" value={newChatName}
+              onChange={e => setNewChatName(e.target.value)} onBlur={() => { void saveNewChatContact(); }} />
+          </div>
+
+          <div className="space-y-1">
             <Label htmlFor="new-number">Número (com DDD)</Label>
             <Input
               id="new-number"
-              placeholder="54991811902"
+              placeholder="54999999999"
               value={newChatNumber}
               onChange={e => {
                 const value = e.target.value;
@@ -3293,6 +3338,7 @@ const WhatsAppChat = () => {
                 }
                 setNewChatNumber(value);
               }}
+              onBlur={() => { void saveNewChatContact(); }}
             />
           </div>
 
