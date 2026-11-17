@@ -21,7 +21,7 @@ const lessons: Lesson[] = [
     title: "Entrando no sistema",
     summary: "Como acessar o Emissor Future com seu CPF ou e-mail e recuperar a senha.",
     path: "Tela inicial",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/b48311a0-d60b-4ff5-8676-68eee3aebf78/login.png",
     content:
       "Para entrar no Emissor Future você precisa do **CPF ou e-mail** cadastrado e da sua **senha**.\n\n1. Digite seu CPF (só números) ou e-mail.\n2. Digite sua senha.\n3. Clique em **Entrar**.\n\nEsqueceu a senha? Clique em **Esqueci minha senha** e siga as instruções que chegam no seu e-mail.",
     hotspots: [
@@ -37,7 +37,7 @@ const lessons: Lesson[] = [
     title: "Conhecendo o Painel (Dashboard)",
     summary: "A tela inicial: atalhos para emitir cada tipo de nota, gráfico de emissões e últimos documentos.",
     path: "Menu lateral > Dashboard",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/f0f04b80-4155-4004-9f8e-fe686b179dbd/dashboard.png",
     content:
       "O **Dashboard** é a primeira tela depois do login. Ele mostra um resumo da empresa selecionada:\n\n- **Cartões de documentos**: quantas notas de cada tipo já foram emitidas, com um botão para emitir uma nova.\n- **Emissões mensais**: gráfico com a quantidade de documentos por mês.\n- **Últimos documentos**: as notas mais recentes, com data, tipo, cliente e valor.\n\nPelo **menu lateral roxo** você acessa todas as áreas: Dashboard, Cadastros, Documentos, Relatórios e Configurações.",
     hotspots: [
@@ -66,7 +66,7 @@ const lessons: Lesson[] = [
     title: "O menu Cadastros",
     summary: "Onde ficam todos os cadastros que alimentam as suas notas.",
     path: "Menu lateral > Cadastros",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/530908fc-dacc-47f1-8dc6-b0a27dfa754b/menu-cadastros.png",
     content:
       "Ao clicar em **Cadastros** no menu lateral, abre uma lista com todos os cadastros do sistema. Eles são a base das notas: quanto melhor preenchidos, mais rápida e sem erros fica a emissão.\n\n> Dica: cadastre primeiro os **Grupos Tributários** e a **Natureza de Operação**, depois Produtos e Clientes.",
     hotspots: [
@@ -86,7 +86,7 @@ const lessons: Lesson[] = [
     title: "Lista de Produtos",
     summary: "Pesquisar, filtrar, editar e criar produtos.",
     path: "Cadastros > Produtos",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/ec16ea56-b32b-4372-8497-8fea9496e769/produtos-lista.png",
     content:
       "Aqui aparecem todos os produtos da empresa. Cada linha mostra **Código**, **Descrição**, **Preço**, **Unidade de medida** e a situação (**Ativo**).\n\nPara cadastrar um produto novo, clique em **Novo Produto** no canto superior direito.",
     hotspots: [
@@ -106,7 +106,7 @@ const lessons: Lesson[] = [
     title: "Cadastrar produto: Dados do Produto",
     summary: "Cada campo da primeira aba do cadastro de produto, explicado.",
     path: "Cadastros > Produtos > Novo Produto",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/9824f047-a368-4825-8c0a-b03c9722d134/produto-dados.png",
     content:
       "O cadastro de produto tem 3 abas: **Dados do Produto**, **Tributação** e **Outras informações**.\n\n**Passo a passo para cadastrar um produto:**\n1. Vá em **Cadastros > Produtos** e clique em **Novo Produto**.\n2. Preencha **Descrição**, **Un. Medida** e **Preço Unitário**.\n3. Informe o **NCM** (use a lupa para pesquisar).\n4. Se tiver, informe o **Código de Barras (EAN)** e o **CEST**.\n5. Vá na aba **Tributação** e escolha o **Grupo Tributário** e a **Origem**.\n6. Clique em **Salvar**.",
     hotspots: [
@@ -133,7 +133,7 @@ const lessons: Lesson[] = [
     title: "Cadastrar produto: Tributação",
     summary: "Como escolher o Grupo Tributário e a Origem do produto.",
     path: "Cadastros > Produtos > Novo Produto > aba Tributação",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/5f241367-324a-42d0-8dd6-8e6c93fea98f/produto-tributacao.png",
     content:
       "Na aba **Tributação** você define como os impostos do produto serão calculados.\n\n- **Grupo Tributário**: escolha **Padrão da Empresa** para usar a regra configurada para a empresa, ou um grupo específico, como **Simples Nacional - CSOSN 102**.\n- **Origem**: de onde vem a mercadoria. Para produtos nacionais, use **0 - Nacional**.\n\nNão sabe qual escolher? Pergunte à sua contabilidade qual tributação vale para seus produtos.",
     hotspots: [
@@ -149,7 +149,7 @@ const lessons: Lesson[] = [
     title: "Lista de Serviços",
     summary: "Onde ficam os serviços usados na nota de serviço (NFS-e).",
     path: "Cadastros > Serviços",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/52c98da6-280e-43fc-a63f-960a09e539fb/servicos-lista.png",
     content:
       "A lista de **Serviços** funciona igual à de produtos. Quando ainda não há nenhum serviço cadastrado, aparece **Nenhum registro**.\n\nClique em **Novo Serviço** para cadastrar o primeiro.",
     hotspots: [
@@ -165,7 +165,7 @@ const lessons: Lesson[] = [
     title: "Cadastrar serviço",
     summary: "Campos do cadastro de serviço e o que cada um significa.",
     path: "Cadastros > Serviços > Novo Serviço",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/a3869b55-0580-4e32-a415-bd92e69e9025/servico-cadastro.png",
     content:
       "**Passo a passo para cadastrar um serviço:**\n1. Vá em **Cadastros > Serviços** e clique em **Novo Serviço**.\n2. Preencha **Descrição**, **Valor** e **Unidade**.\n3. Informe os códigos fiscais: **CNAE**, **Código Trib. Município**, **Item Lista de Serviço**, **Cód. Trib. Nacional** e **NBS**.\n4. Clique em **Salvar**.\n\nOs códigos fiscais dependem da sua prefeitura e da atividade da empresa. Sua contabilidade pode informar os corretos.",
     hotspots: [
@@ -187,7 +187,7 @@ const lessons: Lesson[] = [
     title: "Lista de Clientes",
     summary: "Pesquisar, editar e cadastrar clientes, fornecedores e transportadoras.",
     path: "Cadastros > Clientes",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/662f7f5d-c67d-465c-8dc8-2f7e26de1367/clientes-lista.png",
     content:
       "Aqui ficam todos os clientes com **Nome**, **CPF/CNPJ**, **Cidade** e situação.\n\nPara cadastrar, clique em **Novo Cliente**.",
     hotspots: [
@@ -207,7 +207,7 @@ const lessons: Lesson[] = [
     title: "Cadastrar cliente",
     summary: "Todos os campos do cadastro de cliente, explicados.",
     path: "Cadastros > Clientes > Novo Cliente",
-    image: undefined,
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/d4dbaba4-b51d-4cc4-bf64-da68bb62647e/cliente-cadastro.png",
     content:
       "**Passo a passo para cadastrar um cliente:**\n1. Vá em **Cadastros > Clientes** e clique em **Novo Cliente**.\n2. Em **Tipo de Cadastro**, deixe **Cliente** ligado (e ligue Fornecedor/Transportadora se também for).\n3. Digite o **CPF/CNPJ** e o **Nome**.\n4. Defina **Consumidor Final** e **Contribuinte ICMS**.\n5. Preencha telefone e e-mail (o XML e o PDF da nota podem ser enviados para esse e-mail).\n6. Na aba **Endereço Principal**, digite o **CEP** e clique na lupa para preencher o endereço.\n7. Clique em **Salvar** no final da página.",
     hotspots: [
