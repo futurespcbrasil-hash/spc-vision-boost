@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Dispatch, SetStateAction, FormEvent } from "react";
+import type { Dispatch, SetStateAction, FormEvent, MouseEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { ArrowLeft, ArrowRight, BookOpen, Bot, CheckCircle2, CircleHelp, ImagePlus, Loader2, LogOut, Save, Search, ShieldCheck, Sparkles, X } from "lucide-react";
@@ -84,7 +84,7 @@ function AdminPanel({course,setCourse,save,busy,notice,onExit}:{course:Course;se
  const patchModule=(p:Partial<Module>)=>setCourse(c=>({...c,modules:c.modules.map(m=>m.id===moduleId?{...m,...p}:m)}));
  const addModule=()=>{const id=`modulo-${Date.now()}`;setCourse(c=>({...c,modules:[...c.modules,{id,title:"Novo módulo",description:"",icon:"BookOpen",lessonIds:[]}]}));setModuleId(id);setLessonId("")};
  const addLesson=()=>{if(!moduleId)return;const id=`aula-${Date.now()}`;const l:Lesson={id,moduleId,title:"Nova aula",summary:"",content:"",hotspots:[]};setCourse(c=>({...c,lessons:{...c.lessons,[id]:l},modules:c.modules.map(m=>m.id===moduleId?{...m,lessonIds:[...m.lessonIds,id]}:m)}));setLessonId(id)};
- const addHotspot=(e:React.MouseEvent<HTMLDivElement>)=>{if(!current?.image)return;const rect=e.currentTarget.getBoundingClientRect();const x=Math.max(0,Math.min(92,((e.clientX-rect.left)/rect.width)*100-4));const y=Math.max(0,Math.min(92,((e.clientY-rect.top)/rect.height)*100-4));const h:Hotspot={id:`ponto-${Date.now()}`,x,y,w:8,h:8,title:"Novo item",description:"Explique o que este botão ou campo faz."};patch({hotspots:[...current.hotspots,h]})};
+ const addHotspot=(e:MouseEvent<HTMLDivElement>)=>{if(!current?.image)return;const rect=e.currentTarget.getBoundingClientRect();const x=Math.max(0,Math.min(92,((e.clientX-rect.left)/rect.width)*100-4));const y=Math.max(0,Math.min(92,((e.clientY-rect.top)/rect.height)*100-4));const h:Hotspot={id:`ponto-${Date.now()}`,x,y,w:8,h:8,title:"Novo item",description:"Explique o que este botão ou campo faz."};patch({hotspots:[...current.hotspots,h]})};
  const patchHotspot=(id:string,p:Partial<Hotspot>)=>patch({hotspots:current.hotspots.map(h=>h.id===id?{...h,...p}:h)});
  const uploadPrint=async(file:File)=>{const path=`lessons/${current.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;const {error}=await supabase.storage.from("portal-media").upload(path,file,{upsert:true,contentType:file.type});if(error){alert(error.message);return}const {data}=supabase.storage.from("portal-media").getPublicUrl(path);patch({image:data.publicUrl,hotspots:[]})};
  const deleteLesson=()=>{if(!current||!window.confirm(`Excluir a aula "${current.title}"?`))return;setCourse(c=>{const lessons={...c.lessons};delete lessons[current.id];return {...c,lessons,modules:c.modules.map(m=>({...m,lessonIds:m.lessonIds.filter(id=>id!==current.id)}))}});setLessonId("")};
