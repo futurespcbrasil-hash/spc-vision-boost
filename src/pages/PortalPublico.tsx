@@ -20,7 +20,7 @@ export default function PortalPublico(){
  const location=useLocation(); const navigate=useNavigate();
  const [course,setCourse]=useState<Course>(seedCourse);
  const [loading,setLoading]=useState(true); const [query,setQuery]=useState("");
- const [done,setDone]=useState<string[]>([]);
+ const [done,setDone]=useState<string[]>(()=>{try{const value=JSON.parse(localStorage.getItem(progressKey)||"[]");return Array.isArray(value)?value.filter((id)=>typeof id==="string"):[]}catch{return[]}});
  const [selected,setSelected]=useState<string|null>(null); const [hotspot,setHotspot]=useState<string|null>(null);
  const [isAdmin,setIsAdmin]=useState(false); const [userId,setUserId]=useState<string|null>(null); const [userEmail,setUserEmail]=useState(""); const [email,setEmail]=useState(""); const [password,setPassword]=useState("");
  const [busy,setBusy]=useState(false); const [notice,setNotice]=useState(""); const [question,setQuestion]=useState(""); const [answer,setAnswer]=useState(""); const [chatBusy,setChatBusy]=useState(false); const [image,setImage]=useState<{mimeType:string;data:string;preview:string;name:string}|null>(null);
