@@ -1,0 +1,283 @@
+/** Original Nota Navigator Academy seed content. Screenshot files are restored separately in portal-media. */
+type Hotspot = { id: string; x: number; y: number; w: number; h: number; title: string; description: string; tip?: string | undefined };
+type Lesson = { id: string; moduleId: string; title: string; summary: string; path?: string | undefined; image?: string | undefined; video?: string | undefined; content: string; hotspots: Hotspot[] };
+type Module = { id: string; title: string; description: string; icon: string; lessonIds: string[] };
+type Course = { version: number; modules: Module[]; lessons: Record<string, Lesson> };
+
+
+
+const h = (
+  id: string,
+  [x, y, w, hh]: [number, number, number, number],
+  title: string,
+  description: string,
+  tip?: string,
+): Hotspot => ({ id, x, y, w, h: hh, title, description, tip });
+
+const lessons: Lesson[] = [
+  {
+    id: "login",
+    moduleId: "primeiros-passos",
+    title: "Entrando no sistema",
+    summary: "Como acessar o Emissor Future com seu CPF ou e-mail e recuperar a senha.",
+    path: "Tela inicial",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/b48311a0-d60b-4ff5-8676-68eee3aebf78/login.png",
+    content:
+      "Para entrar no Emissor Future você precisa do **CPF ou e-mail** cadastrado e da sua **senha**.\n\n1. Digite seu CPF (só números) ou e-mail.\n2. Digite sua senha.\n3. Clique em **Entrar**.\n\nEsqueceu a senha? Clique em **Esqueci minha senha** e siga as instruções que chegam no seu e-mail.",
+    hotspots: [
+      h("login-usuario", [37.2, 48, 25.6, 5.6], "CPF ou E-mail", "Campo onde você informa o seu usuário de acesso. Pode ser o seu CPF (somente números) ou o e-mail que foi cadastrado para você.", "Se o navegador já preencheu automaticamente, confira se é o usuário certo."),
+      h("login-senha", [37.2, 55.6, 25.6, 5.6], "Senha", "Digite a sua senha pessoal. Os caracteres aparecem como pontinhos por segurança.", "Atenção a letras maiúsculas e minúsculas."),
+      h("login-esqueci", [37.2, 64, 7.6, 3.4], "Esqueci minha senha", "Abre a recuperação de senha. Você informa o e-mail cadastrado e recebe um link para criar uma nova senha."),
+      h("login-entrar", [56.1, 63.3, 6.8, 5.6], "Entrar", "Confirma o acesso. Se os dados estiverem corretos, você é levado ao Painel (Dashboard) da empresa."),
+    ],
+  },
+  {
+    id: "dashboard",
+    moduleId: "primeiros-passos",
+    title: "Conhecendo o Painel (Dashboard)",
+    summary: "A tela inicial: atalhos para emitir cada tipo de nota, gráfico de emissões e últimos documentos.",
+    path: "Menu lateral > Dashboard",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/f0f04b80-4155-4004-9f8e-fe686b179dbd/dashboard.png",
+    content:
+      "O **Dashboard** é a primeira tela depois do login. Ele mostra um resumo da empresa selecionada:\n\n- **Cartões de documentos**: quantas notas de cada tipo já foram emitidas, com um botão para emitir uma nova.\n- **Emissões mensais**: gráfico com a quantidade de documentos por mês.\n- **Últimos documentos**: as notas mais recentes, com data, tipo, cliente e valor.\n\nPelo **menu lateral roxo** você acessa todas as áreas: Dashboard, Cadastros, Documentos, Relatórios e Configurações.",
+    hotspots: [
+      h("dash-empresa", [4.9, 1.4, 14.2, 5], "Seletor de Empresa", "Mostra a empresa em que você está trabalhando (CNPJ e nome). Clique para trocar de empresa caso você tenha acesso a mais de uma. Tudo que você emitir ou cadastrar vale para a empresa selecionada.", "Antes de emitir uma nota, sempre confira se a empresa certa está selecionada."),
+      h("dash-usuario", [88.8, 2, 9.6, 22], "Menu do usuário", "Clique no seu nome para abrir: **Meus dados** (seu perfil e senha), **Minhas Empresas** (empresas que você acessa) e **Sair** (encerra a sessão com segurança)."),
+      h("dash-menu-dashboard", [0, 7.6, 5, 17], "Menu: Dashboard", "Volta para esta tela inicial a qualquer momento."),
+      h("dash-menu-cadastros", [0, 27, 5, 13.6], "Menu: Cadastros", "Abre os cadastros básicos: Produtos, Serviços, Clientes, Veículos, Condutores, Natureza de Operação e Grupo Tributário."),
+      h("dash-menu-documentos", [0, 45.4, 5, 12.2], "Menu: Documentos", "Área para emitir, consultar, cancelar e baixar as notas fiscais (NF-e, NFC-e, NFS-e, CT-e, CT-e OS e MDF-e)."),
+      h("dash-menu-relatorios", [0, 62.4, 5, 12.2], "Menu: Relatórios", "Relatórios das emissões, vendas e documentos para conferência e envio à contabilidade."),
+      h("dash-menu-config", [0, 79.2, 5, 12.2], "Menu: Configurações", "Dados da empresa, certificado digital, séries e numeração das notas e demais ajustes do emissor."),
+      h("dash-nfe", [6.4, 16.4, 22.5, 10.8], "Notas Eletrônicas (NF-e)", "Total de NF-e (modelo 55) emitidas. É a nota usada principalmente na venda de mercadorias para empresas ou para outros estados. O botão **Emitir NFe** abre uma nova nota."),
+      h("dash-nfce", [29.6, 16.4, 22.5, 10.8], "Notas Consumidor (NFC-e)", "Total de NFC-e (modelo 65) emitidas. É a nota do varejo, emitida na venda direta ao consumidor final, como um cupom. O botão **Emitir NFCe** abre uma nova venda."),
+      h("dash-nfse", [52.8, 16.4, 22.5, 10.8], "Notas Serviço (NFS-e)", "Total de notas de serviço emitidas. Use quando a empresa presta serviços (e não vende mercadorias). Botão **Emitir NFSe** abre uma nova nota de serviço."),
+      h("dash-cte", [76, 16.4, 22.5, 10.8], "Conhecimento de Transporte (CT-e)", "Documento de quem faz transporte de cargas. Registra o frete de uma mercadoria de um lugar para outro. Botão **Emitir CTe**."),
+      h("dash-cteos", [6.4, 28.8, 22.5, 10.8], "CT-e Outros Serviços (CT-e OS)", "Usado no transporte de pessoas, valores ou bagagens (por exemplo, fretamento e turismo). Botão **Emitir CTeOS**."),
+      h("dash-mdfe", [29.6, 28.8, 22.5, 10.8], "Manifesto de Documentos (MDF-e)", "Agrupa as notas e conhecimentos que vão juntos em uma mesma viagem, informando veículo, condutor e percurso. Botão **Emitir MDFe**."),
+      h("dash-clientes", [52.8, 28.8, 22.5, 10.8], "Clientes", "Quantidade de clientes cadastrados. O botão **Novo Cliente** abre o cadastro direto daqui."),
+      h("dash-produtos", [76, 28.8, 22.5, 10.8], "Produtos", "Quantidade de produtos cadastrados. O botão **Novo Produto** abre o cadastro direto daqui."),
+      h("dash-grafico", [6.4, 41, 45.3, 46.6], "Emissões mensais", "Gráfico com a quantidade de documentos emitidos em cada mês. Ajuda a acompanhar o movimento da empresa ao longo do ano."),
+      h("dash-ultimos", [52.8, 41, 45.3, 46.6], "Últimos Documentos", "Lista das notas mais recentes com data, tipo, cliente e valor. O ícone de link ao final da linha abre o documento para consulta.", "Role a lista para ver mais documentos."),
+    ],
+  },
+  {
+    id: "menu-cadastros",
+    moduleId: "cadastros",
+    title: "O menu Cadastros",
+    summary: "Onde ficam todos os cadastros que alimentam as suas notas.",
+    path: "Menu lateral > Cadastros",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/530908fc-dacc-47f1-8dc6-b0a27dfa754b/menu-cadastros.png",
+    content:
+      "Ao clicar em **Cadastros** no menu lateral, abre uma lista com todos os cadastros do sistema. Eles são a base das notas: quanto melhor preenchidos, mais rápida e sem erros fica a emissão.\n\n> Dica: cadastre primeiro os **Grupos Tributários** e a **Natureza de Operação**, depois Produtos e Clientes.",
+    hotspots: [
+      h("menu-cad-botao", [0, 24, 5, 17], "Botão Cadastros", "Clique aqui para abrir ou fechar a lista de cadastros."),
+      h("menu-produtos", [5.2, 10.5, 11, 4.6], "Produtos", "Mercadorias que você vende, com preço, unidade, NCM e tributação."),
+      h("menu-servicos", [5.2, 16, 11, 4.6], "Serviços", "Serviços que você presta, usados na nota de serviço (NFS-e)."),
+      h("menu-clientes", [5.2, 21.6, 11, 4.6], "Clientes", "Pessoas e empresas para quem você emite notas. Também é onde se cadastram fornecedores e transportadoras."),
+      h("menu-veiculos", [5.2, 27, 11, 4.6], "Veículos", "Veículos usados no transporte (placa, RENAVAM, tipo). Necessários para CT-e e MDF-e."),
+      h("menu-condutores", [5.2, 32.6, 11, 4.6], "Condutores", "Motoristas que conduzem os veículos, com nome e CPF. Usados no MDF-e."),
+      h("menu-natureza", [5.2, 38.2, 11, 4.6], "Natureza de Operação", "Descreve o tipo da operação da nota: venda, devolução, remessa, bonificação etc. Define o CFOP utilizado."),
+      h("menu-grupo", [5.2, 43.8, 11, 4.6], "Grupo Tributário", "Conjunto de regras de impostos (CST/CSOSN, alíquotas) que você aplica aos produtos. Evita configurar imposto produto por produto."),
+    ],
+  },
+  {
+    id: "produtos-lista",
+    moduleId: "cadastros",
+    title: "Lista de Produtos",
+    summary: "Pesquisar, filtrar, editar e criar produtos.",
+    path: "Cadastros > Produtos",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/ec16ea56-b32b-4372-8497-8fea9496e769/produtos-lista.png",
+    content:
+      "Aqui aparecem todos os produtos da empresa. Cada linha mostra **Código**, **Descrição**, **Preço**, **Unidade de medida** e a situação (**Ativo**).\n\nPara cadastrar um produto novo, clique em **Novo Produto** no canto superior direito.",
+    hotspots: [
+      h("prod-ordenar", [6, 14.6, 10.6, 3.8], "Ordenar por", "Escolhe a ordem da lista: por data de cadastro, código, descrição ou preço."),
+      h("prod-procurar", [16.6, 14.6, 9, 3.8], "Procurar", "Digite parte do nome ou código para encontrar um produto rapidamente."),
+      h("prod-busca", [25.7, 14.6, 7.5, 3.8], "Busca Avançada", "Abre filtros extras, como situação (ativo/inativo), categoria e faixa de preço."),
+      h("prod-opcoes", [80.6, 14, 7.7, 5.2], "Opções (geral)", "Ações para a lista toda, como exportar ou importar produtos."),
+      h("prod-novo", [88.2, 14, 9.4, 5.2], "Novo Produto", "Abre o formulário para cadastrar um novo produto."),
+      h("prod-linha", [6, 24.4, 74.8, 7.4], "Linha do produto", "Mostra Código, Descrição, Preço e Unidade de medida. Clique na linha para abrir e editar o produto."),
+      h("prod-ativo", [82, 26.2, 3.6, 3.4], "Situação: Ativo", "Indica que o produto pode ser usado nas notas. Produtos inativos não aparecem na emissão, mas continuam no histórico."),
+      h("prod-linha-opcoes", [91.4, 25.6, 5, 4.8], "Opções do produto", "Menu de ações do produto: editar, duplicar, inativar ou excluir."),
+    ],
+  },
+  {
+    id: "produto-dados",
+    moduleId: "cadastros",
+    title: "Cadastrar produto: Dados do Produto",
+    summary: "Cada campo da primeira aba do cadastro de produto, explicado.",
+    path: "Cadastros > Produtos > Novo Produto",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/9824f047-a368-4825-8c0a-b03c9722d134/produto-dados.png",
+    content:
+      "O cadastro de produto tem 3 abas: **Dados do Produto**, **Tributação** e **Outras informações**.\n\n**Passo a passo para cadastrar um produto:**\n1. Vá em **Cadastros > Produtos** e clique em **Novo Produto**.\n2. Preencha **Descrição**, **Un. Medida** e **Preço Unitário**.\n3. Informe o **NCM** (use a lupa para pesquisar).\n4. Se tiver, informe o **Código de Barras (EAN)** e o **CEST**.\n5. Vá na aba **Tributação** e escolha o **Grupo Tributário** e a **Origem**.\n6. Clique em **Salvar**.",
+    hotspots: [
+      h("pd-aba-dados", [6.2, 16.8, 9.2, 5], "Aba Dados do Produto", "Informações gerais do produto: nome, preço, códigos e categoria."),
+      h("pd-aba-trib", [15.3, 16.8, 6.6, 5], "Aba Tributação", "Define como os impostos são calculados para este produto (Grupo Tributário e Origem)."),
+      h("pd-aba-outras", [22, 16.8, 9.2, 5], "Aba Outras informações", "Dados complementares do produto, como observações e informações adicionais para a nota."),
+      h("pd-imagem", [9.4, 32.6, 10.4, 23.6], "Imagem do Produto", "Clique ou arraste uma foto do produto. Ajuda a identificar o item, mas não é obrigatória."),
+      h("pd-ativo", [23.3, 32.4, 3.8, 7.6], "Ativo", "Ligado (roxo) = o produto pode ser usado nas notas. Desligue para esconder o produto sem perder o histórico."),
+      h("pd-codigo", [28.9, 35.4, 11.8, 5.4], "Código", "Código interno do produto. O sistema sugere o próximo número automaticamente, mas você pode alterar."),
+      h("pd-descricao", [41.7, 35.4, 31, 5.4], "Descrição", "Nome do produto como vai aparecer na nota fiscal. Seja claro, por exemplo: \"Brigadeiro gourmet 25g\".", "Campo obrigatório."),
+      h("pd-un", [73.6, 35.4, 11.8, 5.4], "Un. Medida", "Unidade de venda: UN (unidade), KG, LT, CX, PC etc."),
+      h("pd-preco", [86.4, 35.4, 11.8, 5.4], "Preço Unitário", "Valor de venda de uma unidade. Esse preço é sugerido automaticamente na emissão da nota."),
+      h("pd-ean", [22.5, 45.2, 18.2, 5.6], "Código de Barras (EAN)", "Código GTIN/EAN impresso na embalagem. Se o produto não tiver código de barras, deixe em branco."),
+      h("pd-ncm", [41.7, 45.2, 11.8, 5.6], "NCM", "Código de 8 dígitos que classifica a mercadoria (Nomenclatura Comum do Mercosul). É obrigatório na nota. Clique na lupa para pesquisar pelo nome.", "Na dúvida sobre o NCM correto, confirme com sua contabilidade."),
+      h("pd-cest", [54.5, 45.2, 11.8, 5.6], "CEST", "Código de 7 dígitos exigido para produtos sujeitos à Substituição Tributária. Se não se aplica ao seu produto, deixe em branco."),
+      h("pd-categoria", [67.2, 45.2, 31, 5.6], "Categoria", "Agrupa produtos para organizar a lista e os relatórios (ex.: Doces, Bebidas)."),
+      h("pd-fabricacao", [22.5, 52.2, 7.8, 3.2], "Fabricação própria", "Marque se o produto é fabricado pela sua empresa (e não comprado para revenda)."),
+      h("pd-salvar", [94.6, 64.2, 4.6, 6], "Salvar", "Grava o produto. Ele passa a aparecer na lista de produtos e na emissão das notas."),
+    ],
+  },
+  {
+    id: "produto-tributacao",
+    moduleId: "cadastros",
+    title: "Cadastrar produto: Tributação",
+    summary: "Como escolher o Grupo Tributário e a Origem do produto.",
+    path: "Cadastros > Produtos > Novo Produto > aba Tributação",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/5f241367-324a-42d0-8dd6-8e6c93fea98f/produto-tributacao.png",
+    content:
+      "Na aba **Tributação** você define como os impostos do produto serão calculados.\n\n- **Grupo Tributário**: escolha **Padrão da Empresa** para usar a regra configurada para a empresa, ou um grupo específico, como **Simples Nacional - CSOSN 102**.\n- **Origem**: de onde vem a mercadoria. Para produtos nacionais, use **0 - Nacional**.\n\nNão sabe qual escolher? Pergunte à sua contabilidade qual tributação vale para seus produtos.",
+    hotspots: [
+      h("pt-aba", [15.2, 17, 6.8, 5.2], "Aba Tributação", "Você está nesta aba. Ela define os impostos do produto."),
+      h("pt-grupo", [7.5, 33, 59.8, 13.8], "Grupo Tributário", "Lista de regras de impostos. **Padrão da Empresa** usa a configuração geral da empresa. **Simples Nacional - CSOSN 102** é comum para empresas do Simples sem permissão de crédito. Os grupos são criados em Cadastros > Grupo Tributário."),
+      h("pt-origem", [68.2, 33, 29.4, 5.6], "Origem", "Indica a procedência da mercadoria: 0 - Nacional, 1 - Estrangeira (importação direta), 2 - Estrangeira (comprada no mercado interno) e outras."),
+      h("pt-salvar", [94.2, 47.4, 4.6, 5.8], "Salvar", "Grava o produto com as regras de tributação escolhidas."),
+    ],
+  },
+  {
+    id: "servicos-lista",
+    moduleId: "cadastros",
+    title: "Lista de Serviços",
+    summary: "Onde ficam os serviços usados na nota de serviço (NFS-e).",
+    path: "Cadastros > Serviços",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/52c98da6-280e-43fc-a63f-960a09e539fb/servicos-lista.png",
+    content:
+      "A lista de **Serviços** funciona igual à de produtos. Quando ainda não há nenhum serviço cadastrado, aparece **Nenhum registro**.\n\nClique em **Novo Serviço** para cadastrar o primeiro.",
+    hotspots: [
+      h("sl-ordenar", [6.1, 14.6, 10.6, 3.6], "Ordenar por", "Escolhe a ordem da lista de serviços."),
+      h("sl-procurar", [16.7, 14.6, 9, 3.6], "Procurar", "Pesquise um serviço pelo nome."),
+      h("sl-novo", [89.4, 13.6, 9.1, 5.4], "Novo Serviço", "Abre o formulário para cadastrar um serviço."),
+      h("sl-vazio", [47.6, 28, 9.6, 3.8], "Nenhum registro", "Ainda não há serviços cadastrados nesta empresa. Depois do primeiro cadastro, eles aparecem aqui."),
+    ],
+  },
+  {
+    id: "servico-cadastro",
+    moduleId: "cadastros",
+    title: "Cadastrar serviço",
+    summary: "Campos do cadastro de serviço e o que cada um significa.",
+    path: "Cadastros > Serviços > Novo Serviço",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/a3869b55-0580-4e32-a415-bd92e69e9025/servico-cadastro.png",
+    content:
+      "**Passo a passo para cadastrar um serviço:**\n1. Vá em **Cadastros > Serviços** e clique em **Novo Serviço**.\n2. Preencha **Descrição**, **Valor** e **Unidade**.\n3. Informe os códigos fiscais: **CNAE**, **Código Trib. Município**, **Item Lista de Serviço**, **Cód. Trib. Nacional** e **NBS**.\n4. Clique em **Salvar**.\n\nOs códigos fiscais dependem da sua prefeitura e da atividade da empresa. Sua contabilidade pode informar os corretos.",
+    hotspots: [
+      h("sc-ativo", [12.6, 24.6, 3.6, 7.6], "Ativo", "Ligado = o serviço pode ser usado nas notas."),
+      h("sc-descricao", [22.4, 27.8, 44.2, 5.4], "Descrição", "Nome do serviço como vai aparecer na nota (ex.: \"Manutenção de computadores\")."),
+      h("sc-valor", [67.6, 27.8, 14, 5.4], "Valor", "Preço padrão do serviço. Pode ser alterado na hora de emitir a nota."),
+      h("sc-unidade", [82.7, 27.8, 14, 5.4], "Unidade", "Unidade de cobrança: UN, HORA, MÊS etc."),
+      h("sc-cnae", [7.3, 37.6, 14, 5.6], "CNAE", "Código da atividade econômica da empresa ligada a este serviço."),
+      h("sc-trib-mun", [22.4, 37.6, 14, 5.6], "Código Trib. Município", "Código de tributação definido pela prefeitura da sua cidade para este serviço."),
+      h("sc-item-lista", [37.5, 37.6, 21.6, 5.6], "Item Lista de Serviço", "Item da lista oficial de serviços (Lei Complementar 116) que corresponde ao serviço prestado."),
+      h("sc-trib-nac", [60.1, 37.6, 14, 5.6], "Cód. Trib. Nacional", "Código de tributação do padrão nacional da NFS-e."),
+      h("sc-nbs", [75.1, 37.6, 21.6, 5.6], "NBS", "Nomenclatura Brasileira de Serviços: classifica o serviço, parecido com o NCM dos produtos."),
+      h("sc-salvar", [93.4, 49.6, 4.6, 5.6], "Salvar", "Grava o serviço."),
+    ],
+  },
+  {
+    id: "clientes-lista",
+    moduleId: "cadastros",
+    title: "Lista de Clientes",
+    summary: "Pesquisar, editar e cadastrar clientes, fornecedores e transportadoras.",
+    path: "Cadastros > Clientes",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/662f7f5d-c67d-465c-8dc8-2f7e26de1367/clientes-lista.png",
+    content:
+      "Aqui ficam todos os clientes com **Nome**, **CPF/CNPJ**, **Cidade** e situação.\n\nPara cadastrar, clique em **Novo Cliente**.",
+    hotspots: [
+      h("cl-ordenar", [6.4, 14.4, 10, 3.8], "Ordenar por", "Escolhe a ordem da lista, por exemplo por Razão Social (nome) ou data de cadastro."),
+      h("cl-procurar", [16.4, 14.4, 9.1, 3.8], "Procurar", "Pesquise pelo nome, CPF ou CNPJ."),
+      h("cl-busca", [25.6, 14.4, 7.5, 3.8], "Busca Avançada", "Filtros extras como cidade, situação e tipo de cadastro."),
+      h("cl-opcoes", [81.7, 13.6, 7.7, 5.4], "Opções (geral)", "Ações para a lista toda, como importar ou exportar clientes."),
+      h("cl-novo", [89.4, 13.6, 9.1, 5.4], "Novo Cliente", "Abre o formulário de cadastro de cliente."),
+      h("cl-linha", [6.4, 23.4, 76, 7.6], "Linha do cliente", "Mostra Nome, CPF/CNPJ e Cidade. Clique para abrir e editar."),
+      h("cl-ativo", [83, 25.6, 3.4, 3.4], "Situação: Ativo", "Cliente disponível para emissão de notas."),
+      h("cl-linha-opcoes", [92.3, 24.8, 5.1, 5], "Opções do cliente", "Editar, inativar ou excluir o cliente."),
+    ],
+  },
+  {
+    id: "cliente-cadastro",
+    moduleId: "cadastros",
+    title: "Cadastrar cliente",
+    summary: "Todos os campos do cadastro de cliente, explicados.",
+    path: "Cadastros > Clientes > Novo Cliente",
+    image: "https://nota-navigator-academy.lovable.app/__l5e/assets-v1/d4dbaba4-b51d-4cc4-bf64-da68bb62647e/cliente-cadastro.png",
+    content:
+      "**Passo a passo para cadastrar um cliente:**\n1. Vá em **Cadastros > Clientes** e clique em **Novo Cliente**.\n2. Em **Tipo de Cadastro**, deixe **Cliente** ligado (e ligue Fornecedor/Transportadora se também for).\n3. Digite o **CPF/CNPJ** e o **Nome**.\n4. Defina **Consumidor Final** e **Contribuinte ICMS**.\n5. Preencha telefone e e-mail (o XML e o PDF da nota podem ser enviados para esse e-mail).\n6. Na aba **Endereço Principal**, digite o **CEP** e clique na lupa para preencher o endereço.\n7. Clique em **Salvar** no final da página.",
+    hotspots: [
+      h("cc-ativo", [6, 17, 22.4, 12.2], "Ativo", "Ligado = cliente disponível para emissão de notas."),
+      h("cc-tipo", [29.3, 17, 69, 12.2], "Tipo de Cadastro", "Defina o papel desse cadastro: **Cliente** (para quem você vende), **Fornecedor** (de quem você compra) e/ou **Transportadora** (quem faz o frete). Pode ligar mais de um."),
+      h("cc-cpf", [7.1, 42.8, 21.7, 5.4], "CPF/CNPJ", "Documento do cliente. Digite só os números: 11 dígitos para pessoa física (CPF) ou 14 para empresa (CNPJ)."),
+      h("cc-nome", [29.9, 42.8, 37, 5.4], "Nome", "Nome completo da pessoa ou Razão Social da empresa, exatamente como no documento."),
+      h("cc-fantasia", [67.8, 42.8, 29.4, 5.4], "Nome Fantasia", "Nome comercial pelo qual a empresa é conhecida. Quando aparece em cinza, o campo não está disponível para edição naquele momento."),
+      h("cc-consumidor", [7.1, 52.6, 14.2, 5.6], "Consumidor Final", "**Sim** quando o cliente compra para uso próprio (não vai revender). Isso muda o cálculo de alguns impostos na nota."),
+      h("cc-icms", [22.3, 52.6, 14.2, 5.6], "Contribuinte ICMS", "**Contribuinte**: empresa com Inscrição Estadual. **Isento**: tem inscrição, mas é isento. **Não contribuinte**: pessoa física ou empresa sem Inscrição Estadual."),
+      h("cc-ie", [37.5, 52.6, 21.7, 5.6], "Inscrição Estadual", "Número de registro da empresa na Secretaria da Fazenda do estado. Obrigatório para contribuintes de ICMS."),
+      h("cc-im", [60.3, 52.6, 21.7, 5.6], "Inscrição Municipal", "Registro da empresa na prefeitura. Usado principalmente em notas de serviço."),
+      h("cc-suframa", [83, 52.6, 14.2, 5.6], "SUFRAMA", "Inscrição na Zona Franca de Manaus. Só preencha se o cliente tiver esse cadastro."),
+      h("cc-telefone", [7.1, 62.8, 14.2, 5.4], "Telefone", "Telefone de contato do cliente."),
+      h("cc-email", [22.3, 62.8, 44.6, 5.4], "E-mail(s)", "E-mail do cliente. Pode informar mais de um. É usado para enviar o XML e o PDF das notas."),
+      h("cc-abas", [6, 74, 22.6, 5.2], "Abas de Endereço", "**Endereço Principal**: endereço do cliente. **Entrega/Retirada**: se a mercadoria for entregue ou retirada em outro lugar. **Ente Governamental**: para vendas a órgãos públicos."),
+      h("cc-cep", [7.1, 84, 14.2, 5.4], "CEP", "Digite o CEP e clique na lupa: endereço, bairro, cidade e estado são preenchidos automaticamente."),
+    ],
+  },
+];
+
+const modules: Module[] = [
+  {
+    id: "primeiros-passos",
+    title: "Primeiros passos",
+    description: "Entrar no sistema e entender o painel principal.",
+    icon: "Rocket",
+    lessonIds: ["login", "dashboard"],
+  },
+  {
+    id: "cadastros",
+    title: "Cadastros",
+    description: "Produtos, serviços e clientes: a base de todas as notas.",
+    icon: "FolderOpen",
+    lessonIds: [
+      "menu-cadastros",
+      "produtos-lista",
+      "produto-dados",
+      "produto-tributacao",
+      "servicos-lista",
+      "servico-cadastro",
+      "clientes-lista",
+      "cliente-cadastro",
+    ],
+  },
+  {
+    id: "documentos",
+    title: "Emitindo documentos",
+    description: "NF-e, NFC-e, NFS-e, CT-e e MDF-e passo a passo.",
+    icon: "FileText",
+    lessonIds: [],
+  },
+  {
+    id: "relatorios",
+    title: "Relatórios",
+    description: "Conferência das emissões e envio para a contabilidade.",
+    icon: "BarChart3",
+    lessonIds: [],
+  },
+  {
+    id: "configuracoes",
+    title: "Configurações",
+    description: "Certificado digital, dados da empresa e numeração das notas.",
+    icon: "Settings",
+    lessonIds: [],
+  },
+];
+
+export const seedCourse: Course = {
+  version: 1,
+  modules,
+  lessons: Object.fromEntries(lessons.map((l) => [l.id, l])),
+};
