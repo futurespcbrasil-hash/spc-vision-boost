@@ -5,40 +5,12 @@ import ReactMarkdown from "react-markdown";
 import { ArrowLeft, ArrowRight, BookOpen, Bot, CheckCircle2, CircleHelp, ImagePlus, Loader2, LogOut, Save, Search, ShieldCheck, Sparkles, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
+import { seedCourse } from "@/data/notaNavigatorSeed";
+
 type Hotspot = { id: string; x: number; y: number; w: number; h: number; title: string; description: string; tip?: string };
 type Lesson = { id: string; moduleId: string; title: string; summary: string; path?: string; content: string; image?: string; video?: string; hotspots: Hotspot[] };
 type Module = { id: string; title: string; description: string; icon: string; lessonIds: string[] };
 type Course = { version: number; modules: Module[]; lessons: Record<string, Lesson> };
-
-const lesson = (id:string,moduleId:string,title:string,summary:string,path:string,content:string):Lesson => ({id,moduleId,title,summary,path,content,hotspots:[]});
-const initialCourse:Course = {
- version:1,
- modules:[
-  {id:"primeiros-passos",title:"Primeiros passos",description:"Entre no Emissor Future e conheça o painel principal.",icon:"Rocket",lessonIds:["login","dashboard"]},
-  {id:"cadastros",title:"Cadastros",description:"Produtos, serviços e clientes: a base das emissões.",icon:"FolderOpen",lessonIds:["menu-cadastros","produtos-lista","produto-dados","produto-tributacao","servicos-lista","servico-cadastro","clientes-lista","cliente-cadastro"]},
-  {id:"documentos",title:"Emitindo documentos",description:"Entenda os fluxos de NF-e, NFC-e, NFS-e, CT-e e MDF-e.",icon:"FileText",lessonIds:["nfe","nfce","nfse"]},
-  {id:"relatorios",title:"Relatórios",description:"Confira emissões e organize informações para a contabilidade.",icon:"BarChart3",lessonIds:["relatorios"]},
-  {id:"configuracoes",title:"Configurações",description:"Dados da empresa, certificado digital e parâmetros fiscais.",icon:"Settings",lessonIds:["empresa","certificado"]}
- ],
- lessons:{
-  login:lesson("login","primeiros-passos","Entrando no sistema","Acesse com CPF ou e-mail e recupere sua senha.","Tela inicial","Para entrar no Emissor Future você precisa do **CPF ou e-mail** cadastrado e da sua **senha**.\n\n1. Digite seu CPF (somente números) ou e-mail.\n2. Digite sua senha.\n3. Clique em **Entrar**.\n\nSe esqueceu a senha, use **Esqueci minha senha** e siga as instruções enviadas ao e-mail cadastrado."),
-  dashboard:lesson("dashboard","primeiros-passos","Conhecendo o Painel (Dashboard)","Atalhos para notas, indicadores e últimos documentos.","Menu lateral > Dashboard","O **Dashboard** é a primeira tela depois do login. Ele resume a empresa selecionada.\n\n- **Cartões de documentos**: atalhos para NF-e, NFC-e, NFS-e e outros módulos liberados.\n- **Emissões mensais**: gráfico de documentos por mês.\n- **Últimos documentos**: notas recentes com data, tipo, cliente e valor.\n\nPelo menu lateral você acessa Cadastros, Documentos, Relatórios e Configurações. Confira sempre a empresa ativa antes de emitir."),
-  "menu-cadastros":lesson("menu-cadastros","cadastros","O menu Cadastros","Onde ficam os registros que alimentam suas notas.","Menu lateral > Cadastros","A área **Cadastros** reúne os dados usados nas emissões. Mantenha produtos, serviços, clientes, veículos, condutores, natureza de operação e grupos tributários atualizados.\n\nDica: valide primeiro os parâmetros fiscais com a contabilidade; depois mantenha os cadastros consistentes."),
-  "produtos-lista":lesson("produtos-lista","cadastros","Lista de Produtos","Pesquise, filtre, edite e crie produtos.","Cadastros > Produtos","A lista apresenta código, descrição, preço, unidade e situação do produto. Use a pesquisa para localizar um item e **Novo Produto** para cadastrar. Mantenha códigos, unidades e preços atualizados."),
-  "produto-dados":lesson("produto-dados","cadastros","Cadastrar produto: Dados do Produto","Campos da primeira aba do cadastro.","Cadastros > Produtos > Novo Produto","1. Abra **Cadastros > Produtos** e clique em **Novo Produto**.\n2. Preencha descrição, unidade de medida e preço unitário.\n3. Informe NCM e, quando aplicável, EAN e CEST.\n4. Confira a categoria e a situação do produto.\n5. Revise os dados antes de salvar.\n\nNa dúvida sobre NCM ou classificação fiscal, confirme com a contabilidade."),
-  "produto-tributacao":lesson("produto-tributacao","cadastros","Cadastrar produto: Tributação","Grupo tributário e origem da mercadoria.","Cadastros > Produtos > Novo Produto > Tributação","Na aba **Tributação** você define os parâmetros fiscais do produto. Selecione o grupo tributário configurado para a operação e informe a origem correta da mercadoria.\n\nNão escolha CST, CSOSN, CFOP ou alíquotas por suposição: confirme com o responsável fiscal."),
-  "servicos-lista":lesson("servicos-lista","cadastros","Lista de Serviços","Localize os serviços usados na NFS-e.","Cadastros > Serviços","A lista reúne os serviços cadastrados para a empresa. Use a pesquisa para localizar um registro e **Novo Serviço** para incluir outro. Confira se o serviço está ativo e se a descrição corresponde ao que é prestado."),
-  "servico-cadastro":lesson("servico-cadastro","cadastros","Cadastrar serviço","Campos do cadastro de serviço.","Cadastros > Serviços > Novo Serviço","1. Abra **Cadastros > Serviços** e clique em **Novo Serviço**.\n2. Informe descrição, valor e unidade.\n3. Confira CNAE, código de tributação municipal, item da lista de serviço, código nacional e NBS quando solicitados.\n4. Salve após validar os códigos com a contabilidade ou prefeitura."),
-  "clientes-lista":lesson("clientes-lista","cadastros","Lista de Clientes","Pesquise e mantenha os dados dos clientes.","Cadastros > Clientes","A lista apresenta nome, CPF/CNPJ, cidade e situação. Use a pesquisa para localizar um cadastro e **Novo Cliente** para incluir. Confira o documento e os contatos antes de emitir uma nota."),
-  "cliente-cadastro":lesson("cliente-cadastro","cadastros","Cadastrar cliente","Dados de identificação, contato e endereço.","Cadastros > Clientes > Novo Cliente","1. Abra **Cadastros > Clientes** e clique em **Novo Cliente**.\n2. Informe CPF/CNPJ e nome ou razão social.\n3. Defina os tipos de cadastro aplicáveis.\n4. Confira consumidor final, contribuinte ICMS e inscrições, quando houver.\n5. Preencha telefone, e-mail e endereço.\n6. Revise e salve."),
-  nfe:lesson("nfe","documentos","Emitir e acompanhar NF-e","Confira destinatário, itens e situação do documento.","Documentos > Nota Eletrônica","Antes de transmitir uma NF-e, confira empresa, destinatário, produtos, quantidades, valores, natureza da operação e informações fiscais.\n\nApós transmitir, confira o retorno: autorizada, rejeitada, pendente ou cancelada. Se estiver em processamento, consulte a situação antes de repetir para evitar duplicidade."),
-  nfce:lesson("nfce","documentos","Venda no PDV e NFC-e","Revise itens, descontos e pagamentos.","Documentos > Nota do Consumidor","No PDV, adicione os produtos e confira quantidades, preços, descontos, formas de pagamento e total. Informe os dados do consumidor quando necessário e revise antes de concluir. Uma rejeição não representa documento autorizado."),
-  nfse:lesson("nfse","documentos","Emitir NFS-e","Tomador, serviço, competência e tributação municipal.","Documentos > Nota de Serviço","Selecione o tomador e confira CPF/CNPJ. Revise descrição do serviço, competência, município, valor, descontos, retenções e códigos tributários solicitados. Os campos variam conforme o município e a integração. Confirme os parâmetros com a contabilidade."),
-  relatorios:lesson("relatorios","relatorios","Relatórios e conferência","Filtre períodos e organize documentos.","Relatórios","Abra **Relatórios**, selecione a categoria disponível e confira os filtros e o período. A disponibilidade depende dos módulos liberados e dos dados existentes. Exporte ou compartilhe somente depois de conferir os valores."),
-  empresa:lesson("empresa","configuracoes","Dados da empresa","Confira identificação, endereço e parâmetros.","Configurações > Empresa","Revise CNPJ, razão social, nome fantasia, endereço, contatos, inscrições e regime tributário. Séries, numeração e parâmetros fiscais afetam as emissões e devem ser alterados somente após validação."),
-  certificado:lesson("certificado","configuracoes","Certificado digital A1","Valide arquivo, senha e validade.","Configurações > Certificado Digital","Selecione o arquivo .PFX ou .P12 da empresa e informe a senha no próprio sistema. Confira a validade e a empresa correspondente. Nunca compartilhe o arquivo ou a senha por canais inseguros.")
- }
-};
 
 const OWNER_EMAIL = "dalprapf1@gmail.com";
 const progressKey = "future-portal-course-progress-v1";
@@ -46,7 +18,7 @@ const cx = (...v:(string|false|undefined|null)[])=>v.filter(Boolean).join(" ");
 
 export default function PortalPublico(){
  const location=useLocation(); const navigate=useNavigate();
- const [course,setCourse]=useState<Course>(initialCourse);
+ const [course,setCourse]=useState<Course>(seedCourse);
  const [loading,setLoading]=useState(true); const [query,setQuery]=useState("");
  const [done,setDone]=useState<string[]>([]);
  const [selected,setSelected]=useState<string|null>(null); const [hotspot,setHotspot]=useState<string|null>(null);
