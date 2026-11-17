@@ -2,3 +2,6 @@ project_id = "jhmdavcidwqycjedvgoz"
 
 [functions.future-assinador-lead]
 verify_jwt = false
+
+[functions.portal-assistant]
+verify_jwt = false
