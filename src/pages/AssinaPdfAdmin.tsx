@@ -319,6 +319,7 @@ const AssinaPdfAdmin = () => {
     { id: "overview", label: "Visão geral", icon: Activity },
     { id: "plans", label: "Planos", icon: BadgeCheck },
     { id: "customers", label: "Clientes e licenças", icon: Users },
+    { id: "keys", label: "Chaves de ativação", icon: KeyRound },
     { id: "updates", label: "Atualizações", icon: Download },
   ] as const;
 
