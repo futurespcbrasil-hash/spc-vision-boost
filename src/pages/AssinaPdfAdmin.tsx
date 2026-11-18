@@ -116,6 +116,7 @@ const AssinaPdfAdmin = () => {
         callAdmin("list_plans"),
         callAdmin("list_customers"),
         callAdmin("list_releases"),
+        callAdmin("list_activation_keys"),
       ]);
       setOverview(summary);
       setPlans(planData.plans || []);
