@@ -43,7 +43,7 @@ const emptyPlan = {
   name: "",
   description: "",
   price: "",
-  billing_interval: "monthly",
+  billing_interval: "",
   device_limit: "1",
   is_active: true,
   sort_order: "0",
@@ -149,7 +149,7 @@ const AssinaPdfAdmin = () => {
       name: plan.name,
       description: plan.description || "",
       price: plan.price_cents === null ? "" : (plan.price_cents / 100).toFixed(2).replace(".", ","),
-      billing_interval: plan.billing_interval || "monthly",
+      billing_interval: plan.billing_interval || "",
       device_limit: String(plan.device_limit),
       is_active: plan.is_active,
       sort_order: String(plan.sort_order),
@@ -323,7 +323,7 @@ const AssinaPdfAdmin = () => {
                     <label className="space-y-1 text-sm"><span className="font-medium">Código interno</span><input required value={planForm.code} onChange={e => setPlanForm(v => ({ ...v, code: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") }))} placeholder="ex.: premium" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Nome do plano</span><input required value={planForm.name} onChange={e => setPlanForm(v => ({ ...v, name: e.target.value }))} placeholder="ex.: Premium" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Preço mensal/anual (R$)</span><input value={planForm.price} onChange={e => setPlanForm(v => ({ ...v, price: e.target.value }))} placeholder="Deixe vazio se ainda não definido" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Periodicidade</span><select value={planForm.billing_interval} onChange={e => setPlanForm(v => ({ ...v, billing_interval: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2"><option value="monthly">Mensal</option><option value="yearly">Anual</option><option value="lifetime">Vitalício</option></select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Periodicidade</span><select value={planForm.billing_interval} onChange={e => setPlanForm(v => ({ ...v, billing_interval: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2"><option value="">A definir / sem cobrança</option><option value="monthly">Mensal</option><option value="yearly">Anual</option><option value="lifetime">Vitalício</option></select></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Dispositivos por licença</span><input type="number" min="1" value={planForm.device_limit} onChange={e => setPlanForm(v => ({ ...v, device_limit: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Ordem de exibição</span><input type="number" value={planForm.sort_order} onChange={e => setPlanForm(v => ({ ...v, sort_order: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
                   </div>
