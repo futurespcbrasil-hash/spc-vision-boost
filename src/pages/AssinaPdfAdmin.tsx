@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Activity, BadgeCheck, Download, FileCheck2, Loader2, Package, Pencil, Plus, RefreshCw, Save, ShieldCheck, Users } from "lucide-react";
+import { Activity, BadgeCheck, Ban, CheckCircle2, Copy, Download, FileCheck2, KeyRound, Loader2, Package, Pencil, Plus, RefreshCw, Save, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const API_URL = "https://zcquhikpsqohrclflnjo.supabase.co";
@@ -72,7 +72,7 @@ const formatDate = (value?: string | null) =>
 
 const AssinaPdfAdmin = () => {
   const { session } = useAuth();
-  const [tab, setTab] = useState<"overview" | "plans" | "customers" | "updates">("overview");
+  const [tab, setTab] = useState<"overview" | "plans" | "customers" | "keys" | "updates">("overview");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -81,7 +81,7 @@ const AssinaPdfAdmin = () => {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<any[]>([]);
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);\n  const [activationKeys, setActivationKeys] = useState<any[]>([]);\n  const [newPlaintextKey, setNewPlaintextKey] = useState("");\n  const [keyForm, setKeyForm] = useState({ plan_id: "", customer_name: "", customer_email: "", customer_phone: "", valid_until: "", payment_reference: "", payment_confirmed: false });
   const [releases, setReleases] = useState<Release[]>([]);
   const [planForm, setPlanForm] = useState({ ...emptyPlan, features: { ...emptyPlan.features } });
   const [showPlanForm, setShowPlanForm] = useState(false);
@@ -111,7 +111,7 @@ const AssinaPdfAdmin = () => {
     setLoading(true);
     setError("");
     try {
-      const [summary, planData, customerData, releaseData] = await Promise.all([
+      const [summary, planData, customerData, releaseData, keyData] = await Promise.all([
         callAdmin("overview"),
         callAdmin("list_plans"),
         callAdmin("list_customers"),
@@ -122,7 +122,7 @@ const AssinaPdfAdmin = () => {
       setCustomers(customerData.customers || []);
       setLicenses(customerData.licenses || []);
       setSubscriptions(customerData.subscriptions || []);
-      setReleases(releaseData.releases || []);
+      setReleases(releaseData.releases || []);\n      setActivationKeys(keyData.activation_keys || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar o painel.");
     } finally {
@@ -212,6 +212,62 @@ const AssinaPdfAdmin = () => {
       await loadAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível cadastrar a licença.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
+  const createActivationKey = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    setNotice("");
+    setNewPlaintextKey("");
+    try {
+      if (!keyForm.plan_id) throw new Error("Selecione o plano que será liberado.");
+      if (!keyForm.valid_until) throw new Error("Defina a validade personalizada da chave.");
+      if (new Date(keyForm.valid_until).getTime() <= Date.now()) throw new Error("A validade precisa ser futura.");
+      const result = await callAdmin("create_activation_key", {
+        activation_key: { ...keyForm },
+      });
+      setNewPlaintextKey(result.plaintext_key || "");
+      setNotice(keyForm.payment_confirmed
+        ? "Chave criada e liberada para ativação. Copie o código agora; ele não será exibido novamente."
+        : "Chave criada como pendente de pagamento. Ela não poderá ser ativada até a confirmação do pagamento.");
+      setKeyForm({ plan_id: keyForm.plan_id, customer_name: "", customer_email: "", customer_phone: "", valid_until: "", payment_reference: "", payment_confirmed: false });
+      await loadAll();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível emitir a chave.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmActivationPayment = async (id: string) => {
+    setSaving(true);
+    setError("");
+    try {
+      await callAdmin("confirm_activation_payment", { activation_key: { id } });
+      setNotice("Pagamento confirmado. A chave agora está liberada para ativação.");
+      await loadAll();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível confirmar o pagamento.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revokeActivationKey = async (id: string) => {
+    if (!window.confirm("Deseja realmente cancelar esta chave? Ela não poderá mais ser utilizada.")) return;
+    setSaving(true);
+    setError("");
+    try {
+      await callAdmin("revoke_activation_key", { activation_key: { id } });
+      setNotice("Chave cancelada.");
+      await loadAll();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível cancelar a chave.");
     } finally {
       setSaving(false);
     }
@@ -324,8 +380,8 @@ const AssinaPdfAdmin = () => {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="space-y-1 text-sm"><span className="font-medium">Código interno</span><input required value={planForm.code} onChange={e => setPlanForm(v => ({ ...v, code: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") }))} placeholder="ex.: premium" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Nome do plano</span><input required value={planForm.name} onChange={e => setPlanForm(v => ({ ...v, name: e.target.value }))} placeholder="ex.: Premium" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Preço mensal/anual (R$)</span><input value={planForm.price} onChange={e => setPlanForm(v => ({ ...v, price: e.target.value }))} placeholder="Deixe vazio se ainda não definido" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Periodicidade</span><select value={planForm.billing_interval} onChange={e => setPlanForm(v => ({ ...v, billing_interval: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2"><option value="">A definir / sem cobrança</option><option value="monthly">Mensal</option><option value="yearly">Anual</option><option value="lifetime">Vitalício</option></select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Preço (R$)</span><input value={planForm.price} onChange={e => setPlanForm(v => ({ ...v, price: e.target.value }))} placeholder="Deixe vazio se ainda não definido" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Periodicidade</span><select value={planForm.billing_interval} onChange={e => setPlanForm(v => ({ ...v, billing_interval: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2"><option value="">A definir / sem cobrança</option><option value="monthly">Mensal recorrente</option><option value="yearly">Anual</option><option value="lifetime">Vitalício</option></select></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Dispositivos por licença</span><input type="number" min="1" value={planForm.device_limit} onChange={e => setPlanForm(v => ({ ...v, device_limit: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Ordem de exibição</span><input type="number" value={planForm.sort_order} onChange={e => setPlanForm(v => ({ ...v, sort_order: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
                   </div>
@@ -354,6 +410,56 @@ const AssinaPdfAdmin = () => {
                 <table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Dispositivos</th><th className="px-4 py-3">Validade</th><th className="px-4 py-3">Ação</th></tr></thead><tbody>{licenses.map(license => { const customer = customerMap.get(license.user_id); return <tr key={license.id} className="border-t border-border"><td className="px-4 py-3"><div className="font-medium">{customer?.full_name || customer?.email || "Cliente"}</div><div className="max-w-64 truncate text-xs text-muted-foreground">{license.user_id}</div></td><td className="px-4 py-3">{license.assinapdf_plans?.name || "—"}</td><td className="px-4 py-3"><span className="rounded-full bg-muted px-2 py-1 text-xs">{license.status}</span></td><td className="px-4 py-3">{license.max_devices}</td><td className="px-4 py-3">{formatDate(license.valid_until)}</td><td className="px-4 py-3"><select value={license.status} disabled={saving} onChange={e => void changeLicenseStatus(license.id, e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs"><option value="pending">Pendente</option><option value="active">Ativa</option><option value="suspended">Suspensa</option><option value="revoked">Revogada</option><option value="expired">Expirada</option></select></td></tr>; })}{licenses.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">Nenhuma licença cadastrada. Os clientes aparecerão aqui após criarem suas contas.</td></tr>}</tbody></table>
               </div>
               <div className="text-xs text-muted-foreground">{customers.length} cliente(s) e {subscriptions.length} assinatura(s) registrada(s).</div>
+            </div>
+          )}
+
+
+          {tab === "keys" && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-lg font-semibold">Emissão de chaves manuais</h2>
+                <p className="text-sm text-muted-foreground">Venda via WhatsApp: confirme o pagamento e gere uma chave com validade escolhida pelo administrador. O código completo aparece somente uma vez.</p>
+              </div>
+              <form onSubmit={createActivationKey} className="space-y-4 rounded-xl border border-border bg-card p-5">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <label className="space-y-1 text-sm"><span className="font-medium">Plano</span><select required value={keyForm.plan_id} onChange={e => setKeyForm(v => ({ ...v, plan_id: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2"><option value="">Selecione</option>{plans.filter(p => p.is_active).map(p => <option key={p.id} value={p.id}>{p.name}{p.billing_interval === "monthly" ? " · mensal" : ""}</option>)}</select></label>
+                  <label className="space-y-1 text-sm"><span className="font-medium">Nome do cliente (opcional)</span><input value={keyForm.customer_name} onChange={e => setKeyForm(v => ({ ...v, customer_name: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
+                  <label className="space-y-1 text-sm"><span className="font-medium">E-mail de ativação (opcional)</span><input type="email" value={keyForm.customer_email} onChange={e => setKeyForm(v => ({ ...v, customer_email: e.target.value }))} placeholder="Se preenchido, restringe a este e-mail" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
+                  <label className="space-y-1 text-sm"><span className="font-medium">WhatsApp (opcional)</span><input value={keyForm.customer_phone} onChange={e => setKeyForm(v => ({ ...v, customer_phone: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
+                  <label className="space-y-1 text-sm"><span className="font-medium">Validade da chave</span><input required type="datetime-local" value={keyForm.valid_until} onChange={e => setKeyForm(v => ({ ...v, valid_until: e.target.value }))} className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
+                  <label className="space-y-1 text-sm"><span className="font-medium">Referência do pagamento</span><input value={keyForm.payment_reference} onChange={e => setKeyForm(v => ({ ...v, payment_reference: e.target.value }))} placeholder="Comprovante, observação..." className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
+                </div>
+                <label className="flex items-start gap-2 rounded-lg border border-border p-3 text-sm">
+                  <input type="checkbox" checked={keyForm.payment_confirmed} onChange={e => setKeyForm(v => ({ ...v, payment_confirmed: e.target.checked }))} className="mt-0.5" />
+                  <span><strong>Pagamento já confirmado</strong><span className="block text-xs text-muted-foreground">Marque somente depois de conferir o recebimento. Sem esta confirmação, a chave fica bloqueada para ativação.</span></span>
+                </label>
+                <div className="flex justify-end"><button disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"><KeyRound size={15} /> {saving ? "Gerando..." : "Gerar chave de ativação"}</button></div>
+              </form>
+
+              {newPlaintextKey && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={17} /> Chave gerada — copie agora</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Por segurança, o sistema guarda somente o hash. Se perder este código, será necessário cancelar e emitir outro.</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2"><code className="min-w-0 flex-1 break-all rounded-lg border border-border bg-background px-3 py-3 font-mono text-sm">{newPlaintextKey}</code><button type="button" onClick={() => void navigator.clipboard.writeText(newPlaintextKey)} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted"><Copy size={15} /> Copiar</button></div>
+                </div>
+              )}
+
+              <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Chave</th><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Pagamento</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Validade</th><th className="px-4 py-3">Ações</th></tr></thead>
+                  <tbody>{activationKeys.map(item => (
+                    <tr key={item.id} className="border-t border-border">
+                      <td className="px-4 py-3 font-mono text-xs">{item.key_prefix}••••</td>
+                      <td className="px-4 py-3"><div className="font-medium">{item.customer_name || "—"}</div><div className="text-xs text-muted-foreground">{item.customer_email || item.customer_phone || "Sem vínculo"}</div></td>
+                      <td className="px-4 py-3">{item.assinapdf_plans?.name || "—"}</td>
+                      <td className="px-4 py-3">{item.payment_status === "confirmed" ? "Confirmado" : item.payment_status === "refunded" ? "Estornado" : "Pendente"}</td>
+                      <td className="px-4 py-3"><span className="rounded-full bg-muted px-2 py-1 text-xs">{item.status === "pending_payment" ? "Aguardando pagamento" : item.status === "available" ? "Disponível" : item.status === "redeemed" ? "Resgatada" : item.status === "revoked" ? "Cancelada" : "Expirada"}</span></td>
+                      <td className="px-4 py-3">{formatDate(item.valid_until)}</td>
+                      <td className="px-4 py-3"><div className="flex items-center gap-2">{item.status === "pending_payment" && <button disabled={saving} onClick={() => void confirmActivationPayment(item.id)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"><CheckCircle2 size={13} /> Confirmar</button>}{["pending_payment","available"].includes(item.status) && <button disabled={saving} onClick={() => void revokeActivationKey(item.id)} className="inline-flex items-center gap-1 rounded-md border border-destructive/30 px-2 py-1 text-xs text-destructive hover:bg-destructive/5"><Ban size={13} /> Cancelar</button>}</div></td>
+                    </tr>
+                  ))}{activationKeys.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">Nenhuma chave emitida.</td></tr>}</tbody>
+                </table>
+              </div>
             </div>
           )}
 
