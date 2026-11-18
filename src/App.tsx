@@ -70,6 +70,7 @@ const Usuarios = lazyWithRetry(() => import("@/pages/Usuarios"));
 const Suporte = lazyWithRetry(() => import("@/pages/Suporte"));
 const SuporteRustDesk = lazyWithRetry(() => import("@/pages/SuporteRustDesk"));
 const FutureRemoteDashboard = lazyWithRetry(() => import("@/pages/remote/FutureRemoteDashboard"));
+const AssinaPdfAdmin = lazyWithRetry(() => import("@/pages/AssinaPdfAdmin"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const BoletosWhatsApp = lazyWithRetry(() => import("@/pages/BoletosWhatsApp"));
 const EmailMarketing = lazyWithRetry(() => import("@/pages/EmailMarketing"));
@@ -139,6 +140,7 @@ const ProtectedRoutes = () => {
             <Route path="/financeiro/clientes" element={<BoletosWhatsApp initialTab="clientes" />} />
             <Route path="/financeiro/boletos" element={<BoletosWhatsApp />} />
             <Route path="/future-remote" element={<FutureRemoteDashboard />} />
+            <Route path="/assinapdf" element={<AssinaPdfAdmin />} />
             </Route>
             <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
             <Route path="/produtos" element={<Navigate to="/" replace />} />
