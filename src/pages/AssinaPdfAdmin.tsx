@@ -234,7 +234,7 @@ const AssinaPdfAdmin = () => {
       if (!keyForm.valid_until) throw new Error("Defina a validade personalizada da chave.");
       if (new Date(keyForm.valid_until).getTime() <= Date.now()) throw new Error("A validade precisa ser futura.");
       const result = await callAdmin("create_activation_key", {
-        activation_key: { ...keyForm },
+        activation_key: { ...keyForm, valid_until: new Date(keyForm.valid_until).toISOString() },
       });
       setNewPlaintextKey(result.plaintext_key || "");
       setNotice(keyForm.payment_confirmed
