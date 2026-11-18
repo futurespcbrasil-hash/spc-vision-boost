@@ -82,7 +82,7 @@ const AssinaPdfAdmin = () => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
-  const [activationKeys, setActivationKeys] = useState<any[]>([]);
+  const [activationKeys, setActivationKeys] = useState<any[]>([]);\n  const [payments, setPayments] = useState<any[]>([]);\n  const [devices, setDevices] = useState<any[]>([]);
   const [newPlaintextKey, setNewPlaintextKey] = useState("");
   const [keyForm, setKeyForm] = useState({ plan_id: "", customer_name: "", customer_email: "", customer_phone: "", valid_until: "", payment_reference: "", payment_confirmed: false });
   const [releases, setReleases] = useState<Release[]>([]);
@@ -114,7 +114,7 @@ const AssinaPdfAdmin = () => {
     setLoading(true);
     setError("");
     try {
-      const [summary, planData, customerData, releaseData, keyData] = await Promise.all([
+      const [summary, planData, customerData, releaseData, keyData, paymentData, deviceData] = await Promise.all([
         callAdmin("overview"),
         callAdmin("list_plans"),
         callAdmin("list_customers"),
@@ -127,7 +127,7 @@ const AssinaPdfAdmin = () => {
       setLicenses(customerData.licenses || []);
       setSubscriptions(customerData.subscriptions || []);
       setReleases(releaseData.releases || []);
-      setActivationKeys(keyData.activation_keys || []);
+      setActivationKeys(keyData.activation_keys || []);\n      setPayments(paymentData.payments || []);\n      setDevices(deviceData.devices || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar o painel.");
     } finally {
@@ -278,6 +278,22 @@ const AssinaPdfAdmin = () => {
     }
   };
 
+
+  const revokeDevice = async (id: string) => {
+    if (!window.confirm("Revogar este dispositivo? Ele deixará de acessar os recursos Premium.")) return;
+    setSaving(true);
+    setError("");
+    try {
+      await callAdmin("revoke_device", { device: { id } });
+      setNotice("Dispositivo revogado. O cliente poderá solicitar a liberação de outro equipamento.");
+      await loadAll();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível revogar o dispositivo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const changeLicenseStatus = async (id: string, status: string) => {
     setSaving(true);
     setError("");
@@ -414,6 +430,23 @@ const AssinaPdfAdmin = () => {
               </form>
               <div className="overflow-x-auto rounded-xl border border-border bg-card">
                 <table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Dispositivos</th><th className="px-4 py-3">Validade</th><th className="px-4 py-3">Ação</th></tr></thead><tbody>{licenses.map(license => { const customer = customerMap.get(license.user_id); return <tr key={license.id} className="border-t border-border"><td className="px-4 py-3"><div className="font-medium">{customer?.full_name || customer?.email || "Cliente"}</div><div className="max-w-64 truncate text-xs text-muted-foreground">{license.user_id}</div></td><td className="px-4 py-3">{license.assinapdf_plans?.name || "—"}</td><td className="px-4 py-3"><span className="rounded-full bg-muted px-2 py-1 text-xs">{license.status}</span></td><td className="px-4 py-3">{license.max_devices}</td><td className="px-4 py-3">{formatDate(license.valid_until)}</td><td className="px-4 py-3"><select value={license.status} disabled={saving} onChange={e => void changeLicenseStatus(license.id, e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs"><option value="pending">Pendente</option><option value="active">Ativa</option><option value="suspended">Suspensa</option><option value="revoked">Revogada</option><option value="expired">Expirada</option></select></td></tr>; })}{licenses.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">Nenhuma licença cadastrada. Os clientes aparecerão aqui após criarem suas contas.</td></tr>}</tbody></table>
+              </div>
+
+              <div className="space-y-3">
+                <div><h3 className="font-semibold">Pagamentos e recorrências</h3><p className="text-xs text-muted-foreground">Eventos recebidos do Asaas e pagamentos registrados manualmente.</p></div>
+                <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                  <table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Origem</th><th className="px-4 py-3">Valor</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Vencimento</th><th className="px-4 py-3">Pagamento</th></tr></thead>
+                    <tbody>{payments.map(payment => { const customer = customerMap.get(payment.user_id); return <tr key={payment.id} className="border-t border-border"><td className="px-4 py-3"><div className="font-medium">{customer?.full_name || customer?.email || payment.user_id || "—"}</div><div className="text-xs text-muted-foreground">{customer?.email || ""}</div></td><td className="px-4 py-3">{payment.assinapdf_subscriptions?.assinapdf_plans?.name || "Premium"}</td><td className="px-4 py-3">{payment.provider === "asaas" ? "Asaas" : "Manual"}</td><td className="px-4 py-3">{formatPrice(Number(payment.amount_cents || 0))}</td><td className="px-4 py-3"><span className="rounded-full bg-muted px-2 py-1 text-xs">{payment.status === "confirmed" ? "Confirmado" : payment.status === "overdue" ? "Em atraso" : payment.status === "refunded" ? "Estornado" : payment.status === "canceled" ? "Cancelado" : "Pendente"}</span></td><td className="px-4 py-3">{payment.due_date || "—"}</td><td className="px-4 py-3">{formatDate(payment.paid_at)}</td></tr>; })}{payments.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Nenhum pagamento registrado.</td></tr>}</tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div><h3 className="font-semibold">Dispositivos autorizados</h3><p className="text-xs text-muted-foreground">Revogue um dispositivo para liberar uma vaga na licença do cliente.</p></div>
+                <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                  <table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Dispositivo</th><th className="px-4 py-3">Plataforma</th><th className="px-4 py-3">Último acesso</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Ação</th></tr></thead>
+                    <tbody>{devices.map(device => { const customer = customerMap.get(device.assinapdf_licenses?.user_id); return <tr key={device.id} className="border-t border-border"><td className="px-4 py-3">{customer?.full_name || customer?.email || device.assinapdf_licenses?.user_id || "—"}</td><td className="px-4 py-3">{device.device_label || "Equipamento"}</td><td className="px-4 py-3">{device.platform || "—"}</td><td className="px-4 py-3">{formatDate(device.last_seen_at)}</td><td className="px-4 py-3">{device.revoked_at ? "Revogado" : "Ativo"}</td><td className="px-4 py-3">{!device.revoked_at && <button disabled={saving} onClick={() => void revokeDevice(device.id)} className="rounded-md border border-destructive/30 px-2 py-1 text-xs text-destructive hover:bg-destructive/5">Revogar</button>}</td></tr>; })}{devices.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Nenhum dispositivo registrado.</td></tr>}</tbody>
+                  </table>
+                </div>
               </div>
               <div className="text-xs text-muted-foreground">{customers.length} cliente(s) e {subscriptions.length} assinatura(s) registrada(s).</div>
             </div>
