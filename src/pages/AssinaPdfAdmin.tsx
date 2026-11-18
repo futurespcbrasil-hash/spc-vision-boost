@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Activity, BadgeCheck, Download, FileCheck2, Loader2, Package, Pencil, Plus, RefreshCw, Save, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -158,7 +158,7 @@ const AssinaPdfAdmin = () => {
     setShowPlanForm(true);
   };
 
-  const savePlan = async (event: React.FormEvent) => {
+  const savePlan = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
     setError("");
