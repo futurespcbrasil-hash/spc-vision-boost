@@ -208,7 +208,7 @@ const AssinaPdfAdmin = () => {
       setLicenseUserId("");
       setLicensePlanId("");
       setLicenseValidUntil("");
-      setNotice("Licença cadastrada. Para planos pagos, ela fica pendente até a confirmação da assinatura.");
+      setNotice("Plano atribuído/atualizado com sucesso. A licença e a assinatura manual foram sincronizadas.");
       await loadAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível cadastrar a licença.");
