@@ -82,7 +82,9 @@ const AssinaPdfAdmin = () => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [licenses, setLicenses] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
-  const [activationKeys, setActivationKeys] = useState<any[]>([]);\n  const [payments, setPayments] = useState<any[]>([]);\n  const [devices, setDevices] = useState<any[]>([]);
+  const [activationKeys, setActivationKeys] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [devices, setDevices] = useState<any[]>([]);
   const [newPlaintextKey, setNewPlaintextKey] = useState("");
   const [keyForm, setKeyForm] = useState({ plan_id: "", customer_name: "", customer_email: "", customer_phone: "", valid_until: "", payment_reference: "", payment_confirmed: false });
   const [releases, setReleases] = useState<Release[]>([]);
@@ -120,6 +122,8 @@ const AssinaPdfAdmin = () => {
         callAdmin("list_customers"),
         callAdmin("list_releases"),
         callAdmin("list_activation_keys"),
+        callAdmin("list_payments"),
+        callAdmin("list_devices"),
       ]);
       setOverview(summary);
       setPlans(planData.plans || []);
@@ -127,7 +131,9 @@ const AssinaPdfAdmin = () => {
       setLicenses(customerData.licenses || []);
       setSubscriptions(customerData.subscriptions || []);
       setReleases(releaseData.releases || []);
-      setActivationKeys(keyData.activation_keys || []);\n      setPayments(paymentData.payments || []);\n      setDevices(deviceData.devices || []);
+      setActivationKeys(keyData.activation_keys || []);
+      setPayments(paymentData.payments || []);
+      setDevices(deviceData.devices || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar o painel.");
     } finally {
