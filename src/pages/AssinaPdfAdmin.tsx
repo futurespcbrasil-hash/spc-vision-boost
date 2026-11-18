@@ -285,6 +285,22 @@ const AssinaPdfAdmin = () => {
   };
 
 
+
+  const cancelAsaasSubscription = async (id: string) => {
+    if (!window.confirm("Cancelar a recorrência no Asaas? As próximas cobranças serão interrompidas. O acesso já pago permanece até o fim do período vigente.")) return;
+    setSaving(true);
+    setError("");
+    try {
+      await callAdmin("cancel_asaas_subscription", { subscription: { id } });
+      setNotice("Recorrência cancelada no Asaas. O acesso pago permanece até o vencimento atual.");
+      await loadAll();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível cancelar a recorrência.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const revokeDevice = async (id: string) => {
     if (!window.confirm("Revogar este dispositivo? Ele deixará de acessar os recursos Premium.")) return;
     setSaving(true);
@@ -441,8 +457,8 @@ const AssinaPdfAdmin = () => {
               <div className="space-y-3">
                 <div><h3 className="font-semibold">Pagamentos e recorrências</h3><p className="text-xs text-muted-foreground">Eventos recebidos do Asaas e pagamentos registrados manualmente.</p></div>
                 <div className="overflow-x-auto rounded-xl border border-border bg-card">
-                  <table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Origem</th><th className="px-4 py-3">Valor</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Vencimento</th><th className="px-4 py-3">Pagamento</th></tr></thead>
-                    <tbody>{payments.map(payment => { const customer = customerMap.get(payment.user_id); return <tr key={payment.id} className="border-t border-border"><td className="px-4 py-3"><div className="font-medium">{payment.metadata?.customer_name || customer?.full_name || customer?.email || payment.user_id || "—"}</div><div className="text-xs text-muted-foreground">{payment.metadata?.customer_email || customer?.email || ""}</div></td><td className="px-4 py-3">{payment.assinapdf_subscriptions?.assinapdf_plans?.name || "Premium"}</td><td className="px-4 py-3">{payment.provider === "asaas" ? "Asaas" : "Manual"}</td><td className="px-4 py-3">{formatPrice(Number(payment.amount_cents || 0))}</td><td className="px-4 py-3"><span className="rounded-full bg-muted px-2 py-1 text-xs">{payment.status === "confirmed" ? "Confirmado" : payment.status === "overdue" ? "Em atraso" : payment.status === "refunded" ? "Estornado" : payment.status === "canceled" ? "Cancelado" : "Pendente"}</span></td><td className="px-4 py-3">{payment.due_date || "—"}</td><td className="px-4 py-3">{formatDate(payment.paid_at)}</td></tr>; })}{payments.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Nenhum pagamento registrado.</td></tr>}</tbody>
+                  <table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Origem</th><th className="px-4 py-3">Valor</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Vencimento</th><th className="px-4 py-3">Pagamento</th><th className="px-4 py-3">Recorrência</th></tr></thead>
+                    <tbody>{payments.map(payment => { const customer = customerMap.get(payment.user_id); return <tr key={payment.id} className="border-t border-border"><td className="px-4 py-3"><div className="font-medium">{payment.metadata?.customer_name || customer?.full_name || customer?.email || payment.user_id || "—"}</div><div className="text-xs text-muted-foreground">{payment.metadata?.customer_email || customer?.email || ""}</div></td><td className="px-4 py-3">{payment.assinapdf_subscriptions?.assinapdf_plans?.name || "Premium"}</td><td className="px-4 py-3">{payment.provider === "asaas" ? "Asaas" : "Manual"}</td><td className="px-4 py-3">{formatPrice(Number(payment.amount_cents || 0))}</td><td className="px-4 py-3"><span className="rounded-full bg-muted px-2 py-1 text-xs">{payment.status === "confirmed" ? "Confirmado" : payment.status === "overdue" ? "Em atraso" : payment.status === "refunded" ? "Estornado" : payment.status === "canceled" ? "Cancelado" : "Pendente"}</span></td><td className="px-4 py-3">{payment.due_date || "—"}</td><td className="px-4 py-3">{formatDate(payment.paid_at)}</td><td className="px-4 py-3">{payment.provider === "asaas" && payment.assinapdf_subscriptions?.id && ["pending","active","past_due"].includes(payment.assinapdf_subscriptions?.status) ? <button disabled={saving} onClick={() => void cancelAsaasSubscription(payment.assinapdf_subscriptions.id)} className="rounded-md border border-destructive/30 px-2 py-1 text-xs text-destructive hover:bg-destructive/5">Cancelar</button> : "—"}</td></tr>; })}{payments.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Nenhum pagamento registrado.</td></tr>}</tbody>
                   </table>
                 </div>
               </div>
