@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import CRMNotificationBell from '@/components/CRMNotificationBell';
 
 const moduleForPath = (pathname: string): string | null => {
+  if (pathname.startsWith('/assinapdf')) return 'assinapdf_admin';
   if (pathname.startsWith('/manual')) return 'manual';
   if (pathname === '/') return 'dashboard';
   if (pathname.startsWith('/crm')) return 'crm';
@@ -102,9 +103,11 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
   const moduleKey = moduleForPath(location.pathname);
   const useNoPadding = noPadding ?? location.pathname.startsWith('/whatsapp');
   // Toda rota renderizada dentro do layout precisa ter módulo explícito e permissão salva.
-  const allowed = moduleKey !== null
-    && canAccessModule(moduleKey)
-    && (location.pathname !== '/usuarios' || canManageUsers);
+  const allowed = moduleKey === 'assinapdf_admin'
+    ? canManageUsers
+    : moduleKey !== null
+      && canAccessModule(moduleKey)
+      && (location.pathname !== '/usuarios' || canManageUsers);
 
   return (
     <div className="flex min-h-screen bg-background">
