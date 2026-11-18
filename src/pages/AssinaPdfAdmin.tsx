@@ -88,6 +88,7 @@ const AssinaPdfAdmin = () => {
   const [releaseForm, setReleaseForm] = useState({ ...emptyRelease });
   const [licenseUserId, setLicenseUserId] = useState("");
   const [licensePlanId, setLicensePlanId] = useState("");
+  const [licenseValidUntil, setLicenseValidUntil] = useState("");
 
   const callAdmin = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     const token = session?.access_token;
@@ -203,9 +204,10 @@ const AssinaPdfAdmin = () => {
     setError("");
     setNotice("");
     try {
-      await callAdmin("assign_license", { license: { user_id: licenseUserId.trim(), plan_id: licensePlanId } });
+      await callAdmin("assign_license", { license: { user_id: licenseUserId.trim(), plan_id: licensePlanId, valid_until: licenseValidUntil || null } });
       setLicenseUserId("");
       setLicensePlanId("");
+      setLicenseValidUntil("");
       setNotice("Licença cadastrada. Para planos pagos, ela fica pendente até a confirmação da assinatura.");
       await loadAll();
     } catch (e) {
@@ -342,10 +344,11 @@ const AssinaPdfAdmin = () => {
           {tab === "customers" && (
             <div className="space-y-4">
               <div><h2 className="text-lg font-semibold">Clientes e licenças</h2><p className="text-sm text-muted-foreground">Usuários cadastrados no AssinaPDF, licenças e assinaturas.</p></div>
-              <form onSubmit={assignLicense} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-[1fr_220px_auto] sm:items-end">
-                <label className="space-y-1 text-sm"><span className="font-medium">ID do usuário no AssinaPDF</span><input required value={licenseUserId} onChange={e => setLicenseUserId(e.target.value)} placeholder="UUID do cliente" className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
-                <label className="space-y-1 text-sm"><span className="font-medium">Plano</span><select required value={licensePlanId} onChange={e => setLicensePlanId(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2"><option value="">Selecione</option>{plans.filter(plan => plan.is_active).map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>
-                <button disabled={saving} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">Criar licença</button>
+              <form onSubmit={assignLicense} className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-[minmax(220px,1fr)_220px_180px_auto] sm:items-end">
+                <label className="space-y-1 text-sm"><span className="font-medium">Cliente do AssinaPDF</span><select required value={licenseUserId} onChange={e => setLicenseUserId(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2"><option value="">Selecione um cliente</option>{customers.map(customer => <option key={customer.user_id} value={customer.user_id}>{customer.full_name || customer.email} — {customer.email}</option>)}</select></label>
+                <label className="space-y-1 text-sm"><span className="font-medium">Plano a atribuir</span><select required value={licensePlanId} onChange={e => setLicensePlanId(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2"><option value="">Selecione</option>{plans.filter(plan => plan.is_active).map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>
+                <label className="space-y-1 text-sm"><span className="font-medium">Validade (opcional)</span><input type="date" value={licenseValidUntil} onChange={e => setLicenseValidUntil(e.target.value)} className="w-full rounded-lg border border-input bg-background px-3 py-2" /></label>
+                <button disabled={saving || customers.length === 0} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">Atribuir plano</button>
               </form>
               <div className="overflow-x-auto rounded-xl border border-border bg-card">
                 <table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-muted/60 text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Dispositivos</th><th className="px-4 py-3">Validade</th><th className="px-4 py-3">Ação</th></tr></thead><tbody>{licenses.map(license => { const customer = customerMap.get(license.user_id); return <tr key={license.id} className="border-t border-border"><td className="px-4 py-3"><div className="font-medium">{customer?.full_name || customer?.email || "Cliente"}</div><div className="max-w-64 truncate text-xs text-muted-foreground">{license.user_id}</div></td><td className="px-4 py-3">{license.assinapdf_plans?.name || "—"}</td><td className="px-4 py-3"><span className="rounded-full bg-muted px-2 py-1 text-xs">{license.status}</span></td><td className="px-4 py-3">{license.max_devices}</td><td className="px-4 py-3">{formatDate(license.valid_until)}</td><td className="px-4 py-3"><select value={license.status} disabled={saving} onChange={e => void changeLicenseStatus(license.id, e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs"><option value="pending">Pendente</option><option value="active">Ativa</option><option value="suspended">Suspensa</option><option value="revoked">Revogada</option><option value="expired">Expirada</option></select></td></tr>; })}{licenses.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">Nenhuma licença cadastrada. Os clientes aparecerão aqui após criarem suas contas.</td></tr>}</tbody></table>
