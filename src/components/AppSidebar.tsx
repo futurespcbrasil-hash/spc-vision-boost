@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, Calendar, FileBarChart,
   MessageCircle, Target, Handshake, ChevronDown, Building2, StickyNote, Search, MessageSquare, Settings2, Layers, UserPlus, FileText, FileSpreadsheet,
-  Monitor, History, Cog, Wallet, Mail, Send, Workflow
+  Monitor, History, Cog, Wallet, Mail, Send, Workflow, KeyRound
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -235,6 +235,20 @@ const AppSidebar = () => {
         {NAV_ITEMS.filter(item => canAccessModule(item.moduleKey)).map(item => {
           return renderNavItem(item, location.pathname === item.to);
         })}
+
+        {canManageUsers && (
+          <Link
+            to="/assinapdf-admin"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+              ${location.pathname === '/assinapdf-admin'
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border'
+                : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+            title={collapsed || menuLayout === 'horizontal' ? 'Chaves AssinaPDF' : undefined}
+          >
+            <KeyRound size={18} />
+            {!collapsed && menuLayout !== 'horizontal' && <span className="flex-1">Chaves AssinaPDF</span>}
+          </Link>
+        )}
 
 
         {['consultas_spc', 'consulta_cnpj', 'consulta_sintegra', 'consulta_cnpj_lote'].some(key => canAccessModule(key)) && (
