@@ -74,6 +74,7 @@ const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const BoletosWhatsApp = lazyWithRetry(() => import("@/pages/BoletosWhatsApp"));
 const EmailMarketing = lazyWithRetry(() => import("@/pages/EmailMarketing"));
 const CampanhasWhatsApp = lazyWithRetry(() => import("@/pages/CampanhasWhatsApp"));
+const AssinaPDFAdmin = lazyWithRetry(() => import("@/pages/AssinaPDFAdmin"));
 
 const queryClient = new QueryClient();
 
@@ -139,6 +140,7 @@ const ProtectedRoutes = () => {
             <Route path="/financeiro/clientes" element={<BoletosWhatsApp initialTab="clientes" />} />
             <Route path="/financeiro/boletos" element={<BoletosWhatsApp />} />
             <Route path="/future-remote" element={<FutureRemoteDashboard />} />
+            <Route path="/assinapdf-admin" element={<AssinaPDFAdmin />} />
             </Route>
             <Route path="/crm-comercial" element={<Navigate to="/crm" replace />} />
             <Route path="/produtos" element={<Navigate to="/" replace />} />
