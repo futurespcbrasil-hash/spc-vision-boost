@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import {
-  Copy, KeyRound, RefreshCw, ShieldCheck, PackagePlus, MonitorDown,
-  History, Laptop, CircleCheck, CircleAlert, Power, Save, X, Download,
+  Copy, KeyRound, RefreshCw, ShieldCheck, PackagePlus,
+  History, Laptop, Power, Save, X, Download,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
