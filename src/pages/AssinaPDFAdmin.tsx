@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { Copy, KeyRound, RefreshCw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,7 +87,7 @@ const AssinaPDFAdmin = () => {
   if (loading) return <div className="p-8 text-muted-foreground">Carregando permissões...</div>;
   if (!user || !canManageUsers) return <Navigate to="/" replace />;
 
-  const createTestKey = async (event: React.FormEvent) => {
+  const createTestKey = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setMessage("");
