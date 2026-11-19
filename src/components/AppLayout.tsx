@@ -31,6 +31,7 @@ const moduleForPath = (pathname: string): string | null => {
   if (pathname.startsWith('/indicacoes')) return 'indicacoes_atendimento';
   if (pathname.startsWith('/financeiro')) return 'financeiro';
   if (pathname.startsWith('/perfil')) return 'perfil';
+  if (pathname.startsWith('/assinapdf-admin')) return 'assinapdf_admin';
   if (pathname.startsWith('/usuarios')) return 'usuarios';
   return null;
 };
@@ -103,8 +104,9 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
   const useNoPadding = noPadding ?? location.pathname.startsWith('/whatsapp');
   // Toda rota renderizada dentro do layout precisa ter módulo explícito e permissão salva.
   const allowed = moduleKey !== null
-    && canAccessModule(moduleKey)
-    && (location.pathname !== '/usuarios' || canManageUsers);
+    && (moduleKey === 'assinapdf_admin'
+      ? canManageUsers
+      : canAccessModule(moduleKey) && (location.pathname !== '/usuarios' || canManageUsers));
 
   return (
     <div className="flex min-h-screen bg-background">
