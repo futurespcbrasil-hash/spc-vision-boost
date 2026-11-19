@@ -243,10 +243,10 @@ const AppSidebar = () => {
               ${location.pathname === '/assinapdf-admin'
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border'
                 : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
-            title={collapsed || menuLayout === 'horizontal' ? 'Chaves AssinaPDF' : undefined}
+            title={collapsed || menuLayout === 'horizontal' ? 'Gestão AssinaPDF' : undefined}
           >
             <KeyRound size={18} />
-            {!collapsed && menuLayout !== 'horizontal' && <span className="flex-1">Chaves AssinaPDF</span>}
+            {!collapsed && menuLayout !== 'horizontal' && <span className="flex-1">Gestão AssinaPDF</span>}
           </Link>
         )}
 
