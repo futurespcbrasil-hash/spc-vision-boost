@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -35,7 +35,6 @@ const lazyWithRetry = (importer: () => Promise<{ default: ComponentType<any> }>)
 
 // Rotas carregadas sob demanda (app mais leve e inicialização mais rápida)
 const ManualEmissor = lazyWithRetry(() => import("@/pages/ManualEmissor"));
-const PortalPublico = lazyWithRetry(() => import("@/pages/PortalPublico"));
 const FutureAssinadorLanding = lazyWithRetry(() => import("@/pages/FutureAssinadorLanding"));
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const GestorDashboard = lazyWithRetry(() => import("@/pages/GestorDashboard"));
@@ -83,6 +82,14 @@ const PageLoader = () => (
     <span className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
   </div>
 );
+
+// Mantém o endereço antigo funcionando, mas encaminha para o manual hospedado em /manual/.
+const LegacyPortalRedirect = () => {
+  useEffect(() => {
+    window.location.replace("/manual/");
+  }, []);
+  return <PageLoader />;
+};
 
 const ProtectedRoutes = () => {
   const { user, loading, role } = useAuth();
@@ -172,7 +179,7 @@ const App = () => (
         <BrowserRouter>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              <Route path="/portal/*" element={<PortalPublico />} />
+              <Route path="/portal/*" element={<LegacyPortalRedirect />} />
               <Route path="/assinar" element={<FutureAssinadorLanding />} />
               <Route path="/comparacao/:id" element={<PublicComparison />} />
               <Route path="/suporte" element={<Suporte />} />

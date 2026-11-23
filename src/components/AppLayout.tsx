@@ -138,9 +138,9 @@ const AppLayout = ({ children, noPadding }: { children?: ReactNode; noPadding?: 
         )}
         <CRMNotificationBell />
         {user && canAccessModule('manual') && (
-          <Link to="/portal" aria-label="Manuais" title="Manuais" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition hover:bg-muted">
+          <a href="/manual/" aria-label="Manual Interativo" title="Manual Interativo" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition hover:bg-muted">
             <BookOpen size={18} />
-          </Link>
+          </a>
         )}
       </div>
       <div className="hidden md:block"><AppSidebar /></div>
