@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/__l5e/:path*",
+      "destination": "https://nota-navigator-academy.vercel.app/__l5e/:path*"
+    },
+    {
       "source": "/manual/",
       "destination": "https://nota-navigator-academy.vercel.app/manual/"
     },
