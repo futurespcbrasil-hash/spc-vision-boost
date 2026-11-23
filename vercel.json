@@ -1,5 +1,14 @@
+
 {
   "rewrites": [
+    {
+      "source": "/manual",
+      "destination": "https://nota-navigator-academy.vercel.app/manual"
+    },
+    {
+      "source": "/manual/:path*",
+      "destination": "https://nota-navigator-academy.vercel.app/manual/:path*"
+    },
     {
       "source": "/(.*)",
       "destination": "/"
