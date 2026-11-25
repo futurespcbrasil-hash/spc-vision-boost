@@ -306,6 +306,9 @@ const AssinaPDFAdmin = () => {
         <button type="button" onClick={() => void loadAll()} disabled={loadingData || busy} className={`${buttonClass} border`}>
           <RefreshCw className={`h-4 w-4 ${loadingData ? "animate-spin" : ""}`} /> Atualizar dados
         </button>
+        <a href="/assinar" target="_blank" rel="noreferrer" className={`${buttonClass} bg-primary text-primary-foreground`}>
+          <span aria-hidden="true">↗</span> Abrir página pública de vendas
+        </a>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-3">
