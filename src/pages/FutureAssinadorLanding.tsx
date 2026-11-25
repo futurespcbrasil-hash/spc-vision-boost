@@ -1,8 +1,8 @@
 import {
   ArrowDownToLine, ArrowRight, BadgeCheck, CheckCircle2, ChevronDown,
   Combine, FileCheck2, FileImage, FileSignature, Files, FileText, FolderOpen,
-  Image, Laptop, LockKeyhole, MessageCircle, Monitor, RotateCw, ShieldCheck,
-  Sparkles, Stamp, Undo2, Upload, WandSparkles, Zap,
+  Image, LockKeyhole, MessageCircle, Monitor, RotateCw, ShieldCheck,
+  Sparkles, Stamp, Undo2, WandSparkles, Zap,
 } from "lucide-react";
 
 const DOWNLOAD_URL = "https://jhmdavcidwqycjedvgoz.supabase.co/storage/v1/object/public/future-remote-installers/AssinaPDF-CrossPlatform-Setup-x64.msi?download";
