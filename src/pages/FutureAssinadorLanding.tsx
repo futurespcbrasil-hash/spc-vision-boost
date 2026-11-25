@@ -5,7 +5,7 @@ import {
   Sparkles, Stamp, Undo2, WandSparkles, Zap,
 } from "lucide-react";
 
-const DOWNLOAD_URL = "https://jhmdavcidwqycjedvgoz.supabase.co/storage/v1/object/public/future-remote-installers/AssinaPDF-CrossPlatform-Setup-x64.msi?download";
+const DOWNLOAD_URL = "https://drive.google.com/uc?export=download&id=14cJ1nDww33DR_sPUWdJasiS9zXxCfvly";
 const WHATSAPP_URL = "https://wa.me/5554981028290?text=" + encodeURIComponent("Olá! Quero conhecer o AssinaPDF da Future Soluções.");
 
 const features = [
