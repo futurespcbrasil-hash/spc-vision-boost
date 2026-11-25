@@ -45,6 +45,7 @@ const whatsappLink = (message: string) =>
 
 type WindowsCertificate = { name: string; subject: string; issuer: string; thumbprint: string; validFrom: string; expiresAt: string; algorithm: string };
 const WINDOWS_AGENT_URL = "http://127.0.0.1:21591";
+const ASSINAPDF_DOWNLOAD_URL = "https://jhmdavcidwqycjedvgoz.supabase.co/storage/v1/object/public/future-remote-installers/AssinaPDF-CrossPlatform-Setup-x64.msi?download";
 
 export default function FutureAssinadorLanding() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -289,6 +290,9 @@ export default function FutureAssinadorLanding() {
             </a>
             <a href="#solucoes" className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-4 font-bold text-slate-700 transition hover:border-violet-200 hover:bg-violet-50">
               Conhecer soluções
+            </a>
+            <a href={ASSINAPDF_DOWNLOAD_URL} className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-6 py-4 font-extrabold text-violet-800 transition hover:-translate-y-0.5 hover:bg-violet-100">
+              <ArrowDownToLine size={18} /> Baixar para Windows 64 bits
             </a>
           </div>
           <div className="mt-8 flex flex-wrap gap-x-5 gap-y-3 text-sm text-slate-600">
