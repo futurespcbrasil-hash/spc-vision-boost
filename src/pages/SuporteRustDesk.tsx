@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowDownToLine, Monitor, ShieldCheck } from 'lucide-react';
 
 const WINDOWS_64_URL =
-  'https://jhmdavcidwqycjedvgoz.supabase.co/storage/v1/object/public/future-remote/future-remote-windows-x64.exe?download';
+  'https://jhmdavcidwqycjedvgoz.supabase.co/storage/v1/object/public/future-remote-installers/rustdesk-1.5.1-x86_64.msi?download';
 
 const SuporteRustDesk = () => (
   <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
@@ -84,6 +84,6 @@ const SuporteRustDesk = () => (
       </footer>
     </div>
   </main>
-);
+); 
 
 export default SuporteRustDesk;
